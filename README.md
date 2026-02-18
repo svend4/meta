@@ -26,7 +26,9 @@ meta/
 │   ├── hexcode/       — двоичные линейные коды в Q6
 │   ├── hexlearn/      — ML на Q6 (k-NN, k-медоиды, Байес, Марков)
 │   ├── hexopt/        — оптимизация на Q6 (SA, GA, TS, LocalSearch)
-│   └── hexring/       — булевы функции (WHT, ANF, bent, RM-коды)
+│   ├── hexring/       — булевы функции (WHT, ANF, bent, RM-коды)
+│   ├── hexsym/        — группа автоморфизмов Aut(Q6), орбиты, лемма Бернсайда
+│   └── hexnet/        — Q6 как коммуникационная сеть (маршрутизация, надёжность)
 ├── docs/
 │   └── q6-math.md     — математические основы графа Q6
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
@@ -51,6 +53,8 @@ meta/
 | [hexlearn](projects/hexlearn/) | Машинное обучение | `hexlearn.py` | реализован |
 | [hexopt](projects/hexopt/) | Оптимизация | `hexopt.py` | реализован |
 | [hexring](projects/hexring/) | Булевы функции / кольца | `hexring.py` | реализован |
+| [hexsym](projects/hexsym/) | Теория групп / симметрия | `hexsym.py` | реализован |
+| [hexnet](projects/hexnet/) | Коммуникационные сети | `hexnet.py` | реализован |
 
 ### Быстрый старт
 
@@ -115,6 +119,21 @@ python3 projects/hexspec/verifier.py projects/hexspec/examples/tcp.json
 # HexSpec: генерация тестовых сценариев
 python3 projects/hexspec/generator.py projects/hexspec/examples/tcp.json --coverage all
 python3 projects/hexspec/generator.py projects/hexspec/examples/tcp.json --format hexforth
+
+# Группа автоморфизмов Q6 (Aut(Q6) = B₆ = S₆ ⋉ (Z₂)⁶)
+python3 projects/hexsym/hexsym.py info
+python3 projects/hexsym/hexsym.py orbits --group s6
+python3 projects/hexsym/hexsym.py burnside --colors 2 --group s6
+python3 projects/hexsym/hexsym.py subsets --k 3 --group s6
+python3 projects/hexsym/hexsym.py edge-orbits
+
+# Q6 как коммуникационная сеть
+python3 projects/hexnet/hexnet.py route 0 63
+python3 projects/hexnet/hexnet.py broadcast 0
+python3 projects/hexnet/hexnet.py stats
+python3 projects/hexnet/hexnet.py percolation --p 0.3
+python3 projects/hexnet/hexnet.py traffic
+python3 projects/hexnet/hexnet.py hamilton
 ```
 
 ---
