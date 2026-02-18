@@ -247,6 +247,79 @@ def print_truth_table(minterms: list[int], dont_cares: list[int] = []) -> None:
             print(f"  {b[0]:>3} {b[1]:>3} {b[2]:>3} {b[3]:>3} {b[4]:>3} {b[5]:>3}  │  {val}  (#{i})")
 
 
+# ---------------------------------------------------------------------------
+# Визуальная карта Карно 8×8 (Q6 = 64 ячейки)
+# ---------------------------------------------------------------------------
+
+# Порядок строк и столбцов по коду Грея для 3 переменных
+_GRAY3 = [0, 1, 3, 2, 6, 7, 5, 4]   # 000,001,011,010,110,111,101,100
+
+# Метки для кода Грея 3-бит (x5x4x3 и x2x1x0)
+_GRAY3_LABELS = ['000', '001', '011', '010', '110', '111', '101', '100']
+
+
+def _cell_index(row: int, col: int) -> int:
+    """Вычислить минтерм по позиции (row, col) в карте 8×8."""
+    # row кодирует x5x4x3, col кодирует x2x1x0
+    hi = _GRAY3[row]   # значение x5x4x3
+    lo = _GRAY3[col]   # значение x2x1x0
+    return (hi << 3) | lo
+
+
+def print_karnaugh_map(minterms: list[int], dont_cares: list[int] = [],
+                       essential: list | None = None) -> None:
+    """
+    Вывести карту Карно 8×8 для функции 6 переменных.
+
+    Оси:
+      Строки  = x5 x4 x3  (3 старших бита, код Грея)
+      Столбцы = x2 x1 x0  (3 младших бита, код Грея)
+
+    Символы ячеек:
+      1  — минтерм
+      -  — безразличный (don't care)
+      .  — 0
+      *  — минтерм, покрытый существенным импликантом (если передан)
+    """
+    m_set = set(minterms)
+    dc_set = set(dont_cares)
+    ess_covered: set[int] = set()
+    if essential:
+        for e in essential:
+            ess_covered.update(e.covered & m_set)
+
+    print()
+    print("  Карта Карно Q6  (8×8)")
+    print()
+
+    # Заголовок столбцов (x2x1x0)
+    col_header = '  x5x4x3╲x2x1x0 │ ' + '  '.join(_GRAY3_LABELS) + ' │'
+    print(col_header)
+    sep = '  ' + '─' * 10 + '┼─' + '────' * 8 + '──┤'
+    print(sep)
+
+    for row in range(8):
+        label = _GRAY3_LABELS[row]
+        cells = []
+        for col in range(8):
+            idx = _cell_index(row, col)
+            if idx in ess_covered:
+                cells.append('*')
+            elif idx in m_set:
+                cells.append('1')
+            elif idx in dc_set:
+                cells.append('-')
+            else:
+                cells.append('·')
+        row_str = '  ' + ''.join(c.ljust(3) for c in cells)
+        print(f"  {label:>10}  │ {row_str}│")
+
+    print(sep.replace('┼', '┴'))
+    print()
+    print("  Обозначения: 1=минтерм  *=покрыт существенным  -=безразличный  ·=0")
+    print()
+
+
 def print_result(result: dict) -> None:
     pis = result['prime_implicants']
     ess = result['essential']
@@ -287,6 +360,10 @@ def main() -> None:
         '--table', action='store_true',
         help='Вывести таблицу истинности'
     )
+    parser.add_argument(
+        '--map', action='store_true',
+        help='Вывести карту Карно 8×8'
+    )
     args = parser.parse_args()
 
     minterms = args.minterms
@@ -318,6 +395,10 @@ def main() -> None:
         print_truth_table(minterms, dont_cares)
 
     result = minimize(minterms, dont_cares)
+
+    if args.map:
+        print_karnaugh_map(minterms, dont_cares, essential=result['essential'])
+
     print_result(result)
 
 
