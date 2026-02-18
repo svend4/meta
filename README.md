@@ -31,14 +31,42 @@ meta/
 
 ## Проекты
 
-| Проект | Область | Стек | Статус |
+| Проект | Область | Ключевые файлы | Статус |
 |---|---|---|---|
-| [hexnav](projects/hexnav/) | Инструмент / UI | Python + JS | идея |
-| [hexca](projects/hexca/) | Наука / симуляция | Python | идея |
-| [hexpath](projects/hexpath/) | Игры | Python | идея |
-| [hexforth](projects/hexforth/) | Языки программирования | Python | исследование |
-| [karnaugh6](projects/karnaugh6/) | Образование / электроника | Python + JS | идея |
-| [hexspec](projects/hexspec/) | Формальные методы | Python | исследование |
+| [hexnav](projects/hexnav/) | Инструмент / навигация | `hexnav.py` | реализован |
+| [hexca](projects/hexca/) | Наука / симуляция | `hexca.py`, `rules.py` | реализован |
+| [hexpath](projects/hexpath/) | Игры | `game.py`, `cli.py` | реализован |
+| [hexforth](projects/hexforth/) | Языки программирования | `interpreter.py`, `compiler.py` | реализован |
+| [karnaugh6](projects/karnaugh6/) | Образование / электроника | `minimize.py` | реализован |
+| [hexspec](projects/hexspec/) | Формальные методы | `verifier.py`, `generator.py` | реализован |
+
+### Быстрый старт
+
+```bash
+# Навигатор по Q6 (интерактивный)
+python3 projects/hexnav/hexnav.py 42
+
+# Клеточный автомат (1D и 2D)
+python3 projects/hexca/hexca.py --rule xor_rule --steps 12
+python3 projects/hexca/hexca.py --mode 2d --rule conway_b3s23 --width 40 --height 15 --steps 5
+
+# Стратегическая игра на Q6 (человек vs AI)
+python3 projects/hexpath/cli.py
+
+# Минимизатор булевых функций (6 переменных, Куайн–МакКласки)
+python3 projects/karnaugh6/minimize.py 0 1 2 3 4 5 6 7 --table
+
+# HexForth: запуск программы
+python3 projects/hexforth/interpreter.py projects/hexforth/examples/hello.hf
+# HexForth: компиляция в Python
+python3 projects/hexforth/compiler.py projects/hexforth/examples/hello.hf --target python
+
+# HexSpec: верификация автомата
+python3 projects/hexspec/verifier.py projects/hexspec/examples/tcp.json
+# HexSpec: генерация тестовых сценариев
+python3 projects/hexspec/generator.py projects/hexspec/examples/tcp.json --coverage all
+python3 projects/hexspec/generator.py projects/hexspec/examples/tcp.json --format hexforth
+```
 
 ---
 
@@ -93,7 +121,8 @@ python3 libs/hexcore/hexcore.py
 
 1. Прочитать `libs/hexcore/README.md` — понять ядро
 2. Запустить `python3 libs/hexcore/hexcore.py` — увидеть граф в действии
-3. Выбрать проект из таблицы выше — начать реализацию
+3. Запустить `python3 projects/hexnav/hexnav.py` — интерактивно исследовать Q6
+4. Выбрать проект из таблицы выше и изучить его README
 
 ---
 
