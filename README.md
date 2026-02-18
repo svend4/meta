@@ -20,7 +20,11 @@ meta/
 │   ├── hexpath/       — абстрактная стратегическая игра
 │   ├── hexforth/      — стековый язык в духе Forth
 │   ├── karnaugh6/     — карта Карно для 6 переменных
-│   └── hexspec/       — язык спецификации протоколов
+│   ├── hexspec/       — язык спецификации протоколов
+│   ├── hexgraph/      — теория графов (подграфы, спектр, изоморфизм)
+│   ├── hexvis/        — визуализация (ASCII, DOT, SVG)
+│   ├── hexcode/       — двоичные линейные коды в Q6
+│   └── hexlearn/      — ML на Q6 (k-NN, k-медоиды, Байес, Марков)
 ├── docs/
 │   └── q6-math.md     — математические основы графа Q6
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
@@ -41,6 +45,8 @@ meta/
 | [hexspec](projects/hexspec/) | Формальные методы | `verifier.py`, `generator.py` | реализован |
 | [hexgraph](projects/hexgraph/) | Теория графов | `hexgraph.py` | реализован |
 | [hexvis](projects/hexvis/) | Визуализация | `hexvis.py` | реализован |
+| [hexcode](projects/hexcode/) | Теория кодирования | `hexcode.py` | реализован |
+| [hexlearn](projects/hexlearn/) | Машинное обучение | `hexlearn.py` | реализован |
 
 ### Быстрый старт
 
@@ -76,6 +82,17 @@ python3 projects/hexvis/hexvis.py auto 0 63 --grid
 python3 projects/hexvis/hexvis.py hexagram 42
 # HexForth: компиляция в Python
 python3 projects/hexforth/compiler.py projects/hexforth/examples/hello.hf --target python
+
+# Двоичные линейные коды в Q6
+python3 projects/hexcode/hexcode.py standard
+python3 projects/hexcode/hexcode.py decode hex312 "101010"
+python3 projects/hexcode/hexcode.py bounds
+
+# Машинное обучение на Q6
+python3 projects/hexlearn/hexlearn.py kmeans --k 4
+python3 projects/hexlearn/hexlearn.py markov --start 0 --steps 20 --mixing
+python3 projects/hexlearn/hexlearn.py knn --k 3 --query 42
+python3 projects/hexlearn/hexlearn.py bayes --query 42
 
 # HexSpec: верификация автомата
 python3 projects/hexspec/verifier.py projects/hexspec/examples/tcp.json
