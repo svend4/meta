@@ -51,7 +51,7 @@
 Запуск:
 
 ```bash
-python3 /home/runner/work/meta/meta/flower_shop.py
+python3 flower_shop.py
 ```
 
 Возможности программы:
