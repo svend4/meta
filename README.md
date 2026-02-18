@@ -24,7 +24,9 @@ meta/
 │   ├── hexgraph/      — теория графов (подграфы, спектр, изоморфизм)
 │   ├── hexvis/        — визуализация (ASCII, DOT, SVG)
 │   ├── hexcode/       — двоичные линейные коды в Q6
-│   └── hexlearn/      — ML на Q6 (k-NN, k-медоиды, Байес, Марков)
+│   ├── hexlearn/      — ML на Q6 (k-NN, k-медоиды, Байес, Марков)
+│   ├── hexopt/        — оптимизация на Q6 (SA, GA, TS, LocalSearch)
+│   └── hexring/       — булевы функции (WHT, ANF, bent, RM-коды)
 ├── docs/
 │   └── q6-math.md     — математические основы графа Q6
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
@@ -47,6 +49,8 @@ meta/
 | [hexvis](projects/hexvis/) | Визуализация | `hexvis.py` | реализован |
 | [hexcode](projects/hexcode/) | Теория кодирования | `hexcode.py` | реализован |
 | [hexlearn](projects/hexlearn/) | Машинное обучение | `hexlearn.py` | реализован |
+| [hexopt](projects/hexopt/) | Оптимизация | `hexopt.py` | реализован |
+| [hexring](projects/hexring/) | Булевы функции / кольца | `hexring.py` | реализован |
 
 ### Быстрый старт
 
@@ -93,6 +97,18 @@ python3 projects/hexlearn/hexlearn.py kmeans --k 4
 python3 projects/hexlearn/hexlearn.py markov --start 0 --steps 20 --mixing
 python3 projects/hexlearn/hexlearn.py knn --k 3 --query 42
 python3 projects/hexlearn/hexlearn.py bayes --query 42
+
+# Оптимизация на Q6
+python3 projects/hexopt/hexopt.py hexagram all
+python3 projects/hexopt/hexopt.py subset dominating ls
+python3 projects/hexopt/hexopt.py compare --trials 10
+
+# Булевы функции на Q6
+python3 projects/hexring/hexring.py info bent
+python3 projects/hexring/hexring.py table
+python3 projects/hexring/hexring.py wht bent
+python3 projects/hexring/hexring.py rm 2 --encode $(python3 -c "print('1'*22)")
+python3 projects/hexring/hexring.py bent --n 5
 
 # HexSpec: верификация автомата
 python3 projects/hexspec/verifier.py projects/hexspec/examples/tcp.json
