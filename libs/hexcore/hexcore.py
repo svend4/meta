@@ -182,6 +182,115 @@ def hexagrams_by_yang(count: int) -> list[int]:
 
 
 # ---------------------------------------------------------------------------
+# Орбиты и структурный анализ
+# ---------------------------------------------------------------------------
+
+def orbit(h: int, transform: 'callable[[int], int]', max_steps: int = SIZE) -> list[int]:
+    """
+    Орбита гексаграммы h под повторным применением transform.
+    Возвращает список [h, f(h), f(f(h)), ...] до первого повторения (цикл).
+    """
+    seen: set[int] = set()
+    result: list[int] = []
+    current = h
+    for _ in range(max_steps):
+        if current in seen:
+            break
+        seen.add(current)
+        result.append(current)
+        current = transform(current)
+    return result
+
+
+def orbit_length(h: int, transform: 'callable[[int], int]', max_steps: int = SIZE) -> int:
+    """Длина орбиты (длина цикла) гексаграммы h под transform."""
+    return len(orbit(h, transform, max_steps))
+
+
+def all_orbits(transform: 'callable[[int], int]') -> list[list[int]]:
+    """
+    Разбить все 64 гексаграммы на орбиты под transform.
+    Возвращает список орбит (каждая орбита — список гексаграмм).
+    """
+    unvisited = set(range(SIZE))
+    orbits: list[list[int]] = []
+    while unvisited:
+        start = min(unvisited)
+        orb = orbit(start, transform)
+        orbits.append(orb)
+        unvisited -= set(orb)
+    return orbits
+
+
+def subcubes(k: int) -> list[frozenset[int]]:
+    """
+    Все k-мерные подкубы Q6.
+    k-мерный подкуб: набор 2^k гексаграмм, зафиксировав (6-k) бит
+    и свободно варьируя k бит.
+    Используется в карте Карно для нахождения групп минтермов.
+    """
+    if not 0 <= k <= LINES:
+        raise ValueError(f"k must be 0..{LINES}, got {k}")
+    result: list[frozenset[int]] = []
+    from itertools import combinations
+    for free_bits in combinations(range(LINES), k):
+        # Для каждого набора фиксированных значений остальных битов
+        fixed_bits = [b for b in range(LINES) if b not in free_bits]
+        # Перебрать все 2^(6-k) фиксированных значений
+        n_fixed = LINES - k
+        for fixed_val in range(1 << n_fixed):
+            # Построить базовое значение гексаграммы
+            base = 0
+            for idx, bit in enumerate(fixed_bits):
+                if (fixed_val >> idx) & 1:
+                    base |= (1 << bit)
+            # Добавить все 2^k вариации свободных битов
+            cube: set[int] = set()
+            for free_val in range(1 << k):
+                h = base
+                for idx, bit in enumerate(free_bits):
+                    if (free_val >> idx) & 1:
+                        h |= (1 << bit)
+                cube.add(h)
+            result.append(frozenset(cube))
+    return result
+
+
+def distance_spectrum(h: int) -> list[int]:
+    """
+    Спектр расстояний: список [n0, n1, n2, n3, n4, n5, n6],
+    где ni = число гексаграмм на расстоянии i от h.
+    В Q6: [1, 6, 15, 20, 15, 6, 1] для любой вершины (регулярный граф).
+    """
+    from math import comb
+    return [comb(LINES, i) for i in range(LINES + 1)]
+
+
+def sphere(h: int, radius: int) -> list[int]:
+    """Все гексаграммы на расстоянии ровно radius от h."""
+    return [x for x in range(SIZE) if hamming(h, x) == radius]
+
+
+def ball(h: int, radius: int) -> list[int]:
+    """Все гексаграммы на расстоянии ≤ radius от h."""
+    return [x for x in range(SIZE) if hamming(h, x) <= radius]
+
+
+def apply_permutation(h: int, perm: list[int]) -> int:
+    """
+    Применить перестановку битов к гексаграмме.
+    perm[i] = j означает: бит i исходной гексаграммы → бит j результата.
+    """
+    if len(perm) != LINES:
+        raise ValueError(f"perm must have length {LINES}")
+    result = 0
+    for i, j in enumerate(perm):
+        if (h >> i) & 1:
+            result |= (1 << j)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Вспомогательное
 # ---------------------------------------------------------------------------
 

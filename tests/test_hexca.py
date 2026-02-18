@@ -6,6 +6,7 @@ import unittest
 from projects.hexca.hexca import CA1D, CA2D
 from projects.hexca.rules import (
     majority_vote, xor_rule, identity, conway_like, RULES, get_rule,
+    smooth_rule, cyclic_rule, outer_totalistic,
 )
 from libs.hexcore.hexcore import neighbors, yang_count, SIZE
 
@@ -205,6 +206,63 @@ class TestCA2DBasic(unittest.TestCase):
         ca = CA2D(width=6, height=6, rule=xor_rule)
         ca.run(5)
         self.assertEqual(ca.generation, 5)
+
+
+class TestRuleSmoothAndCyclic(unittest.TestCase):
+    def test_smooth_returns_valid_state(self):
+        for h in range(0, SIZE, 7):
+            result = smooth_rule(h, list(range(4)))
+            self.assertIn(result, range(SIZE))
+
+    def test_smooth_empty_neighbors(self):
+        self.assertEqual(smooth_rule(42, []), 42)
+
+    def test_smooth_all_same_no_change(self):
+        """Если все соседи == текущему, ничего не меняется."""
+        for h in range(SIZE):
+            result = smooth_rule(h, [h, h, h, h])
+            self.assertEqual(result, h)
+
+    def test_smooth_converges(self):
+        """Правило сглаживания на однородном поле — стабильно."""
+        from projects.hexca.hexca import CA1D
+        init = [21] * 10   # однородное поле
+        ca = CA1D(width=10, rule=smooth_rule, init=init)
+        ca.run(5)
+        # Поле должно остаться однородным (у всех соседи тоже 21)
+        self.assertEqual(ca.grid, [21] * 10)
+
+    def test_cyclic_returns_valid_state(self):
+        rule = cyclic_rule(step=1)
+        for h in range(0, SIZE, 7):
+            result = rule(h, list(range(4)))
+            self.assertIn(result, range(SIZE))
+
+    def test_cyclic_no_neighbors(self):
+        rule = cyclic_rule(step=1)
+        self.assertEqual(rule(0, []), 0)
+
+    def test_cyclic_registered(self):
+        self.assertIn('cyclic', RULES)
+        self.assertIn('cyclic2', RULES)
+
+    def test_outer_totalistic_no_match(self):
+        """Если ключ не в таблице, состояние не меняется."""
+        rule = outer_totalistic({})
+        for h in range(0, SIZE, 5):
+            self.assertEqual(rule(h, [0, 1, 2]), h)
+
+    def test_outer_totalistic_increase_yang(self):
+        """Если new_c > c, добавить инь-черту в ян."""
+        rule = outer_totalistic({(0, 0): 1})
+        result = rule(0, [0, 0, 0])
+        self.assertEqual(yang_count(result), 1)
+
+    def test_outer_totalistic_decrease_yang(self):
+        """Если new_c < c, убрать ян-черту в инь."""
+        rule = outer_totalistic({(6, 0): 5})
+        result = rule(63, [0, 0, 0])
+        self.assertEqual(yang_count(result), 5)
 
 
 class TestCA1DXorPattern(unittest.TestCase):

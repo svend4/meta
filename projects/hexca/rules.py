@@ -99,6 +99,87 @@ def random_walk(current: int, nbrs: list[int]) -> int:
     return random.choice(nb)
 
 
+def outer_totalistic(table: dict[tuple[int, int], int]) -> RuleFn:
+    """
+    Внешний тотализм: новое состояние зависит только от
+    (yang_count(current), sum_yang_neighbors).
+    table[(c, s)] = новый yang_count. Если ключа нет — состояние не меняется.
+
+    Пример: outer_totalistic({(3,9): 6, (0,18): 1}) —
+    клетка с 3 ян при сумме 9 ян у соседей переходит в 6 ян.
+    """
+    def rule(current: int, nbrs: list[int]) -> int:
+        c = yang_count(current)
+        s = sum(yang_count(nb) for nb in nbrs)
+        new_c = table.get((c, s))
+        if new_c is None or new_c == c:
+            return current
+        # Изменить ровно abs(new_c - c) черт за минимальное число шагов
+        # (так как правило Q6 меняет 1 черту за шаг, делаем 1 шаг)
+        diff = new_c - c
+        if diff > 0:
+            # Установить первую инь-черту в ян
+            for b in range(6):
+                if not ((current >> b) & 1):
+                    return flip(current, b)
+        else:
+            # Сбросить первую ян-черту в инь
+            for b in range(6):
+                if (current >> b) & 1:
+                    return flip(current, b)
+        return current
+    return rule
+
+
+def smooth_rule(current: int, nbrs: list[int]) -> int:
+    """
+    Правило «сглаживания» (дискретный Лапласиан на Q6):
+    если среднее ян соседей > ян текущей — добавить одну ян-черту,
+    если меньше — убрать одну ян-черту,
+    иначе — оставить как есть.
+    Приводит к усреднению поля со временем.
+    """
+    if not nbrs:
+        return current
+    avg_yang = sum(yang_count(nb) for nb in nbrs) / len(nbrs)
+    c = yang_count(current)
+    if avg_yang > c + 0.5:
+        for b in range(6):
+            if not ((current >> b) & 1):
+                return flip(current, b)
+    elif avg_yang < c - 0.5:
+        for b in range(6):
+            if (current >> b) & 1:
+                return flip(current, b)
+    return current
+
+
+def cyclic_rule(step: int = 1) -> RuleFn:
+    """
+    Циклическое правило: если хотя бы один сосед имеет ян-счёт
+    на step больше (по модулю 7), перейти к следующему ян-уровню.
+    Создаёт распространяющиеся волны.
+    """
+    n_states = 7  # 0..6 ян-черт
+    def rule(current: int, nbrs: list[int]) -> int:
+        c = yang_count(current)
+        next_c = (c + step) % n_states
+        for nb in nbrs:
+            if yang_count(nb) == next_c:
+                # Перейти к next_c ян
+                diff = next_c - c
+                if diff > 0:
+                    for b in range(6):
+                        if not ((current >> b) & 1):
+                            return flip(current, b)
+                elif diff < 0:
+                    for b in range(6):
+                        if (current >> b) & 1:
+                            return flip(current, b)
+        return current
+    return rule
+
+
 # Реестр правил по имени
 RULES: dict[str, RuleFn] = {
     'majority_vote': majority_vote,
@@ -107,6 +188,9 @@ RULES: dict[str, RuleFn] = {
     'conway_b36s23': conway_like(birth={3, 6}, survive={2, 3}),
     'identity': identity,
     'random_walk': random_walk,
+    'smooth': smooth_rule,
+    'cyclic': cyclic_rule(step=1),
+    'cyclic2': cyclic_rule(step=2),
 }
 
 
