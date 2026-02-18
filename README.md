@@ -34,11 +34,13 @@ meta/
 | Проект | Область | Ключевые файлы | Статус |
 |---|---|---|---|
 | [hexnav](projects/hexnav/) | Инструмент / навигация | `hexnav.py` | реализован |
-| [hexca](projects/hexca/) | Наука / симуляция | `hexca.py`, `rules.py` | реализован |
-| [hexpath](projects/hexpath/) | Игры | `game.py`, `cli.py` | реализован |
-| [hexforth](projects/hexforth/) | Языки программирования | `interpreter.py`, `compiler.py` | реализован |
+| [hexca](projects/hexca/) | Наука / симуляция | `hexca.py`, `rules.py`, `animate.py` | реализован |
+| [hexpath](projects/hexpath/) | Игры | `game.py`, `cli.py`, `puzzle.py` | реализован |
+| [hexforth](projects/hexforth/) | Языки программирования | `interpreter.py`, `compiler.py`, `verifier.py` | реализован |
 | [karnaugh6](projects/karnaugh6/) | Образование / электроника | `minimize.py` | реализован |
 | [hexspec](projects/hexspec/) | Формальные методы | `verifier.py`, `generator.py` | реализован |
+| [hexgraph](projects/hexgraph/) | Теория графов | `hexgraph.py` | реализован |
+| [hexvis](projects/hexvis/) | Визуализация | `hexvis.py` | реализован |
 
 ### Быстрый старт
 
@@ -58,6 +60,20 @@ python3 projects/karnaugh6/minimize.py 0 1 2 3 4 5 6 7 --table
 
 # HexForth: запуск программы
 python3 projects/hexforth/interpreter.py projects/hexforth/examples/hello.hf
+
+# Головоломка на Q6 (однопользовательский режим)
+python3 projects/hexpath/puzzle.py list
+python3 projects/hexpath/puzzle.py play --id 0
+
+# Граф-теоретический анализ Q6
+python3 projects/hexgraph/hexgraph.py q6 --spectrum
+python3 projects/hexgraph/hexgraph.py layer 3
+python3 projects/hexgraph/hexgraph.py hamilton 0 1 3 2 6 7 5 4 --cycle
+
+# Визуализация Q6
+python3 projects/hexvis/hexvis.py grid --highlight 0 42 63
+python3 projects/hexvis/hexvis.py auto 0 63 --grid
+python3 projects/hexvis/hexvis.py hexagram 42
 # HexForth: компиляция в Python
 python3 projects/hexforth/compiler.py projects/hexforth/examples/hello.hf --target python
 
