@@ -158,8 +158,19 @@ class HexForth:
 
         # Пользовательское слово
         if word in self.definitions:
-            for w in self.definitions[word]:
-                self.execute_word(w)
+            body = self.definitions[word]
+            ARG_WORDS = {'GOTO', 'ASSERT-EQ'}
+            j = 0
+            while j < len(body):
+                bw = body[j].upper()
+                if bw in ARG_WORDS:
+                    if j + 1 >= len(body):
+                        raise HexForthError(f"'{bw}' требует аргумент")
+                    self.execute_word(f"{bw} {body[j + 1]}")
+                    j += 2
+                else:
+                    self.execute_word(bw)
+                    j += 1
             return
 
         raise HexForthError(f"Неизвестное слово: '{word}'")
@@ -187,15 +198,21 @@ class HexForth:
                 continue
 
             # Обработка DEFINE
-            if line.upper().startswith('DEFINE'):
-                # DEFINE имя : слово1 слово2 ... ;
+            if line.upper().lstrip().startswith('DEFINE'):
+                # DEFINE имя : слово1 слово2 ... ; [остальные токены]
                 parts = line.split()
-                if len(parts) < 4 or ':' not in parts or parts[-1] != ';':
+                if ':' not in parts or ';' not in parts:
                     raise HexForthError(f"Синтаксис: DEFINE имя : слово1 ... ;")
                 name = parts[1].upper()
                 colon_idx = parts.index(':')
-                body = parts[colon_idx + 1:-1]
+                semi_idx = parts.index(';')
+                if semi_idx <= colon_idx:
+                    raise HexForthError(f"Синтаксис: DEFINE имя : слово1 ... ;")
+                body = parts[colon_idx + 1:semi_idx]
                 self.definitions[name] = body
+                # Токены после ';' добавляем как обычные
+                rest = parts[semi_idx + 1:]
+                tokens.extend(rest)
                 continue
 
             # Обычные токены
