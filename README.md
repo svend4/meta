@@ -34,7 +34,9 @@ meta/
 │   ├── hexgeom/       — метрическая геометрия (шары Хэмминга, Вороной, пакинг)
 │   ├── hexdim/        — размерности: тессеракты Q4, куб Q3, Q6=Q3×Q3, псевдо-QR
 │   ├── hexalg/        — гармонический анализ (WHT/Фурье, свёртка, граф Кэли, bent)
-│   └── hexphys/       — статистическая физика (цепочка Изинга, Монте-Карло, кванты)
+│   ├── hexphys/       — статистическая физика (цепочка Изинга, Монте-Карло, кванты)
+│   ├── hexgf/         — поле Галуа GF(2^6): умножение, след, цикл. классы, BCH
+│   └── hexmat/        — линейная алгебра над GF(2): матрицы, GL(6,2), линейные коды
 ├── docs/
 │   └── q6-math.md     — математические основы графа Q6
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
@@ -67,6 +69,8 @@ meta/
 | [hexdim](projects/hexdim/) | Размерности и проекции | `hexdim.py` | реализован |
 | [hexalg](projects/hexalg/) | Гармонический анализ / алгебра | `hexalg.py` | реализован |
 | [hexphys](projects/hexphys/) | Статистическая физика | `hexphys.py` | реализован |
+| [hexgf](projects/hexgf/) | Поле Галуа GF(2^6) | `hexgf.py` | реализован |
+| [hexmat](projects/hexmat/) | Линейная алгебра / GF(2) | `hexmat.py` | реализован |
 
 ### Быстрый старт
 
@@ -190,6 +194,19 @@ python3 projects/hexphys/hexphys.py yang 1.0
 python3 projects/hexphys/hexphys.py mcmc 1.0 1.0
 python3 projects/hexphys/hexphys.py quantum
 python3 projects/hexphys/hexphys.py correlator 1.0 1.0
+
+# Поле Галуа GF(2^6) (умножение, след, циклотомические классы, BCH)
+python3 projects/hexgf/hexgf.py info
+python3 projects/hexgf/hexgf.py mul 7 3
+python3 projects/hexgf/hexgf.py power
+python3 projects/hexgf/hexgf.py cosets
+python3 projects/hexgf/hexgf.py minpoly 2
+python3 projects/hexgf/hexgf.py trace
+
+# Линейная алгебра над GF(2) на Q6 (матрицы, GL(6,2), ранг, коды)
+python3 projects/hexmat/hexmat.py info
+python3 projects/hexmat/hexmat.py rank
+python3 projects/hexmat/hexmat.py code
 ```
 
 ---
