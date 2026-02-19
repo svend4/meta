@@ -36,7 +36,9 @@ meta/
 │   ├── hexalg/        — гармонический анализ (WHT/Фурье, свёртка, граф Кэли, bent)
 │   ├── hexphys/       — статистическая физика (цепочка Изинга, Монте-Карло, кванты)
 │   ├── hexgf/         — поле Галуа GF(2^6): умножение, след, цикл. классы, BCH
-│   └── hexmat/        — линейная алгебра над GF(2): матрицы, GL(6,2), линейные коды
+│   ├── hexmat/        — линейная алгебра над GF(2): матрицы, GL(6,2), линейные коды
+│   ├── hexbio/        — биоинформатика: генетический код как граф мутаций на Q6
+│   └── hexlat/        — булева решётка B₆: Мёбиус, цепи, антицепи, многочлены
 ├── docs/
 │   └── q6-math.md     — математические основы графа Q6
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
@@ -71,6 +73,8 @@ meta/
 | [hexphys](projects/hexphys/) | Статистическая физика | `hexphys.py` | реализован |
 | [hexgf](projects/hexgf/) | Поле Галуа GF(2^6) | `hexgf.py` | реализован |
 | [hexmat](projects/hexmat/) | Линейная алгебра / GF(2) | `hexmat.py` | реализован |
+| [hexbio](projects/hexbio/) | Биоинформатика | `hexbio.py` | реализован |
+| [hexlat](projects/hexlat/) | Булева решётка / poset | `hexlat.py` | реализован |
 
 ### Быстрый старт
 
@@ -207,6 +211,20 @@ python3 projects/hexgf/hexgf.py trace
 python3 projects/hexmat/hexmat.py info
 python3 projects/hexmat/hexmat.py rank
 python3 projects/hexmat/hexmat.py code
+
+# Биоинформатика: генетический код на Q6 (кодоны = гексаграммы, граф мутаций)
+python3 projects/hexbio/hexbio.py info
+python3 projects/hexbio/hexbio.py codon AUG
+python3 projects/hexbio/hexbio.py mutation UUU UUC
+python3 projects/hexbio/hexbio.py graph
+python3 projects/hexbio/hexbio.py wobble
+
+# Булева решётка B₆ = Q6 как poset (частичный порядок, Мёбиус, антицепи)
+python3 projects/hexlat/hexlat.py info
+python3 projects/hexlat/hexlat.py interval 5 63
+python3 projects/hexlat/hexlat.py mobius 0 63
+python3 projects/hexlat/hexlat.py chains
+python3 projects/hexlat/hexlat.py antichain
 ```
 
 ---
