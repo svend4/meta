@@ -7,6 +7,7 @@ from projects.hexvis.hexvis import (
     render_grid, render_path, render_hexagram, render_transition,
     to_dot, to_svg, _GRAY3,
     render_glyph, render_hasse_glyphs,
+    render_glyph_grid, to_svg_hasse_glyphs,
 )
 from libs.hexcore.hexcore import neighbors, hamming, yang_count, SIZE
 
@@ -342,6 +343,111 @@ class TestRenderHasseGlyphs(unittest.TestCase):
         # The combined output must contain at least one '_' and one '|'
         self.assertIn('_', out)
         self.assertIn('|', out)
+
+
+class TestRenderGlyphGrid(unittest.TestCase):
+    def test_nonempty(self):
+        out = render_glyph_grid(color=False)
+        self.assertGreater(len(out), 0)
+
+    def test_contains_separator(self):
+        """Grid contains a column-header separator line."""
+        out = render_glyph_grid(color=False)
+        self.assertIn('─', out)
+
+    def test_8x8_glyph_rows(self):
+        """8 Gray-code rows × 3 glyph lines each = 24 glyph content lines."""
+        out = render_glyph_grid(color=False)
+        # Count lines that start with the row prefix pattern '  xxx │ '
+        glyph_lines = [l for l in out.split('\n') if '│ ' in l]
+        self.assertEqual(len(glyph_lines), 8 * 3)
+
+    def test_all_segments_visible(self):
+        """Grid output contains '_', '|', '\\', '/' and 'X' characters."""
+        out = render_glyph_grid(color=False)
+        for ch in '_|/\\X':
+            self.assertIn(ch, out, f"Missing character {ch!r} in glyph grid")
+
+    def test_gray_code_labels_present(self):
+        """All 8 Gray-code 3-bit labels appear in the header."""
+        out = render_glyph_grid(color=False)
+        for g in _GRAY3:
+            self.assertIn(format(g, '03b'), out)
+
+    def test_title_displayed(self):
+        out = render_glyph_grid(color=False, title='Test title')
+        self.assertIn('Test title', out)
+
+    def test_highlight_no_crash(self):
+        render_glyph_grid(color=True, highlights={0, 42, 63})
+
+    def test_neighbor_cells_differ_by_one_bit(self):
+        """Adjacent cells in a row are Q6 neighbours (hamming distance = 1)."""
+        for row_idx in range(7):
+            for col_idx in range(7):
+                h1 = (_GRAY3[row_idx] << 3) | _GRAY3[col_idx]
+                h2 = (_GRAY3[row_idx] << 3) | _GRAY3[col_idx + 1]
+                self.assertEqual(hamming(h1, h2), 1)
+
+    def test_glyph_63_appears(self):
+        """The full glyph (h=63) row1='|X|' appears in the grid."""
+        out = render_glyph_grid(color=False)
+        self.assertIn('|X|', out)
+
+
+class TestToSvgHasseGlyphs(unittest.TestCase):
+    def test_returns_svg(self):
+        svg = to_svg_hasse_glyphs()
+        self.assertIn('<svg', svg)
+        self.assertIn('</svg>', svg)
+
+    def test_contains_64_rects(self):
+        """One <rect> per glyph node (plus the background rect = 65 total)."""
+        svg = to_svg_hasse_glyphs()
+        # background rect + 64 node rects = 65
+        self.assertEqual(svg.count('<rect'), 65)
+
+    def test_contains_paths(self):
+        """Non-empty elements produce <path> segments."""
+        svg = to_svg_hasse_glyphs()
+        self.assertIn('<path', svg)
+
+    def test_title_in_svg(self):
+        svg = to_svg_hasse_glyphs(title='MyHasse')
+        self.assertIn('MyHasse', svg)
+
+    def test_edges_present_by_default(self):
+        """Cover-relation edges (lines) are drawn by default."""
+        svg = to_svg_hasse_glyphs(show_edges=True)
+        self.assertIn('<line', svg)
+
+    def test_no_edges_option(self):
+        """show_edges=False removes all <line> elements."""
+        svg = to_svg_hasse_glyphs(show_edges=False)
+        self.assertNotIn('<line', svg)
+
+    def test_highlight_no_crash(self):
+        to_svg_hasse_glyphs(highlights={0, 42, 63})
+
+    def test_no_color_no_crash(self):
+        to_svg_hasse_glyphs(color=False)
+
+    def test_custom_cell_size(self):
+        """Different cell sizes produce different SVG dimensions."""
+        svg_small = to_svg_hasse_glyphs(cell=12)
+        svg_large = to_svg_hasse_glyphs(cell=24)
+        # Extract width attribute
+        import re
+        w_small = int(re.search(r'width="(\d+)"', svg_small).group(1))
+        w_large = int(re.search(r'width="(\d+)"', svg_large).group(1))
+        self.assertLess(w_small, w_large)
+
+    def test_element_0_has_no_path(self):
+        """h=0 has no segments, so its node produces no <path>."""
+        # All segments come from bits 1-6; h=0 has no bits set → no path.
+        # The total path count equals the number of non-zero elements (63).
+        svg = to_svg_hasse_glyphs(color=False, show_edges=False)
+        self.assertEqual(svg.count('<path'), 63)
 
 
 if __name__ == '__main__':
