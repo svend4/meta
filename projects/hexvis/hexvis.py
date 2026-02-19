@@ -386,6 +386,93 @@ def to_svg(
 
 
 # ---------------------------------------------------------------------------
+# Glyph encoding: each Q6 element as a 3×3 ASCII icon (6 line segments)
+# ---------------------------------------------------------------------------
+#
+# Bit → segment mapping (all 64 elements produce distinct glyphs):
+#   bit 0  top bar        row 0 centre = '_'
+#   bit 1  bottom bar     row 2 centre = '_'
+#   bit 2  left bar       row 1 left   = '|'
+#   bit 3  right bar      row 1 right  = '|'
+#   bit 4  '\' diagonal   row 1 centre = '\\'
+#   bit 5  '/' diagonal   row 1 centre = '/'   (both set → 'X')
+
+
+def render_glyph(h: int) -> list[str]:
+    """Return three 3-char strings representing h as a line-segment glyph.
+
+    Each of the 6 bits controls one visible segment in a small square frame:
+      bit 0 = top bar, bit 1 = bottom bar,
+      bit 2 = left bar, bit 3 = right bar,
+      bit 4 = backslash diagonal, bit 5 = slash diagonal.
+    All 64 values produce distinct glyphs.
+    """
+    b = [(h >> i) & 1 for i in range(6)]
+    row0 = ' ' + ('_' if b[0] else ' ') + ' '
+    dc = ('X' if b[4] and b[5] else '\\' if b[4] else '/' if b[5] else ' ')
+    row1 = ('|' if b[2] else ' ') + dc + ('|' if b[3] else ' ')
+    row2 = ' ' + ('_' if b[1] else ' ') + ' '
+    return [row0, row1, row2]
+
+
+def render_hasse_glyphs(
+    color: bool = True,
+    show_numbers: bool = False,
+    highlights: set[int] | None = None,
+) -> str:
+    """Hasse diagram of B₆ as an isosceles triangle of 3×3 glyphs.
+
+    Rank 0 (element 0, no segments) sits at the top; rank 6 (element 63,
+    all segments) at the bottom.  Elements within each rank are sorted
+    numerically.  Each glyph is 3 chars wide; ranks are centred relative
+    to the widest row (rank 3, C(6,3)=20 elements).
+
+    Parameters
+    ----------
+    color       : colour glyphs by yang-count (ANSI 256-colour).
+    show_numbers: prepend a row of decimal indices above each rank band.
+    highlights  : elements to render with background colour.
+    """
+    highlights = highlights or set()
+
+    rank_elems: list[list[int]] = [[] for _ in range(7)]
+    for h in range(64):
+        rank_elems[bin(h).count('1')].append(h)
+
+    cw = 3          # cell width (chars)
+    sw = 1          # separator width (1 space)
+    max_n = 20      # C(6,3) — widest rank
+    total_w = max_n * cw + (max_n - 1) * sw   # = 79
+
+    lines: list[str] = []
+
+    for k, elems in enumerate(rank_elems):
+        n = len(elems)
+        row_w = n * cw + (n - 1) * sw
+        pad = ' ' * ((total_w - row_w) // 2)
+
+        if show_numbers:
+            lines.append(pad + ' '.join(f'{h:3d}' for h in elems))
+
+        glyphs = [render_glyph(h) for h in elems]
+
+        for ri in range(3):
+            parts: list[str] = []
+            for gi, h in enumerate(elems):
+                cell = glyphs[gi][ri]
+                if color:
+                    yc = yang_count(h)
+                    ansi = (_YANG_BG[yc] + _BOLD) if h in highlights else _YANG_ANSI[yc]
+                    cell = ansi + cell + _RESET
+                parts.append(cell)
+            lines.append(pad + ' '.join(parts))
+
+        lines.append('')   # blank line between ranks
+
+    return '\n'.join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Специализированные диаграммы
 # ---------------------------------------------------------------------------
 
@@ -458,6 +545,13 @@ if __name__ == '__main__':
     p_auto.add_argument('--dot', action='store_true', help='Вывод в DOT')
     p_auto.add_argument('--svg', metavar='FILE', help='Сохранить SVG')
 
+    p_hasse = sub.add_parser('hasse', help='Диаграмма Хассе B₆ как треугольник глифов')
+    p_hasse.add_argument('--highlight', nargs='*', type=int, default=[],
+                         help='Гексаграммы для выделения')
+    p_hasse.add_argument('--numbers', action='store_true',
+                         help='Показать номера над глифами')
+    p_hasse.add_argument('--no-color', action='store_true')
+
     p_hex = sub.add_parser('hexagram', help='Показать гексаграмму')
     p_hex.add_argument('h', type=int)
     p_hex.add_argument('--no-color', action='store_true')
@@ -474,7 +568,14 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.cmd == 'grid':
+    if args.cmd == 'hasse':
+        print(render_hasse_glyphs(
+            color=not args.no_color,
+            show_numbers=args.numbers,
+            highlights=set(args.highlight),
+        ))
+
+    elif args.cmd == 'grid':
         print(render_grid(
             highlights=set(args.highlight),
             color=not args.no_color,
