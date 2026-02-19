@@ -28,7 +28,9 @@ meta/
 │   ├── hexopt/        — оптимизация на Q6 (SA, GA, TS, LocalSearch)
 │   ├── hexring/       — булевы функции (WHT, ANF, bent, RM-коды)
 │   ├── hexsym/        — группа автоморфизмов Aut(Q6), орбиты, лемма Бернсайда
-│   └── hexnet/        — Q6 как коммуникационная сеть (маршрутизация, надёжность)
+│   ├── hexnet/        — Q6 как коммуникационная сеть (маршрутизация, надёжность)
+│   ├── hexcrypt/      — криптографические примитивы (S-блок, DDT, LAT, Фейстель)
+│   └── hexstat/       — теория информации и статистика на Q6
 ├── docs/
 │   └── q6-math.md     — математические основы графа Q6
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
@@ -55,6 +57,8 @@ meta/
 | [hexring](projects/hexring/) | Булевы функции / кольца | `hexring.py` | реализован |
 | [hexsym](projects/hexsym/) | Теория групп / симметрия | `hexsym.py` | реализован |
 | [hexnet](projects/hexnet/) | Коммуникационные сети | `hexnet.py` | реализован |
+| [hexcrypt](projects/hexcrypt/) | Симметричная криптография | `hexcrypt.py` | реализован |
+| [hexstat](projects/hexstat/) | Теория информации / статистика | `hexstat.py` | реализован |
 
 ### Быстрый старт
 
@@ -134,6 +138,20 @@ python3 projects/hexnet/hexnet.py stats
 python3 projects/hexnet/hexnet.py percolation --p 0.3
 python3 projects/hexnet/hexnet.py traffic
 python3 projects/hexnet/hexnet.py hamilton
+
+# Криптографические примитивы на Q6
+python3 projects/hexcrypt/hexcrypt.py info random
+python3 projects/hexcrypt/hexcrypt.py table affine
+python3 projects/hexcrypt/hexcrypt.py stream 42 64
+python3 projects/hexcrypt/hexcrypt.py feistel demo
+python3 projects/hexcrypt/hexcrypt.py search 16
+
+# Статистика и теория информации на Q6
+python3 projects/hexstat/hexstat.py info
+python3 projects/hexstat/hexstat.py sample 2000
+python3 projects/hexstat/hexstat.py walk 10000
+python3 projects/hexstat/hexstat.py entropy
+python3 projects/hexstat/hexstat.py test
 ```
 
 ---
