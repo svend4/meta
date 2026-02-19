@@ -30,7 +30,9 @@ meta/
 │   ├── hexsym/        — группа автоморфизмов Aut(Q6), орбиты, лемма Бернсайда
 │   ├── hexnet/        — Q6 как коммуникационная сеть (маршрутизация, надёжность)
 │   ├── hexcrypt/      — криптографические примитивы (S-блок, DDT, LAT, Фейстель)
-│   └── hexstat/       — теория информации и статистика на Q6
+│   ├── hexstat/       — теория информации и статистика на Q6
+│   ├── hexgeom/       — метрическая геометрия (шары Хэмминга, Вороной, пакинг)
+│   └── hexdim/        — размерности: тессеракты Q4, куб Q3, Q6=Q3×Q3, псевдо-QR
 ├── docs/
 │   └── q6-math.md     — математические основы графа Q6
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
@@ -59,6 +61,8 @@ meta/
 | [hexnet](projects/hexnet/) | Коммуникационные сети | `hexnet.py` | реализован |
 | [hexcrypt](projects/hexcrypt/) | Симметричная криптография | `hexcrypt.py` | реализован |
 | [hexstat](projects/hexstat/) | Теория информации / статистика | `hexstat.py` | реализован |
+| [hexgeom](projects/hexgeom/) | Метрическая геометрия | `hexgeom.py` | реализован |
+| [hexdim](projects/hexdim/) | Размерности и проекции | `hexdim.py` | реализован |
 
 ### Быстрый старт
 
@@ -152,6 +156,21 @@ python3 projects/hexstat/hexstat.py sample 2000
 python3 projects/hexstat/hexstat.py walk 10000
 python3 projects/hexstat/hexstat.py entropy
 python3 projects/hexstat/hexstat.py test
+
+# Метрическая геометрия на Q6
+python3 projects/hexgeom/hexgeom.py ball 0 2
+python3 projects/hexgeom/hexgeom.py voronoi
+python3 projects/hexgeom/hexgeom.py interval 0 63
+python3 projects/hexgeom/hexgeom.py packing
+python3 projects/hexgeom/hexgeom.py bounds
+
+# Q6 как 6D-гиперкуб: тессеракты, псевдо-QR, Q12
+python3 projects/hexdim/hexdim.py info
+python3 projects/hexdim/hexdim.py hexagram 42
+python3 projects/hexdim/hexdim.py tesseracts
+python3 projects/hexdim/hexdim.py grid trigram
+python3 projects/hexdim/hexdim.py gray
+python3 projects/hexdim/hexdim.py q12
 ```
 
 ---
