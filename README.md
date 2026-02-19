@@ -32,7 +32,9 @@ meta/
 │   ├── hexcrypt/      — криптографические примитивы (S-блок, DDT, LAT, Фейстель)
 │   ├── hexstat/       — теория информации и статистика на Q6
 │   ├── hexgeom/       — метрическая геометрия (шары Хэмминга, Вороной, пакинг)
-│   └── hexdim/        — размерности: тессеракты Q4, куб Q3, Q6=Q3×Q3, псевдо-QR
+│   ├── hexdim/        — размерности: тессеракты Q4, куб Q3, Q6=Q3×Q3, псевдо-QR
+│   ├── hexalg/        — гармонический анализ (WHT/Фурье, свёртка, граф Кэли, bent)
+│   └── hexphys/       — статистическая физика (цепочка Изинга, Монте-Карло, кванты)
 ├── docs/
 │   └── q6-math.md     — математические основы графа Q6
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
@@ -63,6 +65,8 @@ meta/
 | [hexstat](projects/hexstat/) | Теория информации / статистика | `hexstat.py` | реализован |
 | [hexgeom](projects/hexgeom/) | Метрическая геометрия | `hexgeom.py` | реализован |
 | [hexdim](projects/hexdim/) | Размерности и проекции | `hexdim.py` | реализован |
+| [hexalg](projects/hexalg/) | Гармонический анализ / алгебра | `hexalg.py` | реализован |
+| [hexphys](projects/hexphys/) | Статистическая физика | `hexphys.py` | реализован |
 
 ### Быстрый старт
 
@@ -171,6 +175,21 @@ python3 projects/hexdim/hexdim.py tesseracts
 python3 projects/hexdim/hexdim.py grid trigram
 python3 projects/hexdim/hexdim.py gray
 python3 projects/hexdim/hexdim.py q12
+
+# Гармонический анализ на Q6 (WHT = Фурье, свёртка, граф Кэли, bent-функции)
+python3 projects/hexalg/hexalg.py characters
+python3 projects/hexalg/hexalg.py spectrum
+python3 projects/hexalg/hexalg.py convolution
+python3 projects/hexalg/hexalg.py cayley 1 2 4
+python3 projects/hexalg/hexalg.py subgroup [1,2,4]
+python3 projects/hexalg/hexalg.py bent
+
+# Статистическая физика на Q6 (цепочка Изинга, ян-газ, Метрополис, кванты)
+python3 projects/hexphys/hexphys.py ising 1.0
+python3 projects/hexphys/hexphys.py yang 1.0
+python3 projects/hexphys/hexphys.py mcmc 1.0 1.0
+python3 projects/hexphys/hexphys.py quantum
+python3 projects/hexphys/hexphys.py correlator 1.0 1.0
 ```
 
 ---
