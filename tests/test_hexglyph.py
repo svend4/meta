@@ -569,10 +569,29 @@ class TestSolanPhonetic(unittest.TestCase):
         self.assertIsNone(self.phonetic_h('Z'))
 
     def test_phonetic_h_all_known_in_range(self):
-        for h in [self.phonetic_h(ru) for ru in
-                  ('А', 'Р', 'Т', 'Л', 'Н', 'О', 'Б', 'М', 'В', 'Д')]:
+        all16 = ('А', 'Р', 'Т', 'Л', 'Н', 'О', 'Б', 'М', 'В', 'Д',
+                 'Г', 'У', 'И', 'З', 'Ж', 'Ч')
+        for h in [self.phonetic_h(ru) for ru in all16]:
             self.assertGreaterEqual(h, 0)
             self.assertLessEqual(h, 63)
+
+    def test_phonetic_h_G_is_49(self):
+        self.assertEqual(self.phonetic_h('Г'), 49)
+
+    def test_phonetic_h_U_is_51(self):
+        self.assertEqual(self.phonetic_h('У'), 51)
+
+    def test_phonetic_h_I_is_44(self):
+        self.assertEqual(self.phonetic_h('И'), 44)
+
+    def test_phonetic_h_Z_is_19(self):
+        self.assertEqual(self.phonetic_h('З'), 19)
+
+    def test_phonetic_h_ZH_is_28(self):
+        self.assertEqual(self.phonetic_h('Ж'), 28)
+
+    def test_phonetic_h_CH_is_35(self):
+        self.assertEqual(self.phonetic_h('Ч'), 35)
 
     # --- transliterate ---
 
@@ -625,7 +644,8 @@ class TestSolanPhonetic(unittest.TestCase):
 
     def test_render_table_contains_known_letters(self):
         table = self.render_table(color=False)
-        for ru in ('А', 'Р', 'Т', 'Л', 'Н', 'О', 'Б', 'М', 'В', 'Д'):
+        for ru in ('А', 'Р', 'Т', 'Л', 'Н', 'О', 'Б', 'М', 'В', 'Д',
+                   'Г', 'У', 'И', 'З', 'Ж', 'Ч'):
             self.assertIn(ru, table)
 
     def test_render_table_has_h_values(self):
@@ -655,11 +675,11 @@ class TestSolanPhonetic(unittest.TestCase):
     def test_viewer_has_phon_grid(self):
         self.assertIn('phon-grid', viewer_path().read_text(encoding='utf-8'))
 
-    def test_viewer_phonetic_10_cells(self):
+    def test_viewer_phonetic_16_cells(self):
         import re
         cells = re.findall(r'class="phon-cell"',
                            viewer_path().read_text(encoding='utf-8'))
-        self.assertEqual(len(cells), 10)
+        self.assertEqual(len(cells), 16)
 
     def test_viewer_phonetic_transliterate_js(self):
         content = viewer_path().read_text(encoding='utf-8')
