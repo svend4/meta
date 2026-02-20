@@ -1033,6 +1033,177 @@ class TestSolanCA(unittest.TestCase):
         self.assertIn('→', content)
         self.assertIn('pLimit', content)
 
+    # --- --compare flag ---
+
+    def test_run_compare_importable(self):
+        from projects.hexglyph.solan_ca import run_compare
+        self.assertTrue(callable(run_compare))
+
+    def test_run_compare_output_has_all_rules(self):
+        import io, sys
+        from projects.hexglyph.solan_ca import run_compare
+        buf = io.StringIO()
+        old = sys.stdout; sys.stdout = buf
+        try:
+            run_compare(width=6, steps=3, color=False)
+        finally:
+            sys.stdout = old
+        out = buf.getvalue()
+        for name in ('XOR ⊕', 'XOR3', 'AND &', 'OR |'):
+            self.assertIn(name, out)
+
+    def test_run_compare_line_count(self):
+        import io, sys
+        from projects.hexglyph.solan_ca import run_compare
+        buf = io.StringIO()
+        old = sys.stdout; sys.stdout = buf
+        try:
+            run_compare(width=4, steps=2, color=False)
+        finally:
+            sys.stdout = old
+        lines = [l for l in buf.getvalue().splitlines() if '│' in l]
+        # 4 rules × (steps+1) lines with '│' = 4×3 = 12
+        self.assertEqual(len(lines), 4 * 3)
+
+
+class TestSolanEntropy(unittest.TestCase):
+    """Тесты модуля solan_entropy."""
+
+    def setUp(self):
+        from projects.hexglyph.solan_entropy import (
+            entropy, entropy_profile, entropy_profiles, sparkline,
+        )
+        self.entropy          = entropy
+        self.entropy_profile  = entropy_profile
+        self.entropy_profiles = entropy_profiles
+        self.sparkline        = sparkline
+
+    # ── entropy() ───────────────────────────────────────────────────────────
+
+    def test_entropy_empty(self):
+        self.assertEqual(self.entropy([]), 0.0)
+
+    def test_entropy_uniform(self):
+        # All same value → one state, p=1 → H = 0
+        self.assertAlmostEqual(self.entropy([5] * 10), 0.0)
+
+    def test_entropy_two_equal(self):
+        # Two values, equal count → H = 1 bit
+        self.assertAlmostEqual(self.entropy([0, 63] * 8), 1.0)
+
+    def test_entropy_max_64_states(self):
+        # All 64 states once → H = log2(64) = 6.0 bits
+        cells = list(range(64))
+        self.assertAlmostEqual(self.entropy(cells), 6.0)
+
+    def test_entropy_nonneg(self):
+        import random
+        rng = random.Random(7)
+        cells = [rng.randrange(64) for _ in range(100)]
+        self.assertGreaterEqual(self.entropy(cells), 0.0)
+
+    def test_entropy_bounded_by_log2_64(self):
+        import random
+        rng = random.Random(42)
+        cells = [rng.randrange(64) for _ in range(200)]
+        self.assertLessEqual(self.entropy(cells), 6.0 + 1e-9)
+
+    # ── entropy_profile() ────────────────────────────────────────────────────
+
+    def test_profile_length(self):
+        cells = [0] * 10 + [63]
+        prof = self.entropy_profile(cells, 'xor', 15)
+        self.assertEqual(len(prof), 16)  # t=0..15
+
+    def test_profile_nonneg(self):
+        cells = list(range(20))
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            prof = self.entropy_profile(cells, rule, 10)
+            self.assertTrue(all(h >= 0.0 for h in prof), f"rule={rule}")
+
+    def test_profile_and_converges_zero(self):
+        # AND rule from random IC → eventually H=0
+        cells = [0] * 6 + [63] + [0] * 5
+        prof = self.entropy_profile(cells, 'and', 20)
+        self.assertAlmostEqual(prof[-1], 0.0, places=6)
+
+    def test_profile_first_value_equals_entropy(self):
+        cells = [0, 63, 15, 48, 3, 7] * 3
+        prof = self.entropy_profile(cells, 'xor', 5)
+        self.assertAlmostEqual(prof[0], self.entropy(cells))
+
+    # ── entropy_profiles() ────────────────────────────────────────────────────
+
+    def test_profiles_returns_all_rules(self):
+        cells = [0, 63] * 4
+        profs = self.entropy_profiles(cells, 5)
+        self.assertEqual(set(profs.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_profiles_custom_rules(self):
+        cells = [0, 63] * 4
+        profs = self.entropy_profiles(cells, 5, rules=['xor', 'and'])
+        self.assertEqual(set(profs.keys()), {'xor', 'and'})
+
+    # ── sparkline() ──────────────────────────────────────────────────────────
+
+    def test_sparkline_length(self):
+        vals = [0.0, 1.0, 2.0, 3.0, 4.0]
+        self.assertEqual(len(self.sparkline(vals, 4.0)), 5)
+
+    def test_sparkline_zero_max(self):
+        vals = [1.0, 2.0, 3.0]
+        result = self.sparkline(vals, 0.0)
+        self.assertEqual(result, '   ')
+
+    def test_sparkline_max_char(self):
+        # Maximum value → '█'
+        result = self.sparkline([6.0], 6.0)
+        self.assertEqual(result, '█')
+
+    def test_sparkline_zero_value(self):
+        # Zero value → ' '
+        result = self.sparkline([0.0], 6.0)
+        self.assertEqual(result, ' ')
+
+    def test_sparkline_monotone(self):
+        # Monotonically increasing values → monotonically increasing chars
+        vals = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        result = self.sparkline(vals, 6.0)
+        self.assertEqual(len(result), 7)
+        # Each char ≥ previous
+        for i in range(1, len(result)):
+            self.assertGreaterEqual(result[i], result[i - 1])
+
+    # ── print_entropy_chart() ────────────────────────────────────────────────
+
+    def test_print_entropy_chart_runs(self):
+        import io, sys
+        from projects.hexglyph.solan_entropy import print_entropy_chart
+        buf = io.StringIO()
+        old = sys.stdout; sys.stdout = buf
+        try:
+            print_entropy_chart([0] * 5 + [63] + [0] * 6,
+                                steps=5, color=False)
+        finally:
+            sys.stdout = old
+        out = buf.getvalue()
+        self.assertIn('H₀', out)
+        self.assertIn('Hf', out)
+        self.assertIn('Спарклайн', out)
+
+    def test_print_entropy_chart_contains_all_rules(self):
+        import io, sys
+        from projects.hexglyph.solan_entropy import print_entropy_chart
+        buf = io.StringIO()
+        old = sys.stdout; sys.stdout = buf
+        try:
+            print_entropy_chart([0, 63] * 4, steps=3, color=False)
+        finally:
+            sys.stdout = old
+        out = buf.getvalue()
+        for label in ('XOR', 'XOR3', 'AND', 'OR'):
+            self.assertIn(label, out)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

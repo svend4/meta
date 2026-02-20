@@ -325,6 +325,58 @@ def run_ca(
     print(sep)
 
 
+# ── Сравнение правил ────────────────────────────────────────────────────────
+
+_ALL_RULES  = ['xor', 'xor3', 'and', 'or']
+_RULE_NAMES = {'xor': 'XOR ⊕', 'xor3': 'XOR3', 'and': 'AND &', 'or': 'OR |'}
+_RULE_COLOR = {
+    'xor':  '\033[38;5;75m',
+    'xor3': '\033[38;5;117m',
+    'and':  '\033[38;5;196m',
+    'or':   '\033[38;5;220m',
+}
+
+
+def run_compare(
+    width:  int  = 32,
+    steps:  int  = 15,
+    ic:     str  = 'center',
+    mode:   str  = 'char',
+    color:  bool = True,
+    word:   str  = '',
+    seed:   int | None = None,
+) -> None:
+    """Запустить CA для всех 4 правил и вывести последовательно."""
+    cells0 = make_initial(width, ic, word=word, seed=seed)
+
+    bold  = _BOLD if color else ''
+    reset = _RST  if color else ''
+    sep   = '─' * (width if mode == 'char' else width * 4)
+
+    title = (f"  Q6-CA сравнение правил  ic={ic}  "
+             f"width={width}  steps={steps}  mode={mode}")
+    print(bold + title + reset)
+
+    for rule in _ALL_RULES:
+        rule_col = (_RULE_COLOR[rule] if color else '')
+        print(f"\n{rule_col}{bold}{'─'*6} {_RULE_NAMES[rule]} {'─'*6}{reset}")
+        cells = list(cells0)
+
+        for t in range(steps + 1):
+            prefix = f"{t:3d} │ " if mode == 'char' else ''
+            if mode == 'char':
+                print(prefix + render_row_char(cells, color))
+            elif mode == 'braille':
+                for row in render_row_braille(cells, color):
+                    print(row)
+            elif mode == 'quad':
+                for row in render_row_quad(cells, color):
+                    print(row)
+            cells = step(cells, rule)
+
+    print('\n' + sep)
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -351,6 +403,8 @@ if __name__ == '__main__':
                         help='без ANSI-цветов')
     parser.add_argument('--orbit', action='store_true',
                         help='найти транзиент и период орбиты, показать цикл')
+    parser.add_argument('--compare', action='store_true',
+                        help='показать эволюцию для всех 4 правил подряд')
     args = parser.parse_args()
 
     _color = not args.no_color
@@ -358,6 +412,16 @@ if __name__ == '__main__':
 
     if args.orbit:
         print_orbit(_cells, rule=args.rule, color=_color)
+    elif args.compare:
+        run_compare(
+            width=args.width,
+            steps=args.steps,
+            ic=args.ic,
+            mode=args.mode,
+            color=_color,
+            word=args.word,
+            seed=args.seed,
+        )
     else:
         run_ca(
             width=args.width,
