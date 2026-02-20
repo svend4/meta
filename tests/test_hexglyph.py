@@ -287,5 +287,174 @@ class TestRussianPhonetic(unittest.TestCase):
         self.assertIn('font-face', content)
 
 
+class TestSolanTriangle(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_triangle import (
+            _build_solan_map,
+            _compact4,
+            _solan_cell,
+            _hexvis_cell,
+            _rank_elements,
+            render_triangle,
+            detection_stats,
+            _SOLAN_MAP,
+        )
+        cls._build_solan_map = staticmethod(_build_solan_map)
+        cls._compact4 = staticmethod(_compact4)
+        cls._solan_cell = staticmethod(_solan_cell)
+        cls._hexvis_cell = staticmethod(_hexvis_cell)
+        cls._rank_elements = staticmethod(_rank_elements)
+        cls.render_triangle = staticmethod(render_triangle)
+        cls.detection_stats = staticmethod(detection_stats)
+        cls._SOLAN_MAP = _SOLAN_MAP
+
+    # --- _build_solan_map ---
+
+    def test_solan_map_is_dict(self):
+        m = self._build_solan_map()
+        self.assertIsInstance(m, dict)
+
+    def test_solan_map_keys_in_range(self):
+        for h in self._SOLAN_MAP:
+            self.assertGreaterEqual(h, 0)
+            self.assertLessEqual(h, 63)
+
+    def test_solan_map_values_are_single_chars(self):
+        for ch in self._SOLAN_MAP.values():
+            self.assertEqual(len(ch), 1)
+
+    def test_solan_map_has_at_least_20_entries(self):
+        self.assertGreaterEqual(len(self._SOLAN_MAP), 20)
+
+    def test_solan_map_includes_confirmed_vertices(self):
+        # h=12 → 'H', h=15 → 'A', h=48 → '0', h=63 → 'E'
+        self.assertIn(12, self._SOLAN_MAP)
+        self.assertIn(15, self._SOLAN_MAP)
+        self.assertIn(48, self._SOLAN_MAP)
+        self.assertIn(63, self._SOLAN_MAP)
+
+    # --- _compact4 ---
+
+    def test_compact4_returns_4_rows(self):
+        rows = glyph_bitmap('A')
+        result = self._compact4(rows)
+        self.assertEqual(len(result), 4)
+
+    def test_compact4_each_row_length_4(self):
+        rows = glyph_bitmap('E')
+        for r in self._compact4(rows):
+            self.assertEqual(len(r), 4)
+
+    def test_compact4_only_bits(self):
+        rows = glyph_bitmap('H')
+        for r in self._compact4(rows):
+            self.assertTrue(all(c in '01' for c in r))
+
+    # --- _solan_cell ---
+
+    def test_solan_cell_returns_4_lines(self):
+        lines = self._solan_cell('A', '')
+        self.assertEqual(len(lines), 4)
+
+    def test_solan_cell_contains_block_chars(self):
+        import re
+        lines = self._solan_cell('E', '')
+        for line in lines:
+            stripped = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
+            self.assertTrue(all(c in '█·' for c in stripped))
+
+    # --- _hexvis_cell ---
+
+    def test_hexvis_cell_returns_4_lines(self):
+        lines = self._hexvis_cell(12, '')
+        self.assertEqual(len(lines), 4)
+
+    def test_hexvis_cell_lines_not_empty(self):
+        lines = self._hexvis_cell(0, '')
+        self.assertEqual(len(lines), 4)
+
+    # --- _rank_elements ---
+
+    def test_rank_elements_7_ranks(self):
+        ranks = self._rank_elements()
+        self.assertEqual(len(ranks), 7)
+
+    def test_rank_elements_total_64(self):
+        ranks = self._rank_elements()
+        self.assertEqual(sum(len(r) for r in ranks), 64)
+
+    def test_rank_elements_binomial_counts(self):
+        import math
+        ranks = self._rank_elements()
+        for k, elems in enumerate(ranks):
+            self.assertEqual(len(elems), math.comb(6, k))
+
+    def test_rank_elements_correct_hamming_weight(self):
+        ranks = self._rank_elements()
+        for k, elems in enumerate(ranks):
+            for h in elems:
+                self.assertEqual(bin(h).count('1'), k)
+
+    # --- render_triangle ---
+
+    def test_render_triangle_returns_str(self):
+        self.assertIsInstance(self.render_triangle(), str)
+
+    def test_render_triangle_hexvis_mode(self):
+        out = self.render_triangle(mode='hexvis', color=False)
+        self.assertIn('hexvis', out)
+
+    def test_render_triangle_side_mode(self):
+        out = self.render_triangle(mode='side', color=False)
+        self.assertIn('│', out)
+
+    def test_render_triangle_solan_mode_has_block_chars(self):
+        out = self.render_triangle(mode='solan', color=False)
+        self.assertIn('█', out)
+
+    def test_render_triangle_has_all_weight_labels(self):
+        out = self.render_triangle(mode='solan', color=False)
+        for k in range(7):
+            self.assertIn(f'w={k}', out)
+
+    def test_render_triangle_nocolor_no_ansi(self):
+        import re
+        out = self.render_triangle(mode='solan', color=False)
+        # Only _RST codes may be present — test no color codes
+        ansi_color = re.findall(r'\x1b\[3[0-9]', out)
+        self.assertEqual(ansi_color, [])
+
+    def test_render_triangle_color_has_ansi(self):
+        out = self.render_triangle(mode='solan', color=True)
+        self.assertIn('\033[', out)
+
+    # --- detection_stats ---
+
+    def test_detection_stats_keys(self):
+        st = self.detection_stats()
+        for key in ('total', 'detected', 'missing', 'detected_list', 'by_rank'):
+            self.assertIn(key, st)
+
+    def test_detection_stats_total_64(self):
+        self.assertEqual(self.detection_stats()['total'], 64)
+
+    def test_detection_stats_sum_correct(self):
+        st = self.detection_stats()
+        self.assertEqual(st['detected'] + st['missing'], 64)
+
+    def test_detection_stats_at_least_20_detected(self):
+        self.assertGreaterEqual(self.detection_stats()['detected'], 20)
+
+    def test_detection_stats_by_rank_7_levels(self):
+        self.assertEqual(len(self.detection_stats()['by_rank']), 7)
+
+    def test_detection_stats_rank6_detected(self):
+        # h=63 must always be detected (E = all segments)
+        st = self.detection_stats()
+        self.assertGreaterEqual(st['by_rank'][6]['detected'], 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
