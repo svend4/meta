@@ -3503,6 +3503,235 @@ class TestSolanPhonemeAnalysis(unittest.TestCase):
         self.assertIn('phon-word', content)
 
 
+class TestSolanComplexity(unittest.TestCase):
+    """Tests for solan_complexity.py and the viewer LZ76 section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import (
+            to_bits, lz76_phrases, lz76_norm,
+            trajectory_complexity, all_complexities,
+            build_complexity_data, complexity_dict,
+            _ALL_RULES, _N_BITS,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.to_bits               = staticmethod(to_bits)
+        cls.lz76_phrases          = staticmethod(lz76_phrases)
+        cls.lz76_norm             = staticmethod(lz76_norm)
+        cls.trajectory_complexity = staticmethod(trajectory_complexity)
+        cls.all_complexities      = staticmethod(all_complexities)
+        cls.build_complexity_data = staticmethod(build_complexity_data)
+        cls.complexity_dict       = staticmethod(complexity_dict)
+        cls.ALL_RULES             = _ALL_RULES
+        cls.N_BITS                = _N_BITS
+        cls.LEXICON               = list(LEXICON)
+
+    # ── to_bits() ─────────────────────────────────────────────────────────────
+
+    def test_tb_returns_list(self):
+        r = self.to_bits([0, 63])
+        self.assertIsInstance(r, list)
+
+    def test_tb_length(self):
+        r = self.to_bits([0, 1, 2], n_bits=6)
+        self.assertEqual(len(r), 18)   # 3 values × 6 bits
+
+    def test_tb_zero_gives_all_zeros(self):
+        r = self.to_bits([0], n_bits=6)
+        self.assertEqual(r, [0, 0, 0, 0, 0, 0])
+
+    def test_tb_63_gives_all_ones(self):
+        r = self.to_bits([63], n_bits=6)
+        self.assertEqual(r, [1, 1, 1, 1, 1, 1])
+
+    def test_tb_msb_first(self):
+        # 1 = 0b000001 → MSB first: [0,0,0,0,0,1]
+        r = self.to_bits([1], n_bits=6)
+        self.assertEqual(r[-1], 1)
+        self.assertEqual(r[0], 0)
+
+    def test_tb_values_binary(self):
+        r = self.to_bits([42, 15, 63])
+        self.assertTrue(all(v in (0, 1) for v in r))
+
+    # ── lz76_phrases() ────────────────────────────────────────────────────────
+
+    def test_lp_empty(self):
+        self.assertEqual(self.lz76_phrases([]), 0)
+
+    def test_lp_single(self):
+        # Implementation seeds c=1; single phrase [0] not found in empty prefix → c=2
+        self.assertEqual(self.lz76_phrases([0]), 2)
+
+    def test_lp_constant_low(self):
+        # Constant string: very low complexity
+        c = self.lz76_phrases([0] * 32)
+        self.assertLessEqual(c, 4)
+
+    def test_lp_positive(self):
+        for s in [[0,1]*8, [1,0,1,1]*4, list(range(16))]:
+            self.assertGreater(self.lz76_phrases(s), 0)
+
+    def test_lp_random_higher_than_constant(self):
+        import random
+        rng = random.Random(42)
+        rand_s = [rng.randint(0, 1) for _ in range(64)]
+        const_s = [0] * 64
+        self.assertGreater(self.lz76_phrases(rand_s), self.lz76_phrases(const_s))
+
+    # ── lz76_norm() ───────────────────────────────────────────────────────────
+
+    def test_ln_empty(self):
+        self.assertAlmostEqual(self.lz76_norm([]), 0.0)
+
+    def test_ln_single(self):
+        self.assertAlmostEqual(self.lz76_norm([0]), 0.0)
+
+    def test_ln_nonneg(self):
+        for s in [[0]*32, [0,1]*16, [1,1,0,1]*8]:
+            self.assertGreaterEqual(self.lz76_norm(s), 0.0)
+
+    def test_ln_constant_near_zero(self):
+        n = self.lz76_norm([0] * 100)
+        self.assertLess(n, 0.3)
+
+    def test_ln_alternating_low(self):
+        # [0,1,0,1,...] is periodic → lower complexity than random
+        n = self.lz76_norm([0, 1] * 50)
+        self.assertLess(n, 0.5)
+
+    # ── trajectory_complexity() ───────────────────────────────────────────────
+
+    def test_tc_returns_dict(self):
+        r = self.trajectory_complexity('ГОРА', 'xor3')
+        self.assertIsInstance(r, dict)
+
+    def test_tc_required_keys(self):
+        r = self.trajectory_complexity('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'transient', 'period',
+                  'traj_bits', 'attr_bits', 'traj_phrases', 'attr_phrases',
+                  'traj_norm', 'attr_norm'):
+            self.assertIn(k, r)
+
+    def test_tc_traj_norm_nonneg(self):
+        for rule in self.ALL_RULES:
+            r = self.trajectory_complexity('ГОРА', rule)
+            self.assertGreaterEqual(r['traj_norm'], 0.0)
+
+    def test_tc_traj_bits_positive(self):
+        r = self.trajectory_complexity('ГОРА', 'xor3')
+        self.assertGreater(r['traj_bits'], 0)
+
+    def test_tc_traj_bits_formula(self):
+        r = self.trajectory_complexity('ГОРА', 'xor3')
+        expected = (r['transient'] + r['period']) * 16 * 6
+        self.assertEqual(r['traj_bits'], expected)
+
+    def test_tc_xor_low_complexity(self):
+        # XOR converges to all-zeros → low attractor complexity
+        r = self.trajectory_complexity('ГОРА', 'xor')
+        self.assertLess(r['attr_norm'], 0.3)
+
+    def test_tc_word_stored(self):
+        r = self.trajectory_complexity('ГОРА', 'xor3')
+        self.assertEqual(r['word'], 'ГОРА')
+
+    # ── all_complexities() ────────────────────────────────────────────────────
+
+    def test_ac_returns_all_rules(self):
+        r = self.all_complexities('ГОРА')
+        self.assertEqual(set(r.keys()), set(self.ALL_RULES))
+
+    def test_ac_each_dict(self):
+        r = self.all_complexities('ГОРА')
+        for tc in r.values():
+            self.assertIsInstance(tc, dict)
+
+    # ── build_complexity_data() ───────────────────────────────────────────────
+
+    def test_bcd_returns_dict(self):
+        d = self.build_complexity_data(['ГОРА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+
+    def test_bcd_required_keys(self):
+        d = self.build_complexity_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule', 'ranking_traj',
+                  'most_complex', 'least_complex'):
+            self.assertIn(k, d)
+
+    def test_bcd_ranking_sorted(self):
+        d = self.build_complexity_data(['ГОРА', 'ЛУНА', 'МАТ'])
+        for rule in self.ALL_RULES:
+            norms = [v for _, v in d['ranking_traj'][rule]]
+            self.assertEqual(norms, sorted(norms, reverse=True))
+
+    def test_bcd_most_complex_is_valid(self):
+        d = self.build_complexity_data(['ГОРА', 'ЛУНА', 'МАТ'])
+        for rule in self.ALL_RULES:
+            word, _ = d['most_complex'][rule]
+            self.assertIn(word, ['ГОРА', 'ЛУНА', 'МАТ'])
+
+    # ── complexity_dict() ─────────────────────────────────────────────────────
+
+    def test_cd_json_serialisable(self):
+        import json
+        d = self.complexity_dict('ГОРА')
+        dumped = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(dumped, str)
+
+    def test_cd_top_keys(self):
+        d = self.complexity_dict('ГОРА')
+        for k in ('word', 'width', 'rules'):
+            self.assertIn(k, d)
+
+    def test_cd_all_rules_present(self):
+        d = self.complexity_dict('ГОРА')
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_cd_traj_norm_in_result(self):
+        d = self.complexity_dict('ГОРА')
+        for rule in self.ALL_RULES:
+            self.assertIn('traj_norm', d['rules'][rule])
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_lz_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-canvas', content)
+
+    def test_viewer_has_lz_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-hmap', content)
+
+    def test_viewer_has_lz_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-btn', content)
+
+    def test_viewer_has_lz_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lzRun', content)
+
+    def test_viewer_lz_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('LZ76-сложность CA Q6', content)
+
+    def test_viewer_has_lz76_fn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz76', content)
+
+    def test_viewer_has_lz_norm(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lzNorm', content)
+
+    def test_viewer_has_to_bits(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('toBits', content)
+
+    def test_viewer_has_all_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-all-btn', content)
+
+
 class TestSolanCorrelation(unittest.TestCase):
     """Tests for solan_correlation.py and the viewer Correlation section."""
 

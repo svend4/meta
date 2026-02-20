@@ -3381,6 +3381,252 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>LZ76-сложность CA Q6</h2>
+<p class="meta">Сложность Лемпеля–Зива траектории (транзиент + аттрактор → биты Q6) · C<sub>norm</sub> = c(n)·log₂(n)/n · 0 = периодическая, ~1 = случайная · вычисляется по нажатию кнопки</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="lz-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <span style="color:#333;font-size:13px">или</span>
+  <input id="lz-custom" type="text" placeholder="своё слово…"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;
+           font-size:13px;width:120px;text-transform:uppercase"/>
+  <button id="lz-btn"
+    style="background:#1e1a2a;color:#ce93d8;border:1px solid #5a3a7a;
+           padding:5px 14px;cursor:pointer;font-size:13px">LZ76 (слово)</button>
+  <button id="lz-all-btn"
+    style="background:#1a1e1a;color:#a5d6a7;border:1px solid #3a5a3a;
+           padding:5px 14px;cursor:pointer;font-size:13px">LZ76 (весь лексикон)</button>
+</div>
+<canvas id="lz-canvas" width="700" height="120"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<canvas id="lz-hmap"   width="700" height="280"
+  style="display:block;border:1px solid #1a1a1a;margin-top:3px"></canvas>
+<div id="lz-info"
+  style="font-family:monospace;font-size:11px;color:#555;min-height:16px;margin-top:5px"> </div>
+<script>
+(function(){
+  var LZ_RULES  = ['xor','xor3','and','or'];
+  var LZ_COLS   = {xor:'#f55', xor3:'#4dd', and:'#7d7', or:'#fa0'};
+  var LZ_NAMES  = {xor:'XOR ⊕', xor3:'XOR3', and:'AND &', or:'OR |'};
+  var N_BITS    = 6;
+
+  // ── CA step ────────────────────────────────────────────────────────────────
+  function caS(cells, rule) {
+    var n=cells.length, nxt=[];
+    for(var i=0;i<n;i++){
+      var l=cells[(i-1+n)%n],c=cells[i],r=cells[(i+1)%n];
+      if(rule==='xor') nxt.push(l^r);
+      else if(rule==='xor3') nxt.push(l^c^r);
+      else if(rule==='and') nxt.push(l&r);
+      else nxt.push(l|r);
+    }
+    return nxt;
+  }
+
+  // ── Orbit ──────────────────────────────────────────────────────────────────
+  function findOrbit(cells, rule) {
+    var seen={}, cur=cells.slice(), t=0;
+    while(true) {
+      var k=cur.join(',');
+      if(seen.hasOwnProperty(k)) return {tr:seen[k], per:t-seen[k]};
+      seen[k]=t; cur=caS(cur,rule); t++;
+    }
+  }
+
+  // ── To bits (MSB first per value) ─────────────────────────────────────────
+  function toBits(values) {
+    var bits = [];
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i];
+      for (var b = N_BITS - 1; b >= 0; b--) bits.push((v >> b) & 1);
+    }
+    return bits;
+  }
+
+  // ── LZ76 phrase count (O(n²)) ─────────────────────────────────────────────
+  function lz76(s) {
+    var n = s.length;
+    if (n === 0) return 0;
+    var c = 1, i = 0, k = 1;
+    while (i + k <= n) {
+      // Is s[i..i+k-1] a substring of s[0..i+k-2]?
+      var end = i + k - 1, found = false;
+      outer:
+      for (var start = 0; start <= end - k; start++) {
+        for (var j = 0; j < k; j++) {
+          if (s[start + j] !== s[i + j]) continue outer;
+        }
+        found = true; break;
+      }
+      if (found) { k++; }
+      else        { c++; i += k; k = 1; }
+    }
+    return c;
+  }
+
+  // ── Normalised LZ76 ────────────────────────────────────────────────────────
+  function lzNorm(s) {
+    var n = s.length;
+    if (n <= 1) return 0;
+    return lz76(s) * Math.log2(n) / n;
+  }
+
+  // ── Compute complexity for one word + rule ─────────────────────────────────
+  function lzCompute(word, rule) {
+    var encFn=window.encL, padFn=window.padL;
+    if (!encFn || !padFn) return null;
+    var lw    = window.LEXW || 16;
+    var cells = padFn(encFn(word.toUpperCase()), lw);
+    var orb   = findOrbit(cells, rule);
+    var cur   = cells.slice();
+    var rows  = [];
+    for (var t = 0; t < orb.tr + orb.per; t++) { rows.push(cur.slice()); cur = caS(cur, rule); }
+    var flat = rows.reduce(function(a,r){ return a.concat(r); }, []);
+    var bits = toBits(flat);
+    var n    = lzNorm(bits);
+    // attractor only
+    var aFlat = rows.slice(orb.tr).reduce(function(a,r){ return a.concat(r); }, []);
+    var aBits = toBits(aFlat);
+    var an    = aBits.length > 1 ? lzNorm(aBits) : 0;
+    return {traj: n, attr: an, tr: orb.tr, per: orb.per, nbits: bits.length};
+  }
+
+  // ── Draw word bar chart ────────────────────────────────────────────────────
+  function drawLzBars(canvas, word) {
+    var W=canvas.width, H=canvas.height;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
+    var LABEL=110, PAD_R=20, BAR_H=18, GAP=6;
+    var barW = W - LABEL - PAD_R;
+    LZ_RULES.forEach(function(rule, ri) {
+      var res = lzCompute(word, rule);
+      if (!res) return;
+      var y   = 14 + ri * (BAR_H + GAP);
+      var col = LZ_COLS[rule];
+      // Label
+      ctx.fillStyle=col; ctx.font='11px monospace'; ctx.textAlign='right';
+      ctx.fillText(LZ_NAMES[rule], LABEL-6, y+BAR_H-4);
+      // Background bar
+      ctx.fillStyle='#1a1a1a';
+      ctx.fillRect(LABEL, y, barW, BAR_H);
+      // traj bar
+      var tw = Math.round(res.traj * barW);
+      var rgb = col==='#f55'?'255,85,85': col==='#4dd'?'68,221,221': col==='#7d7'?'119,221,119':'255,170,0';
+      ctx.fillStyle='rgba('+rgb+',0.85)';
+      ctx.fillRect(LABEL, y, tw, BAR_H);
+      // attr bar (inner, lighter)
+      var aw = Math.round(res.attr * barW);
+      ctx.fillStyle='rgba(255,255,255,0.2)';
+      ctx.fillRect(LABEL, y, aw, BAR_H);
+      // Value text
+      ctx.fillStyle='#ddd'; ctx.font='bold 10px monospace'; ctx.textAlign='left';
+      ctx.fillText(res.traj.toFixed(3)+' [T='+res.tr+' P='+res.per+']', LABEL+tw+4, y+BAR_H-4);
+    });
+    ctx.fillStyle='#555'; ctx.font='10px monospace'; ctx.textAlign='left';
+    ctx.fillText('LZ76 C_norm = c(n)·log₂(n)/n — полная траектория │ аттрактор', LABEL, H-3);
+  }
+
+  // ── Draw lexicon heatmap ───────────────────────────────────────────────────
+  var _lzCache = null;
+
+  function drawLzHmap(canvas) {
+    if (!_lzCache || !window.LEXICON_ARR) return;
+    var words = window.LEXICON_ARR;
+    var W=canvas.width, H=canvas.height;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
+    var LABEL=55, THEADER=20;
+    var cellW = Math.floor((W - LABEL) / 4);
+    var cellH = Math.floor((H - THEADER) / words.length);
+    if (cellH < 1) cellH = 1;
+    // Rule headers
+    LZ_RULES.forEach(function(rule, ri) {
+      ctx.fillStyle=LZ_COLS[rule]; ctx.font='bold 10px monospace'; ctx.textAlign='center';
+      ctx.fillText(LZ_NAMES[rule], LABEL + ri*cellW + cellW/2, 13);
+    });
+    // Sort by xor3 descending
+    var sorted = words.slice().sort(function(a, b){
+      var ca = (_lzCache[a] && _lzCache[a]['xor3']) ? _lzCache[a]['xor3'].traj : 0;
+      var cb = (_lzCache[b] && _lzCache[b]['xor3']) ? _lzCache[b]['xor3'].traj : 0;
+      return cb - ca;
+    });
+    sorted.forEach(function(word, wi) {
+      var y = THEADER + wi * cellH;
+      LZ_RULES.forEach(function(rule, ri) {
+        var v  = (_lzCache[word] && _lzCache[word][rule]) ? _lzCache[word][rule].traj : 0;
+        var bri = Math.min(1, v);
+        var col = LZ_COLS[rule];
+        var rgb = col==='#f55'?'255,85,85': col==='#4dd'?'68,221,221': col==='#7d7'?'119,221,119':'255,170,0';
+        var alpha = bri * 0.9 + 0.05;
+        ctx.fillStyle = 'rgba('+rgb+','+alpha+')';
+        ctx.fillRect(LABEL + ri * cellW, y, cellW - 1, cellH - 1);
+      });
+      if (cellH >= 9) {
+        ctx.fillStyle='#666'; ctx.font='8px monospace'; ctx.textAlign='right';
+        ctx.fillText(word, LABEL - 3, y + cellH - 1);
+      }
+    });
+    ctx.fillStyle='#444'; ctx.font='9px monospace'; ctx.textAlign='left';
+    ctx.fillText('↕ сортировка по XOR3', LABEL, H-2);
+  }
+
+  // ── UI wiring ──────────────────────────────────────────────────────────────
+  function populateLzDD() {
+    var sel=document.getElementById('lz-word');
+    if(!sel||!window.LEXICON_ARR) return;
+    window.LEXICON_ARR.forEach(function(w){
+      var o=document.createElement('option'); o.value=o.textContent=w; sel.appendChild(o);
+    });
+  }
+
+  function lzRun() {
+    var wordEl=document.getElementById('lz-word');
+    var custEl=document.getElementById('lz-custom');
+    var canvas=document.getElementById('lz-canvas');
+    var infoEl=document.getElementById('lz-info');
+    if(!canvas||!window.encL){if(infoEl) infoEl.textContent='Ожидание…'; return;}
+    var word=(custEl&&custEl.value.trim())||(wordEl&&wordEl.value)||'ГОРА';
+    drawLzBars(canvas, word);
+    var parts=LZ_RULES.map(function(r){
+      var res=lzCompute(word,r);
+      return res?LZ_NAMES[r]+':'+res.traj.toFixed(3):'';
+    });
+    if(infoEl) infoEl.textContent=parts.join('  ');
+  }
+
+  function lzAllRun() {
+    var hmap=document.getElementById('lz-hmap');
+    var infoEl=document.getElementById('lz-info');
+    if(!hmap||!window.encL||!window.LEXICON_ARR) return;
+    if(infoEl) infoEl.textContent='Вычисляется…';
+    setTimeout(function(){
+      _lzCache = {};
+      window.LEXICON_ARR.forEach(function(word){
+        _lzCache[word]={};
+        LZ_RULES.forEach(function(rule){
+          _lzCache[word][rule]=lzCompute(word,rule);
+        });
+      });
+      drawLzHmap(hmap);
+      if(infoEl) infoEl.textContent='Готово. Лексикон: '+window.LEXICON_ARR.length+' слов × 4 правила';
+    }, 10);
+  }
+  window.lzRun = lzRun;
+  window.lzAllRun = lzAllRun;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn    =document.getElementById('lz-btn');
+    var allBtn =document.getElementById('lz-all-btn');
+    var custEl =document.getElementById('lz-custom');
+    if(btn)    btn.addEventListener('click', lzRun);
+    if(allBtn) allBtn.addEventListener('click', lzAllRun);
+    if(custEl) custEl.addEventListener('keydown', function(e){if(e.key==='Enter') lzRun();});
+    setTimeout(function(){ populateLzDD(); if(window.encL) lzRun(); }, 990);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Ляпунов CA Q6 — расходимость траекторий</h2>
 <p class="meta">Однобитовые возмущения начального состояния (96 вариантов) → среднее Хэмминг-расстояние d(t) между оригинальной и возмущённой траекториями · пик = «максимальная чувствительность» · ↓ = сходится к 0</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
