@@ -2888,6 +2888,256 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Ляпунов CA Q6 — расходимость траекторий</h2>
+<p class="meta">Однобитовые возмущения начального состояния (96 вариантов) → среднее Хэмминг-расстояние d(t) между оригинальной и возмущённой траекториями · пик = «максимальная чувствительность» · ↓ = сходится к 0</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="lya-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <span style="color:#333;font-size:13px">или</span>
+  <input id="lya-custom" type="text" placeholder="своё слово…"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;
+           font-size:13px;width:120px;text-transform:uppercase"/>
+  <button id="lya-btn"
+    style="background:#1a1e2a;color:#ce93d8;border:1px solid #4a3a6a;
+           padding:5px 14px;cursor:pointer;font-size:13px">Ляпунов</button>
+</div>
+<canvas id="lya-canvas" width="700" height="360"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<canvas id="lya-hmap" width="700" height="70"
+  style="display:block;border:1px solid #1a1a1a;margin-top:3px"></canvas>
+<div id="lya-info"
+  style="font-family:monospace;font-size:11px;color:#555;min-height:16px;margin-top:5px"> </div>
+<script>
+(function(){
+  var LYA_MAX_STEPS = 32;
+  var LYA_RULES     = ['xor','xor3','and','or'];
+  var LYA_COLORS    = {'xor':'#f55','xor3':'#4dd','and':'#7d7','or':'#fa0'};
+  var LYA_NAMES     = {'xor':'XOR ⊕','xor3':'XOR3','and':'AND &','or':'OR |'};
+  var LYA_SEGS      = ['T','B','L','R','D1','D2'];
+  var LYA_SEG_COL   = ['#f44','#f90','#dd0','#3c3','#0cf','#a4f'];
+
+  // ── Q6 bit Hamming distance ────────────────────────────────────────────────
+  function q6Ham(a, b) {
+    var x = a ^ b, c = 0;
+    while (x) { c += x & 1; x >>= 1; }
+    return c;
+  }
+  function stateDist(s1, s2) {
+    var d = 0;
+    for (var i = 0; i < s1.length; i++) d += q6Ham(s1[i], s2[i]);
+    return d;
+  }
+
+  // ── CA step ────────────────────────────────────────────────────────────────
+  function caStep(cells, rule) {
+    var n = cells.length, nxt = [];
+    for (var i = 0; i < n; i++) {
+      var l = cells[(i-1+n)%n], c = cells[i], r = cells[(i+1)%n];
+      if      (rule==='xor')  nxt.push(l^r);
+      else if (rule==='xor3') nxt.push(l^c^r);
+      else if (rule==='and')  nxt.push(l&r);
+      else                    nxt.push(l|r);
+    }
+    return nxt;
+  }
+
+  // ── One perturbation trajectory ────────────────────────────────────────────
+  function perturbTraj(orig, ci, bit, rule) {
+    var pert = orig.slice();
+    pert[ci] = pert[ci] ^ (1 << bit);
+    var co = orig.slice(), cp = pert.slice();
+    var dists = [];
+    for (var t = 0; t <= LYA_MAX_STEPS; t++) {
+      dists.push(stateDist(co, cp));
+      co = caStep(co, rule); cp = caStep(cp, rule);
+    }
+    return dists;
+  }
+
+  // ── Lyapunov profile for one word + rule ──────────────────────────────────
+  function lyaProfile(cells, rule) {
+    var lw = cells.length, nP = lw * 6;
+    var sum  = new Array(LYA_MAX_STEPS + 1).fill(0);
+    var maxD = new Array(LYA_MAX_STEPS + 1).fill(0);
+    var perP = [];  // [{ci, bit, traj}]
+    for (var ci = 0; ci < lw; ci++) {
+      for (var b = 0; b < 6; b++) {
+        var tr = perturbTraj(cells, ci, b, rule);
+        for (var t = 0; t <= LYA_MAX_STEPS; t++) {
+          sum[t]  += tr[t];
+          if (tr[t] > maxD[t]) maxD[t] = tr[t];
+        }
+        perP.push({ci: ci, bit: b, traj: tr});
+      }
+    }
+    var mean = sum.map(function(v){ return v / nP; });
+    var peakStep = mean.reduce(function(pi, v, i, a){ return v > a[pi] ? i : pi; }, 0);
+    var peakMean = mean[peakStep];
+    var finalMean = mean[LYA_MAX_STEPS];
+    return {mean: mean, maxD: maxD, peakStep: peakStep, peakMean: peakMean,
+            finalMean: finalMean, converges: finalMean < 0.01, perP: perP};
+  }
+
+  // ── Draw line chart (all 4 rules) ─────────────────────────────────────────
+  function drawLya(canvas, profiles) {
+    var W = canvas.width, H = canvas.height;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+    var PAD = {t:30, b:40, l:50, r:20};
+    var cW = W - PAD.l - PAD.r;
+    var cH = H - PAD.t - PAD.b;
+    var maxY = 0;
+    LYA_RULES.forEach(function(r){ maxY = Math.max(maxY, Math.max.apply(null, profiles[r].maxD)); });
+    if (!maxY) maxY = 1;
+
+    // Grid
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+    for (var g = 0; g <= 4; g++) {
+      var gy = PAD.t + cH - (g/4) * cH;
+      ctx.beginPath(); ctx.moveTo(PAD.l, gy); ctx.lineTo(PAD.l + cW, gy); ctx.stroke();
+      ctx.fillStyle = '#444'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+      ctx.fillText(Math.round(maxY * g / 4), PAD.l - 4, gy + 3);
+    }
+    // Axes labels
+    ctx.fillStyle = '#555'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('шаг t', PAD.l + cW/2, H - 6);
+    ctx.save(); ctx.translate(12, PAD.t + cH/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('d̄(t)', 0, 0); ctx.restore();
+
+    // Step labels
+    for (var s = 0; s <= LYA_MAX_STEPS; s += 4) {
+      var sx = PAD.l + (s / LYA_MAX_STEPS) * cW;
+      ctx.fillStyle = '#444'; ctx.font = '8px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(s, sx, H - PAD.b + 12);
+      ctx.strokeStyle = '#141414'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(sx, PAD.t); ctx.lineTo(sx, PAD.t + cH); ctx.stroke();
+    }
+
+    // Lines per rule
+    LYA_RULES.forEach(function(rule) {
+      var prof = profiles[rule];
+      var col  = LYA_COLORS[rule];
+      // Mean line
+      ctx.strokeStyle = col; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (var t = 0; t <= LYA_MAX_STEPS; t++) {
+        var px = PAD.l + (t / LYA_MAX_STEPS) * cW;
+        var py = PAD.t + cH - (prof.mean[t] / maxY) * cH;
+        if (t === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      // Peak marker
+      var ps = prof.peakStep;
+      var ppx = PAD.l + (ps / LYA_MAX_STEPS) * cW;
+      var ppy = PAD.t + cH - (prof.peakMean / maxY) * cH;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(ppx, ppy, 4, 0, 2*Math.PI); ctx.fill();
+      // Rule label (right edge)
+      var ry = PAD.t + cH - (prof.mean[LYA_MAX_STEPS] / maxY) * cH;
+      ctx.fillStyle = col; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(LYA_NAMES[rule], PAD.l + cW + 3, ry + 3);
+    });
+
+    // Title
+    ctx.fillStyle = '#888'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
+    ctx.fillText('Ляпунов: среднее расстояние d̄(t) после однобитового возмущения', PAD.l, 16);
+  }
+
+  // ── Draw peak sensitivity heatmap ─────────────────────────────────────────
+  function drawHmap(canvas, cells, profiles) {
+    var W = canvas.width, H = canvas.height;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+    var lw = cells.length;
+    var LABEL = 50, GAP = 6, SEGH = Math.floor((H - 18) / 6);
+    var colW = Math.floor((W - LABEL - GAP) / lw);
+
+    LYA_RULES.forEach(function(rule, ri) {
+      var prof = profiles[rule];
+      var ps   = prof.peakStep;
+      var maxV = 0;
+      prof.perP.forEach(function(p){ if(p.traj[ps] > maxV) maxV = p.traj[ps]; });
+    });
+
+    // Show xor3 peak sensitivity as primary heatmap
+    var prof3 = profiles['xor3'];
+    var ps3   = prof3.peakStep;
+    var maxV3 = 1;
+    prof3.perP.forEach(function(p){ if(p.traj[ps3] > maxV3) maxV3 = p.traj[ps3]; });
+
+    // Segment labels
+    for (var b = 0; b < 6; b++) {
+      var by = 18 + b * SEGH;
+      ctx.fillStyle = LYA_SEG_COL[b]; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+      ctx.fillText(LYA_SEGS[b], LABEL - 4, by + SEGH - 2);
+    }
+    // Rule label top
+    ctx.fillStyle = LYA_COLORS['xor3']; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'left';
+    ctx.fillText('Чувствительность XOR3 (пик шаг=' + ps3 + ')', LABEL, 10);
+
+    // Heatmap cells
+    prof3.perP.forEach(function(p) {
+      var v   = p.traj[ps3];
+      var bri = maxV3 > 0 ? v / maxV3 : 0;
+      var by  = 18 + p.bit * SEGH;
+      var bx  = LABEL + p.ci * colW;
+      var r = Math.round(bri * 255);
+      var g = Math.round(bri * 80);
+      var bv = Math.round(bri * 255);
+      ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + bv + ')';
+      ctx.fillRect(bx, by, colW - 1, SEGH - 1);
+    });
+  }
+
+  // ── UI wiring ──────────────────────────────────────────────────────────────
+  function populateLyaDD() {
+    var sel = document.getElementById('lya-word');
+    if (!sel || !window.LEXICON_ARR) return;
+    window.LEXICON_ARR.forEach(function(w){
+      var o = document.createElement('option');
+      o.value = o.textContent = w; sel.appendChild(o);
+    });
+  }
+
+  function lyaRun() {
+    var wordEl = document.getElementById('lya-word');
+    var custEl = document.getElementById('lya-custom');
+    var canvas = document.getElementById('lya-canvas');
+    var hmap   = document.getElementById('lya-hmap');
+    var infoEl = document.getElementById('lya-info');
+    if (!canvas) return;
+    var word = (custEl && custEl.value.trim()) || (wordEl && wordEl.value) || 'ГОРА';
+    var encFn = window.encL, padFn = window.padL;
+    if (!encFn || !padFn) { if(infoEl) infoEl.textContent = 'Ожидание…'; return; }
+    var lw    = window.LEXW || 16;
+    var cells = padFn(encFn(word.toUpperCase()), lw);
+    var profiles = {};
+    LYA_RULES.forEach(function(r){ profiles[r] = lyaProfile(cells, r); });
+    drawLya(canvas, profiles);
+    if (hmap) drawHmap(hmap, cells, profiles);
+    var parts = [];
+    LYA_RULES.forEach(function(r){
+      var p = profiles[r];
+      parts.push(LYA_NAMES[r] + ': d̄=' + p.peakMean.toFixed(1) +
+                 (p.converges ? '↓' : '~'));
+    });
+    if(infoEl) infoEl.textContent = parts.join('  ');
+  }
+  window.lyaRun = lyaRun;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn    = document.getElementById('lya-btn');
+    var custEl = document.getElementById('lya-custom');
+    if(btn)    btn.addEventListener('click', lyaRun);
+    if(custEl) custEl.addEventListener('keydown', function(e){ if(e.key==='Enter') lyaRun(); });
+    setTimeout(function(){ populateLyaDD(); if(window.encL) lyaRun(); }, 950);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Битовые плоскости CA Q6</h2>
 <p class="meta">Q6 = 6 независимых битов (T / B / L / R / D1 / D2) · каждый бит эволюционирует как отдельный 1-битный CA · цвет = сегмент, яркость = 1 (активный) / тёмный = 0</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">

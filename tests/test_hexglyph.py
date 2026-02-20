@@ -3503,6 +3503,286 @@ class TestSolanPhonemeAnalysis(unittest.TestCase):
         self.assertIn('phon-word', content)
 
 
+class TestSolanLyapunov(unittest.TestCase):
+    """Tests for solan_lyapunov.py and the viewer Lyapunov section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import (
+            q6_hamming, state_distance, perturb,
+            divergence_trajectory, lyapunov_profile,
+            lyapunov_summary, peak_sensitivity_map,
+            build_lyapunov_data, lyapunov_dict,
+            _ALL_RULES, _N_BITS, _DEFAULT_STEPS,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.q6_hamming            = staticmethod(q6_hamming)
+        cls.state_distance        = staticmethod(state_distance)
+        cls.perturb               = staticmethod(perturb)
+        cls.divergence_trajectory = staticmethod(divergence_trajectory)
+        cls.lyapunov_profile      = staticmethod(lyapunov_profile)
+        cls.lyapunov_summary      = staticmethod(lyapunov_summary)
+        cls.peak_sensitivity_map  = staticmethod(peak_sensitivity_map)
+        cls.build_lyapunov_data   = staticmethod(build_lyapunov_data)
+        cls.lyapunov_dict         = staticmethod(lyapunov_dict)
+        cls.ALL_RULES             = _ALL_RULES
+        cls.N_BITS                = _N_BITS
+        cls.DEFAULT_STEPS         = _DEFAULT_STEPS
+        cls.LEXICON               = list(LEXICON)
+
+    # ── q6_hamming() ──────────────────────────────────────────────────────────
+
+    def test_q6_hamming_identical(self):
+        self.assertEqual(self.q6_hamming(42, 42), 0)
+
+    def test_q6_hamming_one_bit(self):
+        self.assertEqual(self.q6_hamming(0, 1), 1)
+        self.assertEqual(self.q6_hamming(0, 2), 1)
+        self.assertEqual(self.q6_hamming(0, 32), 1)
+
+    def test_q6_hamming_all_differ(self):
+        # 0 vs 63 = 0b111111 → 6 bits differ
+        self.assertEqual(self.q6_hamming(0, 63), 6)
+
+    def test_q6_hamming_symmetric(self):
+        self.assertEqual(self.q6_hamming(17, 42), self.q6_hamming(42, 17))
+
+    def test_q6_hamming_range(self):
+        for a in range(64):
+            for b in range(64):
+                d = self.q6_hamming(a, b)
+                self.assertGreaterEqual(d, 0)
+                self.assertLessEqual(d, 6)
+
+    # ── state_distance() ──────────────────────────────────────────────────────
+
+    def test_state_distance_identical(self):
+        cells = [10, 20, 30, 40]
+        self.assertEqual(self.state_distance(cells, cells), 0)
+
+    def test_state_distance_one_bit_flip(self):
+        c1 = [0] * 8
+        c2 = [0] * 8; c2[3] = 1
+        self.assertEqual(self.state_distance(c1, c2), 1)
+
+    def test_state_distance_all_differ(self):
+        c1 = [0] * 4
+        c2 = [63] * 4
+        self.assertEqual(self.state_distance(c1, c2), 4 * 6)
+
+    # ── perturb() ─────────────────────────────────────────────────────────────
+
+    def test_perturb_returns_new_list(self):
+        cells = [10, 20, 30]
+        p = self.perturb(cells, 0, 0)
+        self.assertIsNot(p, cells)
+
+    def test_perturb_original_unchanged(self):
+        cells = [10, 20, 30]
+        _ = self.perturb(cells, 0, 0)
+        self.assertEqual(cells, [10, 20, 30])
+
+    def test_perturb_changes_one_cell(self):
+        cells = [0] * 8
+        p = self.perturb(cells, 3, 0)
+        self.assertEqual(p[3], 1)
+        self.assertEqual(sum(p), 1)
+
+    def test_perturb_distance_one(self):
+        cells = [0] * 8
+        p = self.perturb(cells, 3, 0)
+        self.assertEqual(self.state_distance(cells, p), 1)
+
+    def test_perturb_double_flip_restores(self):
+        cells = [42] * 6
+        p  = self.perturb(cells, 2, 3)
+        pp = self.perturb(p, 2, 3)
+        self.assertEqual(cells, pp)
+
+    # ── divergence_trajectory() ───────────────────────────────────────────────
+
+    def test_divtraj_returns_list(self):
+        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3')
+        self.assertIsInstance(r, list)
+
+    def test_divtraj_length(self):
+        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3', max_steps=10)
+        self.assertEqual(len(r), 11)   # 0..10 inclusive
+
+    def test_divtraj_starts_at_one(self):
+        # initial perturbation = 1 bit
+        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3')
+        self.assertEqual(r[0], 1)
+
+    def test_divtraj_nonneg(self):
+        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3')
+        self.assertTrue(all(v >= 0 for v in r))
+
+    def test_divtraj_xor_converges(self):
+        # XOR always converges to all-zeros → perturbation absorbed
+        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor', max_steps=20)
+        self.assertEqual(r[-1], 0)
+
+    # ── lyapunov_profile() ────────────────────────────────────────────────────
+
+    def test_profile_returns_dict(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        self.assertIsInstance(p, dict)
+
+    def test_profile_required_keys(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        for k in ('word', 'rule', 'width', 'n_perturb', 'mean_dist',
+                  'max_dist', 'min_dist', 'peak_mean', 'peak_step',
+                  'final_mean', 'converges', 'per_perturb'):
+            self.assertIn(k, p)
+
+    def test_profile_n_perturb(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        self.assertEqual(p['n_perturb'], 16 * 6)   # width × 6 bits
+
+    def test_profile_mean_dist_length(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        self.assertEqual(len(p['mean_dist']), 11)
+
+    def test_profile_mean_dist_nonneg(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        self.assertTrue(all(v >= 0 for v in p['mean_dist']))
+
+    def test_profile_initial_mean_dist_one(self):
+        # Average of 96 trajectories all starting at d=1
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        self.assertAlmostEqual(p['mean_dist'][0], 1.0)
+
+    def test_profile_peak_step_valid(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        self.assertGreaterEqual(p['peak_step'], 0)
+        self.assertLessEqual(p['peak_step'], 10)
+
+    def test_profile_xor_converges(self):
+        p = self.lyapunov_profile('ГОРА', 'xor', max_steps=20)
+        self.assertTrue(p['converges'])
+
+    def test_profile_converges_type_bool(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        self.assertIsInstance(p['converges'], bool)
+
+    def test_profile_per_perturb_count(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=5)
+        self.assertEqual(len(p['per_perturb']), 16 * 6)
+
+    def test_profile_per_perturb_starts_at_one(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=5)
+        for entry in p['per_perturb']:
+            self.assertEqual(entry['traj'][0], 1)
+
+    # ── lyapunov_summary() ────────────────────────────────────────────────────
+
+    def test_summary_returns_all_rules(self):
+        s = self.lyapunov_summary('ГОРА', max_steps=10)
+        self.assertEqual(set(s.keys()), set(self.ALL_RULES))
+
+    def test_summary_rule_keys(self):
+        s = self.lyapunov_summary('ГОРА', max_steps=10)
+        for rule, d in s.items():
+            for k in ('peak_mean', 'peak_step', 'final_mean', 'converges'):
+                self.assertIn(k, d)
+
+    # ── peak_sensitivity_map() ────────────────────────────────────────────────
+
+    def test_psmap_shape(self):
+        m = self.peak_sensitivity_map('ГОРА', 'xor3', max_steps=10)
+        self.assertEqual(len(m), 16)
+        for row in m:
+            self.assertEqual(len(row), 6)
+
+    def test_psmap_nonneg(self):
+        m = self.peak_sensitivity_map('ГОРА', 'xor3', max_steps=10)
+        for row in m:
+            for v in row:
+                self.assertGreaterEqual(v, 0)
+
+    # ── build_lyapunov_data() ─────────────────────────────────────────────────
+
+    def test_build_returns_dict(self):
+        d = self.build_lyapunov_data(['ГОРА', 'ЛУНА'], max_steps=8)
+        self.assertIsInstance(d, dict)
+
+    def test_build_required_keys(self):
+        d = self.build_lyapunov_data(['ГОРА', 'ЛУНА'], max_steps=8)
+        for k in ('words', 'width', 'max_steps', 'per_rule', 'most_chaotic', 'most_stable'):
+            self.assertIn(k, d)
+
+    def test_build_per_rule_words(self):
+        words = ['ГОРА', 'ЛУНА', 'МАТ']
+        d = self.build_lyapunov_data(words, max_steps=8)
+        for rule in self.ALL_RULES:
+            self.assertEqual(set(d['per_rule'][rule].keys()), set(words))
+
+    def test_build_most_chaotic_is_valid_word(self):
+        words = ['ГОРА', 'ЛУНА', 'МАТ']
+        d = self.build_lyapunov_data(words, max_steps=8)
+        for rule in self.ALL_RULES:
+            word, _ = d['most_chaotic'][rule]
+            self.assertIn(word, words)
+
+    # ── lyapunov_dict() ───────────────────────────────────────────────────────
+
+    def test_dict_json_serialisable(self):
+        import json
+        d = self.lyapunov_dict('ГОРА', max_steps=8)
+        dumped = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(dumped, str)
+
+    def test_dict_top_keys(self):
+        d = self.lyapunov_dict('ГОРА', max_steps=8)
+        for k in ('word', 'width', 'max_steps', 'rules'):
+            self.assertIn(k, d)
+
+    def test_dict_all_rules_present(self):
+        d = self.lyapunov_dict('ГОРА', max_steps=8)
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_dict_mean_dist_list(self):
+        d = self.lyapunov_dict('ГОРА', max_steps=8)
+        for rule, rd in d['rules'].items():
+            self.assertIsInstance(rd['mean_dist'], list)
+            self.assertEqual(len(rd['mean_dist']), 9)  # 0..8
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_lya_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lya-canvas', content)
+
+    def test_viewer_has_lya_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lya-hmap', content)
+
+    def test_viewer_has_lya_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lya-btn', content)
+
+    def test_viewer_has_lya_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyaRun', content)
+
+    def test_viewer_has_lya_word_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lya-word', content)
+
+    def test_viewer_lya_section_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Ляпунов CA Q6', content)
+
+    def test_viewer_has_q6_hamming(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('q6Ham', content)
+
+    def test_viewer_has_lya_profile(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyaProfile', content)
+
+
 class TestSolanBit(unittest.TestCase):
     """Tests for solan_bit.py and the viewer Bit-Plane section."""
 
