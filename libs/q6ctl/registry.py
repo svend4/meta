@@ -505,19 +505,25 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
         ),
     ),
     'MC': SuperClusterInfo(
-        id='MC', name='Геномный Оракул Q6 (мега)',
+        id='MC', name='Q6 Паспорт (мега)',
         cluster_ids=['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8'],
-        description='Все 8 кластеров: полная Q6-система',
+        description='Все 8 кластеров: Q6 Паспорт — полная Q6-система',
         pipeline=[
-            'hexbio:codon',       # ДНК → Q6
-            'hextrimat:triangle', # Q6 → матрица И-Цзин
-            'hexpack:ring',       # матрица → упаковка
-            'hexcrypt:sbox',      # упаковка → S-блок
-            'hexca:evolve',       # S-блок → КА
-            'hexstat:entropy',    # КА → энтропия
-            'hexlearn:predict',   # энтропия → ML-оценка
+            'hexbio:codon-map',                                             # K4: ДНК кодоны
+            'hextrimat:twins --from-codons',                                # K6: Андреев близнецы
+            'hexlearn:cluster --from-twins + hexspec:resonance',            # K3×K6: оракул
+            'hexpack:ring',                                                 # K5: кольцо Германа
+            'hexphi:fibonacci --from-ring',                                 # K7: φ-инвариант
+            'hexca:evolve + hexstat:ca-entropy --from-ca',                  # K2: КА+энтропия
+            'hexopt:bayesian + hexcrypt:avalanche + hexlearn:predict + hexcode:sbox-code',  # K1×K3×K8
         ],
-        emergent='7-шаговый конвейер: ДНК → И-Цзин → Упаковка → Шифр → КА → Энтропия → Оракул',
+        emergent=(
+            'MC K1–K8: Q6 = единое пространство биологии, криптографии, физики и И-Цзин. '
+            'TSC-3 (K4×K6×K3): резонанс=0.68 (11× выше случайного), 23 oracle-предсказания. '
+            'SC-7 (K5×K7): F(8)=21 = K4 символов генетического кода (φ-резонанс). '
+            'SC-5 (K3×K1): r(NL,SAC_dev)=-0.96, NL=18 Q6-потолок. '
+            'SC-2 (K1×K8): MDS-барьер d=7, complement=[12,6,6] эквидистантный.'
+        ),
     ),
 }
 
