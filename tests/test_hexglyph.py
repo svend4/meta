@@ -3503,6 +3503,282 @@ class TestSolanPhonemeAnalysis(unittest.TestCase):
         self.assertIn('phon-word', content)
 
 
+class TestSolanBit(unittest.TestCase):
+    """Tests for solan_bit.py and the viewer Bit-Plane section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import (
+            extract_bit_plane, bit_step,
+            bit_plane_trajectory, word_bit_planes,
+            attractor_activity, bit_plane_signature,
+            build_bit_plane_data, bit_plane_dict,
+            _SEGMENT_NAMES, _ALL_RULES,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.extract_bit_plane    = staticmethod(extract_bit_plane)
+        cls.bit_step             = staticmethod(bit_step)
+        cls.bit_plane_trajectory = staticmethod(bit_plane_trajectory)
+        cls.word_bit_planes      = staticmethod(word_bit_planes)
+        cls.attractor_activity   = staticmethod(attractor_activity)
+        cls.bit_plane_signature  = staticmethod(bit_plane_signature)
+        cls.build_bit_plane_data = staticmethod(build_bit_plane_data)
+        cls.bit_plane_dict       = staticmethod(bit_plane_dict)
+        cls.SEGMENT_NAMES        = _SEGMENT_NAMES
+        cls.ALL_RULES            = _ALL_RULES
+        cls.LEXICON              = list(LEXICON)
+
+    # ── extract_bit_plane() ───────────────────────────────────────────────────
+
+    def test_extract_bit_plane_returns_list(self):
+        r = self.extract_bit_plane([63, 0, 42], 0)
+        self.assertIsInstance(r, list)
+
+    def test_extract_bit_plane_length(self):
+        cells = [1, 2, 4, 8, 16, 32]
+        self.assertEqual(len(self.extract_bit_plane(cells, 0)), 6)
+
+    def test_extract_bit_plane_bit0_all_ones(self):
+        # 63 = 0b111111 → bit 0 = 1 everywhere
+        r = self.extract_bit_plane([63] * 8, 0)
+        self.assertTrue(all(v == 1 for v in r))
+
+    def test_extract_bit_plane_bit0_zero(self):
+        # 0 → all bits zero
+        r = self.extract_bit_plane([0] * 8, 0)
+        self.assertTrue(all(v == 0 for v in r))
+
+    def test_extract_bit_plane_values_binary(self):
+        r = self.extract_bit_plane([0, 1, 2, 3, 62, 63], 0)
+        self.assertTrue(all(v in (0, 1) for v in r))
+
+    def test_extract_bit_plane_specific_bit(self):
+        # 4 = 0b000100 → bit 2 = 1, bit 0 = 0
+        r = self.extract_bit_plane([4], 2)
+        self.assertEqual(r, [1])
+        r0 = self.extract_bit_plane([4], 0)
+        self.assertEqual(r0, [0])
+
+    def test_extract_all_6_bits_of_63(self):
+        for b in range(6):
+            r = self.extract_bit_plane([63], b)
+            self.assertEqual(r, [1])
+
+    # ── bit_step() ────────────────────────────────────────────────────────────
+
+    def test_bit_step_xor_length(self):
+        bits = [1, 0, 1, 0]
+        r = self.bit_step(bits, 'xor')
+        self.assertEqual(len(r), 4)
+
+    def test_bit_step_values_binary(self):
+        bits = [1, 0, 1, 0, 1, 0, 1, 0]
+        for rule in self.ALL_RULES:
+            r = self.bit_step(bits, rule)
+            self.assertTrue(all(v in (0, 1) for v in r))
+
+    def test_bit_step_all_zeros_stays_zero(self):
+        bits = [0] * 8
+        for rule in self.ALL_RULES:
+            r = self.bit_step(bits, rule)
+            self.assertEqual(r, [0] * 8)
+
+    def test_bit_step_xor_alternating(self):
+        # [1,0,1,0,...] under XOR: left^right = 0^0 or 1^1 → all zeros
+        bits = [1, 0, 1, 0, 1, 0, 1, 0]
+        r = self.bit_step(bits, 'xor')
+        self.assertEqual(r, [0] * 8)
+
+    def test_bit_step_or_all_ones_stays(self):
+        bits = [1] * 8
+        r = self.bit_step(bits, 'or')
+        self.assertEqual(r, [1] * 8)
+
+    def test_bit_step_and_all_ones_stays(self):
+        bits = [1] * 8
+        r = self.bit_step(bits, 'and')
+        self.assertEqual(r, [1] * 8)
+
+    def test_bit_step_invalid_rule_raises(self):
+        with self.assertRaises(ValueError):
+            self.bit_step([0, 1], 'bad_rule')
+
+    # ── bit_plane_trajectory() ────────────────────────────────────────────────
+
+    def test_bpt_returns_dict(self):
+        r = self.bit_plane_trajectory('ГОРА', 0, 'xor3')
+        self.assertIsInstance(r, dict)
+
+    def test_bpt_required_keys(self):
+        r = self.bit_plane_trajectory('ГОРА', 0, 'xor3')
+        for k in ('bit', 'segment', 'rule', 'word', 'rows', 'transient', 'period', 'active', 'mean_attr'):
+            self.assertIn(k, r)
+
+    def test_bpt_bit_index_stored(self):
+        for b in range(6):
+            r = self.bit_plane_trajectory('ГОРА', b, 'xor3')
+            self.assertEqual(r['bit'], b)
+
+    def test_bpt_segment_name(self):
+        for b in range(6):
+            r = self.bit_plane_trajectory('ГОРА', b, 'xor3')
+            self.assertEqual(r['segment'], self.SEGMENT_NAMES[b])
+
+    def test_bpt_rows_binary(self):
+        r = self.bit_plane_trajectory('ГОРА', 0, 'xor3')
+        for row in r['rows']:
+            self.assertTrue(all(v in (0, 1) for v in row))
+
+    def test_bpt_rows_count_matches_transient_period(self):
+        r = self.bit_plane_trajectory('ГОРА', 0, 'xor3')
+        self.assertEqual(len(r['rows']), r['transient'] + r['period'])
+
+    def test_bpt_active_type_bool(self):
+        r = self.bit_plane_trajectory('ГОРА', 0, 'xor3')
+        self.assertIsInstance(r['active'], bool)
+
+    def test_bpt_mean_attr_range(self):
+        r = self.bit_plane_trajectory('ГОРА', 0, 'xor3')
+        self.assertGreaterEqual(r['mean_attr'], 0.0)
+        self.assertLessEqual(r['mean_attr'], 1.0)
+
+    def test_bpt_xor_attractor_inactive(self):
+        # XOR always converges to all-zeros for all lexicon words
+        for b in range(6):
+            r = self.bit_plane_trajectory('ГОРА', b, 'xor')
+            self.assertFalse(r['active'])
+
+    def test_bpt_and_attractor_period_pos(self):
+        # AND bit-plane attractor period is ≥ 1
+        for b in range(6):
+            r = self.bit_plane_trajectory('ГОРА', b, 'and')
+            self.assertGreaterEqual(r['period'], 1)
+
+    # ── word_bit_planes() ─────────────────────────────────────────────────────
+
+    def test_wbp_returns_dict_of_6(self):
+        r = self.word_bit_planes('ГОРА', 'xor3')
+        self.assertEqual(set(r.keys()), set(range(6)))
+
+    def test_wbp_each_value_is_dict(self):
+        r = self.word_bit_planes('ГОРА', 'xor3')
+        for p in r.values():
+            self.assertIsInstance(p, dict)
+
+    # ── attractor_activity() ──────────────────────────────────────────────────
+
+    def test_aa_returns_dict_of_6(self):
+        r = self.attractor_activity('ГОРА', 'xor3')
+        self.assertEqual(set(r.keys()), set(range(6)))
+
+    def test_aa_keys_per_bit(self):
+        r = self.attractor_activity('ГОРА', 'xor3')
+        for entry in r.values():
+            for k in ('active', 'period', 'mean_attr', 'segment'):
+                self.assertIn(k, entry)
+
+    def test_aa_xor3_gora_has_active_bits(self):
+        r = self.attractor_activity('ГОРА', 'xor3')
+        cnt = sum(1 for d in r.values() if d['active'])
+        self.assertGreater(cnt, 0)
+
+    def test_aa_xor_gora_no_active_bits(self):
+        r = self.attractor_activity('ГОРА', 'xor')
+        cnt = sum(1 for d in r.values() if d['active'])
+        self.assertEqual(cnt, 0)
+
+    # ── bit_plane_signature() ─────────────────────────────────────────────────
+
+    def test_signature_returns_all_rules(self):
+        r = self.bit_plane_signature('ГОРА')
+        self.assertEqual(set(r.keys()), set(self.ALL_RULES))
+
+    def test_signature_each_rule_has_6_bits(self):
+        r = self.bit_plane_signature('ГОРА')
+        for rule, act in r.items():
+            self.assertEqual(len(act), 6, f"rule {rule}")
+
+    # ── build_bit_plane_data() ────────────────────────────────────────────────
+
+    def test_build_returns_dict(self):
+        d = self.build_bit_plane_data(['ГОРА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+
+    def test_build_required_keys(self):
+        d = self.build_bit_plane_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule', 'active_count', 'max_active', 'min_active'):
+            self.assertIn(k, d)
+
+    def test_build_active_count_range(self):
+        d = self.build_bit_plane_data(['ГОРА', 'ЛУНА', 'ТУМАН'])
+        for rule in self.ALL_RULES:
+            for word, cnt in d['active_count'][rule].items():
+                self.assertGreaterEqual(cnt, 0)
+                self.assertLessEqual(cnt, 6)
+
+    def test_build_max_active_exists(self):
+        d = self.build_bit_plane_data(['ГОРА', 'ЛУНА', 'ТУМАН'])
+        for rule in self.ALL_RULES:
+            word, cnt = d['max_active'][rule]
+            self.assertIn(word, ['ГОРА', 'ЛУНА', 'ТУМАН'])
+            self.assertGreaterEqual(cnt, 0)
+
+    # ── bit_plane_dict() ──────────────────────────────────────────────────────
+
+    def test_bpd_json_serialisable(self):
+        import json
+        d = self.bit_plane_dict('ГОРА')
+        dumped = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(dumped, str)
+
+    def test_bpd_top_keys(self):
+        d = self.bit_plane_dict('ГОРА')
+        for k in ('word', 'width', 'segment_names', 'rules'):
+            self.assertIn(k, d)
+
+    def test_bpd_all_rules_present(self):
+        d = self.bit_plane_dict('ГОРА')
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_bpd_segment_names(self):
+        d = self.bit_plane_dict('ГОРА')
+        self.assertEqual(d['segment_names'], self.SEGMENT_NAMES)
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_bit_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bit-canvas', content)
+
+    def test_viewer_has_bit_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bit-btn', content)
+
+    def test_viewer_has_bit_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bitRun', content)
+
+    def test_viewer_has_bit_word_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bit-word', content)
+
+    def test_viewer_has_bit_rule_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bit-rule', content)
+
+    def test_viewer_bit_section_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Битовые плоскости CA Q6', content)
+
+    def test_viewer_has_seg_colors(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('SEG_COLORS', content)
+
+    def test_viewer_has_compute_bit_planes(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('computeBitPlanes', content)
+
+
 class TestSolanTraj(unittest.TestCase):
     """Tests for solan_traj.py and the viewer Trajectory section."""
 

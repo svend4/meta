@@ -2888,6 +2888,174 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Битовые плоскости CA Q6</h2>
+<p class="meta">Q6 = 6 независимых битов (T / B / L / R / D1 / D2) · каждый бит эволюционирует как отдельный 1-битный CA · цвет = сегмент, яркость = 1 (активный) / тёмный = 0</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="bit-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <span style="color:#333;font-size:13px">или</span>
+  <input id="bit-custom" type="text" placeholder="своё слово…"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;
+           font-size:13px;width:120px;text-transform:uppercase"/>
+  <select id="bit-rule"
+    style="background:#111;color:#4fc3f7;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor3">XOR3</option>
+    <option value="xor">XOR ⊕</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <button id="bit-btn"
+    style="background:#1a2a1e;color:#a5d6a7;border:1px solid #2a5a3a;
+           padding:5px 14px;cursor:pointer;font-size:13px">Слои</button>
+</div>
+<canvas id="bit-canvas" width="700" height="200"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="bit-info"
+  style="font-family:monospace;font-size:11px;color:#555;min-height:16px;margin-top:5px"> </div>
+<script>
+(function(){
+  var SEGS = ['T','B','L','R','D1','D2'];
+  var SEG_COLORS = ['#f44','#f90','#dd0','#3c3','#0cf','#a4f'];
+
+  // ── One bit-plane step ─────────────────────────────────────────────────────
+  function bitStep(bits, rule) {
+    var n = bits.length, nxt = [];
+    for (var i = 0; i < n; i++) {
+      var l = bits[(i-1+n)%n], c = bits[i], r = bits[(i+1)%n];
+      if      (rule === 'xor')  nxt.push(l^r);
+      else if (rule === 'xor3') nxt.push(l^c^r);
+      else if (rule === 'and')  nxt.push(l&r);
+      else                      nxt.push(l|r);
+    }
+    return nxt;
+  }
+
+  // ── Orbit for 1-bit plane ──────────────────────────────────────────────────
+  function bitOrbit(bits, rule) {
+    var seen = {}, cur = bits.slice(), t = 0;
+    while (true) {
+      var k = cur.join(',');
+      if (seen.hasOwnProperty(k)) return {tr: seen[k], per: t - seen[k]};
+      seen[k] = t; cur = bitStep(cur, rule); t++;
+    }
+  }
+
+  // ── Compute all 6 bit-plane trajectories ───────────────────────────────────
+  function computeBitPlanes(word, rule) {
+    var encFn = window.encL, padFn = window.padL;
+    if (!encFn || !padFn) return null;
+    var lw = window.LEXW || 16;
+    var cells = padFn(encFn(word.toUpperCase()), lw);
+    var planes = [];
+    for (var b = 0; b < 6; b++) {
+      var init = cells.map(function(c){ return (c>>b)&1; });
+      var orb  = bitOrbit(init, rule);
+      var rows = [], cur = init.slice();
+      var n = orb.tr + orb.per;
+      for (var i = 0; i < n; i++) { rows.push(cur.slice()); cur = bitStep(cur, rule); }
+      var attrVals = rows.slice(orb.tr).reduce(function(a,r){ return a.concat(r); }, []);
+      var active = attrVals.some(function(v){ return v; });
+      planes.push({seg: SEGS[b], tr: orb.tr, per: orb.per, rows: rows, active: active});
+    }
+    return planes;
+  }
+
+  // ── Draw ───────────────────────────────────────────────────────────────────
+  function drawBitPlanes(planes, canvas) {
+    var maxRows = 0;
+    planes.forEach(function(p){ maxRows = Math.max(maxRows, p.tr + p.per); });
+    var HDR = 28, CS = 9, LABEL = 36, GAP = 6;
+    var lw  = window.LEXW || 16;
+    var bpW = lw * CS;
+    var totalW = LABEL + 6 * (bpW + GAP) + 6;
+    var totalH = HDR + maxRows * CS + 12;
+    canvas.width  = Math.max(700, totalW);
+    canvas.height = totalH;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Segment name headers
+    for (var b = 0; b < 6; b++) {
+      var p  = planes[b];
+      var bx = LABEL + b * (bpW + GAP);
+      ctx.fillStyle = p.active ? SEG_COLORS[b] : '#444';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.seg, bx + bpW/2, HDR - 6);
+    }
+
+    var maxTr = Math.max.apply(null, planes.map(function(p){ return p.tr; }));
+    for (var i = 0; i < maxRows; i++) {
+      // Row label
+      ctx.fillStyle = i < maxTr ? '#806030' : '#307080';
+      ctx.font = '8px monospace'; ctx.textAlign = 'right';
+      ctx.fillText(i, LABEL - 4, HDR + i * CS + CS - 2);
+      // Boundary separator
+      if (i === maxTr && maxTr > 0) {
+        ctx.strokeStyle = '#504020'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(LABEL, HDR + i * CS - 0.5);
+        ctx.lineTo(canvas.width - 3, HDR + i * CS - 0.5);
+        ctx.stroke();
+      }
+      // Cells per bit
+      for (var b = 0; b < 6; b++) {
+        var p  = planes[b];
+        var bx = LABEL + b * (bpW + GAP);
+        if (i < p.rows.length) {
+          var row = p.rows[i], inAttr = i >= p.tr;
+          for (var j = 0; j < row.length; j++) {
+            ctx.fillStyle = row[j]
+              ? (inAttr ? SEG_COLORS[b] : 'rgba(160,160,160,0.7)')
+              : '#111';
+            ctx.fillRect(bx + j*CS, HDR + i*CS, CS-1, CS-1);
+          }
+        }
+      }
+    }
+  }
+
+  // ── UI wiring ──────────────────────────────────────────────────────────────
+  function populateBitDD() {
+    var sel = document.getElementById('bit-word');
+    if (!sel || !window.LEXICON_ARR) return;
+    window.LEXICON_ARR.forEach(function(w){
+      var o = document.createElement('option');
+      o.value = o.textContent = w; sel.appendChild(o);
+    });
+  }
+
+  function bitRun() {
+    var wordEl = document.getElementById('bit-word');
+    var custEl = document.getElementById('bit-custom');
+    var ruleEl = document.getElementById('bit-rule');
+    var canvas = document.getElementById('bit-canvas');
+    var infoEl = document.getElementById('bit-info');
+    if (!canvas) return;
+    var word = (custEl && custEl.value.trim()) || (wordEl && wordEl.value) || 'ГОРА';
+    var rule = ruleEl ? ruleEl.value : 'xor3';
+    var planes = computeBitPlanes(word, rule);
+    if (!planes) { if(infoEl) infoEl.textContent = 'Ожидание…'; return; }
+    drawBitPlanes(planes, canvas);
+    var actCnt = planes.filter(function(p){ return p.active; }).length;
+    var parts  = ['Активных слоёв: ' + actCnt + '/6'];
+    planes.forEach(function(p){ parts.push(p.seg+'[T='+p.tr+' P='+p.per+']'); });
+    if(infoEl) infoEl.textContent = parts.join('  ');
+  }
+  window.bitRun = bitRun;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn    = document.getElementById('bit-btn');
+    var custEl = document.getElementById('bit-custom');
+    if(btn)    btn.addEventListener('click', bitRun);
+    if(custEl) custEl.addEventListener('keydown', function(e){ if(e.key==='Enter') bitRun(); });
+    setTimeout(function(){ populateBitDD(); if(window.encL) bitRun(); }, 900);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Спектральный анализ Q6 — ДПФ аттрактора</h2>
 <p class="meta">Пространственные частоты CA-аттрактора (k=1..8, λ=16..2 клетки)
   · Слева: AC-спектр выбранного слова · Справа: карта всего лексикона (49 слов × 8 частот)</p>
