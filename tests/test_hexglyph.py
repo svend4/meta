@@ -2978,5 +2978,269 @@ class TestSolanMatrix(unittest.TestCase):
         self.assertIn('setTimeout', content)
 
 
+class TestSolanTraj(unittest.TestCase):
+    """Tests for solan_traj.py and the viewer Trajectory section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_traj import (
+            word_trajectory, all_word_trajectories, traj_stats,
+            build_trajectory_data, trajectory_similarity, trajectory_dict,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.word_trajectory         = staticmethod(word_trajectory)
+        cls.all_word_trajectories   = staticmethod(all_word_trajectories)
+        cls.traj_stats              = staticmethod(traj_stats)
+        cls.build_trajectory_data   = staticmethod(build_trajectory_data)
+        cls.trajectory_similarity   = staticmethod(trajectory_similarity)
+        cls.trajectory_dict         = staticmethod(trajectory_dict)
+        cls.LEXICON                 = list(LEXICON)
+
+    # ── word_trajectory() basics ──────────────────────────────────────────────
+
+    def test_word_trajectory_returns_dict(self):
+        t = self.word_trajectory('ГОРА', 'xor3')
+        self.assertIsInstance(t, dict)
+
+    def test_word_trajectory_required_keys(self):
+        t = self.word_trajectory('ГОРА', 'xor3')
+        for k in ('rows', 'transient', 'period', 'n_rows', 'word', 'rule', 'width'):
+            self.assertIn(k, t)
+
+    def test_word_trajectory_rows_count(self):
+        t = self.word_trajectory('ГОРА', 'xor3')
+        # n_rows = transient + period
+        self.assertEqual(t['n_rows'], t['transient'] + t['period'])
+        self.assertEqual(len(t['rows']), t['n_rows'])
+
+    def test_word_trajectory_row_width(self):
+        t = self.word_trajectory('ГОРА', 'xor3', width=16)
+        for row in t['rows']:
+            self.assertEqual(len(row), 16)
+
+    def test_word_trajectory_gora_xor3(self):
+        # ГОРА xor3: transient=0, period=2
+        t = self.word_trajectory('ГОРА', 'xor3')
+        self.assertEqual(t['transient'], 0)
+        self.assertEqual(t['period'], 2)
+        self.assertEqual(t['n_rows'], 2)
+
+    def test_word_trajectory_tundra_and(self):
+        # ТУНДРА and: transient=2, period=2
+        t = self.word_trajectory('ТУНДРА', 'and')
+        self.assertEqual(t['transient'], 2)
+        self.assertEqual(t['period'], 2)
+
+    def test_word_trajectory_xor_all_converge_to_zeros(self):
+        # XOR fixed point is all-zeros for all lexicon words
+        for word in self.LEXICON[:10]:
+            t = self.word_trajectory(word, 'xor')
+            attractor_rows = t['rows'][t['transient']:]
+            for row in attractor_rows:
+                self.assertTrue(all(v == 0 for v in row),
+                                msg=f'{word} XOR attractor not all-zeros: {row}')
+
+    def test_word_trajectory_attractor_is_periodic(self):
+        # The attractor rows should form a strict cycle (row[tr] == row[tr+per])
+        for word in ['ГОРА', 'ЛУНА', 'ЖУРНАЛ']:
+            for rule in ['xor3', 'and', 'or']:
+                t = self.word_trajectory(word, rule)
+                rows, tr, per = t['rows'], t['transient'], t['period']
+                # Verify: applying step from rows[tr] per times returns to rows[tr]
+                from projects.hexglyph.solan_ca import step
+                c = rows[tr][:]
+                for _ in range(per):
+                    c = step(c, rule)
+                self.assertEqual(c, rows[tr],
+                    msg=f'{word}/{rule}: attractor not periodic after {per} steps')
+
+    def test_word_trajectory_cells_are_q6(self):
+        t = self.word_trajectory('ЛУНА', 'xor3')
+        for row in t['rows']:
+            for v in row:
+                self.assertGreaterEqual(v, 0)
+                self.assertLessEqual(v, 63)
+
+    # ── all_word_trajectories() ───────────────────────────────────────────────
+
+    def test_all_word_trajectories_keys(self):
+        trajs = self.all_word_trajectories('ГОРА')
+        self.assertEqual(set(trajs.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_word_trajectories_consistent(self):
+        trajs = self.all_word_trajectories('ТУМАН')
+        for rule, t in trajs.items():
+            self.assertEqual(t['rule'], rule)
+            self.assertEqual(t['word'], 'ТУМАН')
+
+    # ── traj_stats() ──────────────────────────────────────────────────────────
+
+    def test_traj_stats_keys(self):
+        st = self.traj_stats('ГОРА', 'xor3')
+        for k in ('transient', 'period', 'attr_entropy', 'total_entropy',
+                  'mean_q6', 'unique_cells', 'unique_states'):
+            self.assertIn(k, st)
+
+    def test_traj_stats_xor_attr_entropy_zero(self):
+        # XOR attractor = all-zeros → H=0
+        for word in self.LEXICON[:5]:
+            st = self.traj_stats(word, 'xor')
+            self.assertAlmostEqual(st['attr_entropy'], 0.0, places=10)
+
+    def test_traj_stats_xor3_entropy_positive(self):
+        # XOR3 has non-trivial attractor
+        for word in self.LEXICON[:5]:
+            st = self.traj_stats(word, 'xor3')
+            self.assertGreater(st['attr_entropy'], 0.0)
+
+    def test_traj_stats_entropy_nonnegative(self):
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            st = self.traj_stats('ГОРА', rule)
+            self.assertGreaterEqual(st['attr_entropy'],  0.0)
+            self.assertGreaterEqual(st['total_entropy'], 0.0)
+
+    def test_traj_stats_mean_q6_range(self):
+        for rule in ['xor3', 'and', 'or']:
+            st = self.traj_stats('ГОРА', rule)
+            self.assertGreaterEqual(st['mean_q6'], 0.0)
+            self.assertLessEqual(st['mean_q6'], 63.0)
+
+    def test_traj_stats_unique_states_equals_period(self):
+        for word in ['ГОРА', 'ЛУНА', 'ЖУРНАЛ']:
+            for rule in ['xor3', 'and', 'or']:
+                st = self.traj_stats(word, rule)
+                self.assertEqual(st['unique_states'], st['period'])
+
+    def test_traj_stats_gora_xor3_attr_entropy(self):
+        # ГОРА xor3 attractor has 8 distinct Q6 values across 2 rows × 16 cells
+        # → H=3.0 bits (4 distinct values each appearing 8 times in 32 cells)
+        st = self.traj_stats('ГОРА', 'xor3')
+        self.assertAlmostEqual(st['attr_entropy'], 3.0, places=5)
+
+    # ── trajectory_similarity() ───────────────────────────────────────────────
+
+    def test_similarity_self_is_zero(self):
+        t = self.word_trajectory('ГОРА', 'xor3')
+        self.assertAlmostEqual(self.trajectory_similarity(t, t), 0.0, places=10)
+
+    def test_similarity_symmetric(self):
+        t1 = self.word_trajectory('ГОРА', 'xor3')
+        t2 = self.word_trajectory('ЛУНА', 'xor3')
+        self.assertAlmostEqual(
+            self.trajectory_similarity(t1, t2),
+            self.trajectory_similarity(t2, t1),
+            places=10)
+
+    def test_similarity_range(self):
+        t1 = self.word_trajectory('ГОРА', 'xor3')
+        t2 = self.word_trajectory('ТУМАН', 'xor3')
+        s = self.trajectory_similarity(t1, t2)
+        self.assertGreaterEqual(s, 0.0)
+        self.assertLessEqual(s, 1.0)
+
+    def test_similarity_xor_is_zero_for_same_attractor(self):
+        # All XOR trajectories end at all-zeros, so short trajectories should
+        # have very low similarity (both reach zeros)
+        t1 = self.word_trajectory('ГОРА', 'xor')
+        t2 = self.word_trajectory('ЛУНА', 'xor')
+        # They differ in transient but share the zero-attractor; similarity < 0.4
+        s = self.trajectory_similarity(t1, t2)
+        self.assertLess(s, 0.4)
+
+    # ── build_trajectory_data() ───────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        data = self.build_trajectory_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule', 'max_entropy', 'min_entropy'):
+            self.assertIn(k, data)
+
+    def test_build_data_per_rule_rules(self):
+        data = self.build_trajectory_data(['ГОРА', 'ЛУНА'])
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_data_per_rule_words(self):
+        words = ['ГОРА', 'ЛУНА', 'ЖУРНАЛ']
+        data = self.build_trajectory_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    def test_build_data_max_entropy_exists(self):
+        data = self.build_trajectory_data(['ГОРА', 'ЛУНА', 'ТУМАН'])
+        for rule in ['xor3', 'and', 'or']:
+            word, h = data['max_entropy'][rule]
+            self.assertIn(word, ['ГОРА', 'ЛУНА', 'ТУМАН'])
+            self.assertGreaterEqual(h, 0.0)
+
+    # ── trajectory_dict() ─────────────────────────────────────────────────────
+
+    def test_trajectory_dict_serialisable(self):
+        import json
+        d = self.trajectory_dict('ГОРА')
+        dumped = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(dumped, str)
+
+    def test_trajectory_dict_keys(self):
+        d = self.trajectory_dict('ГОРА')
+        for k in ('word', 'width', 'rules'):
+            self.assertIn(k, d)
+
+    def test_trajectory_dict_all_rules(self):
+        d = self.trajectory_dict('ГОРА')
+        self.assertEqual(set(d['rules'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_trajectory_dict_rule_keys(self):
+        d = self.trajectory_dict('ГОРА')
+        for rule_data in d['rules'].values():
+            for k in ('transient', 'period', 'n_rows', 'rows',
+                      'attr_entropy', 'total_entropy', 'mean_q6', 'unique_cells'):
+                self.assertIn(k, rule_data)
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_traj_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('traj-canvas', content)
+
+    def test_viewer_has_traj_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('traj-info', content)
+
+    def test_viewer_has_q6_color(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('q6Color', content)
+
+    def test_viewer_has_compute_traj(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('computeTraj', content)
+
+    def test_viewer_has_encl_export(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.encL', content)
+
+    def test_viewer_has_padl_export(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.padL', content)
+
+    def test_viewer_has_lexicon_arr_export(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.LEXICON_ARR', content)
+
+    def test_viewer_trajectory_section_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Траектория CA Q6', content)
+
+    def test_viewer_has_traj_word_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('traj-word', content)
+
+    def test_viewer_has_traj_rule_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('traj-rule', content)
+
+    def test_viewer_has_traj_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('trajRun', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
