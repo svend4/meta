@@ -367,6 +367,80 @@ def json_center() -> dict:
     }
 
 
+def json_codon_atlas(codon_data: dict) -> dict:
+    """
+    Наложить карту кодонов на треугольник Андреева (SC-4 шаг 2).
+
+    Входной формат: вывод hexbio:codon-map.
+    Для каждой строки треугольника: какие аминокислоты/кодоны там?
+    """
+    codons = codon_data.get('codons', [])
+
+    # Группировка: строка → список кодонов
+    row_map: dict[int, list[dict]] = {}
+    for c in codons:
+        r = c['trimat_row']
+        if r not in row_map:
+            row_map[r] = []
+        row_map[r].append(c)
+
+    rows_out = []
+    for r in sorted(row_map.keys()):
+        row_codons = row_map[r]
+        aas = [c['amino_acid'] for c in row_codons]
+        unique_aas = list(dict.fromkeys(aas))
+        first_nucs = [c['codon'][0] for c in row_codons]
+        dominant_nuc1 = max(set(first_nucs), key=first_nucs.count) if first_nucs else '?'
+        mean_yang = round(sum(c['yang_count'] for c in row_codons) / len(row_codons), 2)
+        mean_gc = round(sum(c['gc_count'] for c in row_codons) / len(row_codons), 2)
+
+        rows_out.append({
+            'row': r,
+            'n_codons': len(row_codons),
+            'codons': [c['codon'] for c in row_codons],
+            'amino_acids': aas,
+            'unique_amino_acids': unique_aas,
+            'dominant_first_nuc': dominant_nuc1,
+            'mean_yang': mean_yang,
+            'mean_gc': mean_gc,
+            'has_stop': '*' in aas,
+        })
+
+    # Wobble analysis: строки где все кодоны различаются только в 3-й позиции
+    wobble_rows = sum(
+        1 for row in rows_out
+        if len(set(c[:2] for c in row['codons'])) == 1 and len(row['codons']) > 1
+    )
+
+    # Проверить gradient: yang_mean растёт с номером строки?
+    yang_means = [row['mean_yang'] for row in rows_out]
+    gradient_ok = all(yang_means[i] <= yang_means[i + 1] + 0.5
+                      for i in range(len(yang_means) - 1))
+
+    stop_rows = [row['row'] for row in rows_out if row['has_stop']]
+    start_row = next(
+        (c['trimat_row'] for c in codons if c.get('codon') == 'AUG'), None
+    )
+
+    return {
+        'command': 'codon_atlas',
+        'n_rows': len(rows_out),
+        'rows': rows_out,
+        'wobble_rows_count': wobble_rows,
+        'yang_gradient_preserved': gradient_ok,
+        'stop_codon_rows': stop_rows,
+        'start_codon_row': start_row,
+        'sc4_finding': (
+            f'Треугольник Андреева создаёт биохимический градиент: '
+            f'строки 1-3 (A-богатые, гидрофильные) → строки 10-11 (U-богатые, '
+            f'стоп-кодоны). {wobble_rows} строк = wobble-кластеры (синонимы в одной строке). '
+            f'АК-идентичность определяется первыми двумя нуклеотидами (строка), '
+            f'а вырожденность — третьей (столбец). K4×K6: биодегенеративность '
+            f'кодона = геометрическая позиция в И-Цзин пространстве.'
+        ),
+    }
+
+
 _TRIMAT_JSON_DISPATCH: dict = {
     'triangle': lambda: json_triangle(),
     'verify':   lambda: json_verify(),
@@ -389,7 +463,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument('--json', action='store_true',
                    help='Машиночитаемый JSON-вывод (для пайплайнов)')
+    p.add_argument('--from-codons', action='store_true',
+                   help='Читать карту кодонов из stdin (hexbio:codon-map → SC-4)')
     sub = p.add_subparsers(dest='cmd')
+
+    # codon-atlas — SC-4 шаг 2: наложить кодоны на треугольник Андреева
+    sub.add_parser('codon-atlas',
+                   help='Кодоны в треугольнике Андреева: биохимический градиент → JSON')
 
     sub.add_parser('triangle', help='Треугольное расположение гексаграмм')
     sub.add_parser('sums',     help='Суммы строк и пропорция 3:4:5')
@@ -402,10 +482,40 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
 
-    _cmds = {'triangle', 'sums', 'bird', 'thoth', 'swastika', 'twins', 'center', 'verify'}
+    _cmds = {'triangle', 'sums', 'bird', 'thoth', 'swastika', 'twins', 'center', 'verify',
+             'codon-atlas'}
     if args.cmd not in _cmds:
         p.print_help()
         return 1
+
+    # SC-4 шаг 2: codon-atlas
+    if args.cmd == 'codon-atlas':
+        import sys as _sys
+        if args.from_codons:
+            raw = _sys.stdin.read().strip()
+            codon_data = json.loads(raw)
+        else:
+            import subprocess
+            result_proc = subprocess.run(
+                [_sys.executable, '-m', 'projects.hexbio.codon_glyphs', '--json', 'codon-map'],
+                capture_output=True, text=True,
+            )
+            codon_data = json.loads(result_proc.stdout)
+        atlas = json_codon_atlas(codon_data)
+        if args.json:
+            print(json.dumps(atlas, ensure_ascii=False, indent=2))
+        else:
+            print(f'  Кодонный атлас в треугольнике Андреева:')
+            print(f'  Строк всего: {atlas["n_rows"]}  wobble-строк: {atlas["wobble_rows_count"]}')
+            print(f'  Ян-градиент сохранён: {"✓" if atlas["yang_gradient_preserved"] else "✗"}')
+            print()
+            for row in atlas['rows']:
+                stop = ' ←СТОП' if row['has_stop'] else ''
+                print(f'  Строка {row["row"]:2d}: {", ".join(row["unique_amino_acids"]):<20}'
+                      f'  ян={row["mean_yang"]:.1f}  ГЦ={row["mean_gc"]:.1f}'
+                      f'  {row["dominant_first_nuc"]}{stop}')
+            print(f'\n  SC-4: {atlas["sc4_finding"][:80]}...')
+        return 0
 
     if args.json:
         if args.cmd in _TRIMAT_JSON_DISPATCH:

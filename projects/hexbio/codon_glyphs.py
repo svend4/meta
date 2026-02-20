@@ -18,6 +18,7 @@
 """
 
 from __future__ import annotations
+import json
 import sys
 from collections import defaultdict
 
@@ -367,13 +368,128 @@ def render_gc_yang_correlation(color: bool = True) -> str:
 # CLI
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# JSON-экспорт (для пайплайнов SC-4)
+# ---------------------------------------------------------------------------
+
+def json_codon_map() -> dict:
+    """
+    Полная карта: 64 кодона → 64 гексаграммы → позиции в треугольнике Андреева.
+
+    SC-4 шаг 1: K4 (биология) пересекается с K6 (И-Цзин).
+    Ключевое открытие: transitions (A↔G, C↔U) = Q6-рёбра (1-бит),
+    transversions (A↔U, C↔G) = Q6-прыжки на 2 бита.
+    """
+    from projects.hextrimat.hextrimat import TriangularMatrix
+    trimat = TriangularMatrix()
+    pos_map: dict[int, tuple[int, int]] = {v: (r, c) for r, c, v in trimat.cells}
+
+    codons_list = []
+    for h in range(64):
+        codon_str = int_to_codon(h)
+        aa = translate(h)
+        v = h + 1
+        row, col = pos_map.get(v, (0, 0))
+        u_cnt = codon_str.count('U')
+        gc_cnt = sum(1 for n in codon_str if n in ('G', 'C'))
+        codons_list.append({
+            'hexagram': h,
+            'codon': codon_str,
+            'amino_acid': aa,
+            'yang_count': yang_count(h),
+            'gc_count': gc_cnt,
+            'u_count': u_cnt,
+            'trimat_row': row,
+            'trimat_col': col,
+            'trimat_value': v,
+        })
+
+    # Группировка по аминокислотам
+    aa_map: dict[str, dict] = {}
+    for c in codons_list:
+        aa = c['amino_acid']
+        if aa not in aa_map:
+            aa_map[aa] = {'codons': [], 'hexagrams': [], 'rows': []}
+        aa_map[aa]['codons'].append(c['codon'])
+        aa_map[aa]['hexagrams'].append(c['hexagram'])
+        aa_map[aa]['rows'].append(c['trimat_row'])
+
+    for aa, info in aa_map.items():
+        rows = info['rows']
+        info['cluster_size'] = len(info['codons'])
+        info['row_min'] = min(rows)
+        info['row_max'] = max(rows)
+        info['row_span'] = max(rows) - min(rows)
+        info['wobble_clustered'] = (info['row_span'] <= 1)
+
+    stop_codons = [c for c in codons_list if c['amino_acid'] == '*']
+    start_codon = next((c for c in codons_list if c['codon'] == 'AUG'), None)
+
+    # Переходы: transitions (1-бит XOR) vs transversions (2-бит XOR)
+    # Каждая позиция нуклеотида кодируется 2 битами: A=00,C=01,G=10,U=11
+    # Transition A↔G: XOR 10 (1 бит) — Q6-ребро!
+    # Transition C↔U: XOR 10 (1 бит) — Q6-ребро!
+    # Transversion A↔C: XOR 01 (1 бит) — тоже Q6-ребро!
+    # Transversion A↔U: XOR 11 (2 бита) — 2-шаговый путь в Q6!
+    # Transversion C↔G: XOR 11 (2 бита) — 2-шаговый путь в Q6!
+    # Transversion G↔U: XOR 01 (1 бит) — Q6-ребро!
+    # → Только ПУРИНОВЫЕ транзиции (A↔G) и ПИРИМИДИНОВЫЕ (C↔U) + некоторые трансверсии
+    # На уровне пары нуклеотидов: A↔U и C↔G = комплементарные пары = XOR 11 = 2 бита
+
+    complementary_pairs = [('A', 'U'), ('G', 'C')]  # Watson-Crick base pairs
+    xor_11_pairs = {frozenset(['A', 'U']), frozenset(['C', 'G'])}
+
+    mutation_classes = {
+        'q6_edge_1bit': [],   # 1-bit XOR per position → Q6-ребро
+        'q6_jump_2bit': [],   # 2-bit XOR per position → Q6-прыжок
+    }
+    from projects.hexbio.hexbio import _NUC
+    for n1 in ('A', 'C', 'G', 'U'):
+        for n2 in ('A', 'C', 'G', 'U'):
+            if n1 >= n2:
+                continue
+            xor_val = _NUC[n1] ^ _NUC[n2]
+            bit_count = bin(xor_val).count('1')
+            pair = f'{n1}↔{n2}'
+            if bit_count == 1:
+                mutation_classes['q6_edge_1bit'].append(pair)
+            else:
+                mutation_classes['q6_jump_2bit'].append(pair)
+
+    return {
+        'command': 'codon_map',
+        'n_codons': 64,
+        'n_amino_acids': len(aa_map),
+        'codons': codons_list,
+        'amino_acid_clusters': aa_map,
+        'stop_codons': {
+            'codons': [c['codon'] for c in stop_codons],
+            'hexagrams': [c['hexagram'] for c in stop_codons],
+            'trimat_rows': [c['trimat_row'] for c in stop_codons],
+        },
+        'start_codon': start_codon,
+        'mutation_classes': mutation_classes,
+        'sc4_insight': (
+            'Transitions A↔G, C↔U: XOR=10 или 01 (1 бит) = Q6-рёбра. '
+            'Transversions A↔U, C↔G: XOR=11 (2 бита) = 2-шаговые пути Q6. '
+            'Watson-Crick комплементарность = 2-битный Q6-прыжок!'
+        ),
+    }
+
+
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(
         description='codon_glyphs — Алфавит кодонов: 64 кодона как глифы Q6'
     )
+    parser.add_argument('--json', action='store_true',
+                        help='Машиночитаемый JSON-вывод (для пайплайнов)')
     sub = parser.add_subparsers(dest='cmd')
+
+    # codon-map — SC-4 шаг 1: карта кодонов K4→K6
+    sub.add_parser('codon-map',
+                   help='Полная карта кодон→гексаграмма→триматрица → JSON')
 
     sub.add_parser('grid',    help='Сетка 8×8 всех кодонов с глифами')
     sub.add_parser('amino',   help='Глифы по аминокислотам')
@@ -390,6 +506,28 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     color = not getattr(args, 'no_color', False)
+
+    if args.cmd == 'codon-map':
+        result = json_codon_map()
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f'  Карта кодонов Q6 → И-Цзин (K4×K6):')
+            mc = result['mutation_classes']
+            print(f'  Q6-рёбра (1-бит): {mc["q6_edge_1bit"]}')
+            print(f'  Q6-прыжки (2-бит): {mc["q6_jump_2bit"]}')
+            print()
+            print(f'  Аминокислоты ({result["n_amino_acids"]}):')
+            for aa, cl in sorted(result['amino_acid_clusters'].items()):
+                wc = '✓' if cl['wobble_clustered'] else '✗'
+                print(f'    {aa}: {cl["codons"]}  строки {cl["row_min"]}-{cl["row_max"]}  wobble={wc}')
+            stop = result['stop_codons']
+            print(f'\n  Стоп-кодоны: {stop["codons"]} → гексаграммы {stop["hexagrams"]}')
+            start = result['start_codon']
+            if start:
+                print(f'  Старт-кодон AUG → гексаграмма {start["hexagram"]}  строка {start["trimat_row"]}')
+            print(f'\n  SC-4: {result["sc4_insight"]}')
+        sys.exit(0)
 
     if args.cmd == 'grid' or args.cmd is None:
         print(render_codon_grid(color=color))

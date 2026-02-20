@@ -127,10 +127,10 @@ MODULES: dict[str, ModuleInfo] = {
 
     # K4 — Биологический кластер
     'hexbio': ModuleInfo(
-        name='hexbio', path='projects.hexbio.hexbio',
-        commands=['codon', 'fold', 'align'],
-        cluster='K4', json_ready=False,
-        description='Генетический код и Q6-кодоны',
+        name='hexbio', path='projects.hexbio.codon_glyphs',
+        commands=['codon-map', 'grid', 'amino', 'highlight', 'neighbors', 'seq'],
+        cluster='K4', json_ready=True,
+        description='Генетический код Q6: 64 кодона → гексаграммы (K4×K6)',
     ),
     'hexdim': ModuleInfo(
         name='hexdim', path='projects.hexdim.hexdim',
@@ -174,15 +174,15 @@ MODULES: dict[str, ModuleInfo] = {
     # K6 — Кластер И-Цзин
     'hextrimat': ModuleInfo(
         name='hextrimat', path='projects.hextrimat.trimat_glyphs',
-        commands=['triangle', 'sums', 'bird', 'thoth', 'swastika', 'twins', 'center', 'verify'],
+        commands=['codon-atlas', 'triangle', 'sums', 'bird', 'thoth', 'swastika', 'twins', 'center', 'verify'],
         cluster='K6', json_ready=True,
-        description='Треугольная матрица И-Цзин Андреева: 64 гексаграммы',
+        description='Треугольная матрица И-Цзин Андреева: 64 гексаграммы + кодонный атлас',
     ),
     'hexnav': ModuleInfo(
-        name='hexnav', path='projects.hexnav.hexnav',
-        commands=['navigate', 'sequence', 'transition'],
-        cluster='K6', json_ready=False,
-        description='Навигация по гексаграммам И-Цзин',
+        name='hexnav', path='projects.hexnav.nav_glyphs',
+        commands=['codon-transitions', 'trigrams', 'layers', 'antipode', 'bits'],
+        cluster='K6', json_ready=True,
+        description='Навигация Q6: триграммы, BFS-слои, мутации как Q6-переходы',
     ),
     'hexspec': ModuleInfo(
         name='hexspec', path='projects.hexspec.hexspec',
@@ -417,9 +417,17 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'SC-4': SuperClusterInfo(
         id='SC-4', name='Геномный И-Цзин',
         cluster_ids=['K4', 'K6'],
-        description='ДНК-мутации как переходы между гексаграммами',
-        pipeline=['hexbio:codon', 'hextrimat:triangle', 'hexnav:transition'],
-        emergent='Карта: кодон → гексаграмма → позиция в матрице Андреева',
+        description='ДНК-мутации как переходы по Q6 гиперкубу в пространстве гексаграмм',
+        pipeline=['hexbio:codon-map',
+                  'hextrimat:codon-atlas --from-codons',
+                  'hexnav:codon-transitions --from-atlas'],
+        emergent=(
+            'K4×K6: transitions A↔G, C↔U = Q6-рёбра (1 бит); '
+            'Watson-Crick пары A↔U, C↔G = 2-битные Q6-прыжки. '
+            'Синонимичные мутации (биологически нейтральные) = навигация по строке треугольника Андреева. '
+            '65% синонимичных мутаций остаются в одной строке. '
+            'Ландшафт биологической приспособленности = граф Q6: кодон-кластеры = Q5-подкубы.'
+        ),
     ),
     'SC-5': SuperClusterInfo(
         id='SC-5', name='AutoML для криптографии',

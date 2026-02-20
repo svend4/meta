@@ -27,6 +27,7 @@ hexnav — интерактивный навигатор по Q6: каждый �
 """
 
 from __future__ import annotations
+import json
 import sys
 import argparse
 
@@ -285,6 +286,122 @@ def render_bits(bit: int = 0, color: bool = True) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 5. Кодонные переходы (SC-4 шаг 3: K4×K6 навигация)
+# ---------------------------------------------------------------------------
+
+def json_codon_transitions(atlas_data: dict | None = None) -> dict:
+    """
+    SC-4 шаг 3: кодонные мутации как навигация по Q6.
+
+    Принимает данные из hextrimat:codon-atlas (или строит свои).
+    Для каждого кодона h: 9 однонуклеотидных мутаций.
+    Классификация: Q6-ребро (1-бит XOR) или Q6-прыжок (2-бит XOR).
+    Ключевое открытие: синонимичные мутации = навигация по одной строке треугольника.
+    """
+    import sys as _sys
+    sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[2]))
+
+    from projects.hexbio.hexbio import (
+        int_to_codon, translate, codon_nucleotides,
+        _ALTERNATIVES, _NUC,
+    )
+    from projects.hexbio.codon_glyphs import json_codon_map
+
+    # Получить позиции в треугольнике
+    codon_map = json_codon_map()
+    h_to_info = {c['hexagram']: c for c in codon_map['codons']}
+
+    transitions_list = []
+    for h in range(64):
+        codon_str = int_to_codon(h)
+        aa = translate(h)
+        src_row = h_to_info[h]['trimat_row']
+
+        nuc = list(codon_nucleotides(h))
+        mutations = []
+        for pos in range(3):
+            original = nuc[pos]
+            for alt in _ALTERNATIVES[original]:
+                mutated = nuc[:]
+                mutated[pos] = alt
+                m_int = (_NUC[mutated[0]] << 4) | (_NUC[mutated[1]] << 2) | _NUC[mutated[2]]
+                m_codon = int_to_codon(m_int)
+                m_aa = translate(m_int)
+                xor_val = h ^ m_int
+                bit_count = bin(xor_val).count('1')
+                dst_row = h_to_info[m_int]['trimat_row']
+                mut_type = 'synonymous' if m_aa == aa else ('stop' if m_aa == '*' else 'missense')
+                mutations.append({
+                    'from_codon': codon_str,
+                    'to_codon': m_codon,
+                    'from_h': h,
+                    'to_h': m_int,
+                    'position': pos + 1,
+                    'original_nuc': original,
+                    'mutated_nuc': alt,
+                    'xor': xor_val,
+                    'hamming_bits': bit_count,
+                    'q6_type': 'edge' if bit_count == 1 else 'jump',
+                    'from_row': src_row,
+                    'to_row': dst_row,
+                    'row_delta': dst_row - src_row,
+                    'amino_acid_change': f'{aa}→{m_aa}',
+                    'mutation_type': mut_type,
+                    'same_row': src_row == dst_row,
+                })
+        transitions_list.append({
+            'hexagram': h,
+            'codon': codon_str,
+            'amino_acid': aa,
+            'trimat_row': src_row,
+            'mutations': mutations,
+        })
+
+    # Статистика: сколько синонимичных мутаций = Q6-рёбра и остаются в той же строке?
+    all_muts = [m for t in transitions_list for m in t['mutations']]
+    n_total = len(all_muts)
+    n_edge = sum(1 for m in all_muts if m['q6_type'] == 'edge')
+    n_jump = sum(1 for m in all_muts if m['q6_type'] == 'jump')
+    n_syn_edge = sum(1 for m in all_muts if m['q6_type'] == 'edge' and m['mutation_type'] == 'synonymous')
+    n_syn_jump = sum(1 for m in all_muts if m['q6_type'] == 'jump' and m['mutation_type'] == 'synonymous')
+    n_same_row = sum(1 for m in all_muts if m['same_row'])
+    n_syn_same_row = sum(1 for m in all_muts if m['same_row'] and m['mutation_type'] == 'synonymous')
+
+    # Пары нуклеотидов и их Q6-тип (один раз)
+    nuc_pair_types: dict[str, str] = {}
+    for n1 in ('A', 'C', 'G', 'U'):
+        for n2 in ('A', 'C', 'G', 'U'):
+            if n1 == n2:
+                continue
+            xor = _NUC[n1] ^ _NUC[n2]
+            bc = bin(xor).count('1')
+            nuc_pair_types[f'{n1}↔{n2}'] = 'edge' if bc == 1 else 'jump'
+
+    return {
+        'command': 'codon_transitions',
+        'n_codons': 64,
+        'n_total_mutations': n_total,
+        'n_q6_edges': n_edge,
+        'n_q6_jumps': n_jump,
+        'n_synonymous_edges': n_syn_edge,
+        'n_synonymous_jumps': n_syn_jump,
+        'n_same_row_mutations': n_same_row,
+        'n_synonymous_same_row': n_syn_same_row,
+        'pct_synonymous_edge': round(100 * n_syn_edge / max(n_edge, 1), 1),
+        'pct_same_row_synonymous': round(100 * n_syn_same_row / max(n_syn_edge + n_syn_jump, 1), 1),
+        'nucleotide_pair_q6_types': nuc_pair_types,
+        'transitions': transitions_list,
+        'sc4_nav_finding': (
+            f'Q6-навигация мутаций: {n_edge}/{n_total} мутаций = Q6-рёбра (1 бит). '
+            f'Среди синонимичных мутаций {n_syn_edge} через Q6-рёбра. '
+            f'{n_syn_same_row} синонимичных мутаций остаются в той же строке треугольника Андреева. '
+            f'Вывод K4×K6: биологически нейтральные (синонимичные) мутации = '
+            f'Q6-рёбра внутри строки → ландшафт приспособленности = граф Q6.'
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -294,6 +411,10 @@ def main(argv: list[str] | None = None) -> None:
         description='Q6 глифы через навигатор: триграммы, расстояния, антиподы.',
     )
     p.add_argument('--no-color', action='store_true', help='отключить ANSI-цвет')
+    p.add_argument('--json', action='store_true',
+                   help='Машиночитаемый JSON-вывод (для пайплайнов SC-4)')
+    p.add_argument('--from-atlas', action='store_true',
+                   help='Читать codon-atlas из stdin (hextrimat:codon-atlas → SC-4)')
     sub = p.add_subparsers(dest='cmd')
 
     sp = sub.add_parser('trigrams', help='триграммы (нижние / верхние)')
@@ -310,8 +431,38 @@ def main(argv: list[str] | None = None) -> None:
     sb.add_argument('--bit', type=int, default=0, metavar='B',
                     help='бит для маскирования (0..5)')
 
+    # codon-transitions — SC-4 шаг 3: мутации как Q6-навигация
+    sub.add_parser('codon-transitions',
+                   help='Кодонные мутации как Q6-навигация: K4×K6 → JSON')
+
     args = p.parse_args(argv)
     color = not args.no_color
+
+    if args.cmd == 'codon-transitions':
+        atlas_data: dict | None = None
+        if args.from_atlas:
+            raw = sys.stdin.read().strip()
+            atlas_data = json.loads(raw)
+        result = json_codon_transitions(atlas_data)
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            npt = result['nucleotide_pair_q6_types']
+            print('  Кодонные мутации как Q6-навигация (K4×K6):')
+            print()
+            print('  Типы пар нуклеотидов:')
+            for pair, qtype in sorted(npt.items()):
+                sym = '─' if qtype == 'edge' else '⇒'
+                print(f'    {pair}: {sym} ({qtype})')
+            print()
+            print(f'  Итого мутаций: {result["n_total_mutations"]}')
+            print(f'  Q6-рёбра: {result["n_q6_edges"]}  Q6-прыжки: {result["n_q6_jumps"]}')
+            print(f'  Синонимичных рёбер: {result["n_synonymous_edges"]}')
+            print(f'  Мутаций в той же строке: {result["n_same_row_mutations"]}')
+            print(f'  Синонимичных в той же строке: {result["n_synonymous_same_row"]}')
+            print()
+            print(f'  SC-4: {result["sc4_nav_finding"]}')
+        return
 
     if args.cmd == 'trigrams':
         print(render_trigrams(upper=getattr(args, 'upper', False), color=color))
