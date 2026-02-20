@@ -1528,5 +1528,165 @@ class TestSolanLexicon(unittest.TestCase):
         self.assertIn('Сигнатура', content)
 
 
+class TestSolanMatrix(unittest.TestCase):
+    """Tests for solan_matrix.py and the viewer Matrix section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_matrix import (
+            distance_matrix, nearest_pairs, farthest_pairs, export_csv,
+        )
+        cls.distance_matrix  = staticmethod(distance_matrix)
+        cls.nearest_pairs    = staticmethod(nearest_pairs)
+        cls.farthest_pairs   = staticmethod(farthest_pairs)
+        cls.export_csv       = staticmethod(export_csv)
+        cls._words = ['ГОРА', 'ВОДА', 'РАТОН', 'НОРА', 'ЗИМА', 'МАРТ', 'ЛУНА']
+
+    # ── distance_matrix ──────────────────────────────────────────────────
+
+    def test_matrix_diagonal_zero(self):
+        mat = self.distance_matrix(self._words)
+        for w in self._words:
+            self.assertAlmostEqual(mat[(w, w)], 0.0)
+
+    def test_matrix_symmetric(self):
+        mat = self.distance_matrix(self._words)
+        for w1 in self._words:
+            for w2 in self._words:
+                self.assertAlmostEqual(mat[(w1, w2)], mat[(w2, w1)])
+
+    def test_matrix_all_pairs_present(self):
+        mat = self.distance_matrix(self._words)
+        n = len(self._words)
+        self.assertEqual(len(mat), n * n)
+
+    def test_matrix_values_in_range(self):
+        mat = self.distance_matrix(self._words)
+        for (w1, w2), d in mat.items():
+            if d == d:  # not NaN
+                self.assertGreaterEqual(d, 0.0)
+                self.assertLessEqual(d, 1.0)
+
+    def test_matrix_default_uses_lexicon(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        mat = self.distance_matrix()
+        n = len(LEXICON)
+        self.assertEqual(len(mat), n * n)
+
+    # ── nearest_pairs ────────────────────────────────────────────────────
+
+    def test_nearest_pairs_count(self):
+        mat  = self.distance_matrix(self._words)
+        near = self.nearest_pairs(mat, n=3)
+        self.assertLessEqual(len(near), 3)
+
+    def test_nearest_pairs_sorted(self):
+        mat  = self.distance_matrix(self._words)
+        near = self.nearest_pairs(mat, n=6)
+        dists = [d for _, _, d in near if d == d]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_nearest_pairs_no_self(self):
+        mat  = self.distance_matrix(self._words)
+        near = self.nearest_pairs(mat, n=10)
+        for w1, w2, _ in near:
+            self.assertNotEqual(w1, w2)
+
+    def test_nearest_pairs_no_duplicates(self):
+        mat  = self.distance_matrix(self._words)
+        near = self.nearest_pairs(mat, n=20)
+        seen: set[tuple[str, str]] = set()
+        for w1, w2, _ in near:
+            key = (min(w1, w2), max(w1, w2))
+            self.assertNotIn(key, seen)
+            seen.add(key)
+
+    # ── farthest_pairs ───────────────────────────────────────────────────
+
+    def test_farthest_pairs_count(self):
+        mat = self.distance_matrix(self._words)
+        far = self.farthest_pairs(mat, n=3)
+        self.assertLessEqual(len(far), 3)
+
+    def test_farthest_pairs_sorted_descending(self):
+        mat = self.distance_matrix(self._words)
+        far = self.farthest_pairs(mat, n=5)
+        dists = [d for _, _, d in far]
+        self.assertEqual(dists, sorted(dists, reverse=True))
+
+    def test_farthest_pairs_no_nan(self):
+        mat = self.distance_matrix(self._words)
+        far = self.farthest_pairs(mat, n=5)
+        for _, _, d in far:
+            self.assertEqual(d, d)  # not NaN
+
+    def test_farthest_geq_nearest(self):
+        mat  = self.distance_matrix(self._words)
+        near = self.nearest_pairs(mat, n=1)
+        far  = self.farthest_pairs(mat, n=1)
+        if near and far:
+            self.assertGreaterEqual(far[0][2], near[0][2])
+
+    # ── export_csv ───────────────────────────────────────────────────────
+
+    def test_csv_header_row(self):
+        csv = self.export_csv(self._words)
+        lines = csv.splitlines()
+        # First line: comma + word names
+        header = lines[0].split(',')
+        self.assertEqual(header[0], '')   # empty first cell
+        self.assertEqual(header[1:], self._words)
+
+    def test_csv_row_count(self):
+        csv = self.export_csv(self._words)
+        lines = csv.splitlines()
+        # 1 header + N data rows
+        self.assertEqual(len(lines), len(self._words) + 1)
+
+    def test_csv_diagonal_zero(self):
+        csv = self.export_csv(self._words)
+        lines = csv.splitlines()
+        for i, line in enumerate(lines[1:]):
+            parts = line.split(',')
+            self.assertEqual(parts[i + 1], '0.0000')  # diagonal
+
+    def test_csv_symmetric_values(self):
+        csv = self.export_csv(self._words)
+        lines = csv.splitlines()
+        data = [line.split(',') for line in lines[1:]]
+        # data[i][j+1] should equal data[j][i+1]
+        for i in range(len(self._words)):
+            for j in range(len(self._words)):
+                self.assertEqual(data[i][j + 1], data[j][i + 1])
+
+    # ── viewer: Matrix section ────────────────────────────────────────────
+
+    def test_viewer_has_matrix_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Матрица расстояний Q6', content)
+        self.assertIn('mat-canvas', content)
+        self.assertIn('mat-pairs', content)
+
+    def test_viewer_matrix_uses_lex_all_sigs(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.lexAllSigs', content)
+        self.assertIn('lexAllSigs', content)
+
+    def test_viewer_matrix_has_tooltip(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mat-tip', content)
+        self.assertIn('mousemove', content)
+
+    def test_viewer_matrix_exports_lex_dist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.lexDistL', content)
+        self.assertIn('window.lexAllSigs', content)
+
+    def test_viewer_matrix_draws_on_load(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('drawMatrix', content)
+        self.assertIn('setTimeout', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

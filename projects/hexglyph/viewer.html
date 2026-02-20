@@ -1456,8 +1456,173 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     if(resEl) resEl.innerHTML=html;
   };
 
+  // Export for sibling sections
+  window.lexAllSigs = getLexSigs;
+  window.lexDistL   = distL;
+
   // Init on load
   setTimeout(lexFind,100);
+})();
+</script>
+</div>
+<div class="section">
+<h2>Матрица расстояний Q6</h2>
+<p class="meta">Попарные орбитальные расстояния для 49 слов ·
+  <span style="color:#2d6a2d">■ зелёный = 0</span> →
+  <span style="color:#999900">■ жёлтый = 0.5</span> →
+  <span style="color:#8b1a1a">■ красный = 1</span> ·
+  наведите курсор на ячейку</p>
+<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">
+  <div>
+    <canvas id="mat-canvas" style="cursor:crosshair;display:block"></canvas>
+    <div id="mat-tip" style="font-family:monospace;font-size:11px;color:#666;
+         min-height:16px;margin-top:4px"> </div>
+  </div>
+  <div>
+    <div id="mat-pairs" style="font-family:monospace;font-size:12px"></div>
+  </div>
+</div>
+<script>
+(function() {
+  var CS=8, LW=76, LH=60;
+  var _mwords=null, _msigs=null, _mcache={};
+
+  function mDist(s1,s2) {
+    var total=0,count=0;
+    ['xor','xor3','and','or'].forEach(function(r){
+      var p1=s1[r]?s1[r].period:null, p2=s2[r]?s2[r].period:null;
+      if(p1!==null&&p2!==null){total+=Math.abs(p1-p2)/Math.max(p1,p2,1);count++;}
+    });
+    return count>0?total/count:NaN;
+  }
+
+  function hsl(d) {
+    if(isNaN(d)) return '#222';
+    var hue=Math.round(120*(1-Math.min(1,Math.max(0,d))));
+    return 'hsl('+hue+',60%,28%)';
+  }
+
+  function getCachedDist(i,j) {
+    var k=i<j?i*100+j:j*100+i;
+    if(_mcache[k]===undefined)
+      _mcache[k]=mDist(_msigs[_mwords[i]],_msigs[_mwords[j]]);
+    return _mcache[k];
+  }
+
+  function drawMatrix() {
+    var sigs=window.lexAllSigs?window.lexAllSigs():null;
+    if(!sigs) return;
+    _msigs=sigs;
+    _mwords=Object.keys(sigs);
+    var n=_mwords.length;
+    var canvas=document.getElementById('mat-canvas');
+    canvas.width=LW+n*CS; canvas.height=LH+n*CS;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0d0d0d';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // Column labels (rotated -90°)
+    ctx.font='7px monospace'; ctx.fillStyle='#444'; ctx.textAlign='right';
+    for(var j=0;j<n;j++){
+      ctx.save();
+      ctx.translate(LW+j*CS+CS/2, LH-2);
+      ctx.rotate(-Math.PI/2);
+      ctx.fillText(_mwords[j].substring(0,7),0,0);
+      ctx.restore();
+    }
+    // Row labels
+    ctx.font='7px monospace'; ctx.fillStyle='#444'; ctx.textAlign='right';
+    for(var i=0;i<n;i++){
+      ctx.fillText(_mwords[i].substring(0,8), LW-2, LH+i*CS+CS-1);
+    }
+    // Cells
+    for(var i=0;i<n;i++){
+      for(var j=0;j<n;j++){
+        if(i===j){ ctx.fillStyle='#181818'; }
+        else { ctx.fillStyle=hsl(getCachedDist(i,j)); }
+        ctx.fillRect(LW+j*CS, LH+i*CS, CS-1, CS-1);
+      }
+    }
+    renderPairs(n);
+  }
+
+  function renderPairs(n) {
+    if(!_mwords||!_msigs) return;
+    // Collect unique pairs, sort by distance
+    var pairs=[];
+    for(var i=0;i<_mwords.length;i++){
+      for(var j=i+1;j<_mwords.length;j++){
+        var d=getCachedDist(i,j);
+        pairs.push([_mwords[i],_mwords[j],d]);
+      }
+    }
+    pairs.sort(function(a,b){
+      return isNaN(a[2])?1:isNaN(b[2])?-1:a[2]-b[2];
+    });
+    var near=pairs.slice(0,12);
+    var far=pairs.filter(function(p){return !isNaN(p[2]);})
+               .slice(-5).reverse();
+    var maxD=pairs.reduce(function(m,p){return !isNaN(p[2])&&p[2]>m?p[2]:m;},0)||1;
+
+    function barHTML(d) {
+      var blen=16, f=isNaN(d)?blen:Math.round(d/maxD*blen);
+      var hue=Math.round(120*(1-Math.min(1,Math.max(0,d))));
+      var col=isNaN(d)?'#333':'hsl('+hue+',60%,40%)';
+      return '<span style="color:'+col+'">|'+'█'.repeat(f)+'░'.repeat(blen-f)+'|</span>';
+    }
+    var html='<div style="color:#3a3a3a;font-size:10px;margin-bottom:4px">Ближайшие пары</div>';
+    near.forEach(function(p){
+      var eq=p[2]<0.001?' <span style="color:#4caf50">≡</span>':'';
+      var ds=isNaN(p[2])?'NaN':p[2].toFixed(3);
+      html+='<div style="margin:1px 0;white-space:nowrap">'
+        +'<span style="color:#777;min-width:80px;display:inline-block">'+p[0]+'</span>'
+        +'<span style="color:#333"> ↔ </span>'
+        +'<span style="color:#777;min-width:80px;display:inline-block">'+p[1]+'</span>'
+        +barHTML(p[2])
+        +' <span style="color:#444">'+ds+'</span>'+eq
+        +'</div>';
+    });
+    html+='<div style="color:#3a3a3a;font-size:10px;margin:10px 0 4px">Дальние пары</div>';
+    far.forEach(function(p){
+      html+='<div style="margin:1px 0;white-space:nowrap">'
+        +'<span style="color:#555;min-width:80px;display:inline-block">'+p[0]+'</span>'
+        +'<span style="color:#333"> ↔ </span>'
+        +'<span style="color:#555;min-width:80px;display:inline-block">'+p[1]+'</span>'
+        +barHTML(p[2])
+        +' <span style="color:#444">'+p[2].toFixed(3)+'</span>'
+        +'</div>';
+    });
+    document.getElementById('mat-pairs').innerHTML=html;
+  }
+
+  // Hover tooltip
+  function initTooltip() {
+    var canvas=document.getElementById('mat-canvas');
+    var tip=document.getElementById('mat-tip');
+    canvas.addEventListener('mousemove',function(e){
+      if(!_mwords||!_msigs){tip.textContent=' ';return;}
+      var r=canvas.getBoundingClientRect();
+      var mx=(e.clientX-r.left)*(canvas.width/r.width);
+      var my=(e.clientY-r.top)*(canvas.height/r.height);
+      var j=Math.floor((mx-LW)/CS);
+      var i=Math.floor((my-LH)/CS);
+      var n=_mwords.length;
+      if(i>=0&&i<n&&j>=0&&j<n){
+        var d=getCachedDist(i,j);
+        if(i===j) tip.textContent=_mwords[i]+' (собственная орбита)';
+        else tip.textContent=_mwords[i]+' ↔ '+_mwords[j]
+          +'  d = '+(isNaN(d)?'NaN':d.toFixed(4));
+      } else {
+        tip.textContent=' ';
+      }
+    });
+    canvas.addEventListener('mouseleave',function(){tip.textContent=' ';});
+  }
+
+  initTooltip();
+  setTimeout(function(){
+    if(window.lexAllSigs) drawMatrix();
+  }, 200);
 })();
 </script>
 </div>
