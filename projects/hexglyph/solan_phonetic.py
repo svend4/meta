@@ -24,6 +24,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from projects.hexglyph.hexglyph import (
     glyph_bitmap, RUSSIAN_PHONETIC, PHONETIC_H_TO_RU,
+    render_quad, render_braille,
 )
 from projects.hexglyph.solan_triangle import (
     _SOLAN_MAP, _FULL_MAP, _compact4,
@@ -59,7 +60,7 @@ def _solan_char(h: int) -> str:
 
 
 def _glyph4(h: int) -> list[str]:
-    """4 строки 4×4 пиксельного глифа для вершины h."""
+    """4 строки 4×4 пиксельного глифа для вершины h (режим ascii)."""
     ch = _solan_char(h)
     try:
         rows = glyph_bitmap(ch)
@@ -67,6 +68,24 @@ def _glyph4(h: int) -> list[str]:
         return [r.replace('1', '█').replace('0', '·') for r in c4]
     except KeyError:
         return ['····'] * 4
+
+
+def _glyph_quad(h: int) -> list[str]:
+    """4 строки 4×4 quadrant-block рендер глифа (техника TVCP из svend4/infon)."""
+    ch = _solan_char(h)
+    try:
+        return render_quad(ch)
+    except KeyError:
+        return ['    '] * 4
+
+
+def _glyph_braille(h: int) -> list[str]:
+    """2 строки 4×1 Braille-рендер глифа (2×4 → 1 char, U+2800-U+28FF)."""
+    ch = _solan_char(h)
+    try:
+        return render_braille(ch)
+    except KeyError:
+        return ['⠀⠀⠀⠀'] * 2
 
 
 def phonetic_h(letter: str) -> int | None:
@@ -97,8 +116,14 @@ def _render_row(
     ru: str,
     entry: dict,
     color: bool = True,
+    render_mode: str = 'ascii',
 ) -> list[str]:
-    """Отрендерить одну строку таблицы (4 строки высоты)."""
+    """Отрендерить одну строку таблицы.
+
+    render_mode: 'ascii'   — 4×4 пикс. (█/·), 4 строки высоты
+                 'quad'    — quadrant-block TVCP (▀▄▌▐…), 4 строки × 4 chars
+                 'braille' — Braille Unicode, 2 строки × 4 chars
+    """
     h    = entry['h']
     ch   = _solan_char(h)
     conf = entry['confidence']
@@ -106,7 +131,12 @@ def _render_row(
     desc = entry['desc']
     confirmed = h in _SOLAN_MAP
 
-    g4 = _glyph4(h)
+    if render_mode == 'quad':
+        g = _glyph_quad(h)
+    elif render_mode == 'braille':
+        g = _glyph_braille(h)
+    else:
+        g = _glyph4(h)
 
     if color:
         cc   = _CONF_COLOR[conf]
@@ -120,28 +150,46 @@ def _render_row(
     src_marker = '●' if confirmed else '○'
     mark = _CONF_MARK[conf]
 
-    # Строки: ru + glyph + info
+    if render_mode == 'braille':
+        # 2 строки высоты
+        line0 = (f"  {bold}{cc}{ru:2s}{rst}  "
+                 f"{dim}{sc}{g[0]}{rst}"
+                 f"  h={h:2d}  {cc}{segs:<18s}{rst}  {cc}{mark}{rst}")
+        line1 = (f"      "
+                 f"{dim}{sc}{g[1]}{rst}"
+                 f"  chr={sc}{dim}{ch}{rst}  {src_marker}  "
+                 f"{cc}{conf:<6s}{rst}  {cc}{desc}{rst}")
+        return [line0, line1]
+
+    # ascii / quad — 4 строки высоты
     line0 = (f"  {bold}{cc}{ru:2s}{rst}   "
-             f"{dim}{sc}{g4[0]}{rst}"
+             f"{dim}{sc}{g[0]}{rst}"
              f"   h={h:2d}  {cc}{segs:<18s}{rst}"
              f"  {cc}{mark}{rst}")
     line1 = (f"       "
-             f"{dim}{sc}{g4[1]}{rst}"
+             f"{dim}{sc}{g[1]}{rst}"
              f"   chr={sc}{dim}{ch}{rst}  {src_marker}")
     line2 = (f"       "
-             f"{dim}{sc}{g4[2]}{rst}"
+             f"{dim}{sc}{g[2]}{rst}"
              f"   {cc}{conf:<6s}{rst}  {cc}{desc}{rst}")
     line3 = (f"       "
-             f"{dim}{sc}{g4[3]}{rst}")
+             f"{dim}{sc}{g[3]}{rst}")
 
     return [line0, line1, line2, line3]
 
 
-def render_phonetic_table(color: bool = True) -> str:
-    """Вернуть строку с полной фонетической таблицей Solan."""
+def render_phonetic_table(color: bool = True, render_mode: str = 'ascii') -> str:
+    """Вернуть строку с полной фонетической таблицей Solan.
+
+    render_mode: 'ascii'   — 4×4 пиксельных глифа (█/·)
+                 'quad'    — quadrant-block TVCP (▀▄▌▐…)  [техника svend4/infon]
+                 'braille' — Braille Unicode (U+2800-U+28FF), максимально компактно
+    """
     lines: list[str] = []
 
-    title = '  ◈ Алфавит «Старгейт» — Русская фонетика (Энгель, ~2000-е)  '
+    mode_label = {'ascii': '4×4 █/·', 'quad': '4×4 quadrant ▀▄', 'braille': '2×4 Braille ⠿'}
+    title = (f'  ◈ Алфавит «Старгейт» — Русская фонетика (Энгель, ~2000-е)'
+             f'  [{mode_label.get(render_mode, render_mode)}]')
     sep   = '  ' + '─' * 58
 
     if color:
@@ -158,7 +206,7 @@ def render_phonetic_table(color: bool = True) -> str:
     lines.append(sep)
 
     for ru, entry in RUSSIAN_PHONETIC.items():
-        rows = _render_row(ru, entry, color)
+        rows = _render_row(ru, entry, color, render_mode=render_mode)
         lines.extend(rows)
         lines.append('')   # пустая строка между буквами
 
@@ -175,9 +223,9 @@ def render_phonetic_table(color: bool = True) -> str:
     return '\n'.join(lines)
 
 
-def print_phonetic_table(color: bool = True) -> None:
+def print_phonetic_table(color: bool = True, render_mode: str = 'ascii') -> None:
     """Напечатать фонетическую таблицу в stdout."""
-    print(render_phonetic_table(color=color))
+    print(render_phonetic_table(color=color, render_mode=render_mode))
 
 
 # ── Кодировщик фонетики ─────────────────────────────────────────────────────
@@ -205,6 +253,11 @@ if __name__ == '__main__':
                         help='транслитерировать текст в символы Solan')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--mode', choices=['ascii', 'quad', 'braille'],
+                        default='ascii',
+                        help='режим отображения глифов: ascii (4×4 █/·), '
+                             'quad (quadrant-block ▀▄, TVCP), '
+                             'braille (2×4 Braille ⠿)')
     args = parser.parse_args()
 
     color = not args.no_color
@@ -227,4 +280,4 @@ if __name__ == '__main__':
                 h_str = f"h={h:2d}" if h is not None else "н/д"
                 print(f"  {orig} → {sc}  {h_str}")
     else:
-        print_phonetic_table(color=color)
+        print_phonetic_table(color=color, render_mode=args.mode)

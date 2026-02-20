@@ -12,6 +12,8 @@ from projects.hexglyph.hexglyph import (
     font_info,
     glyph_bitmap,
     render_bitmap,
+    render_quad,
+    render_braille,
     detect_segments,
     char_to_h,
     h_to_char,
@@ -87,6 +89,67 @@ class TestGlyphBitmap(unittest.TestCase):
     def test_unknown_char_raises(self):
         with self.assertRaises(KeyError):
             glyph_bitmap('~')  # code 126, not in font
+
+
+class TestTVCPRendering(unittest.TestCase):
+    """Тесты для quadrant-block и Braille-рендеров (техника svend4/infon TVCP)."""
+
+    def test_render_quad_returns_4_lines(self):
+        lines = render_quad('A')
+        self.assertEqual(len(lines), 4)
+
+    def test_render_quad_width_4(self):
+        for ch in ('A', 'E', 'L', 'Z'):
+            lines = render_quad(ch)
+            for line in lines:
+                self.assertEqual(len(line), 4, f"quad width != 4 for {ch!r}")
+
+    def test_render_quad_uses_block_chars(self):
+        # All output chars must be in the 16 quadrant block characters
+        QUAD = set(' ▗▖▄▝▐▞▟▘▚▌▙▀▜▛█')
+        for ch in ('A', 'E', 'L'):
+            lines = render_quad(ch)
+            for line in lines:
+                for c in line:
+                    self.assertIn(c, QUAD, f"Unexpected char {c!r} in render_quad({ch!r})")
+
+    def test_render_quad_E_has_full_blocks(self):
+        # 'E' = h=63 (all segments) → corners should be '█'
+        lines = render_quad('E')
+        self.assertEqual(lines[0][0], '█')   # top-left corner
+        self.assertEqual(lines[0][-1], '█')  # top-right corner
+
+    def test_render_braille_returns_2_lines(self):
+        lines = render_braille('A')
+        self.assertEqual(len(lines), 2)
+
+    def test_render_braille_width_4(self):
+        for ch in ('A', 'E', 'L', 'Z'):
+            lines = render_braille(ch)
+            for line in lines:
+                self.assertEqual(len(line), 4, f"braille width != 4 for {ch!r}")
+
+    def test_render_braille_in_unicode_range(self):
+        for ch in ('A', 'E', 'L'):
+            lines = render_braille(ch)
+            for line in lines:
+                for c in line:
+                    self.assertGreaterEqual(ord(c), 0x2800)
+                    self.assertLessEqual(ord(c), 0x28FF)
+
+    def test_render_quad_all_64_chars(self):
+        for h in range(64):
+            from projects.hexglyph.hexglyph import h_to_char
+            ch = h_to_char(h)
+            lines = render_quad(ch)
+            self.assertEqual(len(lines), 4)
+
+    def test_render_braille_all_64_chars(self):
+        for h in range(64):
+            from projects.hexglyph.hexglyph import h_to_char
+            ch = h_to_char(h)
+            lines = render_braille(ch)
+            self.assertEqual(len(lines), 2)
 
 
 class TestQ6Mapping(unittest.TestCase):

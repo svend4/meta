@@ -37,7 +37,9 @@ API
 ──────────────────────────────────────────────────────────────────────────
     font_data(version=4)           → dict         — полный JSON шрифта
     glyph_bitmap(ch, version=4)   → list[int]     — 8 строк 8×8 растра
-    render_bitmap(ch, version=4)  → list[str]     — ASCII-арт глифа
+    render_bitmap(ch, version=4)  → list[str]     — ASCII-арт глифа (8×8, '█'/'·')
+    render_quad(ch, version=4)    → list[str]     — Quadrant-block рендер (4×4 chars)
+    render_braille(ch, version=4) → list[str]     — Braille-рендер (2×4 chars)
     detect_segments(ch, version=4)→ dict          — {T,B,L,R,D1,D2,h,bits}
     char_to_h(ch)                 → int | None    — Q6-вершина для символа
     h_to_char(h)                  → str | None    — символ для Q6-вершины
@@ -45,6 +47,10 @@ API
     decode(hs)                    → str           — Q6-вершины → текст
     font_path(version=4)          → Path          — путь к TTF-файлу
     viewer_path()                 → Path          — путь к viewer.html
+
+Компактные рендеры (техника из svend4/infon TVCP):
+    render_quad    — 2×2 пикселя → 1 Unicode quadrant block (16 вариантов ▀▄▌▐…)
+    render_braille — 2×4 пикселя → 1 Unicode Braille (U+2800-U+28FF, 256 вариантов)
 """
 
 from __future__ import annotations
@@ -103,6 +109,65 @@ def render_bitmap(ch: str, version: int = 4) -> list[str]:
     result = []
     for v in rows:
         result.append(format(v, '08b').replace('1', '█').replace('0', '·'))
+    return result
+
+
+# ── TVCP-совместимые компактные рендеры ────────────────────────────────────
+# Техника: svend4/infon, internal/codec/glyphs/glyphs.go
+# Quadrant-block: 2×2 пикселя → 1 символ, 16 вариантов (4-бит паттерн TL TR BL BR)
+
+_QUAD_BLOCKS = ' ▗▖▄▝▐▞▟▘▚▌▙▀▜▛█'
+# Индекс: bit3=TL, bit2=TR, bit1=BL, bit0=BR
+
+# Braille: 2×4 пикселя → 1 символ U+2800-U+28FF
+# Dot mapping: левая колонка (строки 0-3) → dot 1,2,3,7 = 1,2,4,64
+#              правая колонка (строки 0-3) → dot 4,5,6,8 = 8,16,32,128
+_BRAILLE_L = (1, 2, 4, 64)
+_BRAILLE_R = (8, 16, 32, 128)
+
+
+def render_quad(ch: str, version: int = 4) -> list[str]:
+    """Quadrant-block рендер: 4 строки × 4 символа (2×2 → 1 char).
+
+    Каждый блок 2×2 пикселя → один из 16 Unicode quadrant block chars.
+    Источник техники: svend4/infon TVCP (glyphs.go).
+    """
+    rows = glyph_bitmap(ch, version)
+    result = []
+    for r in range(0, 8, 2):
+        v0 = rows[r]
+        v1 = rows[r + 1] if r + 1 < len(rows) else 0
+        line = ''
+        for c in range(0, 8, 2):
+            tl = (v0 >> (7 - c)) & 1
+            tr = (v0 >> (6 - c)) & 1 if c + 1 < 8 else 0
+            bl = (v1 >> (7 - c)) & 1
+            br = (v1 >> (6 - c)) & 1 if c + 1 < 8 else 0
+            line += _QUAD_BLOCKS[(tl << 3) | (tr << 2) | (bl << 1) | br]
+        result.append(line)
+    return result
+
+
+def render_braille(ch: str, version: int = 4) -> list[str]:
+    """Braille-рендер: 2 строки × 4 символа (2×4 → 1 char).
+
+    Каждый блок 2×4 пикселя → один Unicode Braille (U+2800-U+28FF).
+    Максимально компактное терминальное представление 8×8 глифа.
+    """
+    rows = glyph_bitmap(ch, version)
+    result = []
+    for r in range(0, 8, 4):
+        line = ''
+        for c in range(0, 8, 2):
+            val = 0
+            for dr in range(4):
+                rv = rows[r + dr] if r + dr < len(rows) else 0
+                if c < 8:
+                    val |= _BRAILLE_L[dr] * ((rv >> (7 - c)) & 1)
+                if c + 1 < 8:
+                    val |= _BRAILLE_R[dr] * ((rv >> (6 - c)) & 1)
+            line += chr(0x2800 + val)
+        result.append(line)
     return result
 
 
