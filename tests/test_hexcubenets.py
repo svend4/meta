@@ -212,5 +212,37 @@ class TestConstants(unittest.TestCase):
         self.assertFalse(_is_spanning_tree(cyclic))
 
 
+class TestCubeNetsExtra(unittest.TestCase):
+    def setUp(self):
+        self.cn = CubeNets()
+
+    def test_prove_count_keys(self):
+        """prove_count() содержит ожидаемые ключи."""
+        pc = self.cn.prove_count()
+        for key in ("total_subsets", "valid", "invalid", "nets_with_symmetry"):
+            self.assertIn(key, pc)
+
+    def test_net_symmetry_in_valid_set(self):
+        """Все симметрии развёрток ∈ {'central', 'mirror', 'none'}."""
+        valid = {"central", "mirror", "none"}
+        for net in self.cn.enumerate_all():
+            self.assertIn(net.symmetry(), valid)
+
+    def test_net_coords_has_6_keys(self):
+        """Координаты развёртки содержат 6 граней."""
+        net = self.cn.get_net(0)
+        self.assertEqual(len(net.coords), 6)
+
+    def test_prove_count_nets_with_symmetry_positive(self):
+        """nets_with_symmetry > 0."""
+        pc = self.cn.prove_count()
+        self.assertGreater(pc["nets_with_symmetry"], 0)
+
+    def test_is_valid_net_returns_bool(self):
+        """is_valid_net всегда возвращает bool."""
+        result = self.cn.is_valid_net(["T-F", "F-B", "F-K", "K-L", "K-R"])
+        self.assertIsInstance(result, bool)
+
+
 if __name__ == "__main__":
     unittest.main()

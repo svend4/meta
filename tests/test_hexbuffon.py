@@ -188,5 +188,37 @@ class TestBuffonParquet(unittest.TestCase):
         self.assertGreater(W, 0.0)
 
 
+class TestBuffonExtra(unittest.TestCase):
+    def setUp(self):
+        self.bp = BuffonParquet()
+
+    def test_rectangular_exact_value(self):
+        """rectangular(2,3,1) = 2L(a+b)/(πab) = 5/(3π)."""
+        self.assertAlmostEqual(self.bp.rectangular(2.0, 3.0, 1.0),
+                               5.0 / (3.0 * _PI), places=10)
+
+    def test_simulate_seed_reproducible(self):
+        """Одинаковый seed → одинаковый estimated_W."""
+        r1 = self.bp.simulate("square", needle=0.5, n=500, seed=99, a=1.0)
+        r2 = self.bp.simulate("square", needle=0.5, n=500, seed=99, a=1.0)
+        self.assertEqual(r1["estimated_W"], r2["estimated_W"])
+
+    def test_simulate_n_reported(self):
+        """simulate()['n'] совпадает с запрошенным n."""
+        res = self.bp.simulate("square", needle=0.5, n=200, seed=7, a=1.0)
+        self.assertEqual(res["n"], 200)
+
+    def test_find_needle_square_roundtrip(self):
+        """find_needle_length(square(a, L), 'square', a) ≈ L."""
+        L = 0.5
+        exact_W = self.bp.square(1.0, L)
+        L_back = self.bp.find_needle_length(exact_W, tile="square", a=1.0)
+        self.assertAlmostEqual(L_back, L, places=10)
+
+    def test_hexagonal_positive(self):
+        """hexagonal(r=2, needle=1) > 0."""
+        self.assertGreater(self.bp.hexagonal(r=2.0, needle=1.0), 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

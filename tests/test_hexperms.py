@@ -179,5 +179,32 @@ class TestBenchmark(unittest.TestCase):
         self.assertIsInstance(s, str)
 
 
+class TestPermutationEngineExtra(unittest.TestCase):
+    def setUp(self):
+        self.pe4 = PermutationEngine(4)
+
+    def test_repr_contains_n(self):
+        """repr содержит 'n=4'."""
+        self.assertIn("n=4", repr(self.pe4))
+
+    def test_derangement_count_n3(self):
+        """D(3) = 2."""
+        self.assertEqual(PermutationEngine(3).derangement_count(), 2)
+
+    def test_with_fixed_point_all_fix_2(self):
+        """with_fixed_point(2) — все перестановки фиксируют 2 на позиции."""
+        for perm in self.pe4.with_fixed_point(2):
+            self.assertEqual(perm[1], 2)   # 0-indexed: позиция 1 = элемент 2
+
+    def test_generate_aut_q6_wrong_n_raises(self):
+        """generate_aut_q6() для n≠6 бросает ValueError."""
+        with self.assertRaises(ValueError):
+            self.pe4.generate_aut_q6()
+
+    def test_next_perm_known(self):
+        """next_perm([1,2,4,3]) == [1,3,2,4]."""
+        self.assertEqual(self.pe4.next_perm([1, 2, 4, 3]), [1, 3, 2, 4])
+
+
 if __name__ == "__main__":
     unittest.main()
