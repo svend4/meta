@@ -12,10 +12,14 @@ from projects.hexglyph.hexglyph import (
     font_info,
     glyph_bitmap,
     render_bitmap,
+    detect_segments,
     char_to_h,
     h_to_char,
     encode,
     decode,
+    viewer_path,
+    RUSSIAN_PHONETIC,
+    PHONETIC_H_TO_RU,
     _CHARSET_64,
     _Q6_ORDER,
 )
@@ -182,6 +186,105 @@ class TestFontInfo(unittest.TestCase):
 
     def test_font_info_glyph_count_71(self):
         self.assertEqual(font_info(4)["glyph_count"], 71)
+
+
+class TestDetectSegments(unittest.TestCase):
+
+    def test_returns_dict_with_required_keys(self):
+        result = detect_segments('A')
+        for key in ('T', 'B', 'L', 'R', 'D1', 'D2', 'h', 'bits'):
+            self.assertIn(key, result)
+
+    def test_h_is_int_in_range(self):
+        for ch in 'AHELTBaez0':
+            seg = detect_segments(ch)
+            self.assertIsInstance(seg['h'], int)
+            self.assertGreaterEqual(seg['h'], 0)
+            self.assertLessEqual(seg['h'], 63)
+
+    def test_bits_length_6(self):
+        self.assertEqual(len(detect_segments('A')['bits']), 6)
+
+    def test_bits_consistent_with_h(self):
+        seg = detect_segments('E')
+        self.assertEqual(int(seg['bits'], 2), seg['h'])
+
+    # Confirmed pixel-decoded mappings
+    def test_H_is_LR_only(self):
+        # 'H' visually = two vertical bars = L+R = h=12
+        seg = detect_segments('H')
+        self.assertFalse(seg['T'])
+        self.assertFalse(seg['B'])
+        self.assertTrue(seg['L'])
+        self.assertTrue(seg['R'])
+        self.assertEqual(seg['h'], 12)
+
+    def test_A_is_frame(self):
+        # 'A' = full square frame = T+B+L+R = h=15
+        seg = detect_segments('A')
+        self.assertTrue(seg['T'])
+        self.assertTrue(seg['B'])
+        self.assertTrue(seg['L'])
+        self.assertTrue(seg['R'])
+        self.assertEqual(seg['h'], 15)
+
+    def test_0_is_diagonals(self):
+        # '0' = X shape = D1+D2 = h=48
+        seg = detect_segments('0')
+        self.assertTrue(seg['D1'])
+        self.assertTrue(seg['D2'])
+        self.assertFalse(seg['T'])
+        self.assertFalse(seg['B'])
+        self.assertEqual(seg['h'], 48)
+
+    def test_E_is_full(self):
+        # 'E' = ⊠ = all 6 segments = h=63
+        self.assertEqual(detect_segments('E')['h'], 63)
+
+    def test_h_formula_correct(self):
+        # h = T*1 + B*2 + L*4 + R*8 + D1*16 + D2*32
+        seg = detect_segments('H')  # L+R only
+        expected = seg['L'] * 4 + seg['R'] * 8
+        self.assertEqual(seg['h'], expected)
+
+
+class TestRussianPhonetic(unittest.TestCase):
+
+    def test_russian_phonetic_has_core_letters(self):
+        for letter in ('А', 'Р', 'Т'):
+            self.assertIn(letter, RUSSIAN_PHONETIC)
+
+    def test_high_confidence_mappings(self):
+        # А=63, Р=15, Т=48 confirmed from image analysis
+        self.assertEqual(RUSSIAN_PHONETIC['А']['h'], 63)
+        self.assertEqual(RUSSIAN_PHONETIC['Р']['h'], 15)
+        self.assertEqual(RUSSIAN_PHONETIC['Т']['h'], 48)
+
+    def test_a_maps_to_full_symbol(self):
+        # А = ⊠ full = h=63
+        self.assertEqual(RUSSIAN_PHONETIC['А']['h'], 63)
+
+    def test_phonetic_h_values_in_range(self):
+        for letter, info in RUSSIAN_PHONETIC.items():
+            self.assertGreaterEqual(info['h'], 0)
+            self.assertLessEqual(info['h'], 63)
+
+    def test_phonetic_h_to_ru_covers_high_confidence(self):
+        # All high-confidence mappings appear in PHONETIC_H_TO_RU
+        for letter, info in RUSSIAN_PHONETIC.items():
+            if info['confidence'] == 'high':
+                self.assertIn(info['h'], PHONETIC_H_TO_RU)
+
+    def test_viewer_path_exists(self):
+        self.assertTrue(viewer_path().exists())
+
+    def test_viewer_is_html(self):
+        self.assertEqual(viewer_path().suffix, '.html')
+
+    def test_viewer_contains_font(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Solan4', content)
+        self.assertIn('font-face', content)
 
 
 if __name__ == "__main__":
