@@ -901,6 +901,33 @@ class TestSolanCA(unittest.TestCase):
         for line in lines:
             self.assertEqual(len(line), 2 * 4)  # 2 cells × 4 quad chars
 
+    # --- viewer CA section ---
+
+    def test_viewer_has_ca_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ca-grid', content)
+        self.assertIn('caSetRule', content)
+        self.assertIn('caToggleAuto', content)
+
+    def test_viewer_ca_has_all_rules(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(f"ca-rule-{rule}", content)
+
+    def test_viewer_ca_has_ic_buttons(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        for ic in ("center", "edge", "random"):
+            self.assertIn(f"caIC('{ic}')", content)
+
+    def test_viewer_ca_uses_q6GetH(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('q6GetH', content)
+
+    def test_viewer_ca_row_clickable(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ca-row0', content)
+        self.assertIn('data-idx', content)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

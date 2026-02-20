@@ -881,6 +881,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     for(var s in BITS) st[s]=(hv&BITS[s])?1:0; update();
   };
   window.q6reset = function() { for(var s in st) st[s]=0; update(); };
+  window.q6GetH  = function() { return hval(); };
   document.querySelectorAll(".q6hit").forEach(function(el) {
     el.addEventListener("click", function() { q6toggle(this.getAttribute("data-s")); });
   });
@@ -898,6 +899,140 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
   document.querySelectorAll(".tri-cell").forEach(wireCell);
   document.querySelectorAll(".phon-cell").forEach(wireCell);
   update();
+})();
+</script>
+</div>
+<div class="section">
+<h2>Q6 Клеточный Автомат — пространство состояний (Z₂)⁶</h2>
+<p class="meta">Каждая клетка = вершина Q6 · Правило XOR использует структуру группы (Z₂)⁶ → фрактал Серпинского<br>
+Нажмите на клетку <b>верхней строки</b> — установить h из Q6-Эксплорера · <span style="color:#e0c040">■</span> = русская буква</p>
+<!-- Controls -->
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 6px;align-items:center">
+  <span style="color:#555;font-size:11px">Правило:</span>
+  <button class="cabtn active" id="ca-rule-xor"  onclick="caSetRule('xor')" >XOR ⊕</button>
+  <button class="cabtn"        id="ca-rule-xor3" onclick="caSetRule('xor3')">XOR3</button>
+  <button class="cabtn"        id="ca-rule-and"  onclick="caSetRule('and')" >AND &amp;</button>
+  <button class="cabtn"        id="ca-rule-or"   onclick="caSetRule('or')"  >OR  |</button>
+  <span style="color:#2a2a2a">│</span>
+  <span style="color:#555;font-size:11px">IC:</span>
+  <button class="cabtn" onclick="caIC('center')">центр h=63</button>
+  <button class="cabtn" onclick="caIC('edge')"  >край  h=63</button>
+  <button class="cabtn" onclick="caIC('random')">случайно</button>
+  <span style="color:#2a2a2a">│</span>
+  <button class="cabtn" onclick="caStep()">→ шаг</button>
+  <button class="cabtn" id="ca-auto-btn" onclick="caToggleAuto()">▶ авто</button>
+  <button class="cabtn" onclick="caReset()">↺ сброс</button>
+</div>
+<!-- CA space-time grid -->
+<div id="ca-grid"
+     style="font-family:Solan4,monospace;font-size:14px;line-height:1.15;
+            background:#060606;border:1px solid #1a1a1a;border-radius:3px;
+            padding:6px 8px;overflow-x:auto;white-space:nowrap;
+            margin:4px 0;user-select:none"></div>
+<p class="meta" id="ca-status" style="margin-top:4px;font-family:monospace"></p>
+<style>
+.cabtn {
+  background:#111; border:1px solid #2a2a2a; color:#555;
+  padding:4px 9px; cursor:pointer; border-radius:3px;
+  font-size:11px; font-family:monospace; transition:border-color .1s,color .1s;
+}
+.cabtn:hover  { border-color:#444; color:#888; }
+.cabtn.active { border-color:#4fc3f7; color:#4fc3f7; background:#0d2030; }
+</style>
+<script>
+(function() {
+  var CW = 48, CH = 26;  // ширина в клетках, высота в шагах
+  var RULE = 'xor';
+  var INIT = Array(CW).fill(0);
+  var HIST = [];           // история: list of row arrays
+  var AUTO_ID = null;
+
+  var H2C = {0:"0",1:"1",2:"2",3:"7",4:"3",5:"8",6:"9",7:"M",8:"4",9:"A",10:"B",11:"N",12:"H",13:"O",14:"Z",15:"A",16:"5",17:"D",18:"E",19:"C",20:"F",21:"G",22:"S",23:"O",24:"G",25:"T",26:"U",27:"i",28:"V",29:"j",30:"k",31:"K",32:"6",33:"H",34:"I",35:"J",36:"J",37:"X",38:"Y",39:"a",40:"K",41:"N",42:"a",43:"m",44:"B",45:"t",46:"o",47:"w",48:"L",49:"D",50:"d",51:"U",52:"e",53:"q",54:"I",55:"P",56:"h",57:"X",58:"t",59:"y",60:"W",61:"f",62:"Q",63:"E"};
+  var H2RU = {3:1,9:1,14:1,15:1,19:1,20:1,24:1,28:1,35:1,44:1,47:1,48:1,49:1,50:1,51:1,63:1};
+
+  function hw(h){var c=0;while(h){c+=h&1;h>>=1;}return c;}
+  var WC = ["#222","#1a3a6a","#1e52a0","#2a70cc","#50a0e0","#88cce8","#e8e8e8"];
+  function col(h){ return H2RU[h] ? "#e0c040" : WC[hw(h)]; }
+
+  function nextRow(row) {
+    var n=row.length, out=[];
+    for(var i=0;i<n;i++){
+      var l=row[(i-1+n)%n], r=row[(i+1)%n];
+      if(RULE==='xor')  out.push(l^r);
+      else if(RULE==='xor3') out.push(l^row[i]^r);
+      else if(RULE==='and')  out.push(l&r);
+      else                   out.push(l|r);
+    }
+    return out;
+  }
+
+  function buildHistory() {
+    HIST = [INIT.slice()];
+    var cur = HIST[0];
+    for(var t=1;t<CH;t++){cur=nextRow(cur);HIST.push(cur);}
+  }
+
+  function render() {
+    var g = document.getElementById('ca-grid'); if(!g) return;
+    var html='';
+    for(var t=0;t<HIST.length;t++){
+      var row=HIST[t], isTop=(t===0);
+      html += isTop ? '<div id="ca-row0">' : '<div>';
+      for(var i=0;i<row.length;i++){
+        var h=row[i], c=H2C[h]||'?';
+        html += '<span style="color:'+col(h)+'"'+(isTop?' data-idx="'+i+'"':'')+
+                ' title="h='+h+'">' + c + '</span>';
+      }
+      html += '</div>';
+    }
+    g.innerHTML = html;
+    // Wire initial row clicks
+    document.querySelectorAll('#ca-row0 span').forEach(function(sp){
+      sp.style.cursor='pointer';
+      sp.addEventListener('click',function(){
+        var idx=+this.getAttribute('data-idx');
+        var newH = (typeof q6GetH==='function') ? q6GetH() : (INIT[idx]===63?0:63);
+        INIT[idx]=newH;
+        buildHistory();
+        render();
+      });
+    });
+    var t0 = HIST.length-1;
+    var st = document.getElementById('ca-status'); if(st) st.textContent='правило: '+RULE+'  ·  t='+t0+'  ·  ширина='+CW;
+  }
+
+  window.caSetRule = function(r){
+    RULE=r;
+    document.querySelectorAll('[id^="ca-rule-"]').forEach(function(b){b.classList.remove('active');});
+    var b=document.getElementById('ca-rule-'+r); if(b) b.classList.add('active');
+    buildHistory(); render();
+  };
+  window.caIC = function(type){
+    var c=Array(CW).fill(0);
+    if(type==='center') c[Math.floor(CW/2)]=63;
+    else if(type==='edge') c[0]=63;
+    else for(var i=0;i<CW;i++) c[i]=Math.floor(Math.random()*64);
+    INIT=c; buildHistory(); render();
+  };
+  window.caReset = function(){ buildHistory(); render(); };
+  window.caStep  = function(){
+    var last=HIST[HIST.length-1];
+    if(HIST.length>=CH) HIST.shift();
+    HIST.push(nextRow(last)); render();
+  };
+  window.caToggleAuto = function(){
+    if(AUTO_ID){
+      clearInterval(AUTO_ID); AUTO_ID=null;
+      document.getElementById('ca-auto-btn').textContent='▶ авто';
+      document.getElementById('ca-auto-btn').classList.remove('active');
+    } else {
+      AUTO_ID=setInterval(caStep,100);
+      document.getElementById('ca-auto-btn').textContent='⏸ стоп';
+      document.getElementById('ca-auto-btn').classList.add('active');
+    }
+  };
+
+  buildHistory(); render();
 })();
 </script>
 </div>
