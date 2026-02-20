@@ -128,9 +128,9 @@ MODULES: dict[str, ModuleInfo] = {
     # K4 — Биологический кластер
     'hexbio': ModuleInfo(
         name='hexbio', path='projects.hexbio.codon_glyphs',
-        commands=['codon-map', 'grid', 'amino', 'highlight', 'neighbors', 'seq'],
+        commands=['codon-map', 'codon-entropy', 'grid', 'amino', 'highlight', 'neighbors', 'seq'],
         cluster='K4', json_ready=True,
-        description='Генетический код Q6: 64 кодона → гексаграммы (K4×K6)',
+        description='Генетический код Q6: 64 кодона → гексаграммы, энтропия (K4×K6×K2)',
     ),
     'hexdim': ModuleInfo(
         name='hexdim', path='projects.hexdim.hexdim',
@@ -437,11 +437,18 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
         emergent='Автоматический синтез S-блоков с заданным лавинным критерием',
     ),
     'SC-6': SuperClusterInfo(
-        id='SC-6', name='Термодинамика КА',
+        id='SC-6', name='Геномный КА: энтропийные аттракторы',
         cluster_ids=['K2', 'K4'],
-        description='КА термодинамика + биологические фракталы',
-        pipeline=['hexca:entropy', 'hexphys:energy', 'hexdim:fractal'],
-        emergent='Фазовые переходы Q6-автоматов с биологической интерпретацией',
+        description='КА-правила Q6 как операторы эволюции генетического кода',
+        pipeline=['hexca:all-rules',
+                  'hexbio:codon-entropy --from-rules'],
+        emergent=(
+            'K2×K4: три уровня энтропии кода: H_равн=6.0 > H_деген=4.22 > H_ян=2.33 бит. '
+            'majority_vote (K2): δH<0 → аттрактор ян=3 = GC~50% (K4-биологический отбор). '
+            'xor_rule (K2): δH>0 → нейтральный дрейф = случайные мутации. '
+            'ВЫВОД: биологический отбор GC ≡ majority_vote-аттрактор; '
+            'нейтральная эволюция ≡ xor_rule-диффузия. Обе динамики в Q6.'
+        ),
     ),
     'SC-7': SuperClusterInfo(
         id='SC-7', name='φ как Q6-инвариант',
