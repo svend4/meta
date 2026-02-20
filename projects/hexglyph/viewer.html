@@ -1620,9 +1620,200 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
   }
 
   initTooltip();
+  window.mDist = mDist;
   setTimeout(function(){
     if(window.lexAllSigs) drawMatrix();
   }, 200);
+})();
+</script>
+</div>
+<div class="section">
+<h2>Граф орбитального сходства Q6</h2>
+<p class="meta">Слова — узлы · ребро если орбитальное расстояние &lt; порог · раскладка: Fruchterman-Reingold</p>
+<div style="display:flex;gap:16px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+  <label style="color:#555;font-size:12px;font-family:monospace">Порог:&nbsp;
+    <input type="range" id="graph-thresh" min="0" max="45" value="10" step="1"
+           style="vertical-align:middle;width:100px;accent-color:#4caf50">
+    <span id="graph-thresh-val" style="font-family:monospace;color:#777;min-width:32px;display:inline-block">0.10</span>
+  </label>
+  <button id="graph-reset"
+    style="background:#161616;color:#555;border:1px solid #2a2a2a;padding:3px 10px;
+           cursor:pointer;font-family:monospace;font-size:11px">⟳ перезапуск</button>
+  <span id="graph-stats" style="font-family:monospace;font-size:11px;color:#3a3a3a"></span>
+</div>
+<canvas id="graph-canvas" width="640" height="430"
+  style="cursor:crosshair;display:block;border:1px solid #1a1a1a"></canvas>
+<div id="graph-info"
+  style="font-family:monospace;font-size:11px;color:#444;min-height:16px;margin-top:4px"> </div>
+<script>
+(function() {
+  var W=640, H=430, MARGIN=44;
+  var PALETTE=['#2196f3','#4caf50','#ff9800','#e91e63','#9c27b0',
+               '#00bcd4','#8bc34a','#ff5722','#3f51b5','#009688'];
+  var nodes=[], hoveredNode=-1;
+  var _words=null, _sigs=null, _gd=null;
+
+  function dist2(s1,s2){
+    return window.mDist ? window.mDist(s1,s2) : NaN;
+  }
+
+  function buildGD(thresh) {
+    var n=_words.length;
+    var adj=_words.map(function(){return [];});
+    var edgeList=[];
+    for(var i=0;i<n;i++){
+      for(var j=i+1;j<n;j++){
+        var d=dist2(_sigs[_words[i]],_sigs[_words[j]]);
+        if(!isNaN(d)&&d<thresh){
+          adj[i].push(j); adj[j].push(i);
+          edgeList.push({a:i,b:j,d:d});
+        }
+      }
+    }
+    var comp=new Array(n).fill(-1), nC=0;
+    for(var s=0;s<n;s++){
+      if(comp[s]!==-1) continue;
+      var q=[s]; comp[s]=nC;
+      while(q.length){
+        var u=q.shift();
+        adj[u].forEach(function(v){if(comp[v]===-1){comp[v]=nC;q.push(v);}});
+      }
+      nC++;
+    }
+    return {n:n,adj:adj,edges:edgeList,comp:comp,nComps:nC};
+  }
+
+  function placeCircle(n){
+    nodes=[];
+    for(var i=0;i<n;i++){
+      var a=(i/n)*2*Math.PI;
+      var r=Math.min(W-MARGIN*2,H-MARGIN*2)/2*0.65;
+      nodes.push({x:W/2+r*Math.cos(a),y:H/2+r*Math.sin(a),vx:0,vy:0});
+    }
+  }
+
+  function simulate(gd, steps){
+    var n=gd.n;
+    var k=Math.sqrt((W-MARGIN*2)*(H-MARGIN*2)/(n+1));
+    var T=k*0.85;
+    for(var step=0;step<steps;step++){
+      T*=0.96;
+      var dx=new Array(n).fill(0), dy=new Array(n).fill(0);
+      for(var i=0;i<n;i++){
+        for(var j=i+1;j<n;j++){
+          var ddx=nodes[i].x-nodes[j].x, ddy=nodes[i].y-nodes[j].y;
+          var dist=Math.sqrt(ddx*ddx+ddy*ddy)||0.1;
+          var f=k*k/dist;
+          dx[i]+=f*ddx/dist; dy[i]+=f*ddy/dist;
+          dx[j]-=f*ddx/dist; dy[j]-=f*ddy/dist;
+        }
+      }
+      gd.edges.forEach(function(e){
+        var ddx=nodes[e.a].x-nodes[e.b].x, ddy=nodes[e.a].y-nodes[e.b].y;
+        var dist=Math.sqrt(ddx*ddx+ddy*ddy)||0.1;
+        var f=dist*dist/k;
+        dx[e.a]-=f*ddx/dist; dy[e.a]-=f*ddy/dist;
+        dx[e.b]+=f*ddx/dist; dy[e.b]+=f*ddy/dist;
+      });
+      for(var i=0;i<n;i++){
+        dx[i]+=0.07*(W/2-nodes[i].x);
+        dy[i]+=0.07*(H/2-nodes[i].y);
+      }
+      for(var i=0;i<n;i++){
+        var len=Math.sqrt(dx[i]*dx[i]+dy[i]*dy[i])||0.1;
+        var disp=Math.min(len,T);
+        nodes[i].x+=dx[i]/len*disp; nodes[i].y+=dy[i]/len*disp;
+        nodes[i].x=Math.max(MARGIN,Math.min(W-MARGIN,nodes[i].x));
+        nodes[i].y=Math.max(MARGIN,Math.min(H-MARGIN,nodes[i].y));
+      }
+    }
+  }
+
+  function draw(ctx, gd){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0d0d0d'; ctx.fillRect(0,0,W,H);
+    if(!gd) return;
+    // Edges
+    gd.edges.forEach(function(e){
+      var ni=nodes[e.a], nj=nodes[e.b];
+      var hl=hoveredNode!==-1&&(e.a===hoveredNode||e.b===hoveredNode);
+      var col=PALETTE[gd.comp[e.a]%PALETTE.length];
+      ctx.strokeStyle=hl?col+'cc':'rgba(40,65,40,0.45)';
+      ctx.lineWidth=hl?1.5:0.6;
+      ctx.beginPath(); ctx.moveTo(ni.x,ni.y); ctx.lineTo(nj.x,nj.y); ctx.stroke();
+    });
+    // Nodes
+    for(var i=0;i<_words.length;i++){
+      var nd=nodes[i];
+      var hl=i===hoveredNode;
+      var isNb=hoveredNode!==-1&&gd.adj[hoveredNode].indexOf(i)!==-1;
+      var col=PALETTE[gd.comp[i]%PALETTE.length];
+      ctx.beginPath();
+      ctx.arc(nd.x,nd.y,hl?6:isNb?4.5:3,0,Math.PI*2);
+      ctx.fillStyle=hl?'#fff':isNb?col:col+'55';
+      ctx.fill();
+      // Label
+      ctx.font=(hl?'bold ':'')+((hl||isNb)?'9':'7')+'px monospace';
+      ctx.fillStyle=hl?'#fff':isNb?col:col+'88';
+      ctx.fillText(_words[i], nd.x+6, nd.y+3);
+    }
+  }
+
+  function rebuild(){
+    var sigs=window.lexAllSigs?window.lexAllSigs():null;
+    if(!sigs) return;
+    _sigs=sigs; _words=Object.keys(sigs);
+    var thresh=parseInt(document.getElementById('graph-thresh').value)/100;
+    document.getElementById('graph-thresh-val').textContent=thresh.toFixed(2);
+    placeCircle(_words.length);
+    _gd=buildGD(thresh);
+    var canvas=document.getElementById('graph-canvas');
+    var ctx=canvas.getContext('2d');
+    simulate(_gd,300);
+    draw(ctx,_gd);
+    var st=document.getElementById('graph-stats');
+    if(st) st.textContent='узлов: '+_gd.n+'  рёбер: '+_gd.edges.length+'  компонент: '+_gd.nComps;
+  }
+
+  function initHover(canvas,ctx){
+    canvas.addEventListener('mousemove',function(e){
+      if(!_words||!_gd) return;
+      var r=canvas.getBoundingClientRect();
+      var mx=(e.clientX-r.left)*(W/r.width), my=(e.clientY-r.top)*(H/r.height);
+      var best=-1,bestD=Infinity;
+      nodes.forEach(function(nd,i){
+        var d=Math.hypot(nd.x-mx,nd.y-my);
+        if(d<bestD){bestD=d;best=i;}
+      });
+      var nh=bestD<18?best:-1;
+      if(nh!==hoveredNode){
+        hoveredNode=nh; draw(ctx,_gd);
+        var info=document.getElementById('graph-info');
+        if(info){
+          if(hoveredNode!==-1){
+            var nb=_gd.adj[hoveredNode];
+            var nbs=nb.map(function(i){return _words[i];}).join('  ');
+            info.textContent=_words[hoveredNode]+'  ('+nb.length+' связей)'+(nbs?' → '+nbs:'  (изолирована)');
+          } else { info.textContent=' '; }
+        }
+      }
+    });
+    canvas.addEventListener('mouseleave',function(){
+      hoveredNode=-1; if(_gd) draw(ctx,_gd);
+      var info=document.getElementById('graph-info');
+      if(info) info.textContent=' ';
+    });
+  }
+
+  setTimeout(function(){
+    var canvas=document.getElementById('graph-canvas');
+    var ctx=canvas.getContext('2d');
+    if(!canvas||!ctx) return;
+    initHover(canvas,ctx);
+    document.getElementById('graph-thresh').addEventListener('input',rebuild);
+    document.getElementById('graph-reset').addEventListener('click',rebuild);
+    rebuild();
+  },400);
 })();
 </script>
 </div>

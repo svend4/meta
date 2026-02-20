@@ -1528,6 +1528,192 @@ class TestSolanLexicon(unittest.TestCase):
         self.assertIn('Сигнатура', content)
 
 
+class TestSolanGraph(unittest.TestCase):
+    """Tests for solan_graph.py and the viewer Graph section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import (
+            build_graph, connected_components, degree,
+            hub_words, graph_stats,
+        )
+        cls.build_graph          = staticmethod(build_graph)
+        cls.connected_components = staticmethod(connected_components)
+        cls.degree               = staticmethod(degree)
+        cls.hub_words            = staticmethod(hub_words)
+        cls.graph_stats          = staticmethod(graph_stats)
+        cls._words = ['ГОРА', 'ВОДА', 'РАТОН', 'НОРА', 'ЗИМА',
+                      'МАРТ', 'ЛУНА', 'УДАР', 'РОТА', 'УТРО']
+
+    # ── build_graph ───────────────────────────────────────────────────────
+
+    def test_graph_all_words_present(self):
+        g = self.build_graph(self._words)
+        self.assertEqual(set(g.keys()), set(self._words))
+
+    def test_graph_self_not_in_neighbors(self):
+        g = self.build_graph(self._words)
+        for w, nb in g.items():
+            self.assertNotIn(w, nb)
+
+    def test_graph_symmetric(self):
+        g = self.build_graph(self._words)
+        for w, nb in g.items():
+            for n in nb:
+                self.assertIn(w, g[n])
+
+    def test_graph_threshold_zero_empty(self):
+        g = self.build_graph(self._words, threshold=0.0)
+        for nb in g.values():
+            self.assertEqual(nb, [])
+
+    def test_graph_threshold_one_dense(self):
+        g = self.build_graph(self._words, threshold=1.0)
+        total_edges = sum(len(nb) for nb in g.values()) // 2
+        self.assertGreater(total_edges, 0)
+
+    def test_graph_default_uses_lexicon(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        g = self.build_graph()
+        self.assertEqual(set(g.keys()), set(LEXICON))
+
+    # ── connected_components ─────────────────────────────────────────────
+
+    def test_components_all_words_covered(self):
+        g = self.build_graph(self._words, threshold=0.5)
+        comps = self.connected_components(g)
+        all_words = [w for c in comps for w in c]
+        self.assertEqual(sorted(all_words), sorted(self._words))
+
+    def test_components_sorted_desc(self):
+        g = self.build_graph(self._words, threshold=0.5)
+        comps = self.connected_components(g)
+        sizes = [len(c) for c in comps]
+        self.assertEqual(sizes, sorted(sizes, reverse=True))
+
+    def test_components_no_overlap(self):
+        g = self.build_graph(self._words, threshold=0.5)
+        comps = self.connected_components(g)
+        seen: set[str] = set()
+        for comp in comps:
+            for w in comp:
+                self.assertNotIn(w, seen)
+                seen.add(w)
+
+    def test_components_clique_connected(self):
+        g = self.build_graph(self._words, threshold=0.01)
+        comps = self.connected_components(g)
+        clique = {'ГОРА', 'УДАР', 'РОТА', 'УТРО'}
+        for comp in comps:
+            if clique.issubset(set(comp)):
+                break
+        else:
+            self.fail('ГОРА-УДАР-РОТА-УТРО not in same component at threshold=0.01')
+
+    # ── degree ────────────────────────────────────────────────────────────
+
+    def test_degree_all_words(self):
+        g = self.build_graph(self._words)
+        d = self.degree(g)
+        self.assertEqual(set(d.keys()), set(self._words))
+
+    def test_degree_nonnegative(self):
+        g = self.build_graph(self._words)
+        for d in self.degree(g).values():
+            self.assertGreaterEqual(d, 0)
+
+    def test_degree_matches_adjacency(self):
+        g = self.build_graph(self._words)
+        d = self.degree(g)
+        for w in self._words:
+            self.assertEqual(d[w], len(g[w]))
+
+    # ── hub_words ─────────────────────────────────────────────────────────
+
+    def test_hub_words_count(self):
+        g = self.build_graph(self._words)
+        hubs = self.hub_words(g, n=3)
+        self.assertLessEqual(len(hubs), 3)
+
+    def test_hub_words_sorted_desc(self):
+        g = self.build_graph(self._words, threshold=0.5)
+        hubs = self.hub_words(g, n=5)
+        degrees = [d for _, d in hubs]
+        self.assertEqual(degrees, sorted(degrees, reverse=True))
+
+    # ── graph_stats ───────────────────────────────────────────────────────
+
+    def test_stats_keys(self):
+        g = self.build_graph(self._words)
+        st = self.graph_stats(g)
+        for key in ('nodes','edges','components','isolated','max_degree','avg_degree'):
+            self.assertIn(key, st)
+
+    def test_stats_nodes_count(self):
+        g = self.build_graph(self._words)
+        st = self.graph_stats(g)
+        self.assertEqual(st['nodes'], len(self._words))
+
+    def test_stats_edges_positive(self):
+        g = self.build_graph(self._words, threshold=0.5)
+        st = self.graph_stats(g)
+        self.assertGreater(st['edges'], 0)
+
+    def test_stats_isolated_correct(self):
+        g = self.build_graph(self._words, threshold=0.01)
+        st = self.graph_stats(g)
+        d = self.degree(g)
+        isolated_count = sum(1 for v in d.values() if v == 0)
+        self.assertEqual(st['isolated'], isolated_count)
+
+    def test_stats_avg_degree_correct(self):
+        g = self.build_graph(self._words, threshold=0.5)
+        st = self.graph_stats(g)
+        d = self.degree(g)
+        expected_avg = sum(d.values()) / len(d)
+        self.assertAlmostEqual(st['avg_degree'], expected_avg, places=5)
+
+    # ── viewer: Graph section ─────────────────────────────────────────────
+
+    def test_viewer_has_graph_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Граф орбитального сходства Q6', content)
+        self.assertIn('graph-canvas', content)
+        self.assertIn('graph-thresh', content)
+
+    def test_viewer_graph_uses_mDist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mDist', content)
+        self.assertIn('lexAllSigs', content)
+
+    def test_viewer_graph_has_fruchterman_comment(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Fruchterman', content)
+
+    def test_viewer_graph_has_simulate(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('simulate', content)
+
+    def test_viewer_graph_has_hover(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('graph-info', content)
+        self.assertIn('hoveredNode', content)
+
+    def test_viewer_graph_exports_mDist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.mDist = mDist', content)
+
+    def test_viewer_graph_has_threshold_slider(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('graph-thresh', content)
+        self.assertIn('graph-thresh-val', content)
+
+    def test_viewer_graph_has_reset_button(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('graph-reset', content)
+        self.assertIn('перезапуск', content)
+
+
 class TestSolanMatrix(unittest.TestCase):
     """Tests for solan_matrix.py and the viewer Matrix section."""
 
