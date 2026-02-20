@@ -67,10 +67,10 @@ MODULES: dict[str, ModuleInfo] = {
         description='Поле Галуа GF(2^6) — умножение и полиномы',
     ),
     'hexcode': ModuleInfo(
-        name='hexcode', path='projects.hexcode.hexcode',
-        commands=['encode', 'decode', 'distance'],
-        cluster='K1', json_ready=False,
-        description='Коды с исправлением ошибок на Q6',
+        name='hexcode', path='projects.hexcode.code_glyphs',
+        commands=['sbox-code', 'encode', 'decode', 'distance'],
+        cluster='K1', json_ready=True,
+        description='Граф-коды S-блоков [12,6,d] + K8-теорема (MDS-барьер Q6)',
     ),
     'karnaugh6': ModuleInfo(
         name='karnaugh6', path='projects.karnaugh6.kmap_glyphs',
@@ -396,9 +396,9 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'SC-2': SuperClusterInfo(
         id='SC-2', name='Платиновые S-блоки',
         cluster_ids=['K1', 'K8'],
-        description='Минимальные схемы S-блоков через карты Карно',
-        pipeline=['hexcrypt:sbox', 'karnaugh6:minimize', 'hexcode:encode'],
-        emergent='Минимизированные S-блоки с оптимальным расстоянием Хэмминга',
+        description='S-блоки Q6 как граф-коды [12,6,d]: KMА-схемы × кодовая теория',
+        pipeline=['hexcrypt:sbox', 'karnaugh6:sbox-minimize --from-sbox', 'hexcode:sbox-code --from-minimize'],
+        emergent='MDS d=7 недостижимо для Q6-биекций; complement → экви-дистантный [12,6,6]; NL-d трейдофф',
     ),
     'SC-3': SuperClusterInfo(
         id='SC-3', name='Канонический атлас КА',
