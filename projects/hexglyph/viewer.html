@@ -3130,6 +3130,257 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Пространственная автокорреляция CA Q6</h2>
+<p class="meta">r(d) = нормированная пространственная автокорреляция аттрактора при лаге d (0…8) · по теореме Винера–Хинчина: FT{r(d)} = спектр мощности · AND/OR: r(d)=(−1)^d (знакочередующийся) · XOR: r(d)=0 (нет структуры)</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="cor-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <span style="color:#333;font-size:13px">или</span>
+  <input id="cor-custom" type="text" placeholder="своё слово…"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;
+           font-size:13px;width:120px;text-transform:uppercase"/>
+  <button id="cor-btn"
+    style="background:#1a1a2a;color:#90caf9;border:1px solid #3a3a6a;
+           padding:5px 14px;cursor:pointer;font-size:13px">Корреляция</button>
+</div>
+<canvas id="cor-canvas" width="700" height="300"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<canvas id="cor-hmap"   width="700" height="180"
+  style="display:block;border:1px solid #1a1a1a;margin-top:3px;cursor:crosshair"></canvas>
+<div id="cor-info"
+  style="font-family:monospace;font-size:11px;color:#555;min-height:16px;margin-top:5px"> </div>
+<script>
+(function(){
+  var COR_RULES = ['xor','xor3','and','or'];
+  var COR_COLS  = {xor:'#f55', xor3:'#4dd', and:'#7d7', or:'#fa0'};
+  var COR_NAMES = {xor:'XOR ⊕', xor3:'XOR3', and:'AND &', or:'OR |'};
+
+  // ── Row autocorrelation ────────────────────────────────────────────────────
+  function rowAutocorr(row, maxLag) {
+    var N = row.length, mu = 0;
+    for (var i = 0; i < N; i++) mu += row[i];
+    mu /= N;
+    var variance = 0;
+    for (var i = 0; i < N; i++) variance += (row[i]-mu)*(row[i]-mu);
+    variance /= N;
+    if (variance < 1e-10) {
+      var r = [];
+      for (var d = 0; d <= maxLag; d++) r.push(d === 0 ? 1.0 : 0.0);
+      return r;
+    }
+    var result = [];
+    for (var d = 0; d <= maxLag; d++) {
+      var cov = 0;
+      for (var i = 0; i < N; i++) cov += (row[i]-mu)*(row[(i+d)%N]-mu);
+      result.push((cov/N) / variance);
+    }
+    return result;
+  }
+
+  // ── CA step ────────────────────────────────────────────────────────────────
+  function caS(cells, rule) {
+    var n=cells.length, nxt=[];
+    for (var i=0;i<n;i++) {
+      var l=cells[(i-1+n)%n],c=cells[i],r=cells[(i+1)%n];
+      if(rule==='xor') nxt.push(l^r);
+      else if(rule==='xor3') nxt.push(l^c^r);
+      else if(rule==='and') nxt.push(l&r);
+      else nxt.push(l|r);
+    }
+    return nxt;
+  }
+
+  // ── Orbit ──────────────────────────────────────────────────────────────────
+  function findOrbit(cells, rule) {
+    var seen={}, cur=cells.slice(), t=0;
+    while(true) {
+      var k=cur.join(',');
+      if(seen.hasOwnProperty(k)) return {tr:seen[k], per:t-seen[k]};
+      seen[k]=t; cur=caS(cur,rule); t++;
+    }
+  }
+
+  // ── Attractor autocorrelation ──────────────────────────────────────────────
+  function attrAutocorr(cells, rule, maxLag) {
+    var orb = findOrbit(cells, rule);
+    var cur = cells.slice();
+    for (var t=0; t<orb.tr; t++) cur = caS(cur, rule);
+    // collect attractor rows
+    var sums = new Array(maxLag+1).fill(0), cnt = 0;
+    for (var t=0; t<orb.per; t++) {
+      var ac = rowAutocorr(cur, maxLag);
+      var mu = cur.reduce(function(a,v){return a+v;},0)/cur.length;
+      var vv = cur.reduce(function(a,v){return a+(v-mu)*(v-mu);},0)/cur.length;
+      if (vv > 1e-10) {
+        for (var d=0; d<=maxLag; d++) sums[d] += ac[d];
+        cnt++;
+      }
+      cur = caS(cur, rule);
+    }
+    if (cnt === 0) {
+      var r=[1.0]; for(var d=1;d<=maxLag;d++) r.push(0.0);
+      return r;
+    }
+    return sums.map(function(s){ return s/cnt; });
+  }
+
+  // ── Draw line chart ────────────────────────────────────────────────────────
+  function drawCorrChart(canvas, cells, maxLag) {
+    var W=canvas.width, H=canvas.height;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
+    var PAD={t:25,b:40,l:55,r:120};
+    var cW=W-PAD.l-PAD.r, cH=H-PAD.t-PAD.b;
+
+    function px(d){ return PAD.l + (d/maxLag)*cW; }
+    function py(r){ return PAD.t + (1-r)*cH/2; }  // r in [-1,1]
+
+    // Grid: y=0 (zero line), y=1 (top), y=-1 (bottom), y=1/e
+    var eInv = Math.exp(-1);
+    [[1,'#222'],[eInv,'#1a2a1a'],[-eInv,'#2a1a1a'],[0,'#2a2a2a'],[-1,'#1a1a1a']].forEach(function(v){
+      ctx.strokeStyle=v[1]; ctx.lineWidth=1; ctx.setLineDash(v[0]===0?[]:v[0]===1||v[0]===-1?[]:[3,4]);
+      ctx.beginPath(); ctx.moveTo(PAD.l,py(v[0])); ctx.lineTo(PAD.l+cW,py(v[0])); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='#444'; ctx.font='9px monospace'; ctx.textAlign='right';
+      ctx.fillText(v[0].toFixed(2), PAD.l-4, py(v[0])+3);
+    });
+    // x-axis: lag labels
+    for (var d=0; d<=maxLag; d++) {
+      ctx.fillStyle='#444'; ctx.font='9px monospace'; ctx.textAlign='center';
+      ctx.fillText(d, px(d), PAD.t+cH+14);
+      if (d > 0) {
+        ctx.strokeStyle='#141414'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(px(d),PAD.t); ctx.lineTo(px(d),PAD.t+cH); ctx.stroke();
+      }
+    }
+    // Axis labels
+    ctx.fillStyle='#555'; ctx.font='10px monospace'; ctx.textAlign='center';
+    ctx.fillText('лаг d', PAD.l+cW/2, H-5);
+    ctx.save(); ctx.translate(12,PAD.t+cH/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('r(d)', 0, 0); ctx.restore();
+    // 1/e label
+    ctx.fillStyle='#3a5a3a'; ctx.font='8px monospace'; ctx.textAlign='left';
+    ctx.fillText('1/e', PAD.l+cW+3, py(eInv)+3);
+    ctx.fillText('-1/e', PAD.l+cW+3, py(-eInv)+3);
+
+    // Per-rule correlation lines
+    COR_RULES.forEach(function(rule) {
+      var ac = attrAutocorr(cells, rule, maxLag);
+      var col = COR_COLS[rule];
+      ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+      ctx.beginPath();
+      for (var d = 0; d <= maxLag; d++) {
+        var x = px(d), y = py(ac[d]);
+        if (d === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      // Dots
+      for (var d = 0; d <= maxLag; d++) {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(px(d), py(ac[d]), 3, 0, 2*Math.PI); ctx.fill();
+      }
+      // Legend
+      var li = COR_RULES.indexOf(rule);
+      var ly = PAD.t + 8 + li * 22;
+      ctx.fillStyle = col; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(COR_NAMES[rule], PAD.l+cW+6, ly);
+    });
+    ctx.fillStyle='#666'; ctx.font='10px monospace'; ctx.textAlign='left';
+    ctx.fillText('Автокорреляция r(d) аттрактора · все 4 правила', PAD.l, 14);
+  }
+
+  // ── Draw lexicon heatmap ───────────────────────────────────────────────────
+  function drawCorrHmap(canvas, maxLag) {
+    var encFn=window.encL, padFn=window.padL;
+    if (!encFn || !padFn || !window.LEXICON_ARR) return;
+    var lw = window.LEXW || 16;
+    var words = window.LEXICON_ARR;
+    var W=canvas.width, H=canvas.height;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
+    var LABEL=55, RHEIGHT=Math.floor((H-20)/(words.length)), LAGW=Math.floor((W-LABEL)/(maxLag+1));
+    if (RHEIGHT < 1) RHEIGHT=1;
+
+    // Lag column headers
+    ctx.fillStyle='#555'; ctx.font='9px monospace'; ctx.textAlign='center';
+    for (var d=0; d<=maxLag; d++) {
+      ctx.fillText('d='+d, LABEL+d*LAGW+LAGW/2, 10);
+    }
+
+    words.forEach(function(word, wi) {
+      var cells = padFn(encFn(word), lw);
+      // Use xor3 for heatmap (most interesting rule)
+      var ac = attrAutocorr(cells, 'xor3', maxLag);
+      var y  = 20 + wi * RHEIGHT;
+      for (var d=0; d<=maxLag; d++) {
+        var r = ac[d];
+        var R,G,B;
+        if (r > 0) {
+          // positive: red
+          R=Math.round(r*220); G=Math.round(r*50); B=Math.round(r*50);
+        } else {
+          // negative: blue
+          var ar=Math.abs(r);
+          R=Math.round(ar*30); G=Math.round(ar*80); B=Math.round(ar*220);
+        }
+        ctx.fillStyle='rgb('+R+','+G+','+B+')';
+        ctx.fillRect(LABEL+d*LAGW, y, LAGW-1, RHEIGHT-1);
+      }
+      // Word label (for first few rows that fit)
+      if (RHEIGHT >= 9) {
+        ctx.fillStyle='#666'; ctx.font='8px monospace'; ctx.textAlign='right';
+        ctx.fillText(word, LABEL-3, y+RHEIGHT-1);
+      }
+    });
+    ctx.fillStyle='#555'; ctx.font='9px monospace'; ctx.textAlign='left';
+    ctx.fillText('XOR3 r(d) по 49 словам (красный=+1, синий=−1)', LABEL, H-3);
+  }
+
+  // ── UI wiring ──────────────────────────────────────────────────────────────
+  function populateCorDD() {
+    var sel = document.getElementById('cor-word');
+    if (!sel || !window.LEXICON_ARR) return;
+    window.LEXICON_ARR.forEach(function(w){
+      var o=document.createElement('option'); o.value=o.textContent=w; sel.appendChild(o);
+    });
+  }
+
+  function corRun() {
+    var wordEl = document.getElementById('cor-word');
+    var custEl = document.getElementById('cor-custom');
+    var canvas = document.getElementById('cor-canvas');
+    var hmap   = document.getElementById('cor-hmap');
+    var infoEl = document.getElementById('cor-info');
+    if (!canvas || !window.encL) { if(infoEl) infoEl.textContent='Ожидание…'; return; }
+    var word = (custEl && custEl.value.trim()) || (wordEl && wordEl.value) || 'ГОРА';
+    var lw   = window.LEXW || 16;
+    var cells = window.padL(window.encL(word.toUpperCase()), lw);
+    var maxLag = lw / 2;
+    drawCorrChart(canvas, cells, maxLag);
+    if (hmap) drawCorrHmap(hmap, maxLag);
+    // Info: correlation lengths per rule
+    var eInv = Math.exp(-1);
+    var parts = COR_RULES.map(function(rule) {
+      var ac = attrAutocorr(cells, rule, maxLag);
+      var cl = maxLag;
+      for (var d=1; d<=maxLag; d++) { if(Math.abs(ac[d]) <= eInv){cl=d; break;} }
+      return COR_NAMES[rule]+':ξ='+cl;
+    });
+    if(infoEl) infoEl.textContent = parts.join('  ');
+  }
+  window.corRun = corRun;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn    = document.getElementById('cor-btn');
+    var custEl = document.getElementById('cor-custom');
+    if(btn)    btn.addEventListener('click', corRun);
+    if(custEl) custEl.addEventListener('keydown', function(e){ if(e.key==='Enter') corRun(); });
+    setTimeout(function(){ populateCorDD(); if(window.encL) corRun(); }, 970);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Ляпунов CA Q6 — расходимость траекторий</h2>
 <p class="meta">Однобитовые возмущения начального состояния (96 вариантов) → среднее Хэмминг-расстояние d(t) между оригинальной и возмущённой траекториями · пик = «максимальная чувствительность» · ↓ = сходится к 0</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
