@@ -2023,6 +2023,259 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>MDS-карта орбитального пространства Q6</h2>
+<p class="meta" id="mds-meta">Классическое MDS · 2D-вложение матрицы орбитальных расстояний · hover = ближайшие соседи</p>
+<div style="display:flex;gap:16px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+  <label style="color:#555;font-size:12px;font-family:monospace">Отсечение цветов:&nbsp;
+    <input type="range" id="mds-cut" min="0" max="100" value="5" step="1"
+      style="vertical-align:middle;width:110px;accent-color:#4caf50">
+    <span id="mds-cut-val" style="font-family:monospace;color:#777;min-width:44px;display:inline-block">auto</span>
+  </label>
+  <span id="mds-cluster-count" style="font-family:monospace;font-size:11px;color:#3a3a3a"></span>
+</div>
+<canvas id="mds-canvas" width="700" height="460"
+  style="display:block;border:1px solid #1a1a1a;cursor:crosshair"></canvas>
+<div id="mds-info"
+  style="font-family:monospace;font-size:11px;color:#444;min-height:16px;margin-top:4px"> </div>
+<script>
+(function(){
+  var PALETTE=['#2196f3','#4caf50','#ff9800','#e91e63','#9c27b0',
+               '#00bcd4','#8bc34a','#ff5722','#3f51b5','#009688'];
+  var ML=14, MR=14, MT=20, MB=20;
+  var _words=null, _coords=null, _dmat=null, _stress=null, _hovIdx=-1;
+
+  // ── Tiny UPGMA (flat-clusters only) ──────────────────────────────────────
+  function upgma(words, mat){
+    var n=words.length, nodes={}, dm={};
+    function key(a,b){return a<b?a+','+b:b+','+a;}
+    for(var i=0;i<n;i++) nodes[i]={height:0,left:null,right:null,size:1,label:words[i]};
+    var active=new Set();
+    for(var i=0;i<n;i++) active.add(i);
+    for(var i=0;i<n;i++) for(var j=i+1;j<n;j++) dm[key(i,j)]=mat[i][j];
+    var nx=n;
+    while(active.size>1){
+      var minD=Infinity,minI=-1,minJ=-1,arr=Array.from(active);
+      for(var a=0;a<arr.length;a++) for(var b=a+1;b<arr.length;b++){
+        var d=dm[key(arr[a],arr[b])];
+        if(d<minD){minD=d;minI=arr[a];minJ=arr[b];}
+      }
+      var si=nodes[minI].size,sj=nodes[minJ].size,nid=nx++;
+      nodes[nid]={height:minD,left:minI,right:minJ,size:si+sj,label:null};
+      active.delete(minI);active.delete(minJ);
+      active.forEach(function(k){
+        var dki=dm[key(k,minI)]||0,dkj=dm[key(k,minJ)]||0;
+        dm[key(k,nid)]=(dki*si+dkj*sj)/(si+sj);
+      });
+      active.add(nid);
+    }
+    return{nodes:nodes,root:Array.from(active)[0]};
+  }
+
+  function flatClusters(nodes,root,cut){
+    var res=[];
+    function collect(nid){
+      var nd=nodes[nid];
+      if(nd.label!==null){res.push([nid]);return;}
+      if(nd.height<=cut){
+        var lv=[];
+        (function L(s){var sn=nodes[s];if(sn.label!==null){lv.push(s);return;}L(sn.left);L(sn.right);})(nid);
+        res.push(lv);
+      } else {collect(nd.left);collect(nd.right);}
+    }
+    collect(root);
+    res.sort(function(a,b){return b.length-a.length;});
+    return res;
+  }
+
+  // ── Classical MDS (power iteration) ──────────────────────────────────────
+  function classicalMds(n, dmat){
+    var D2=dmat.map(function(r){return r.map(function(d){return d*d;});});
+    var rm=D2.map(function(r){return r.reduce(function(s,x){return s+x;},0)/n;});
+    var cm=Array.from({length:n},function(_,j){return D2.reduce(function(s,r){return s+r[j];},0)/n;});
+    var gm=cm.reduce(function(s,x){return s+x;},0)/n;
+    var B=D2.map(function(r,i){return r.map(function(d,j){return -0.5*(d-rm[i]-cm[j]+gm);});});
+    function mv(M,v){return M.map(function(r){return r.reduce(function(s,x,k){return s+x*v[k];},0);});}
+    function dot(a,b){return a.reduce(function(s,x,i){return s+x*b[i];},0);}
+    function norm(v){return Math.sqrt(dot(v,v));}
+    var coords=[],rem=B.map(function(r){return r.slice();});
+    for(var d=0;d<2;d++){
+      var v=Array.from({length:n},function(_,i){return i%2===0?1:-1;});
+      var nv=norm(v); v=v.map(function(x){return x/nv;});
+      var prevL=Infinity;
+      for(var it=0;it<200;it++){
+        var w=mv(rem,v),nw=norm(w);
+        if(nw<1e-14) break;
+        v=w.map(function(x){return x/nw;});
+        var lam=dot(mv(rem,v),v);
+        if(Math.abs(lam-prevL)<1e-12*(Math.abs(lam)+1e-12)) break;
+        prevL=lam;
+      }
+      var lam=dot(mv(rem,v),v);
+      var sc=Math.sqrt(Math.max(0,lam));
+      coords.push(v.map(function(x){return x*sc;}));
+      for(var i=0;i<n;i++) for(var j=0;j<n;j++) rem[i][j]-=lam*v[i]*v[j];
+    }
+    return Array.from({length:n},function(_,i){return [coords[0][i],coords[1][i]];});
+  }
+
+  function kruskalStress(dmat,coords){
+    var n=coords.length,num=0,den=0;
+    for(var i=0;i<n;i++) for(var j=i+1;j<n;j++){
+      var do_=dmat[i][j];
+      var dm_=Math.sqrt((coords[i][0]-coords[j][0])**2+(coords[i][1]-coords[j][1])**2);
+      num+=(do_-dm_)**2; den+=do_*do_;
+    }
+    return den>1e-14?Math.sqrt(num/den):0;
+  }
+
+  // ── Layout helpers ────────────────────────────────────────────────────────
+  function toCanvas(c,W,H,xmin,xmax,ymin,ymax){
+    var pad=28;
+    var cx=ML+pad+(c[0]-xmin)/(xmax-xmin||1)*(W-ML-MR-2*pad);
+    var cy=MT+pad+(ymax-c[1])/(ymax-ymin||1)*(H-MT-MB-2*pad);
+    return[cx,cy];
+  }
+
+  function nearestK(idx,k){
+    var dists=_words.map(function(_,j){return{j:j,d:_dmat[idx][j]};});
+    dists.sort(function(a,b){return a.d-b.d;});
+    return dists.slice(1,k+1);
+  }
+
+  // ── Draw ──────────────────────────────────────────────────────────────────
+  function draw(canvas,ctx){
+    if(!_coords||!_words) return;
+    var W=canvas.width, H=canvas.height;
+    var n=_words.length;
+    var cut=parseInt(document.getElementById('mds-cut').value)/100*
+            (_dmat?Math.max(..._dmat.map(function(r){return Math.max(...r);})):1);
+    var dd=upgma(_words,_dmat);
+    var clusters=flatClusters(dd.nodes,dd.root,cut);
+    var leafCl={};
+    clusters.forEach(function(cl,ci){cl.forEach(function(lid){leafCl[lid]=ci;});});
+
+    var xs=_coords.map(function(c){return c[0];}),
+        ys=_coords.map(function(c){return c[1];});
+    var xmin=Math.min(...xs),xmax=Math.max(...xs);
+    var ymin=Math.min(...ys),ymax=Math.max(...ys);
+
+    ctx.fillStyle='#0d0d0d'; ctx.fillRect(0,0,W,H);
+
+    // Nearest-neighbor lines for hovered word
+    if(_hovIdx>=0){
+      var nb=nearestK(_hovIdx,4);
+      var p0=toCanvas(_coords[_hovIdx],W,H,xmin,xmax,ymin,ymax);
+      nb.forEach(function(nb_){
+        var p1=toCanvas(_coords[nb_.j],W,H,xmin,xmax,ymin,ymax);
+        ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1;
+        ctx.setLineDash([3,5]);
+        ctx.beginPath(); ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]); ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    }
+
+    // Dots + labels
+    ctx.font='9px monospace';
+    _words.forEach(function(w,i){
+      var ci=leafCl[i]!==undefined?leafCl[i]:0;
+      var col=PALETTE[ci%PALETTE.length];
+      var p=toCanvas(_coords[i],W,H,xmin,xmax,ymin,ymax);
+      var hl=i===_hovIdx;
+      var r=hl?5:3;
+      // Glow for hovered
+      if(hl){
+        ctx.beginPath(); ctx.arc(p[0],p[1],9,0,Math.PI*2);
+        ctx.fillStyle=col+'22'; ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(p[0],p[1],r,0,Math.PI*2);
+      ctx.fillStyle=hl?'#ffffff':col; ctx.fill();
+      // Label
+      var lx=p[0]+6, ly=p[1]-4;
+      if(lx+w.length*6>W-MR) lx=p[0]-w.length*6-4;
+      ctx.fillStyle=hl?'#fff':col+'cc';
+      ctx.fillText(w,lx,ly);
+    });
+
+    // Stress badge
+    if(_stress!==null){
+      var sl=_stress<=0.05?'отлично':_stress<=0.1?'хорошо':_stress<=0.2?'приемлемо':'слабо';
+      ctx.font='10px monospace';
+      ctx.fillStyle='#333'; ctx.fillText('stress '+_stress.toFixed(4)+' ('+sl+')',W-150,H-6);
+    }
+
+    // Stats
+    var cc=document.getElementById('mds-cluster-count');
+    if(cc) cc.textContent='кластеров: '+clusters.length
+      +'  (отсечение '+cut.toFixed(4)+')';
+    var cv=document.getElementById('mds-cut-val');
+    if(cv) cv.textContent=cut.toFixed(4);
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  function initHover(canvas,ctx){
+    canvas.addEventListener('mousemove',function(e){
+      if(!_coords) return;
+      var r=canvas.getBoundingClientRect();
+      var mx=(e.clientX-r.left)*(canvas.width/r.width);
+      var my=(e.clientY-r.top)*(canvas.height/r.height);
+      var W=canvas.width, H=canvas.height;
+      var xs=_coords.map(function(c){return c[0];}),
+          ys=_coords.map(function(c){return c[1];});
+      var xmin=Math.min(...xs),xmax=Math.max(...xs);
+      var ymin=Math.min(...ys),ymax=Math.max(...ys);
+      var best=-1,bestD=Infinity;
+      _coords.forEach(function(c,i){
+        var p=toCanvas(c,W,H,xmin,xmax,ymin,ymax);
+        var d=(p[0]-mx)**2+(p[1]-my)**2;
+        if(d<bestD){bestD=d;best=i;}
+      });
+      var nh=bestD<400?best:-1;
+      if(nh!==_hovIdx){
+        _hovIdx=nh; draw(canvas,ctx);
+        var info=document.getElementById('mds-info');
+        if(info){
+          if(nh>=0){
+            var nb=nearestK(nh,4);
+            var nbs=nb.map(function(x){return _words[x.j]+'('+x.d.toFixed(3)+')';}).join('  ');
+            info.textContent='▸ '+_words[nh]+'  →  '+nbs;
+          } else { info.textContent=' '; }
+        }
+      }
+    });
+    canvas.addEventListener('mouseleave',function(){
+      _hovIdx=-1; draw(canvas,ctx);
+      var info=document.getElementById('mds-info'); if(info) info.textContent=' ';
+    });
+  }
+
+  function build(canvas,ctx){
+    var sigs=window.lexAllSigs?window.lexAllSigs():null;
+    if(!sigs) return;
+    _words=Object.keys(sigs);
+    var n=_words.length;
+    _dmat=Array.from({length:n},function(_,i){
+      return Array.from({length:n},function(_,j){
+        return i===j?0:(window.mDist?window.mDist(sigs[_words[i]],sigs[_words[j]]):NaN);
+      });
+    });
+    _coords=classicalMds(n,_dmat);
+    _stress=kruskalStress(_dmat,_coords);
+    draw(canvas,ctx);
+  }
+
+  setTimeout(function(){
+    var canvas=document.getElementById('mds-canvas');
+    var ctx=canvas.getContext('2d');
+    initHover(canvas,ctx);
+    document.getElementById('mds-cut').addEventListener('input',function(){
+      draw(canvas,ctx);
+    });
+    build(canvas,ctx);
+  },700);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

@@ -1714,6 +1714,218 @@ class TestSolanDendrogram(unittest.TestCase):
         self.assertIn('_hovLeaf', content)
 
 
+class TestSolanMds(unittest.TestCase):
+    """Tests for solan_mds.py and the viewer MDS section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mds import (
+            build_mds, mds_stress, mds_dict,
+            _gram, _power_iter, _ascii_scatter,
+        )
+        cls.build_mds      = staticmethod(build_mds)
+        cls.mds_stress     = staticmethod(mds_stress)
+        cls.mds_dict       = staticmethod(mds_dict)
+        cls._gram          = staticmethod(_gram)
+        cls._power_iter    = staticmethod(_power_iter)
+        cls._ascii_scatter = staticmethod(_ascii_scatter)
+        cls._words9 = ['ГОРА','УДАР','РОТА','УТРО',
+                       'ВОДА','НОРА','ЛУНА','РАТОН','ЖУРНАЛ']
+
+    # ── _gram ─────────────────────────────────────────────────────────────
+
+    def test_gram_shape(self):
+        d = [[0,1,2],[1,0,1],[2,1,0]]
+        B = self._gram(d)
+        self.assertEqual(len(B), 3)
+        self.assertEqual(len(B[0]), 3)
+
+    def test_gram_symmetric(self):
+        import random; random.seed(42)
+        n = 5
+        dm = [[0.0]*n for _ in range(n)]
+        for i in range(n):
+            for j in range(i+1,n):
+                v = random.random()
+                dm[i][j] = dm[j][i] = v
+        B = self._gram(dm)
+        for i in range(n):
+            for j in range(n):
+                self.assertAlmostEqual(B[i][j], B[j][i], places=10)
+
+    def test_gram_row_sum_zero(self):
+        """Gram matrix of a centred config has zero row sums."""
+        d = [[0,1,2],[1,0,1],[2,1,0]]
+        B = self._gram(d)
+        for row in B:
+            self.assertAlmostEqual(sum(row), 0.0, places=10)
+
+    # ── _power_iter ───────────────────────────────────────────────────────
+
+    def test_power_iter_returns_k_pairs(self):
+        B = self._gram([[0,1,2],[1,0,1],[2,1,0]])
+        res = self._power_iter(B, k=2)
+        self.assertEqual(len(res), 2)
+
+    def test_power_iter_eigenvector_unit(self):
+        import math
+        B = self._gram([[0,1,2],[1,0,1],[2,1,0]])
+        res = self._power_iter(B, k=1)
+        lam, vec = res[0]
+        self.assertAlmostEqual(sum(x**2 for x in vec), 1.0, places=8)
+
+    def test_power_iter_eigenvalue_check(self):
+        """lambda * v ≈ B @ v"""
+        import math
+        B = self._gram([[0,1,2],[1,0,1],[2,1,0]])
+        res = self._power_iter(B, k=1)
+        lam, vec = res[0]
+        Bv = [sum(B[i][j]*vec[j] for j in range(3)) for i in range(3)]
+        for i in range(3):
+            self.assertAlmostEqual(Bv[i], lam * vec[i], places=5)
+
+    # ── build_mds ─────────────────────────────────────────────────────────
+
+    def test_build_returns_tuple_of_3(self):
+        words, coords, stress = self.build_mds(self._words9)
+        self.assertIsInstance(words, list)
+        self.assertIsInstance(coords, list)
+        self.assertIsInstance(stress, float)
+
+    def test_build_coords_shape(self):
+        words, coords, stress = self.build_mds(self._words9)
+        self.assertEqual(len(coords), len(self._words9))
+        self.assertEqual(len(coords[0]), 2)
+
+    def test_build_words_preserved(self):
+        words, _, _ = self.build_mds(self._words9)
+        self.assertEqual(words, self._words9)
+
+    def test_build_stress_nonneg(self):
+        _, _, stress = self.build_mds(self._words9)
+        self.assertGreaterEqual(stress, 0.0)
+
+    def test_build_stress_at_most_1(self):
+        _, _, stress = self.build_mds(self._words9)
+        self.assertLessEqual(stress, 1.0)
+
+    def test_identical_words_same_coords(self):
+        """Words with d=0 must land at the same MDS coordinates."""
+        words, coords, _ = self.build_mds(self._words9)
+        identical = ['ГОРА', 'УДАР', 'РОТА', 'УТРО']
+        idxs = [words.index(w) for w in identical]
+        x0, y0 = coords[idxs[0]]
+        for idx in idxs[1:]:
+            self.assertAlmostEqual(coords[idx][0], x0, places=5)
+            self.assertAlmostEqual(coords[idx][1], y0, places=5)
+
+    def test_full_lexicon_stress_good(self):
+        """Full Q6 lexicon: Kruskal stress should be < 0.15."""
+        _, _, stress = self.build_mds()
+        self.assertLess(stress, 0.15)
+
+    # ── mds_stress ────────────────────────────────────────────────────────
+
+    def test_mds_stress_perfect(self):
+        """If MDS coords perfectly recover distances, stress = 0."""
+        dmat = [[0.0,1.0,2.0],[1.0,0.0,1.0],[2.0,1.0,0.0]]
+        words, coords, _ = self.build_mds(
+            ['A','B','C'],
+            # Monkey-patch: just compute directly
+        )
+        # Use a trivial 1D perfect embedding for a sanity check
+        import math
+        c = [[0,0],[1,0],[2,0]]
+        d2 = [[0,1,2],[1,0,1],[2,1,0]]
+        stress = self.mds_stress(d2, c)
+        self.assertAlmostEqual(stress, 0.0, places=10)
+
+    def test_mds_stress_increases_with_noise(self):
+        import random; random.seed(0)
+        c_perfect = [[0,0],[1,0],[2,0]]
+        c_noisy   = [[x+random.uniform(-0.3,0.3),y+random.uniform(-0.3,0.3)]
+                     for x,y in c_perfect]
+        d2 = [[0,1,2],[1,0,1],[2,1,0]]
+        s_p = self.mds_stress(d2, c_perfect)
+        s_n = self.mds_stress(d2, c_noisy)
+        self.assertGreater(s_n, s_p)
+
+    # ── mds_dict ──────────────────────────────────────────────────────────
+
+    def test_dict_has_required_keys(self):
+        words, coords, stress = self.build_mds(self._words9)
+        d = self.mds_dict(words, coords, stress)
+        for key in ('words','coords','stress'):
+            self.assertIn(key, d)
+
+    def test_dict_coords_length(self):
+        words, coords, stress = self.build_mds(self._words9)
+        d = self.mds_dict(words, [c[:] for c in coords], stress)
+        self.assertEqual(len(d['coords']), len(self._words9))
+
+    def test_dict_coords_2d(self):
+        words, coords, stress = self.build_mds(self._words9)
+        d = self.mds_dict(words, [c[:] for c in coords], stress)
+        for c in d['coords']:
+            self.assertEqual(len(c), 2)
+
+    def test_dict_stress_matches(self):
+        words, coords, stress = self.build_mds(self._words9)
+        d = self.mds_dict(words, [c[:] for c in coords], stress)
+        self.assertAlmostEqual(d['stress'], stress, places=4)
+
+    # ── _ascii_scatter ────────────────────────────────────────────────────
+
+    def test_ascii_scatter_returns_lines(self):
+        words, coords, _ = self.build_mds(self._words9)
+        lines = self._ascii_scatter(words, coords, W=30, H=10)
+        self.assertIsInstance(lines, list)
+        self.assertEqual(len(lines), 10)
+
+    def test_ascii_scatter_line_width(self):
+        words, coords, _ = self.build_mds(self._words9)
+        lines = self._ascii_scatter(words, coords, W=30, H=10)
+        for line in lines:
+            # Each line has 2 prefix spaces
+            self.assertGreaterEqual(len(line), 2)
+
+    def test_ascii_scatter_has_axes(self):
+        words, coords, _ = self.build_mds(self._words9)
+        lines = self._ascii_scatter(words, coords, W=30, H=10)
+        joined = ''.join(lines)
+        self.assertIn('└', joined)
+        self.assertIn('│', joined)
+
+    # ── viewer: MDS section ───────────────────────────────────────────────
+
+    def test_viewer_has_mds_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('MDS-карта орбитального пространства Q6', content)
+        self.assertIn('mds-canvas', content)
+
+    def test_viewer_mds_has_classical_mds_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('classicalMds', content)
+
+    def test_viewer_mds_has_stress(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('kruskalStress', content)
+
+    def test_viewer_mds_has_cut_slider(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mds-cut', content)
+
+    def test_viewer_mds_has_hover_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mds-info', content)
+        self.assertIn('nearestK', content)
+
+    def test_viewer_mds_uses_upgma(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        # MDS section has its own UPGMA for cluster coloring
+        self.assertIn('flatClusters', content)
+
+
 class TestSolanGraph(unittest.TestCase):
     """Tests for solan_graph.py and the viewer Graph section."""
 
