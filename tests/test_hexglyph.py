@@ -1247,5 +1247,138 @@ class TestSolanEntropy(unittest.TestCase):
             self.assertIn(p, params)
 
 
+class TestSolanWord(unittest.TestCase):
+    """Тесты семантического анализа слов solan_word.py."""
+
+    def setUp(self):
+        from projects.hexglyph.solan_word import (
+            encode_word, pad_to, word_signature, sig_distance, word_distance,
+        )
+        self.encode_word    = encode_word
+        self.pad_to         = pad_to
+        self.word_signature = word_signature
+        self.sig_distance   = sig_distance
+        self.word_distance  = word_distance
+
+    # ── encode_word() ────────────────────────────────────────────────────────
+
+    def test_encode_known_word(self):
+        h = self.encode_word('РАТОН')
+        self.assertEqual(h, [15, 63, 48, 47, 3])
+
+    def test_encode_empty(self):
+        self.assertEqual(self.encode_word(''), [])
+
+    def test_encode_ignores_nonphonetic(self):
+        # Буква Э не входит в алфавит → пропускается
+        h = self.encode_word('ЭА')
+        self.assertEqual(h, [63])   # только А
+
+    def test_encode_lowercase(self):
+        # Строчные должны работать так же, как заглавные
+        self.assertEqual(self.encode_word('ратон'), self.encode_word('РАТОН'))
+
+    def test_encode_all_16_letters(self):
+        word = 'АБВГДЖЗИЛМНОРТУЧ'
+        h = self.encode_word(word)
+        self.assertEqual(len(h), 16)
+        # Все h должны быть в 0..63
+        self.assertTrue(all(0 <= x <= 63 for x in h))
+
+    # ── pad_to() ─────────────────────────────────────────────────────────────
+
+    def test_pad_to_shorter(self):
+        self.assertEqual(self.pad_to([1, 2], 4), [1, 2, 1, 2])
+
+    def test_pad_to_exact(self):
+        self.assertEqual(self.pad_to([1, 2, 3], 3), [1, 2, 3])
+
+    def test_pad_to_truncate(self):
+        self.assertEqual(self.pad_to([1, 2, 3, 4], 2), [1, 2])
+
+    def test_pad_to_empty(self):
+        self.assertEqual(self.pad_to([], 4), [0, 0, 0, 0])
+
+    # ── word_signature() ─────────────────────────────────────────────────────
+
+    def test_signature_returns_all_rules(self):
+        sig = self.word_signature('РАТОН')
+        self.assertEqual(set(sig.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_signature_known_word(self):
+        # РАТОН с width=16: XOR period = 1 (фиксированная точка)
+        sig = self.word_signature('РАТОН', width=16)
+        t_xor, p_xor = sig['xor']
+        self.assertIsNotNone(t_xor)
+        self.assertEqual(p_xor, 1)
+
+    def test_signature_empty_word(self):
+        sig = self.word_signature('')
+        for r in ('xor', 'xor3', 'and', 'or'):
+            self.assertEqual(sig[r], (None, None))
+
+    def test_signature_periods_positive(self):
+        sig = self.word_signature('ГОРА', width=16)
+        for r, (t, p) in sig.items():
+            if p is not None:
+                self.assertGreater(p, 0)
+
+    # ── sig_distance() ───────────────────────────────────────────────────────
+
+    def test_distance_same_word(self):
+        sig = self.word_signature('РАТОН')
+        d = self.sig_distance(sig, sig)
+        self.assertAlmostEqual(d, 0.0)
+
+    def test_distance_range(self):
+        sig1 = self.word_signature('РАТОН')
+        sig2 = self.word_signature('ВОДА')
+        d = self.sig_distance(sig1, sig2)
+        self.assertGreaterEqual(d, 0.0)
+        self.assertLessEqual(d, 1.0)
+
+    def test_distance_symmetric(self):
+        s1 = self.word_signature('РАТОН')
+        s2 = self.word_signature('ГОРА')
+        self.assertAlmostEqual(
+            self.sig_distance(s1, s2),
+            self.sig_distance(s2, s1),
+        )
+
+    def test_distance_word_function(self):
+        d = self.word_distance('РАТОН', 'СТОЛ')
+        self.assertGreaterEqual(d, 0.0)
+
+    # ── viewer: Word CA section ────────────────────────────────────────────
+
+    def test_viewer_has_word_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('word-ca', content)
+        self.assertIn('word-inp', content)
+        self.assertIn('wordUpdate', content)
+
+    def test_viewer_word_has_phonetic_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('var WH =', content)
+        # Ключевые буквы фонетического алфавита
+        for letter in ('А', 'Р', 'Т', 'Н', 'О'):
+            self.assertIn(letter, content)
+
+    def test_viewer_word_has_orbit_table(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('word-orbits', content)
+        self.assertIn('findOrbit', content)
+
+    def test_viewer_word_exposes_caNextRow(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.caNextRow', content)
+        self.assertIn('caNextRow', content)
+
+    def test_viewer_word_rule_buttons(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        for r in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(f'wordSetRule(\'{r}\')', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

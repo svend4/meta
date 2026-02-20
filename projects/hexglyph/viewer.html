@@ -1177,6 +1177,9 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     renderEntropySparklines();
   }
 
+  window.caNextRow = nextRowWith;
+  window.caH2C     = H2C;
+  window.caCol     = col;
   window.caSetRule = function(r){
     RULE=r;
     document.querySelectorAll('[id^="ca-rule-"]').forEach(function(b){b.classList.remove('active');});
@@ -1209,6 +1212,143 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
   };
 
   buildHistory(); render();
+})();
+</script>
+</div>
+<div class="section">
+<h2>Слово на орбите Q6</h2>
+<p class="meta">Русское слово → фонетическая кодировка Q6 → CA → орбитальная сигнатура<br>
+Алфавит: А Б В Г Д Ж З И Л М Н О Р Т У Ч · остальные буквы пропускаются</p>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0">
+  <input id="word-inp" type="text" value="РАТОН" maxlength="20"
+         style="background:#111;color:#ccc;border:1px solid #333;padding:6px 10px;
+                font-size:14px;font-family:monospace;width:160px;border-radius:3px"
+         oninput="wordUpdate()">
+  <span style="color:#333;font-size:11px">Правило:</span>
+  <button class="cabtn active" id="wr-xor"  onclick="wordSetRule('xor')" >XOR ⊕</button>
+  <button class="cabtn"        id="wr-xor3" onclick="wordSetRule('xor3')">XOR3</button>
+  <button class="cabtn"        id="wr-and"  onclick="wordSetRule('and')" >AND &amp;</button>
+  <button class="cabtn"        id="wr-or"   onclick="wordSetRule('or')"  >OR |</button>
+</div>
+<!-- Encoded sequence display -->
+<div id="word-encoded" style="margin:6px 0 4px;font-size:12px;font-family:monospace;color:#555"></div>
+<div id="word-solan"   style="font-family:Solan4,monospace;font-size:20px;letter-spacing:4px;margin-bottom:8px"></div>
+<!-- CA diagram -->
+<div id="word-ca"
+     style="font-family:Solan4,monospace;font-size:13px;line-height:1.15;
+            background:#060606;border:1px solid #1a1a1a;border-radius:3px;
+            padding:6px 8px;white-space:nowrap;overflow-x:auto;display:inline-block;margin:4px 0"></div>
+<!-- Orbit mini-table -->
+<table id="word-orbits"
+       style="margin-top:8px;border-collapse:collapse;font-family:monospace;font-size:12px"></table>
+<script>
+(function() {
+  // Фонетическая карта: русская буква → h
+  var WH = {А:63,Р:15,Т:48,Л:9,Н:3,О:47,Б:14,М:24,В:20,Д:50,Г:49,У:51,И:44,З:19,Ж:28,Ч:35};
+  var WR = 'xor';
+  var WW = 24;   // ширина CA
+  var WS = 20;   // шаги
+
+  function encodeWord(word) {
+    var out=[];
+    word.toUpperCase().split('').forEach(function(c){ if(WH[c]!==undefined) out.push(WH[c]); });
+    return out;
+  }
+  function padTo(cells, w) {
+    if(!cells.length) return Array(w).fill(0);
+    var out=[];
+    for(var i=0;i<w;i++) out.push(cells[i%cells.length]);
+    return out;
+  }
+  function findOrbit(init, rule, maxSteps) {
+    var seen={}, cur=init.slice();
+    for(var t=0;t<=maxSteps;t++){
+      var key=cur.join(',');
+      if(seen.hasOwnProperty(key)) return {transient:seen[key],period:t-seen[key]};
+      seen[key]=t; cur=caNextRow(cur,rule);
+    }
+    return {transient:null,period:null};
+  }
+
+  var WCOLORS={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  var WLABELS={xor:'XOR ⊕',xor3:'XOR3',and:'AND &',or:'OR | '};
+
+  function wordUpdate() {
+    var word = (document.getElementById('word-inp').value||'РАТОН').toUpperCase();
+    var raw  = encodeWord(word);
+    var H2C  = caH2C, col = caCol;
+
+    // Encoded display
+    var encEl = document.getElementById('word-encoded');
+    var solEl = document.getElementById('word-solan');
+    if(encEl) {
+      if(raw.length===0){
+        encEl.textContent='(нет фонетических символов)';
+        solEl.innerHTML='';
+      } else {
+        var letters = word.split('').filter(function(c){return WH[c]!==undefined;});
+        encEl.innerHTML = letters.map(function(c,i){
+          return '<span title="'+c+'=h'+WH[c]+'" style="margin-right:6px;color:#666">'+c
+                 +'<sub style="font-size:9px;color:#333">'+WH[c]+'</sub></span>';
+        }).join('');
+        solEl.innerHTML = raw.map(function(h){
+          return '<span style="color:'+col(h)+'" title="h='+h+'">'+(H2C[h]||'?')+'</span>';
+        }).join('');
+      }
+    }
+
+    if(!raw.length) {
+      var ca=document.getElementById('word-ca'); if(ca) ca.innerHTML='';
+      var ot=document.getElementById('word-orbits'); if(ot) ot.innerHTML='';
+      return;
+    }
+
+    var cells = padTo(raw, WW);
+
+    // CA diagram
+    var caEl = document.getElementById('word-ca');
+    if(caEl) {
+      var html='', cur=cells.slice();
+      for(var t=0;t<=WS;t++){
+        html+='<div><span style="color:#333;font-family:monospace;font-size:11px">'+
+              (t<10?'  ':t<100?' ':'')+t+' │ </span>';
+        for(var i=0;i<WW;i++){
+          var h=cur[i]; html+='<span style="color:'+col(h)+'">'+(H2C[h]||'?')+'</span>';
+        }
+        html+='</div>';
+        cur=caNextRow(cur,WR);
+      }
+      caEl.innerHTML=html;
+    }
+
+    // Orbit table
+    var otEl = document.getElementById('word-orbits');
+    if(otEl) {
+      var ohtml='';
+      ['xor','xor3','and','or'].forEach(function(r){
+        var o=findOrbit(cells,r,1000);
+        var c=WCOLORS[r];
+        var ts=o.transient!==null?o.transient:'?';
+        var ps=o.period!==null?o.period:'>1000';
+        ohtml+='<tr>'
+          +'<td style="color:'+c+';padding:2px 12px 2px 0;white-space:nowrap">'+WLABELS[r]+'</td>'
+          +'<td style="color:#555;padding:2px 10px 2px 0;white-space:nowrap">T='+ts+'</td>'
+          +'<td style="color:'+c+';padding:2px 0;white-space:nowrap">P='+ps+'</td>'
+          +'</tr>';
+      });
+      otEl.innerHTML=ohtml;
+    }
+  }
+
+  window.wordUpdate  = wordUpdate;
+  window.wordSetRule = function(r) {
+    WR = r;
+    document.querySelectorAll('[id^="wr-"]').forEach(function(b){b.classList.remove('active');});
+    var b=document.getElementById('wr-'+r); if(b) b.classList.add('active');
+    wordUpdate();
+  };
+
+  wordUpdate();
 })();
 </script>
 </div>
