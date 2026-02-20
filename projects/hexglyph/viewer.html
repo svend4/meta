@@ -2276,6 +2276,217 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Анализ CA-правил Q6</h2>
+<p class="meta">Матрица расстояний и MDS по каждому правилу отдельно · hover = слово во всех 4 квадрантах · цвет = период</p>
+<canvas id="rules-canvas" width="700" height="600"
+  style="display:block;border:1px solid #1a1a1a;cursor:crosshair"></canvas>
+<div id="rules-info"
+  style="font-family:monospace;font-size:11px;color:#444;min-height:16px;margin-top:4px"> </div>
+<script>
+(function(){
+  var RULES=['xor','xor3','and','or'];
+  var RLBL ={xor:'XOR',xor3:'XOR3',and:'AND',or:'OR'};
+  var LCOL ={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  var PCOL =['#4caf50','#2196f3','#ff9800','#e91e63','#9c27b0'];
+  var QW=350, QH=300, HDR=28, PAD=18;
+  var _words=null, _sigs=null, _rd={}, _hovIdx=-1;
+
+  // ── Math ───────────────────────────────────────────────────────────────
+  function cmds(n,dmat){
+    var D2=dmat.map(function(r){return r.map(function(d){return d*d;});});
+    var rm=D2.map(function(r){return r.reduce(function(s,x){return s+x;},0)/n;});
+    var cm=Array.from({length:n},function(_,j){return D2.reduce(function(s,r){return s+r[j];},0)/n;});
+    var gm=cm.reduce(function(s,x){return s+x;},0)/n;
+    var B=D2.map(function(r,i){return r.map(function(d,j){return -0.5*(d-rm[i]-cm[j]+gm);});});
+    function mv(M,v){return M.map(function(r){return r.reduce(function(s,x,k){return s+x*v[k];},0);});}
+    function dot(a,b){return a.reduce(function(s,x,i){return s+x*b[i];},0);}
+    var coords=[],rem=B.map(function(r){return r.slice();});
+    for(var d=0;d<2;d++){
+      var v=Array.from({length:n},function(_,i){return i%2===0?1:-1;});
+      var nv=Math.sqrt(dot(v,v)); v=v.map(function(x){return x/nv;});
+      var pl=Infinity;
+      for(var it=0;it<200;it++){
+        var w=mv(rem,v),nw=Math.sqrt(dot(w,w));
+        if(nw<1e-14)break; v=w.map(function(x){return x/nw;});
+        var lam=dot(mv(rem,v),v);
+        if(Math.abs(lam-pl)<1e-12*(Math.abs(lam)+1e-12))break; pl=lam;
+      }
+      var lam=dot(mv(rem,v),v),sc=Math.sqrt(Math.max(0,lam));
+      coords.push(v.map(function(x){return x*sc;}));
+      for(var i=0;i<n;i++) for(var j=0;j<n;j++) rem[i][j]-=lam*v[i]*v[j];
+    }
+    return Array.from({length:n},function(_,i){return [coords[0][i],coords[1][i]];});
+  }
+
+  function stress(dmat,c){
+    var n=c.length,num=0,den=0;
+    for(var i=0;i<n;i++) for(var j=i+1;j<n;j++){
+      var d0=dmat[i][j],dm=Math.sqrt((c[i][0]-c[j][0])**2+(c[i][1]-c[j][1])**2);
+      num+=(d0-dm)**2; den+=d0*d0;
+    }
+    return den>1e-14?Math.sqrt(num/den):0;
+  }
+
+  function entropy(vals){
+    var cnt={},n=0;
+    vals.forEach(function(v){if(v!==null){cnt[v]=(cnt[v]||0)+1;n++;}});
+    if(!n) return 0;
+    return -Object.values(cnt).reduce(function(H,c){var p=c/n;return H+p*Math.log2(p);},0);
+  }
+
+  // ── Build per-rule data ────────────────────────────────────────────────
+  function buildAll(sigs){
+    _words=Object.keys(sigs); _sigs=sigs;
+    var n=_words.length;
+    RULES.forEach(function(rule){
+      var periods=_words.map(function(w){var s=sigs[w][rule];return s?s.period:null;});
+      var dmat=Array.from({length:n},function(_,i){
+        return Array.from({length:n},function(_,j){
+          if(i===j) return 0;
+          var p1=periods[i],p2=periods[j];
+          if(p1===null||p2===null) return 0;
+          return Math.abs(p1-p2)/Math.max(p1,p2,1);
+        });
+      });
+      var raw=cmds(n,dmat);
+      var degen=raw.every(function(c){return Math.abs(c[0])<1e-9&&Math.abs(c[1])<1e-9;});
+      var coords=degen?raw.map(function(_,i){
+        return[0.22*Math.cos(2*Math.PI*i/n),0.22*Math.sin(2*Math.PI*i/n)];
+      }):raw;
+      var ups=Array.from(new Set(periods.filter(function(p){return p!==null;}))).sort(function(a,b){return a-b;});
+      var pmap={}; ups.forEach(function(p,i){pmap[p]=PCOL[i%PCOL.length];});
+      _rd[rule]={periods:periods,coords:coords,dmat:dmat,degen:degen,
+                 ups:ups,pmap:pmap,entropy:entropy(periods),stress:stress(dmat,raw)};
+    });
+  }
+
+  // ── Draw ──────────────────────────────────────────────────────────────
+  function drawAll(canvas,ctx){
+    if(!_words) return;
+    var n=_words.length;
+    ctx.fillStyle='#0d0d0d'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    RULES.forEach(function(rule,ri){
+      var qx=(ri%2)*QW, qy=Math.floor(ri/2)*QH;
+      var rd=_rd[rule];
+      // Border
+      ctx.strokeStyle=LCOL[rule]+'44'; ctx.lineWidth=1;
+      ctx.strokeRect(qx+0.5,qy+0.5,QW-1,QH-1);
+      // Header bg
+      ctx.fillStyle=LCOL[rule]+'18';
+      ctx.fillRect(qx,qy,QW,HDR);
+      // Header text
+      ctx.fillStyle=LCOL[rule]; ctx.font='bold 11px monospace';
+      var htext=RLBL[rule]+'  H='+rd.entropy.toFixed(3)+'  '
+        +(rd.degen?'P=1 для всех (нет дискриминации)':rd.ups.map(function(p){return 'P='+p;}).join('/'));
+      ctx.fillText(htext, qx+8, qy+17);
+      // Stress
+      if(!rd.degen){
+        ctx.fillStyle='#444'; ctx.font='9px monospace';
+        ctx.fillText('stress '+rd.stress.toFixed(3),qx+QW-75,qy+17);
+      }
+      // Separator
+      ctx.strokeStyle=LCOL[rule]+'33'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(qx,qy+HDR); ctx.lineTo(qx+QW,qy+HDR); ctx.stroke();
+      // Plot coords
+      var xs=rd.coords.map(function(c){return c[0];}),
+          ys=rd.coords.map(function(c){return c[1];});
+      var x0=Math.min.apply(null,xs),x1=Math.max.apply(null,xs);
+      var y0=Math.min.apply(null,ys),y1=Math.max.apply(null,ys);
+      var pw=QW-2*PAD, ph=QH-HDR-2*PAD;
+      function px(x){return qx+PAD+(x-x0)/(x1-x0||1)*pw;}
+      function py(y){return qy+HDR+PAD+(y1-y)/(y1-y0||1)*ph;}
+      // Hover lines
+      if(_hovIdx>=0){
+        var hx=px(rd.coords[_hovIdx][0]),hy=py(rd.coords[_hovIdx][1]);
+        ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
+        ctx.setLineDash([3,5]);
+        for(var k=0;k<n;k++){
+          if(k===_hovIdx) continue;
+          ctx.beginPath(); ctx.moveTo(hx,hy);
+          ctx.lineTo(px(rd.coords[k][0]),py(rd.coords[k][1])); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
+      // Dots
+      ctx.font='8px monospace';
+      rd.coords.forEach(function(c,i){
+        var col=rd.pmap[rd.periods[i]]||'#888';
+        var hl=i===_hovIdx;
+        var cx=px(c[0]),cy=py(c[1]),r=hl?5:2.5;
+        if(hl){
+          ctx.beginPath(); ctx.arc(cx,cy,9,0,Math.PI*2);
+          ctx.fillStyle=col+'22'; ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+        ctx.fillStyle=hl?'#fff':col+(hl?'':'bb'); ctx.fill();
+        if(hl){
+          ctx.fillStyle='#fff'; ctx.font='9px monospace';
+          var lx=cx+7,ly=cy-3;
+          if(lx+_words[i].length*5>qx+QW-4) lx=cx-_words[i].length*5-5;
+          ctx.fillText(_words[i],lx,ly);
+        }
+      });
+    });
+  }
+
+  // ── Hover ─────────────────────────────────────────────────────────────
+  function initHover(canvas,ctx){
+    canvas.addEventListener('mousemove',function(e){
+      if(!_words) return;
+      var r=canvas.getBoundingClientRect();
+      var mx=(e.clientX-r.left)*(canvas.width/r.width);
+      var my=(e.clientY-r.top)*(canvas.height/r.height);
+      var ri=Math.floor(mx/QW),rj=Math.floor(my/QH);
+      if(ri<0||ri>1||rj<0||rj>1){if(_hovIdx!==-1){_hovIdx=-1;drawAll(canvas,ctx);}return;}
+      var rule=RULES[rj*2+ri], rd=_rd[rule];
+      if(!rd) return;
+      var qx=ri*QW, qy=rj*QH, n=_words.length;
+      var xs=rd.coords.map(function(c){return c[0];}),
+          ys=rd.coords.map(function(c){return c[1];});
+      var x0=Math.min.apply(null,xs),x1=Math.max.apply(null,xs);
+      var y0=Math.min.apply(null,ys),y1=Math.max.apply(null,ys);
+      var pw=QW-2*PAD, ph=QH-HDR-2*PAD;
+      function px(x){return qx+PAD+(x-x0)/(x1-x0||1)*pw;}
+      function py(y){return qy+HDR+PAD+(y1-y)/(y1-y0||1)*ph;}
+      var best=-1,bestD=Infinity;
+      rd.coords.forEach(function(c,i){
+        var d=(px(c[0])-mx)**2+(py(c[1])-my)**2;
+        if(d<bestD){bestD=d;best=i;}
+      });
+      var nh=bestD<400?best:-1;
+      if(nh!==_hovIdx){
+        _hovIdx=nh; drawAll(canvas,ctx);
+        var info=document.getElementById('rules-info');
+        if(info){
+          if(nh>=0){
+            var w=_words[nh];
+            var parts=RULES.map(function(r){
+              var p=_rd[r].periods[nh];
+              return RLBL[r]+'='+p;
+            }).join('  ');
+            info.textContent='▸ '+w+'  |  '+parts;
+          } else { info.textContent=' '; }
+        }
+      }
+    });
+    canvas.addEventListener('mouseleave',function(){
+      _hovIdx=-1; drawAll(canvas,ctx);
+      var info=document.getElementById('rules-info');
+      if(info) info.textContent=' ';
+    });
+  }
+
+  setTimeout(function(){
+    var canvas=document.getElementById('rules-canvas');
+    var ctx=canvas.getContext('2d');
+    initHover(canvas,ctx);
+    var sigs=window.lexAllSigs?window.lexAllSigs():null;
+    if(sigs){buildAll(sigs);drawAll(canvas,ctx);}
+  },800);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

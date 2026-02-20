@@ -1714,6 +1714,256 @@ class TestSolanDendrogram(unittest.TestCase):
         self.assertIn('_hovLeaf', content)
 
 
+class TestSolanRules(unittest.TestCase):
+    """Tests for solan_rules.py and the viewer Rules section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import (
+            build_all_rules, signature_classes, per_rule_dist,
+            rules_dict, RULES,
+        )
+        cls.build_all_rules    = staticmethod(build_all_rules)
+        cls.signature_classes  = staticmethod(signature_classes)
+        cls.per_rule_dist      = staticmethod(per_rule_dist)
+        cls.rules_dict         = staticmethod(rules_dict)
+        cls.RULES              = RULES
+        cls._words9 = ['ГОРА','УДАР','РОТА','УТРО',
+                       'ВОДА','НОРА','ЛУНА','РАТОН','ЖУРНАЛ']
+
+    # ── per_rule_dist ────────────────────────────────────────────────────
+
+    def test_per_rule_dist_same_word(self):
+        from projects.hexglyph.solan_word import word_signature
+        sig = word_signature('ГОРА')
+        for rule in self.RULES:
+            self.assertAlmostEqual(self.per_rule_dist(sig, sig, rule), 0.0)
+
+    def test_per_rule_dist_range(self):
+        from projects.hexglyph.solan_word import word_signature
+        s1 = word_signature('ГОРА')
+        s2 = word_signature('РАТОН')
+        for rule in self.RULES:
+            d = self.per_rule_dist(s1, s2, rule)
+            if not (d != d):  # not NaN
+                self.assertGreaterEqual(d, 0.0)
+                self.assertLessEqual(d, 1.0)
+
+    def test_per_rule_dist_symmetric(self):
+        from projects.hexglyph.solan_word import word_signature
+        s1 = word_signature('ГОРА')
+        s2 = word_signature('ЖУРНАЛ')
+        for rule in self.RULES:
+            d1 = self.per_rule_dist(s1, s2, rule)
+            d2 = self.per_rule_dist(s2, s1, rule)
+            if not (d1 != d1):  # skip NaN
+                self.assertAlmostEqual(d1, d2)
+
+    # ── build_all_rules ──────────────────────────────────────────────────
+
+    def test_build_has_all_rules(self):
+        data = self.build_all_rules(self._words9)
+        for rule in self.RULES:
+            self.assertIn(rule, data)
+
+    def test_build_rule_keys(self):
+        data = self.build_all_rules(self._words9)
+        required = {'words','periods','dmat','coords','stress','entropy','unique_periods'}
+        for rule in self.RULES:
+            self.assertTrue(required.issubset(data[rule].keys()))
+
+    def test_build_words_preserved(self):
+        data = self.build_all_rules(self._words9)
+        for rule in self.RULES:
+            self.assertEqual(data[rule]['words'], self._words9)
+
+    def test_xor_all_period_one(self):
+        """XOR rule must give period=1 for all words in the full lexicon."""
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build_all_rules()
+        for p in data['xor']['periods'].values():
+            self.assertEqual(p, 1)
+
+    def test_xor_zero_entropy(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build_all_rules()
+        self.assertAlmostEqual(data['xor']['entropy'], 0.0, places=6)
+
+    def test_xor_zero_stress(self):
+        """XOR MDS with all-zero dists → stress=0."""
+        data = self.build_all_rules()
+        self.assertAlmostEqual(data['xor']['stress'], 0.0, places=6)
+
+    def test_xor3_two_periods(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build_all_rules()
+        ups = data['xor3']['unique_periods']
+        self.assertEqual(sorted(ups), [2, 8])
+
+    def test_and_two_periods(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build_all_rules()
+        ups = data['and']['unique_periods']
+        self.assertEqual(sorted(ups), [1, 2])
+
+    def test_or_two_periods(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build_all_rules()
+        ups = data['or']['unique_periods']
+        self.assertEqual(sorted(ups), [1, 2])
+
+    def test_entropy_at_most_one_bit(self):
+        """Binary split → entropy ≤ 1 bit."""
+        data = self.build_all_rules()
+        for rule in ('xor3', 'and', 'or'):
+            self.assertLessEqual(data[rule]['entropy'], 1.0 + 1e-9)
+
+    def test_binary_rule_stress_zero(self):
+        """2-cluster MDS (binary periods) → stress = 0."""
+        data = self.build_all_rules()
+        for rule in ('xor3', 'and', 'or'):
+            self.assertAlmostEqual(data[rule]['stress'], 0.0, places=4)
+
+    def test_dmat_shape(self):
+        data = self.build_all_rules(self._words9)
+        n = len(self._words9)
+        for rule in self.RULES:
+            self.assertEqual(len(data[rule]['dmat']), n)
+            self.assertEqual(len(data[rule]['dmat'][0]), n)
+
+    def test_dmat_symmetric(self):
+        data = self.build_all_rules(self._words9)
+        for rule in self.RULES:
+            dm = data[rule]['dmat']
+            n = len(dm)
+            for i in range(n):
+                for j in range(n):
+                    self.assertAlmostEqual(dm[i][j], dm[j][i], places=10)
+
+    def test_coords_shape(self):
+        data = self.build_all_rules(self._words9)
+        n = len(self._words9)
+        for rule in self.RULES:
+            self.assertEqual(len(data[rule]['coords']), n)
+            self.assertEqual(len(data[rule]['coords'][0]), 2)
+
+    # ── signature_classes ─────────────────────────────────────────────────
+
+    def test_five_classes_full_lexicon(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        classes = self.signature_classes()
+        self.assertEqual(len(classes), 5)
+
+    def test_classes_cover_all_words(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        classes = self.signature_classes()
+        all_words = [w for c in classes for w in c['words']]
+        self.assertEqual(sorted(all_words), sorted(LEXICON))
+
+    def test_classes_no_overlap(self):
+        classes = self.signature_classes()
+        seen: set[str] = set()
+        for c in classes:
+            for w in c['words']:
+                self.assertNotIn(w, seen)
+                seen.add(w)
+
+    def test_classes_sorted_desc(self):
+        classes = self.signature_classes()
+        sizes = [c['count'] for c in classes]
+        self.assertEqual(sizes, sorted(sizes, reverse=True))
+
+    def test_class_sizes_known(self):
+        """Known class sizes: 21, 20, 4, 3, 1."""
+        classes = self.signature_classes()
+        sizes = sorted([c['count'] for c in classes], reverse=True)
+        self.assertEqual(sizes, [21, 20, 4, 3, 1])
+
+    def test_xor3_8_class_contains_волна(self):
+        classes = self.signature_classes()
+        big_class = classes[0]  # largest = (8,1,1), 21 words
+        self.assertIn('ВОЛНА', big_class['words'])
+
+    def test_gora_udар_same_class(self):
+        """ГОРА, УДАР, РОТА, УТРО must be in the same class."""
+        classes = self.signature_classes()
+        for c in classes:
+            if 'ГОРА' in c['words']:
+                self.assertIn('УДАР', c['words'])
+                self.assertIn('РОТА', c['words'])
+                self.assertIn('УТРО', c['words'])
+                break
+
+    def test_zhunal_alone(self):
+        """ЖУРНАЛ is in a singleton class."""
+        classes = self.signature_classes()
+        for c in classes:
+            if 'ЖУРНАЛ' in c['words']:
+                self.assertEqual(c['count'], 1)
+                break
+
+    def test_class_key_is_tuple(self):
+        classes = self.signature_classes()
+        for c in classes:
+            self.assertIsInstance(c['key'], tuple)
+            self.assertEqual(len(c['key']), 3)
+
+    # ── rules_dict ────────────────────────────────────────────────────────
+
+    def test_rules_dict_has_all_rules(self):
+        data = self.build_all_rules(self._words9)
+        d = self.rules_dict(data)
+        for rule in self.RULES:
+            self.assertIn(rule, d)
+
+    def test_rules_dict_has_classes(self):
+        data    = self.build_all_rules(self._words9)
+        classes = self.signature_classes(self._words9)
+        d       = self.rules_dict(data, classes)
+        self.assertIn('classes', d)
+        self.assertEqual(len(d['classes']), len(classes))
+
+    def test_rules_dict_coords_rounded(self):
+        data = self.build_all_rules(self._words9)
+        d = self.rules_dict(data)
+        for rule in self.RULES:
+            for c in d[rule]['coords']:
+                for v in c:
+                    # Should be rounded to 6 decimal places
+                    self.assertAlmostEqual(v, round(v, 6), places=9)
+
+    # ── viewer: Rules section ─────────────────────────────────────────────
+
+    def test_viewer_has_rules_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Анализ CA-правил Q6', content)
+        self.assertIn('rules-canvas', content)
+
+    def test_viewer_rules_has_4_rules(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        for r in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(r, content)
+
+    def test_viewer_rules_has_hover_sync(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rules-info', content)
+        self.assertIn('_hovIdx', content)
+
+    def test_viewer_rules_has_entropy(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('entropy', content)
+
+    def test_viewer_rules_degenerate_case(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        # XOR degenerate case should be handled
+        self.assertIn('degen', content)
+
+    def test_viewer_rules_period_colors(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('PCOL', content)
+        self.assertIn('pmap', content)
+
+
 class TestSolanMds(unittest.TestCase):
     """Tests for solan_mds.py and the viewer MDS section."""
 
