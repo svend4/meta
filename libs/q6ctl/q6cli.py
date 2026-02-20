@@ -4,7 +4,7 @@
   python -m libs.q6ctl.q6cli <команда> [опции]
 
 Команды:
-  list modules              — список всех 41 модулей
+  list modules              — список всех 42 модулей
   list clusters             — список всех 8 кластеров
   list sc                   — список супер-кластеров
   list pipelines            — предопределённые пайплайны
@@ -398,7 +398,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog='q6ctl',
         description=(
             'Q6 Orchestrator — управление модулями, кластерами и пайплайнами Q6.\n'
-            '  q6ctl list modules        — все 41 модуль\n'
+            '  q6ctl list modules        — все 42 модуля\n'
             '  q6ctl list clusters       — все 8 кластеров\n'
             '  q6ctl list sc             — все супер-кластеры\n'
             '  q6ctl info hexpack        — информация о модуле\n'
@@ -438,7 +438,7 @@ def build_parser() -> argparse.ArgumentParser:
     # call
     cp = sub.add_parser('call', help='Запустить один модуль')
     cp.add_argument('module', help='Имя модуля')
-    cp.add_argument('cmd', help='Команда')
+    cp.add_argument('module_cmd', metavar='cmd', help='Команда')
     cp.add_argument('args', nargs='*', help='Дополнительные аргументы')
     cp.add_argument('--json', dest='json_mode', action='store_true')
 
@@ -474,7 +474,7 @@ def main(argv: list[str] | None = None) -> int:
                         dry=args.dry, verbose=args.verbose)
 
     if args.cmd == 'call':
-        return cmd_call(args.module, args.cmd_arg if hasattr(args, 'cmd_arg') else args.cmd,
+        return cmd_call(args.module, args.module_cmd,
                         args.args, json_mode=args.json_mode)
 
     if args.cmd == 'ctx':
