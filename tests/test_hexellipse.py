@@ -171,5 +171,30 @@ class TestASCIIPlot(unittest.TestCase):
         self.assertIn("a·b = c·p", s)
 
 
+class TestParameterConstruction(unittest.TestCase):
+    def setUp(self):
+        self.ea = EllipseAnalysis(5.0, 3.0)
+
+    def test_focal_construction_contains_b2(self):
+        s = self.ea.focal_parameter_construction()
+        self.assertIn('b²', s)
+        self.assertIn('p₁', s)
+
+    def test_radial_construction_contains_a2(self):
+        s = self.ea.radial_parameter_construction()
+        self.assertIn('a²', s)
+        self.assertIn('p₂', s)
+
+    def test_focal_value_in_string(self):
+        s = self.ea.focal_parameter_construction()
+        # p₁ = b²/a = 9/5 = 1.8 → string contains '1.8'
+        self.assertIn('1.8', s)
+
+    def test_radial_value_in_string(self):
+        s = self.ea.radial_parameter_construction()
+        # p₂ = a²/b = 25/3 ≈ 8.3333
+        self.assertIn('8.33', s)
+
+
 if __name__ == "__main__":
     unittest.main()

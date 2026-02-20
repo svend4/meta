@@ -162,5 +162,38 @@ class TestAI(unittest.TestCase):
             best_move(g2, depth=1)
 
 
+class TestCurrentPosTarget(unittest.TestCase):
+    def test_current_pos_a(self):
+        g = new_game(pos_a=10, pos_b=20)
+        self.assertEqual(g.current_pos(), 10)
+
+    def test_current_pos_b(self):
+        g = new_game(pos_a=10, pos_b=20)
+        move = list(neighbors(10))[0]
+        g2 = g.make_move(move)
+        self.assertEqual(g2.current_pos(), 20)
+
+    def test_current_target_a(self):
+        g = new_game(pos_a=0, pos_b=63, target_a=63, target_b=0)
+        self.assertEqual(g.current_target(), 63)
+
+    def test_blocked_player_loses(self):
+        """Если у текущего игрока нет ходов в capture_mode → проигрывает."""
+        captured = {nb: Player.B for nb in neighbors(0)}
+        captured[0] = Player.A
+        captured[63] = Player.B
+        from projects.hexpath.game import GameState
+        g = GameState(
+            pos_a=0, pos_b=63,
+            target_a=63, target_b=0,
+            current_player=Player.A,
+            captured=captured,
+            history_a=[0], history_b=[63],
+            capture_mode=True,
+        )
+        self.assertEqual(g.result(), GameResult.B_WINS)
+        self.assertTrue(g.is_over())
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -9,7 +9,10 @@ from projects.hextrimat.trimat_glyphs import (
     json_verify,
     json_twins,
     json_twins_codon,
+    json_center,
+    render_triangle,
 )
+from projects.hextrimat.hextrimat import TriangularMatrix
 from projects.hexbio.codon_glyphs import json_codon_map
 
 
@@ -185,6 +188,79 @@ class TestTSC3Pipeline(unittest.TestCase):
         n = self.resonance['n_oracle_predictions']
         preds = self.resonance['oracle_predictions']
         self.assertEqual(n, len(preds))
+
+
+class TestJsonCenter(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.result = json_center()
+
+    def test_command_is_center(self):
+        self.assertEqual(self.result['command'], 'center')
+
+    def test_center_cell_value_is_27(self):
+        """Центральная ячейка Андреева — гексаграмма 27."""
+        self.assertEqual(self.result['cell']['value'], 27)
+
+    def test_result_has_cell(self):
+        self.assertIn('cell', self.result)
+
+
+class TestTriangularMatrix(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tm = TriangularMatrix()
+
+    def test_total_cells(self):
+        self.assertEqual(len(self.tm.cells), 64)
+
+    def test_value_valid_cell(self):
+        """Ячейка (1,1) содержит значение 1 (первая ячейка)."""
+        v = self.tm.value(1, 1)
+        self.assertIsNotNone(v)
+        self.assertGreater(v, 0)
+
+    def test_value_invalid_cell(self):
+        """Ячейка вне матрицы возвращает None."""
+        self.assertIsNone(self.tm.value(0, 0))
+
+    def test_row_values_length(self):
+        """Строка r содержит r значений."""
+        for r in range(1, 5):
+            vals = self.tm.row_values(r)
+            self.assertEqual(len(vals), r)
+
+    def test_row_sum_positive(self):
+        for r in range(1, 5):
+            self.assertGreater(self.tm.row_sum(r), 0)
+
+    def test_all_row_sums_length(self):
+        sums = self.tm.all_row_sums()
+        self.assertEqual(len(sums), self.tm.num_rows)
+
+    def test_reflect_vertical_stays_in_row(self):
+        """reflect_vertical(r, c): результирующий столбец ∈ [1, r]."""
+        for r in range(1, 6):
+            for c in range(1, r + 1):
+                rr, cc = self.tm.reflect_vertical(r, c)
+                self.assertEqual(rr, r)
+                self.assertGreaterEqual(cc, 1)
+                self.assertLessEqual(cc, r)
+
+    def test_center_cell_is_27(self):
+        r, c, v = self.tm.center_cell()
+        self.assertEqual(v, 27)
+
+
+class TestRenderTriangle(unittest.TestCase):
+    def test_returns_nonempty_list(self):
+        lines = render_triangle()
+        self.assertIsInstance(lines, list)
+        self.assertGreater(len(lines), 0)
+
+    def test_lines_are_strings(self):
+        for line in render_triangle():
+            self.assertIsInstance(line, str)
 
 
 if __name__ == '__main__':
