@@ -163,6 +163,30 @@ class TestBuffonParquet(unittest.TestCase):
         W = self.bp.square(1.0, 1.0)
         self.assertAlmostEqual(W, 4.0 / _PI, places=10)
 
+    def test_golden_rectangle_verify_dict_keys(self):
+        """golden_rectangle_verify() содержит 'formula', 'phi', 'e', 'pi'."""
+        res = self.bp.golden_rectangle_verify()
+        for key in ("formula", "phi", "e", "pi", "ok", "exact", "computed"):
+            self.assertIn(key, res)
+        self.assertAlmostEqual(res["phi"], _PHI, places=12)
+        self.assertAlmostEqual(res["e"], _E, places=12)
+
+    def test_find_needle_hexagonal_formula(self):
+        """find_needle_length(W, tile='hexagonal', r=1) = W·π·√3/4."""
+        L = self.bp.find_needle_length(1.0, tile="hexagonal", r=1.0)
+        expected = 1.0 * _PI * math.sqrt(3) / 4.0
+        self.assertAlmostEqual(L, expected, places=10)
+
+    def test_simulate_golden_exact_w_is_phi_e_pi(self):
+        """simulate('golden') → exact_W == φ·e/π."""
+        res = self.bp.simulate("golden", needle=0.5, n=100, seed=1, a=1.0)
+        self.assertAlmostEqual(res["exact_W"], _PHI * _E / _PI, places=12)
+
+    def test_hexagonal_q6_r2(self):
+        """hexagonal_q6(r=2.0) > 0."""
+        W = self.bp.hexagonal_q6(r=2.0, needle=1.0)
+        self.assertGreater(W, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

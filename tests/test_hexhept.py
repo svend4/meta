@@ -129,5 +129,51 @@ class TestSphereIsomorphism(unittest.TestCase):
         self.assertIsInstance(h.sphere_isomorphism(), str)
 
 
+class TestHeptahedronScaleIndependence(unittest.TestCase):
+    def test_vertices_independent_of_scale(self):
+        """Топология не зависит от длины ребра."""
+        for a in [0.5, 2.0, 10.0]:
+            h = Heptahedron(a)
+            self.assertEqual(h.vertices(), 6)
+            self.assertEqual(h.faces(), 7)
+            self.assertEqual(h.edges(), 12)
+            self.assertEqual(h.euler_characteristic(), 1)
+
+    def test_summary_contains_face_count(self):
+        """summary() содержит число граней (7) и рёбер (12)."""
+        h = Heptahedron(1.0)
+        s = h.summary()
+        self.assertIn("7", s)
+        self.assertIn("12", s)
+        self.assertIn("χ", s)
+
+
+class TestRP2CheckerExtended(unittest.TestCase):
+    def setUp(self):
+        self.checker = RP2Checker()
+
+    def test_check_reason_key_when_chi_ne_1(self):
+        """check() возвращает 'reason' для χ ≠ 1."""
+        result = self.checker.check(4, 4, 6)   # tetrahedron χ=2
+        self.assertIn("reason", result)
+        self.assertFalse(result["ok"])
+
+    def test_enumerate_candidates_dict_structure(self):
+        """Каждый кандидат имеет ключи vertices, faces, edges, chi, ok."""
+        candidates = self.checker.enumerate_rp2_candidates(8)
+        for c in candidates:
+            for key in ("vertices", "faces", "edges", "chi", "ok"):
+                self.assertIn(key, c, f"Ключ '{key}' отсутствует в {c}")
+
+    def test_check_with_face_types(self):
+        """check() с face_types для гептаэдра → ok=True."""
+        result = self.checker.check(
+            6, 7, 12,
+            face_types={"triangle": 4, "square": 3}
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["chi"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -152,6 +152,32 @@ class TestIntermediateSeries(unittest.TestCase):
         """_h_by_search(1) == 3 (первый элемент ряда H)."""
         self.assertEqual(_h_by_search(1), 3)
 
+    def test_partial_sum_zero_returns_zero(self):
+        """S(0) = 0 (пустая сумма)."""
+        self.assertEqual(self.h.partial_sum(0), 0)
+
+    def test_partial_sum_one_equals_term1(self):
+        """S(1) = h(1) = 3."""
+        self.assertEqual(self.h.partial_sum(1), self.h.term(1))
+
+    def test_generate_empty(self):
+        """generate(0) возвращает пустой список."""
+        self.assertEqual(self.h.generate(0), [])
+
+    def test_factorize_k1_values(self):
+        """factorize(1): k=1, y=3, x=1, h=3."""
+        f = self.h.factorize(1)
+        self.assertEqual(f["k"], 1)
+        self.assertEqual(f["y"], 3)
+        self.assertEqual(f["x"], 1)
+        self.assertEqual(f["h"], 3)
+
+    def test_symmetry_check_diff_formula(self):
+        """diff == h(n+m)+h(n-m) - 2*h(n)."""
+        res = self.h.symmetry_check(6, m=2)
+        expected_diff = res["h(n+m)+h(n-m)"] - res["2·h(n)"]
+        self.assertEqual(res["diff"], expected_diff)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,7 +4,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from projects.hexcubenets.hexcubenets import CubeNets, Net, _is_spanning_tree, CUBE_EDGES
+from projects.hexcubenets.hexcubenets import CubeNets, Net, _is_spanning_tree, CUBE_EDGES, FACES
 
 
 class TestSpanningTree(unittest.TestCase):
@@ -162,6 +162,54 @@ class TestCubeNets(unittest.TestCase):
         s = net.to_colored_ascii(colors=colors)
         self.assertIsInstance(s, str)
         self.assertGreater(len(s), 0)
+
+    def test_get_net_last_index(self):
+        """get_net(10) — последний допустимый индекс."""
+        net = self.cn.get_net(10)
+        self.assertIsInstance(net, Net)
+        self.assertEqual(net.index, 10)
+
+    def test_classify_sum_is_11(self):
+        """Сумма всех категорий == 11 (всего 11 развёрток)."""
+        cls = self.cn.classify()
+        total = sum(cls.values())
+        self.assertEqual(total, 11)
+
+
+class TestConstants(unittest.TestCase):
+    def test_cube_edges_count(self):
+        """Куб имеет ровно 12 рёбер."""
+        self.assertEqual(len(CUBE_EDGES), 12)
+
+    def test_faces_count(self):
+        """Куб имеет ровно 6 граней."""
+        self.assertEqual(len(FACES), 6)
+
+    def test_cube_edges_are_pairs(self):
+        """Каждое ребро — пара вершин (кортеж длины 2)."""
+        for edge in CUBE_EDGES:
+            self.assertEqual(len(edge), 2)
+
+    def test_wrong_size_four_edges(self):
+        """4 рёбра (не 5) → False."""
+        four_edges = {
+            tuple(sorted(("T", "F"))),
+            tuple(sorted(("F", "B"))),
+            tuple(sorted(("B", "K"))),
+            tuple(sorted(("K", "L"))),
+        }
+        self.assertFalse(_is_spanning_tree(four_edges))
+
+    def test_cycle_with_triangle(self):
+        """5 рёбер с треугольником T-F-B → False."""
+        cyclic = {
+            tuple(sorted(("T", "F"))),
+            tuple(sorted(("F", "B"))),
+            tuple(sorted(("B", "T"))),   # замыкает треугольник
+            tuple(sorted(("K", "L"))),
+            tuple(sorted(("L", "R"))),
+        }
+        self.assertFalse(_is_spanning_tree(cyclic))
 
 
 if __name__ == "__main__":
