@@ -441,6 +441,73 @@ def json_codon_atlas(codon_data: dict) -> dict:
     }
 
 
+def json_twins_codon(codon_data: dict) -> dict:
+    """
+    TSC-3 Шаг 2: Обогатить Андреев-близнецов биологическими данными кодонов (K4 × K6).
+
+    K6 — Матрица Андреева: математические пары (геометрия треугольника)
+    K4 — Биологический код: аминокислоты, синонимичные мутации
+
+    Ключевой вопрос: соответствуют ли Андреев-пары биологическим синоним-группам?
+
+    Возвращает: пары-близнецы + биологические данные + статистику резонанса.
+    """
+    tm   = TRIMAT
+    twins = tm.twin_pairs()
+    tv_to = {c['trimat_value']: c for c in codon_data.get('codons', [])}
+
+    def _enrich(tvs: list[int]) -> dict:
+        items    = [tv_to[tv] for tv in tvs if tv in tv_to]
+        aas      = [c['amino_acid'] for c in items]
+        yangs    = [c['yang_count'] for c in items]
+        return {
+            'trimat_values': tvs,
+            'codons':        [c['codon'] for c in items],
+            'amino_acids':   aas,
+            'yang_counts':   yangs,
+            'is_synonymous': len(set(aas)) == 1 and len(aas) > 0,
+            'is_singleton':  len(aas) <= 1,
+        }
+
+    enriched: list[dict] = []
+    for left_tvs, right_tvs, s in twins:
+        left  = _enrich(left_tvs)
+        right = _enrich(right_tvs)
+        all_aas = set(left['amino_acids']) | set(right['amino_acids'])
+        enriched.append({
+            'sum':            s,
+            'left':           left,
+            'right':          right,
+            'cross_synonymous': left['is_synonymous'] and right['is_synonymous'],
+            'all_amino_acids':  sorted(all_aas),
+        })
+
+    n_cross   = sum(1 for p in enriched if p['cross_synonymous'])
+    n_lsyn    = sum(1 for p in enriched if p['left']['is_synonymous'])
+    n_rsyn    = sum(1 for p in enriched if p['right']['is_synonymous'])
+    total_h   = len(enriched) * 2
+    syn_h     = n_lsyn + n_rsyn
+
+    return {
+        'command':    'twins_codon',
+        'n_pairs':    len(enriched),
+        'pairs':      enriched,
+        'stats': {
+            'cross_synonymous':   n_cross,
+            'left_synonymous':    n_lsyn,
+            'right_synonymous':   n_rsyn,
+            'total_half_pairs':   total_h,
+            'synonymous_halves':  syn_h,
+            'half_syn_rate':      round(syn_h / max(total_h, 1), 4),
+        },
+        'k4_k6_insight': (
+            f'TSC-3 K4×K6: {n_cross}/{len(enriched)} пар полностью синонимичны (обе полупары). '
+            f'{syn_h}/{total_h} полупар синонимичны ({round(syn_h/max(total_h,1)*100,1)}%). '
+            f'Андреев-матрица частично кодирует биологическую синонимию.'
+        ),
+    }
+
+
 _TRIMAT_JSON_DISPATCH: dict = {
     'triangle': lambda: json_triangle(),
     'verify':   lambda: json_verify(),
@@ -487,6 +554,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd not in _cmds:
         p.print_help()
         return 1
+
+    # TSC-3 шаг 2: twins --from-codons
+    if args.cmd == 'twins' and args.from_codons:
+        import sys as _sys
+        raw = _sys.stdin.read().strip()
+        codon_data = json.loads(raw)
+        data = json_twins_codon(codon_data)
+        if args.json:
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+        else:
+            print(f'  TSC-3 Близнецы Андреева с биологическими данными ({data["n_pairs"]} пар):')
+            for p in data['pairs'][:4]:
+                print(f'  сумма={p["sum"]:3d}: left={p["left"]["codons"][:2]}→{p["left"]["amino_acids"][:2]}  '
+                      f'right={p["right"]["codons"][:2]}→{p["right"]["amino_acids"][:2]}  '
+                      f'cross_syn={p["cross_synonymous"]}')
+            s = data['stats']
+            print(f'\n  Синонимичных полупар: {s["synonymous_halves"]}/{s["total_half_pairs"]} '
+                  f'({s["half_syn_rate"]*100:.1f}%)')
+        return 0
 
     # SC-4 шаг 2: codon-atlas
     if args.cmd == 'codon-atlas':

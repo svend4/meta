@@ -108,9 +108,9 @@ MODULES: dict[str, ModuleInfo] = {
     # K3 — Интеллектуальный кластер
     'hexlearn': ModuleInfo(
         name='hexlearn', path='projects.hexlearn.learn_glyphs',
-        commands=['ca-rank', 'predict', 'train', 'cluster'],
+        commands=['ca-rank', 'predict', 'cluster', 'train'],
         cluster='K3', json_ready=True,
-        description='ML-ранжирование CA Q6 + NL-предсказание по SAC (K3×K2×K1)',
+        description='ML: CA-ранжирование + NL-предсказание SAC + кластеризация кодонов (K3)',
     ),
     'hexopt': ModuleInfo(
         name='hexopt', path='projects.hexopt.opt_glyphs',
@@ -176,7 +176,7 @@ MODULES: dict[str, ModuleInfo] = {
         name='hextrimat', path='projects.hextrimat.trimat_glyphs',
         commands=['codon-atlas', 'triangle', 'sums', 'bird', 'thoth', 'swastika', 'twins', 'center', 'verify'],
         cluster='K6', json_ready=True,
-        description='Треугольная матрица И-Цзин Андреева: 64 гексаграммы + кодонный атлас',
+        description='Треугольная матрица И-Цзин Андреева: кодонный атлас + twins_codon (TSC-3)',
     ),
     'hexnav': ModuleInfo(
         name='hexnav', path='projects.hexnav.nav_glyphs',
@@ -185,10 +185,10 @@ MODULES: dict[str, ModuleInfo] = {
         description='Навигация Q6: триграммы, BFS-слои, мутации как Q6-переходы',
     ),
     'hexspec': ModuleInfo(
-        name='hexspec', path='projects.hexspec.hexspec',
-        commands=['spectrum', 'resonance', 'harmonics'],
-        cluster='K6', json_ready=False,
-        description='Спектральный анализ Q6-последовательностей',
+        name='hexspec', path='projects.hexspec.resonance_glyphs',
+        commands=['resonance', 'spectrum', 'harmonics'],
+        cluster='K6', json_ready=True,
+        description='Резонанс матрицы Андреева с генетическим кодом: oracle предсказания (TSC-3)',
     ),
     'hexvis': ModuleInfo(
         name='hexvis', path='projects.hexvis.hexvis',
@@ -492,9 +492,17 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'TSC-3': SuperClusterInfo(
         id='TSC-3', name='Геномный оракул',
         cluster_ids=['K4', 'K6', 'K3'],
-        description='Биология + И-Цзин + ML = геномный оракул',
-        pipeline=['hexbio:codon', 'hextrimat:twins', 'hexlearn:cluster', 'hexspec:resonance'],
-        emergent='Предсказание мутаций через резонансные структуры матрицы Андреева',
+        description='Биология + И-Цзин Андреева + ML = геномный оракул мутаций',
+        pipeline=['hexbio:codon-map',
+                  'hextrimat:twins --from-codons',
+                  'hexlearn:cluster --from-twins',
+                  'hexspec:resonance --from-cluster'],
+        emergent=(
+            'K4×K6×K3: 6/17 Андреев-кластеров = чистые AA-боксы (purity=1.0). '
+            'Резонанс-оценка=0.68 (базовая=0.06, прирост=+0.62 = 10×). '
+            '23 oracle-предсказания синонимичных мутаций. '
+            'Матрица Андреева И-Цзин предсказывает синонимию без биологического знания.'
+        ),
     ),
     'MC': SuperClusterInfo(
         id='MC', name='Геномный Оракул Q6 (мега)',

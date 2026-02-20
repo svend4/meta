@@ -306,6 +306,94 @@ def render_crypto_rank_table(data: dict, color: bool = True) -> str:
 
 
 # ---------------------------------------------------------------------------
+# TSC-3: K3 ML-кластеризация кодонов через Андреев-близнецов
+# ---------------------------------------------------------------------------
+
+def json_codon_cluster(twins_data: dict) -> dict:
+    """
+    TSC-3 Шаг 3: K3 ML-анализ кластеров — Андреев-партиция vs биологические AA-боксы.
+
+    K3 × K4 × K6:
+      K3 — ML: оценка purity каждого Андреев-кластера биологически
+      K4 — Биологические кластеры: АА-боксы (все кодоны одной АА)
+      K6 — Андреев-партиция: левая/правая полупары каждой пары-близнецов
+
+    Возвращает:
+      clusters (purity), summary, exact_matches, degeneracy groups, k3_finding.
+    """
+    pairs = twins_data.get('pairs', [])
+
+    # Строим Андреев-кластеры (левая/правая полупара)
+    andreev: list[dict] = []
+    for i, p in enumerate(pairs):
+        for side_key in ('left', 'right'):
+            info = p[side_key]
+            if not info['codons']:
+                continue
+            aas      = info['amino_acids']
+            majority = max(set(aas), key=aas.count) if aas else '?'
+            purity   = aas.count(majority) / len(aas) if aas else 0.0
+            andreev.append({
+                'id':            f'A{i:02d}{"L" if side_key == "left" else "R"}',
+                'sum':           p['sum'],
+                'side':          side_key,
+                'size':          len(info['codons']),
+                'codons':        info['codons'],
+                'amino_acids':   aas,
+                'is_synonymous': info['is_synonymous'],
+                'majority_aa':   majority,
+                'purity':        round(purity, 4),
+            })
+
+    # Строим биологические кластеры АА → кодоны
+    bio: dict[str, list[str]] = {}
+    for cl in andreev:
+        for codon, aa in zip(cl['codons'], cl['amino_acids']):
+            bio.setdefault(aa, [])
+            if codon not in bio[aa]:
+                bio[aa].append(codon)
+
+    # ML-качество
+    multi           = [cl for cl in andreev if cl['size'] > 1]
+    pure            = [cl for cl in multi   if cl['purity'] >= 1.0]
+    near            = [cl for cl in multi   if cl['purity'] >= 0.75]
+    total_codons    = sum(cl['size'] for cl in andreev)
+    weighted_purity = sum(cl['purity'] * cl['size'] for cl in andreev) / max(total_codons, 1)
+
+    fourfold = sorted([aa for aa, cds in bio.items() if len(cds) == 4])
+    twofold  = sorted([aa for aa, cds in bio.items() if len(cds) == 2])
+    sixfold  = sorted([aa for aa, cds in bio.items() if len(cds) == 6])
+    exact_matches = [cl for cl in andreev if cl['purity'] == 1.0 and cl['size'] > 1]
+
+    return {
+        'command':  'cluster',
+        'clusters': andreev,
+        'summary': {
+            'total_clusters':       len(andreev),
+            'multi_codon_clusters': len(multi),
+            'pure_clusters':        len(pure),
+            'near_pure_clusters':   len(near),
+            'purity_rate':          round(len(pure) / max(len(multi), 1), 4),
+            'weighted_purity':      round(weighted_purity, 4),
+        },
+        'exact_matches':   exact_matches,
+        'bio_amino_acids': {aa: sorted(cds) for aa, cds in sorted(bio.items())},
+        'degeneracy': {
+            'fourfold': fourfold,
+            'twofold':  twofold,
+            'sixfold':  sixfold,
+        },
+        'k3_finding': (
+            f'TSC-3 K3: {len(pure)}/{len(multi)} много-кодонных Андреев-кластеров '
+            f'чисто синонимичны (purity=1.0). '
+            f'Взвешенная чистота: {round(weighted_purity, 4)}. '
+            f'4-кратно-вырожденные АА: {fourfold}.'
+        ),
+        'sc_id':   'TSC-3',
+    }
+
+
+# ---------------------------------------------------------------------------
 # SC-5: ML-предсказание NL по лавинной матрице S-блоков
 # ---------------------------------------------------------------------------
 
@@ -439,6 +527,7 @@ def json_sbox_predict(avalanche_data: dict | None = None) -> dict:
 _DISPATCH: dict = {
     'ca-rank': lambda args, from_data: json_ca_crypto_rank(from_data),
     'predict':  lambda args, from_data: json_sbox_predict(from_data),
+    'cluster':  lambda args, from_data: json_codon_cluster(from_data or {}),
 }
 
 
@@ -453,6 +542,8 @@ def main(argv: list[str] | None = None) -> None:
                     help='Читать hexca:all-rules JSON из stdin')
     ap.add_argument('--from-avalanche', action='store_true',
                     help='Читать hexcrypt:avalanche JSON из stdin (SC-5)')
+    ap.add_argument('--from-twins', action='store_true',
+                    help='Читать hextrimat:twins-codon JSON из stdin (TSC-3)')
     ap.add_argument('--no-color', action='store_true',
                     help='Отключить цвет')
 
@@ -471,6 +562,10 @@ def main(argv: list[str] | None = None) -> None:
     # predict (SC-5)
     sub.add_parser('predict',
                    help='ML-предсказание NL по лавинной матрице (SC-5 K3×K1)')
+
+    # cluster (TSC-3)
+    sub.add_parser('cluster',
+                   help='ML-кластеризация кодонов через Андреев-близнецов (TSC-3 K3×K4×K6)')
 
     args = ap.parse_args(argv)
     color = not args.no_color
@@ -491,6 +586,13 @@ def main(argv: list[str] | None = None) -> None:
         except json.JSONDecodeError as e:
             print(f'Ошибка: не удалось разобрать stdin JSON: {e}', file=sys.stderr)
             sys.exit(1)
+    elif getattr(args, 'from_twins', False):
+        raw = sys.stdin.read()
+        try:
+            from_data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            print(f'Ошибка: не удалось разобрать stdin JSON: {e}', file=sys.stderr)
+            sys.exit(1)
 
     cmd = args.cmd or 'ca-rank'
 
@@ -502,6 +604,30 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif cmd == 'cluster':
+        data = result
+        s    = data['summary']
+        print()
+        print('  TSC-3 Шаг 3: K3 ML-кластеризация кодонов (K3×K4×K6)')
+        print()
+        hdr_cl = f"  {'Кластер':<8} {'Размер':>6} {'Purity':>7} {'АА':^6} {'Кодоны'}"
+        print(hdr_cl)
+        print('  ' + '─' * 52)
+        for cl in sorted(data['clusters'], key=lambda c: (-c['purity'], -c['size'])):
+            if cl['size'] < 2:
+                continue
+            syn_mark = '✓' if cl['is_synonymous'] else ' '
+            print(f'  {cl["id"]:<8} {cl["size"]:>6} {cl["purity"]:>7.4f} {cl["majority_aa"]:^6} '
+                  f'{", ".join(cl["codons"][:4])} {syn_mark}')
+        print()
+        print(f'  Чистых кластеров (purity=1.0): {s["pure_clusters"]}/{s["multi_codon_clusters"]}')
+        print(f'  Взвешенная чистота: {s["weighted_purity"]}')
+        deg = data['degeneracy']
+        print(f'  4-кратно-вырождённые АА: {deg["fourfold"]}')
+        print(f'  2-кратно-вырождённые АА: {deg["twofold"]}')
+        print()
+        print(f'  K3-синтез: {data["k3_finding"]}')
+        print()
     elif cmd == 'predict':
         data = result
         print()
