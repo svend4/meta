@@ -1177,9 +1177,10 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     renderEntropySparklines();
   }
 
-  window.caNextRow = nextRowWith;
-  window.caH2C     = H2C;
-  window.caCol     = col;
+  window.caNextRow    = nextRowWith;
+  window.caH2C        = H2C;
+  window.caCol        = col;
+  window.findOrbitJS  = findOrbitJS;
   window.caSetRule = function(r){
     RULE=r;
     document.querySelectorAll('[id^="ca-rule-"]').forEach(function(b){b.classList.remove('active');});
@@ -1349,6 +1350,114 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
   };
 
   wordUpdate();
+})();
+</script>
+</div>
+<div class="section">
+<h2>Орбитальный лексикон Q6</h2>
+<p class="meta">Найти слова с похожими орбитами в словаре из 49 слов ·
+  <span style="color:#444">width=16, max_steps=800</span></p>
+<div style="display:flex;gap:8px;align-items:center;margin:6px 0 10px">
+  <input id="lex-inp" type="text" value="РАТОН" maxlength="20"
+         style="background:#111;color:#ccc;border:1px solid #333;
+                padding:6px 10px;font-size:14px;font-family:monospace;
+                width:160px;border-radius:3px"
+         oninput="lexFind()">
+  <span style="color:#555;font-size:11px;font-family:monospace">
+    → ближайшие орбитальные соседи из лексикона</span>
+</div>
+<div id="lex-sig" style="font-size:11px;color:#444;font-family:monospace;margin-bottom:6px"></div>
+<div id="lex-results" style="font-family:monospace;font-size:12px"></div>
+<script>
+(function() {
+  var WH2={А:63,Р:15,Т:48,Л:9,Н:3,О:47,Б:14,М:24,В:20,Д:50,Г:49,У:51,И:44,З:19,Ж:28,Ч:35};
+  var LCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  var LEXW=16, LEXSTEPS=800;
+
+  var LEXICON=['ГОРА','ВОДА','НОРА','ЛУНА','ВОЛНА','ТУМАН','ТУНДРА','ДУГА','ГРУДА',
+    'ЗИМА','ЛУГА','УДАР','ВЗЛОМ','РАБОТА','НАДО','ДОБРО','ОБРАЗ','ТРОН','ГОРН',
+    'БОЛТ','ЛИТР','НОТА','РОТА','РУЛОН','ЗОНТ','ТОННА','ЖУРНАЛ','ВИТРАЖ','МОНТАЖ',
+    'ДОМРА','НАБОР','НИТРО','ЗУБР','НАРОД','ДРОН','МАРТ','УТРО','МАТ','РИТМ',
+    'ДУМА','НОРМА','МОДА','ГОРОД','ЗАВОД','ДРОВА','ЖАТВА','БИТВА','ЖИТО','РАТОН'];
+
+  function encL(word) {
+    var out=[];
+    word.toUpperCase().split('').forEach(function(c){ if(WH2[c]!==undefined) out.push(WH2[c]); });
+    return out;
+  }
+  function padL(cells,w) {
+    if(!cells.length) return Array(w).fill(0);
+    return Array.from({length:w},function(_,i){ return cells[i%cells.length]; });
+  }
+  function sigL(word) {
+    var cells=padL(encL(word),LEXW), sig={};
+    ['xor','xor3','and','or'].forEach(function(r){
+      sig[r]=findOrbitJS(cells,r,LEXSTEPS);
+    });
+    return sig;
+  }
+  function distL(s1,s2) {
+    var total=0,count=0;
+    ['xor','xor3','and','or'].forEach(function(r){
+      var p1=s1[r]?s1[r].period:null, p2=s2[r]?s2[r].period:null;
+      if(p1!==null&&p2!==null){total+=Math.abs(p1-p2)/Math.max(p1,p2,1);count++;}
+    });
+    return count>0?total/count:NaN;
+  }
+
+  // Pre-compute lexicon signatures once
+  var _lexSigs=null;
+  function getLexSigs() {
+    if(!_lexSigs){ _lexSigs={}; LEXICON.forEach(function(w){ _lexSigs[w]=sigL(w); }); }
+    return _lexSigs;
+  }
+
+  window.lexFind = function() {
+    var word=(document.getElementById('lex-inp').value||'РАТОН').toUpperCase();
+    var raw=encL(word);
+    var sigEl=document.getElementById('lex-sig');
+    var resEl=document.getElementById('lex-results');
+    if(!raw.length){
+      if(sigEl) sigEl.textContent='(нет фонетических символов)';
+      if(resEl) resEl.innerHTML='';
+      return;
+    }
+    var ts=sigL(word);
+    var sigStr=['xor','xor3','and','or'].map(function(r){
+      var o=ts[r]; var col=LCOL[r];
+      return '<span style="color:'+col+'">P<sub>'+r+'</sub>='+
+             (o&&o.period!==null?o.period:'?')+'</span>';
+    }).join('  ');
+    if(sigEl) sigEl.innerHTML='Сигнатура: '+sigStr;
+
+    var lsigs=getLexSigs();
+    var dists=LEXICON.map(function(w){
+      return {word:w,dist:distL(ts,lsigs[w]),sig:lsigs[w]};
+    });
+    dists.sort(function(a,b){ return (isNaN(a.dist)?1:isNaN(b.dist)?-1:a.dist-b.dist); });
+
+    var maxD=dists.reduce(function(m,x){ return (!isNaN(x.dist)&&x.dist>m)?x.dist:m; },0)||1;
+    var html='';
+    dists.slice(0,10).forEach(function(item){
+      var blen=20, filled=Math.round(item.dist/maxD*blen);
+      var bar='█'.repeat(filled)+'░'.repeat(blen-filled);
+      var ps=['xor','xor3','and','or'].map(function(r){
+        var o=item.sig[r]; return (o&&o.period!==null?o.period:'?');
+      }).join(' ');
+      var dStr=isNaN(item.dist)?'NaN':item.dist.toFixed(3);
+      var eq=item.dist<0.001?'<span style="color:#4caf50"> ≡</span>':'';
+      html+='<div style="display:flex;gap:8px;align-items:baseline;margin:1px 0">'
+        +'<span style="min-width:90px;color:#aaa">'+item.word+'</span>'
+        +'<span style="color:#4fc3f7">|'+bar+'|</span>'
+        +'<span style="color:#555"> '+dStr+'</span>'
+        +'<span style="color:#2a2a2a;font-size:10px"> ['+ps+']</span>'
+        +eq+'</div>';
+    });
+    if(resEl) resEl.innerHTML=html;
+  };
+
+  // Init on load
+  setTimeout(lexFind,100);
 })();
 </script>
 </div>

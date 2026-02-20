@@ -1380,5 +1380,153 @@ class TestSolanWord(unittest.TestCase):
             self.assertIn(f'wordSetRule(\'{r}\')', content)
 
 
+class TestSolanLexicon(unittest.TestCase):
+    """Tests for solan_lexicon.py and the viewer Lexicon section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lexicon import (
+            LEXICON, all_signatures, neighbors, orbital_clusters,
+        )
+        cls.LEXICON         = LEXICON
+        cls.all_signatures  = staticmethod(all_signatures)
+        cls.neighbors       = staticmethod(neighbors)
+        cls.orbital_clusters = staticmethod(orbital_clusters)
+
+    # ── LEXICON list ─────────────────────────────────────────────────────
+
+    def test_lexicon_not_empty(self):
+        self.assertGreater(len(self.LEXICON), 0)
+
+    def test_lexicon_no_duplicates(self):
+        self.assertEqual(len(self.LEXICON), len(set(self.LEXICON)))
+
+    def test_lexicon_contains_raton(self):
+        self.assertIn('РАТОН', self.LEXICON)
+
+    def test_lexicon_contains_gora(self):
+        self.assertIn('ГОРА', self.LEXICON)
+
+    def test_lexicon_all_uppercase(self):
+        for w in self.LEXICON:
+            self.assertEqual(w, w.upper())
+
+    # ── all_signatures ───────────────────────────────────────────────────
+
+    def test_all_signatures_keys_match_lexicon(self):
+        sigs = self.all_signatures()
+        for w in self.LEXICON:
+            self.assertIn(w, sigs)
+
+    def test_all_signatures_each_has_four_rules(self):
+        sigs = self.all_signatures()
+        for w, sig in sigs.items():
+            for r in ('xor', 'xor3', 'and', 'or'):
+                self.assertIn(r, sig)
+
+    def test_all_signatures_periods_positive_or_none(self):
+        sigs = self.all_signatures()
+        for w, sig in sigs.items():
+            for r in ('xor', 'xor3', 'and', 'or'):
+                _, p = sig[r]
+                if p is not None:
+                    self.assertGreater(p, 0)
+
+    # ── neighbors ────────────────────────────────────────────────────────
+
+    def test_neighbors_returns_list(self):
+        nbrs = self.neighbors('РАТОН', n=5)
+        self.assertIsInstance(nbrs, list)
+
+    def test_neighbors_count(self):
+        nbrs = self.neighbors('ГОРА', n=5)
+        self.assertLessEqual(len(nbrs), 5)
+
+    def test_neighbors_excludes_target(self):
+        nbrs = self.neighbors('ГОРА', n=10)
+        words = [w for w, _ in nbrs]
+        self.assertNotIn('ГОРА', words)
+
+    def test_neighbors_distances_sorted(self):
+        nbrs = self.neighbors('РАТОН', n=8)
+        dists = [d for _, d in nbrs if d == d]  # skip NaN
+        self.assertEqual(dists, sorted(dists))
+
+    def test_neighbors_distances_in_range(self):
+        nbrs = self.neighbors('ВОДА', n=5)
+        for _, d in nbrs:
+            if d == d:  # not NaN
+                self.assertGreaterEqual(d, 0.0)
+                self.assertLessEqual(d, 1.0)
+
+    # ── orbital_clusters ─────────────────────────────────────────────────
+
+    def test_clusters_cover_all_words(self):
+        sigs  = self.all_signatures()
+        clsts = self.orbital_clusters(sigs=sigs, threshold=0.15)
+        covered = {w for c in clsts for w in c}
+        self.assertEqual(covered, set(self.LEXICON))
+
+    def test_clusters_no_overlap(self):
+        sigs  = self.all_signatures()
+        clsts = self.orbital_clusters(sigs=sigs, threshold=0.15)
+        seen: set[str] = set()
+        for c in clsts:
+            for w in c:
+                self.assertNotIn(w, seen)
+                seen.add(w)
+
+    def test_clusters_sorted_by_size(self):
+        sigs  = self.all_signatures()
+        clsts = self.orbital_clusters(sigs=sigs, threshold=0.15)
+        sizes = [len(c) for c in clsts]
+        self.assertEqual(sizes, sorted(sizes, reverse=True))
+
+    def test_clusters_loose_threshold_fewer(self):
+        sigs   = self.all_signatures()
+        clsts_tight = self.orbital_clusters(sigs=sigs, threshold=0.01)
+        clsts_loose = self.orbital_clusters(sigs=sigs, threshold=0.90)
+        # Looser threshold must produce fewer or equal clusters
+        self.assertLessEqual(len(clsts_loose), len(clsts_tight))
+
+    # ── viewer: Lexicon section ───────────────────────────────────────────
+
+    def test_viewer_has_lexicon_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Орбитальный лексикон Q6', content)
+        self.assertIn('lex-inp', content)
+        self.assertIn('lex-results', content)
+
+    def test_viewer_lexicon_has_js_array(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('var LEXICON=', content)
+        self.assertIn("'РАТОН'", content)
+        self.assertIn("'ГОРА'", content)
+
+    def test_viewer_lexicon_has_lexfind(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lexFind', content)
+        self.assertIn('window.lexFind', content)
+
+    def test_viewer_lexicon_exposes_find_orbit_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.findOrbitJS', content)
+        self.assertIn('window.findOrbitJS  = findOrbitJS', content)
+
+    def test_viewer_lexicon_has_dist_function(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('distL', content)
+        self.assertIn('sigL', content)
+
+    def test_viewer_lexicon_has_get_lex_sigs(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('getLexSigs', content)
+
+    def test_viewer_lexicon_sig_display(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lex-sig', content)
+        self.assertIn('Сигнатура', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
