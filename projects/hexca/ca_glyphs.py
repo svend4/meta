@@ -14,8 +14,11 @@
 """
 
 from __future__ import annotations
+import json
+import math
 import sys
 import random
+from collections import Counter
 from typing import Callable
 
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[2]))
@@ -259,6 +262,112 @@ def ca1d_evolution_stats(ca: CA1D) -> str:
 
 
 # ---------------------------------------------------------------------------
+# JSON-экспорт (для пайплайнов)
+# ---------------------------------------------------------------------------
+
+def _step_stats(row: list[int]) -> dict:
+    """Статистика одного шага: энтропия, уникальные, среднее ян."""
+    cnt = Counter(row)
+    n = len(row)
+    entropy = -sum(c / n * math.log2(c / n) for c in cnt.values()) if n > 0 else 0.0
+    mean_yang = sum(yang_count(h) for h in row) / n
+    return {
+        'entropy': round(entropy, 4),
+        'unique': len(cnt),
+        'mean_yang': round(mean_yang, 3),
+    }
+
+
+def json_evolve(rule_name: str = 'xor_rule',
+                width: int = 20,
+                steps: int = 20,
+                seed: int = 42) -> dict:
+    """Запустить 1D КА и вернуть JSON с историей эволюции."""
+    random.seed(seed)
+    rule = get_rule(rule_name)
+    ca = CA1D(width, rule)
+    ca.run(steps)
+
+    evolution_stats = []
+    for t, row in enumerate(ca.history):
+        s = _step_stats(row)
+        s['step'] = t
+        evolution_stats.append(s)
+
+    # Определить тип аттрактора
+    period_1 = (len(ca.history) >= 2 and ca.history[-1] == ca.history[-2])
+    period_2 = (len(ca.history) >= 3 and ca.history[-1] == ca.history[-3])
+    convergence_step = None
+    for t in range(1, len(ca.history)):
+        if ca.history[t] == ca.history[t - 1]:
+            convergence_step = t
+            break
+
+    return {
+        'command': 'evolve',
+        'rule': rule_name,
+        'width': width,
+        'steps': steps,
+        'seed': seed,
+        'initial_state': ca.history[0],
+        'final_state': ca.history[-1],
+        'period_1': period_1,
+        'period_2': period_2,
+        'convergence_step': convergence_step,
+        'evolution_stats': evolution_stats,
+        'available_rules': list(RULES.keys()),
+    }
+
+
+def json_all_rules(width: int = 20,
+                   steps: int = 20,
+                   seed: int = 42) -> dict:
+    """Запустить все правила и вернуть сравнительный JSON."""
+    results = []
+    for rule_name in RULES:
+        data = json_evolve(rule_name, width=width, steps=steps, seed=seed)
+        results.append({
+            'rule': rule_name,
+            'convergence_step': data['convergence_step'],
+            'period_1': data['period_1'],
+            'period_2': data['period_2'],
+            'initial_entropy': data['evolution_stats'][0]['entropy'],
+            'final_entropy': data['evolution_stats'][-1]['entropy'],
+            'initial_unique': data['evolution_stats'][0]['unique'],
+            'final_unique': data['evolution_stats'][-1]['unique'],
+            'initial_yang_mean': data['evolution_stats'][0]['mean_yang'],
+            'final_yang_mean': data['evolution_stats'][-1]['mean_yang'],
+        })
+    return {
+        'command': 'all_rules',
+        'width': width,
+        'steps': steps,
+        'seed': seed,
+        'rules': results,
+    }
+
+
+_CA_JSON_DISPATCH = {
+    'evolve':    lambda args: json_evolve(
+                     rule_name=getattr(args, 'rule', 'xor_rule'),
+                     width=getattr(args, 'width', 20),
+                     steps=getattr(args, 'steps', 20),
+                     seed=getattr(args, 'seed', 42),
+                 ),
+    'all-rules': lambda args: json_all_rules(
+                     width=getattr(args, 'width', 20),
+                     steps=getattr(args, 'steps', 20),
+                     seed=getattr(args, 'seed', 42),
+                 ),
+    'stats':     lambda args: json_all_rules(
+                     width=getattr(args, 'width', 20),
+                     steps=getattr(args, 'steps', 30),
+                     seed=getattr(args, 'seed', 42),
+                 ),
+}
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -268,7 +377,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='ca_glyphs — КА на Q6 с визуализацией через глифы'
     )
+    parser.add_argument('--json', action='store_true',
+                        help='Машиночитаемый JSON-вывод (для пайплайнов)')
     sub = parser.add_subparsers(dest='cmd')
+
+    # evolve — JSON-экспорт эволюции (SC-3 шаг 1)
+    p_ev = sub.add_parser('evolve', help='1D КА: JSON-экспорт эволюции → пайплайн')
+    p_ev.add_argument('--rule',  default='xor_rule', choices=list(RULES))
+    p_ev.add_argument('--width', type=int, default=20)
+    p_ev.add_argument('--steps', type=int, default=20)
+    p_ev.add_argument('--seed',  type=int, default=42)
+
+    # all-rules — JSON-экспорт всех правил
+    p_ar = sub.add_parser('all-rules', help='Сравнить все правила → JSON')
+    p_ar.add_argument('--width', type=int, default=20)
+    p_ar.add_argument('--steps', type=int, default=20)
+    p_ar.add_argument('--seed',  type=int, default=42)
 
     # 1D компактная история
     p1c = sub.add_parser('compact', help='1D КА: компактная история глифов (1 строка/шаг)')
@@ -311,6 +435,35 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     color = not getattr(args, 'no_color', False)
+
+    # JSON-режим: evolve, all-rules, stats
+    if args.json and args.cmd in _CA_JSON_DISPATCH:
+        print(json.dumps(_CA_JSON_DISPATCH[args.cmd](args), ensure_ascii=False, indent=2))
+        sys.exit(0)
+
+    if args.cmd == 'evolve':
+        # Human-readable evolve: run and show compact history
+        random.seed(args.seed)
+        rule = get_rule(args.rule)
+        ca = CA1D(args.width, rule)
+        ca.run(args.steps)
+        print(f'  evolve: правило={args.rule}  ширина={args.width}  шагов={args.steps}')
+        print()
+        print(render_ca1d_history_compact(ca, color=color))
+        sys.exit(0)
+
+    if args.cmd == 'all-rules':
+        # Human-readable all-rules
+        for rule_name in RULES:
+            random.seed(args.seed)
+            rule = get_rule(rule_name)
+            ca = CA1D(args.width, rule)
+            ca.run(args.steps)
+            s0 = _step_stats(ca.history[0])
+            sN = _step_stats(ca.history[-1])
+            print(f'  {rule_name:<20}  H: {s0["entropy"]:.2f}→{sN["entropy"]:.2f}'
+                  f'  uniq: {s0["unique"]}→{sN["unique"]}')
+        sys.exit(0)
 
     if args.cmd == 'compact' or args.cmd is None:
         cmd = args if args.cmd else type('Args', (), {

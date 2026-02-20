@@ -23,6 +23,7 @@
 """
 
 from __future__ import annotations
+import json
 import sys
 import math
 import argparse
@@ -353,13 +354,98 @@ def render_entropy_compare(color: bool = True) -> str:
 # CLI
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# JSON-экспорт (для пайплайнов SC-3)
+# ---------------------------------------------------------------------------
+
+def json_ca_classify(ca_data: dict) -> dict:
+    """
+    Классифицировать поведение КА на основе его JSON-эволюции.
+
+    Входной формат: вывод команды 'hexca --json evolve'.
+    Выходной формат: классификация по Вольфраму и энтропийная статистика.
+    """
+    stats = ca_data.get('evolution_stats', [])
+    if not stats:
+        return {'error': 'evolution_stats не найдены во входных данных'}
+
+    initial_entropy = stats[0]['entropy']
+    final_entropy = stats[-1]['entropy']
+    n = len(stats)
+    rule = ca_data.get('rule', 'unknown')
+
+    # Вычислить скорость убывания энтропии
+    if n > 1 and initial_entropy > 0:
+        decay_per_step = (initial_entropy - final_entropy) / (n - 1)
+        relative_decay = decay_per_step / initial_entropy
+    else:
+        decay_per_step = 0.0
+        relative_decay = 0.0
+
+    # Классификация Вольфрама по поведению энтропии
+    conv_step = ca_data.get('convergence_step')
+    period_1 = ca_data.get('period_1', False)
+    period_2 = ca_data.get('period_2', False)
+
+    if period_1 or (conv_step is not None and conv_step <= 3):
+        wolfram_class = 'I'
+        behavior = 'stable_fixed_point'
+        attractor = 'fixed_point'
+    elif period_2 or (conv_step is not None):
+        wolfram_class = 'II'
+        behavior = 'periodic'
+        attractor = 'period_2' if period_2 else 'periodic'
+    elif final_entropy > initial_entropy * 0.85 and final_entropy >= 2.5:
+        wolfram_class = 'III_or_IV'
+        behavior = 'complex_or_chaotic'
+        attractor = 'orbit'
+    else:
+        wolfram_class = 'II'
+        behavior = 'convergent'
+        attractor = 'unknown'
+
+    # Статистика по ян-балансу
+    yang_initial = stats[0]['mean_yang'] if stats else 3.0
+    yang_final = stats[-1]['mean_yang'] if stats else 3.0
+    yang_drift = abs(yang_final - yang_initial)
+    yang_balanced = yang_drift < 0.5  # Aut(Q6)-инвариант: ян-счёт примерно сохраняется
+
+    return {
+        'command': 'ca_entropy',
+        'rule': rule,
+        'wolfram_class': wolfram_class,
+        'behavior': behavior,
+        'attractor': attractor,
+        'initial_entropy': initial_entropy,
+        'final_entropy': final_entropy,
+        'entropy_decay_per_step': round(decay_per_step, 5),
+        'relative_decay': round(relative_decay, 5),
+        'convergence_step': conv_step,
+        'yang_initial': yang_initial,
+        'yang_final': yang_final,
+        'yang_balanced': yang_balanced,
+        'yang_drift': round(yang_drift, 3),
+        'unique_initial': stats[0]['unique'],
+        'unique_final': stats[-1]['unique'],
+        'steps_analyzed': n,
+    }
+
+
 def _make_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog='channel_glyphs',
         description='Теория информации на Q6 через глифы гексаграмм',
     )
     p.add_argument('--no-color', action='store_true', help='без ANSI-цветов')
+    p.add_argument('--json', action='store_true',
+                   help='Машиночитаемый JSON-вывод (для пайплайнов)')
+    p.add_argument('--from-ca', action='store_true',
+                   help='Читать CA JSON из stdin (hexca --json evolve)')
     sub = p.add_subparsers(dest='cmd', required=True)
+
+    # ca-entropy — классификация КА (SC-3 шаг 2)
+    sub.add_parser('ca-entropy',
+                   help='Классифицировать КА по энтропийной динамике → JSON')
 
     s = sub.add_parser('bsc', help='BSC(p)-распределение ошибок')
     s.add_argument('p', type=float, help='вероятность ошибки бита (0..1)')
@@ -379,6 +465,30 @@ def main(argv: list[str] | None = None) -> None:
     p = _make_parser()
     args = p.parse_args(argv)
     color = not args.no_color
+
+    if args.cmd == 'ca-entropy':
+        if args.from_ca:
+            raw = sys.stdin.read().strip()
+            ca_data = json.loads(raw)
+        else:
+            # Без stdin: запустить hexca внутренне для демо
+            import subprocess, sys as _sys
+            result = subprocess.run(
+                [_sys.executable, '-m', 'projects.hexca.ca_glyphs', '--json', 'evolve'],
+                capture_output=True, text=True,
+            )
+            ca_data = json.loads(result.stdout)
+        classified = json_ca_classify(ca_data)
+        if args.json:
+            print(json.dumps(classified, ensure_ascii=False, indent=2))
+        else:
+            print(f'  Правило: {classified["rule"]}')
+            print(f'  Класс Вольфрама: {classified["wolfram_class"]}')
+            print(f'  Поведение: {classified["behavior"]}')
+            print(f'  Энтропия: {classified["initial_entropy"]:.3f} → {classified["final_entropy"]:.3f}')
+            print(f'  Аттрактор: {classified["attractor"]}')
+            print(f'  Ян-баланс: {"✓ сохранён" if classified["yang_balanced"] else "✗ нарушен"}')
+        return
 
     if args.cmd == 'bsc':
         print(render_bsc(args.p, center=args.center, color=color))

@@ -81,10 +81,10 @@ MODULES: dict[str, ModuleInfo] = {
 
     # K2 — Динамический кластер (CA/физика)
     'hexca': ModuleInfo(
-        name='hexca', path='projects.hexca.hexca',
-        commands=['evolve', 'entropy', 'attractor'],
-        cluster='K2', json_ready=False,
-        description='Клеточные автоматы на гиперкубе Q6',
+        name='hexca', path='projects.hexca.ca_glyphs',
+        commands=['evolve', 'all-rules', 'compact', 'history', 'diff', 'frames', 'stats'],
+        cluster='K2', json_ready=True,
+        description='Клеточные автоматы на гиперкубе Q6 (9 правил, JSON-эволюция)',
     ),
     'hexphys': ModuleInfo(
         name='hexphys', path='projects.hexphys.hexphys',
@@ -93,16 +93,16 @@ MODULES: dict[str, ModuleInfo] = {
         description='Физические модели на решётке Q6',
     ),
     'hexstat': ModuleInfo(
-        name='hexstat', path='projects.hexstat.hexstat',
-        commands=['dist', 'entropy', 'chi2'],
-        cluster='K2', json_ready=False,
-        description='Статистический анализ распределений Q6',
+        name='hexstat', path='projects.hexstat.channel_glyphs',
+        commands=['ca-entropy', 'bsc', 'kl', 'mutual', 'entropy'],
+        cluster='K2', json_ready=True,
+        description='Теория информации Q6: BSC, KL, ёмкость, классификация КА',
     ),
     'hexsym': ModuleInfo(
-        name='hexsym', path='projects.hexsym.hexsym',
-        commands=['group', 'orbit', 'stabilizer'],
-        cluster='K2', json_ready=False,
-        description='Группы симметрии Q6 (D₃, Z₆, S₆)',
+        name='hexsym', path='projects.hexsym.sym_glyphs',
+        commands=['rule-orbits', 'yang', 'fixed', 'antipodal', 'burnside'],
+        cluster='K2', json_ready=True,
+        description='Aut(Q6)=B₆ симметрия: орбиты, Бёрнсайд, классификация КА',
     ),
 
     # K3 — Интеллектуальный кластер
@@ -403,9 +403,16 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'SC-3': SuperClusterInfo(
         id='SC-3', name='Канонический атлас КА',
         cluster_ids=['K2', 'K8'],
-        description='Классификация всех Q6 КА с симметрией',
-        pipeline=['hexca:evolve', 'hexstat:entropy', 'hexsym:orbit'],
-        emergent='Полный атлас Q6-автоматов: ~2^64 правил, сгруппированных симметрией',
+        description='Классификация Q6 КА: энтропийная динамика × Aut(Q6)-симметрия',
+        pipeline=['hexca:evolve',
+                  'hexstat:ca-entropy --from-ca',
+                  'hexsym:rule-orbits'],
+        emergent=(
+            'K2×K8: только identity эквивариантна под Aut(Q6). '
+            'Правила с малым ян-дрейфом → Вольфрам I (сходимость). '
+            'Aut(Q6) порядка 46080 разбивает ~2^64 правил на орбиты; '
+            '7 ян-слоёв — главные K2-инварианты.'
+        ),
     ),
     'SC-4': SuperClusterInfo(
         id='SC-4', name='Геномный И-Цзин',

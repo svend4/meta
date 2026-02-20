@@ -28,6 +28,7 @@ Yang-орбиты (оbits числа единичных битов):
 """
 
 from __future__ import annotations
+import json
 import sys
 import argparse
 
@@ -357,6 +358,120 @@ def render_burnside(n_colors: int = 2, color: bool = True) -> str:
 
 
 # ---------------------------------------------------------------------------
+# JSON-экспорт (для пайплайнов SC-3)
+# ---------------------------------------------------------------------------
+
+def json_rule_orbits() -> dict:
+    """
+    Классифицировать все КА-правила Q6 по орбитам Aut(Q6).
+
+    Ключевой вопрос: какие правила являются Aut(Q6)-эквивариантными?
+    Правило f эквивариантно если: f(g·x, g·nbrs) = g·f(x, nbrs) для всех g ∈ Aut(Q6).
+
+    Практический тест: эквивариантное правило сохраняет ян-баланс распределения.
+    Инвариант Aut(Q6): yang_count(h) — ян-слои являются орбитами под S₆.
+    """
+    import random as _random
+    # Импортируем CA-модуль локально (K2×K8 пересечение)
+    from projects.hexca.hexca import CA1D
+    from projects.hexca.rules import RULES
+
+    WIDTH = 32
+    STEPS = 30
+    SEED = 42
+
+    yang_orbits_info = yang_orbits()
+    orbit_sizes = [len(o) for o in yang_orbits_info]  # [1,6,15,20,15,6,1]
+
+    rule_results = []
+    for rule_name, rule_fn in RULES.items():
+        _random.seed(SEED)
+        ca = CA1D(WIDTH, rule_fn)
+        ca.run(STEPS)
+
+        # Проверить ян-баланс: начальное и конечное распределение по ян-счёту
+        def yang_dist(row):
+            from collections import Counter
+            cnt = Counter(yang_count(h) for h in row)
+            return [cnt.get(k, 0) / len(row) for k in range(7)]
+
+        dist_init = yang_dist(ca.history[0])
+        dist_final = yang_dist(ca.history[-1])
+
+        # Расстояние Вассерштейна (L1) между ян-распределениями
+        yang_drift = sum(abs(dist_final[k] - dist_init[k]) for k in range(7))
+
+        # Эквивариантность: сохраняется ли ян-баланс?
+        equivariant = yang_drift < 0.15
+
+        # Проверить конвергенцию
+        conv_step = None
+        for t in range(1, len(ca.history)):
+            if ca.history[t] == ca.history[t - 1]:
+                conv_step = t
+                break
+        period_2 = (len(ca.history) >= 3 and
+                    ca.history[-1] == ca.history[-3])
+
+        # Классификация Вольфрама
+        init_entropy = _entropy(ca.history[0])
+        final_entropy = _entropy(ca.history[-1])
+        if conv_step is not None and conv_step <= 3:
+            wolfram = 'I'
+        elif conv_step is not None or period_2:
+            wolfram = 'II'
+        elif final_entropy > init_entropy * 0.85:
+            wolfram = 'III_or_IV'
+        else:
+            wolfram = 'II'
+
+        rule_results.append({
+            'rule': rule_name,
+            'equivariant': equivariant,
+            'yang_drift': round(yang_drift, 4),
+            'wolfram_class': wolfram,
+            'convergence_step': conv_step,
+            'initial_entropy': round(init_entropy, 4),
+            'final_entropy': round(final_entropy, 4),
+        })
+
+    equivariant_rules = [r['rule'] for r in rule_results if r['equivariant']]
+    non_equivariant = [r['rule'] for r in rule_results if not r['equivariant']]
+
+    # Burnside: число орбит функций Q6→Q6 при Aut(Q6)-действии
+    # Оценочно: сокращение пространства правил симметрией
+    n_named_rules = len(RULES)
+    n_equiv = len(equivariant_rules)
+
+    return {
+        'command': 'rule_orbits',
+        'aut_q6_order': _AUT_ORDER,
+        'yang_orbit_sizes': orbit_sizes,      # [1,6,15,20,15,6,1]
+        'yang_orbit_count': 7,
+        'rules_analyzed': list(RULES.keys()),
+        'per_rule': rule_results,
+        'equivariant_rules': equivariant_rules,
+        'non_equivariant_rules': non_equivariant,
+        'equivariant_fraction': round(n_equiv / n_named_rules, 3),
+        'sc3_finding': (
+            f'Из {n_named_rules} правил {n_equiv} Aut(Q6)-эквивариантны '
+            f'(ян-баланс сохраняется). '
+            f'Aut(Q6) с порядком {_AUT_ORDER} группирует ~2^64 правил '
+            f'в орбиты; 7 ян-слоёв — инварианты для K2×K8.'
+        ),
+    }
+
+
+def _entropy(row: list[int]) -> float:
+    """Шенноновская энтропия строки состояний."""
+    import math
+    from collections import Counter
+    cnt = Counter(row)
+    n = len(row)
+    return -sum(c / n * math.log2(c / n) for c in cnt.values()) if n > 0 else 0.0
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -366,7 +481,13 @@ def _make_parser() -> argparse.ArgumentParser:
         description='Группа автоморфизмов Aut(Q6) через глифы',
     )
     p.add_argument('--no-color', action='store_true')
+    p.add_argument('--json', action='store_true',
+                   help='Машиночитаемый JSON-вывод (для пайплайнов)')
     sub = p.add_subparsers(dest='cmd', required=True)
+
+    # rule-orbits — SC-3 шаг 3: классификация КА-правил по орбитам Aut(Q6)
+    sub.add_parser('rule-orbits',
+                   help='Классифицировать КА-правила по Aut(Q6)-орбитам → JSON')
 
     sub.add_parser('yang',      help='7 орбит по yang_count')
     sub.add_parser('fixed',     help='неподвижные точки генераторов')
@@ -382,6 +503,29 @@ def main(argv: list[str] | None = None) -> None:
     p = _make_parser()
     args = p.parse_args(argv)
     color = not args.no_color
+
+    if args.cmd == 'rule-orbits':
+        result = json_rule_orbits()
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f'  Aut(Q6): порядок={result["aut_q6_order"]}'
+                  f'  ян-орбит={result["yang_orbit_count"]}')
+            print(f'  Размеры ян-слоёв: {result["yang_orbit_sizes"]}')
+            print()
+            print(f'  {"Правило":<20}  {"Экв?":<6}  {"Класс":<10}  {"H0→HN":<14}  drift')
+            print('  ' + '─' * 60)
+            for r in result['per_rule']:
+                eq = '✓' if r['equivariant'] else '✗'
+                print(f'  {r["rule"]:<20}  {eq:<6}  {r["wolfram_class"]:<10}  '
+                      f'{r["initial_entropy"]:.2f}→{r["final_entropy"]:.2f}        '
+                      f'{r["yang_drift"]:.3f}')
+            print()
+            print(f'  Эквивариантные: {result["equivariant_rules"]}')
+            print(f'  Неэквивариантные: {result["non_equivariant_rules"]}')
+            print()
+            print(f'  Открытие: {result["sc3_finding"]}')
+        return
 
     if args.cmd == 'yang':
         print(render_yang(color))
