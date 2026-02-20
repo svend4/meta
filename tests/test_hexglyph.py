@@ -286,6 +286,34 @@ class TestRussianPhonetic(unittest.TestCase):
         self.assertIn('Solan4', content)
         self.assertIn('font-face', content)
 
+    def test_viewer_triangle_has_64_cells(self):
+        import re
+        content = viewer_path().read_text(encoding='utf-8')
+        cells = re.findall(r'class="tri-cell', content)
+        self.assertEqual(len(cells), 64)
+
+    def test_viewer_triangle_correct_row_counts(self):
+        import re, math
+        content = viewer_path().read_text(encoding='utf-8')
+        for k in range(7):
+            expected = math.comb(6, k)
+            cells_in_row = re.findall(rf'class="tri-cell w{k} ', content)
+            self.assertEqual(len(cells_in_row), expected,
+                             f'rank {k}: expected {expected} cells')
+
+    def test_viewer_triangle_has_pixel_and_seq(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('class="tri-cell w6 pixel"', content)  # h=63 confirmed
+        self.assertIn('class="tri-cell w0 seq"',   content)  # h=0  sequential
+
+    def test_viewer_triangle_apex_is_E(self):
+        # h=63 apex must show 'E' (pixel-confirmed all-segments glyph)
+        import re
+        content = viewer_path().read_text(encoding='utf-8')
+        apex = re.search(r'class="tri-cell w6 pixel"[^>]*>(.)</div>', content)
+        self.assertIsNotNone(apex)
+        self.assertEqual(apex.group(1), 'E')
+
 
 class TestSolanTriangle(unittest.TestCase):
 
