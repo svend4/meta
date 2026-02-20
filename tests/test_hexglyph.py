@@ -1009,6 +1009,30 @@ class TestSolanCA(unittest.TestCase):
         self.assertIn('Транзиент', out)
         self.assertIn('Период', out)
 
+    # --- viewer: orbit table ---
+
+    def test_viewer_has_orbit_table(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('orbit-table', content)
+        self.assertIn('findOrbitJS', content)
+        self.assertIn('renderOrbitTable', content)
+
+    def test_viewer_orbit_table_has_rule_labels(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('RULE_LABELS', content)
+        for label in ('XOR', 'XOR3', 'AND', 'OR'):
+            self.assertIn(label, content)
+
+    def test_viewer_orbit_table_called_in_render(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('renderOrbitTable()', content)
+
+    def test_viewer_orbit_shows_cycle_strip(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        # Cycle strip uses → separator and Solan font
+        self.assertIn('→', content)
+        self.assertIn('pLimit', content)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

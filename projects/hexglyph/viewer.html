@@ -962,6 +962,13 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 .ca-panel-title { font-size:10px;color:#4a4a4a;margin-bottom:3px;font-family:monospace; }
 .ca-panel-grid  { font-family:Solan4,monospace;font-size:11px;line-height:1.1;white-space:nowrap;overflow:hidden; }
 </style>
+<!-- Orbit table -->
+<p class="meta" style="margin:10px 0 4px">
+  Орбиты — транзиент T и период P для каждого правила · первые 16 клеток цикла
+</p>
+<table id="orbit-table"
+       style="width:100%;border-collapse:collapse;font-family:monospace;font-size:12px;margin-bottom:6px">
+</table>
 <style>
 .cabtn {
   background:#111; border:1px solid #2a2a2a; color:#555;
@@ -1029,6 +1036,57 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     });
   }
 
+  function findOrbitJS(init, r, maxSteps) {
+    var seen={}, cur=init.slice();
+    for(var t=0;t<=maxSteps;t++){
+      var key=cur.join(',');
+      if(seen.hasOwnProperty(key)) return {transient:seen[key], period:t-seen[key]};
+      seen[key]=t;
+      cur=nextRowWith(cur,r);
+    }
+    return {transient:null, period:null};
+  }
+
+  var RULE_LABELS = {
+    'xor':  'XOR ⊕ — (Z₂)⁶, фрактал',
+    'xor3': 'XOR3  — сдвиг',
+    'and':  'AND & — схлопывается',
+    'or':   'OR |  — расширяется'
+  };
+
+  function renderOrbitTable() {
+    var tbl = document.getElementById('orbit-table'); if(!tbl) return;
+    var init = INIT.slice(0, 24); while(init.length<24) init.push(0);
+    var html='';
+    ['xor','xor3','and','or'].forEach(function(r) {
+      var o = findOrbitJS(init, r, 800);
+      var tp = (o.transient===null)
+        ? '<span style="color:#555">T=? P&gt;800</span>'
+        : '<span style="color:#aaa">T='+o.transient+'</span>&nbsp;&nbsp;<span style="color:#4fc3f7">P='+o.period+'</span>';
+      // Build cycle strip (up to 8 states, 16 cells each)
+      var strip='', cur=init.slice();
+      for(var i=0;i<(o.transient||0);i++) cur=nextRowWith(cur,r);
+      var pLimit = Math.min(o.period||0, 8);
+      for(var s=0;s<pLimit;s++){
+        strip += '<span style="display:inline-block;margin-right:5px">';
+        for(var i=0;i<16;i++){
+          var h=cur[i]; strip+='<span style="color:'+col(h)+'">'+(H2C[h]||'?')+'</span>';
+        }
+        strip += '</span>';
+        if(s < pLimit-1) strip += '<span style="color:#333">→</span>';
+        cur = nextRowWith(cur,r);
+      }
+      if(o.period>8) strip += '<span style="color:#333"> …</span>';
+      if(!o.period) strip = '<span style="color:#2a2a2a">—</span>';
+      html += '<tr>'
+        + '<td style="color:#4fc3f7;padding:3px 10px 3px 0;white-space:nowrap">'+RULE_LABELS[r]+'</td>'
+        + '<td style="padding:3px 12px 3px 0;white-space:nowrap">'+tp+'</td>'
+        + '<td style="font-family:Solan4,monospace;font-size:12px;padding:3px 0">'+strip+'</td>'
+        + '</tr>';
+    });
+    tbl.innerHTML = html;
+  }
+
   function buildHistory() {
     HIST = [INIT.slice()];
     var cur = HIST[0];
@@ -1063,6 +1121,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     var t0 = HIST.length-1;
     var st = document.getElementById('ca-status'); if(st) st.textContent='правило: '+RULE+'  ·  t='+t0+'  ·  ширина='+CW;
     renderCompare();
+    renderOrbitTable();
   }
 
   window.caSetRule = function(r){
