@@ -697,6 +697,16 @@ class TestSolanPhonetic(unittest.TestCase):
         for seg in ('sv-T', 'sv-B', 'sv-L', 'sv-R', 'sv-D1', 'sv-D2'):
             self.assertIn(seg, content)
 
+    def test_viewer_tri_cells_clickable(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wireCell', content)
+        self.assertIn('tri-cell', content)
+
+    def test_viewer_phon_cells_linked_to_explorer(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('phon-cell', content)
+        self.assertIn('scrollIntoView', content)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

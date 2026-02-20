@@ -657,7 +657,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </div></div>
 <div class="section">
 <h2>Треугольник Хассе B₆ — Solan (64/64 вершин Q6)</h2>
-<p class="meta">● яркие = пиксельно подтверждено (24/64) · ○ тусклые = последовательное назначение (40/64)<br>Наведите на символ — h-индекс, биты, активные сегменты, русская фонетика</p>
+<p class="meta">● яркие = пиксельно подтверждено (24/64) · ○ тусклые = последовательное назначение (40/64)<br>Наведите на символ — h-индекс, биты, активные сегменты, русская фонетика · <b>Нажмите → Q6-Эксплорер</b></p>
 <div class="triangle">
 <div class="tri-row"><div class="tri-cell w0 seq" title="h=0  000000  ∅  ○">0</div><span class="tri-label">w=0&thinsp;(1)</span></div>
 <div class="tri-row"><div class="tri-cell w1 seq" title="h=1  000001  T  ○">1</div><div class="tri-cell w1 seq" title="h=2  000010  B  ○">2</div><div class="tri-cell w1 seq" title="h=4  000100  L  ○">3</div><div class="tri-cell w1 seq" title="h=8  001000  R  ○">4</div><div class="tri-cell w1 seq" title="h=16  010000  D1  ○">5</div><div class="tri-cell w1 seq" title="h=32  100000  D2  ○">6</div><span class="tri-label">w=1&thinsp;(6)</span></div>
@@ -670,7 +670,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </div>
 <div class="section">
 <h2>Русская фонетика — «Алфавит 16 букв / 36 звуков»</h2>
-<p class="meta">Авторская система Энгеля ~2000-е гг.  Каждой русской букве соответствует Q6-символ Solan.<br>● пиксельно подтверждено · ○ последовательное назначение · цвет = уверенность</p>
+<p class="meta">Авторская система Энгеля ~2000-е гг.  Каждой русской букве соответствует Q6-символ Solan.<br>● пиксельно подтверждено · ○ последовательное назначение · цвет = уверенность · <b>Нажмите на карточку → Q6-Эксплорер</b></p>
 <div class="phon-grid">
 <div class="phon-cell" title="А · h=63 111111 · T+B+L+R+D1+D2 · ●●● ● · все 6 отрезков ⊠"><div class="phon-ru">А</div><div class="phon-solan" style="color:#81c784">E</div><div class="phon-info" style="color:#81c784">h=63</div><div class="phon-conf" style="color:#81c784">●●● ●</div><div class="phon-segs">T+B+L+R+D1+D2</div></div>
 <div class="phon-cell" title="Р · h=15 001111 · T+B+L+R · ●●● ● · рамка □"><div class="phon-ru">Р</div><div class="phon-solan" style="color:#81c784">A</div><div class="phon-info" style="color:#81c784">h=15</div><div class="phon-conf" style="color:#81c784">●●● ●</div><div class="phon-segs">T+B+L+R</div></div>
@@ -829,6 +829,19 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
   document.querySelectorAll(".q6hit").forEach(function(el) {
     el.addEventListener("click", function() { q6toggle(this.getAttribute("data-s")); });
   });
+  // Make Hasse triangle cells and phonetic cells clickable → Q6 explorer
+  function wireCell(el) {
+    var m = el.title.match(/h=(\d+)/);
+    if (!m) return;
+    var hv = +m[1];
+    el.style.cursor = "pointer";
+    el.addEventListener("click", function() {
+      q6setH(hv);
+      document.getElementById("q6-char").scrollIntoView({behavior:"smooth", block:"center"});
+    });
+  }
+  document.querySelectorAll(".tri-cell").forEach(wireCell);
+  document.querySelectorAll(".phon-cell").forEach(wireCell);
   update();
 })();
 </script>
