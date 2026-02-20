@@ -377,6 +377,75 @@ def run_compare(
     print('\n' + sep)
 
 
+# ── Анимация ─────────────────────────────────────────────────────────────────
+
+def run_animate(
+    width:  int   = 40,
+    rule:   str   = 'xor',
+    ic:     str   = 'center',
+    delay:  float = 0.12,
+    rows:   int   = 16,
+    color:  bool  = True,
+    word:   str   = '',
+    seed:   int | None = None,
+) -> None:
+    """Анимация CA: скользящее окно из ``rows`` последних шагов.
+
+    Обновляет экран на месте с помощью ANSI escape-кодов.
+    Прерывается по Ctrl+C.
+    """
+    import time
+
+    cells = make_initial(width, ic, word=word, seed=seed)
+
+    # Предзаполнение истории
+    hist: list[list[int]] = [list(cells)]
+    for _ in range(rows - 1):
+        cells = step(cells, rule)
+        hist.append(list(cells))
+
+    _HIDE = '\033[?25l'   # скрыть курсор
+    _SHOW = '\033[?25h'   # показать курсор
+
+    def _up(n: int) -> str:
+        return f'\033[{n}A'
+
+    def _draw(t_base: int) -> None:
+        for i, row in enumerate(hist):
+            t = t_base + i
+            print(f'\033[2K\r{t:4d} │ ' + render_row_char(row, color))
+        rule_col = _RULE_COLOR.get(rule, '')
+        rc = rule_col if color else ''
+        rs = _RST if color else ''
+        di = _DIM if color else ''
+        status = f"rule={rc}{_RULE_NAMES.get(rule, rule)}{rs}  width={width}  delay={delay:.2f}s  (Ctrl+C — стоп)"
+        print(f'\033[2K\r  {di}{status}{rs}', end='', flush=True)
+
+    sys.stdout.write(_HIDE)
+    sys.stdout.flush()
+
+    t = rows - 1
+    _draw(0)
+
+    try:
+        while True:
+            time.sleep(delay)
+            cells = step(hist[-1], rule)
+            hist.append(list(cells))
+            if len(hist) > rows:
+                hist.pop(0)
+            t += 1
+            sys.stdout.write(_up(rows + 1))
+            sys.stdout.flush()
+            _draw(t - rows + 1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        sys.stdout.write(_SHOW)
+        sys.stdout.flush()
+        print()
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -405,6 +474,12 @@ if __name__ == '__main__':
                         help='найти транзиент и период орбиты, показать цикл')
     parser.add_argument('--compare', action='store_true',
                         help='показать эволюцию для всех 4 правил подряд')
+    parser.add_argument('--animate', action='store_true',
+                        help='анимация: скользящее окно в реальном времени')
+    parser.add_argument('--delay', type=float, default=0.12,
+                        help='задержка между шагами анимации, сек (default: 0.12)')
+    parser.add_argument('--rows', type=int, default=16,
+                        help='число отображаемых строк в анимации (default: 16)')
     args = parser.parse_args()
 
     _color = not args.no_color
@@ -418,6 +493,17 @@ if __name__ == '__main__':
             steps=args.steps,
             ic=args.ic,
             mode=args.mode,
+            color=_color,
+            word=args.word,
+            seed=args.seed,
+        )
+    elif args.animate:
+        run_animate(
+            width=args.width,
+            rule=args.rule,
+            ic=args.ic,
+            delay=args.delay,
+            rows=args.rows,
             color=_color,
             word=args.word,
             seed=args.seed,

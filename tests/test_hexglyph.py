@@ -1204,6 +1204,48 @@ class TestSolanEntropy(unittest.TestCase):
         for label in ('XOR', 'XOR3', 'AND', 'OR'):
             self.assertIn(label, out)
 
+    # --- viewer: entropy sparklines ---
+
+    def test_viewer_has_entropy_sparks_table(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('entropy-sparks', content)
+        self.assertIn('renderEntropySparklines', content)
+
+    def test_viewer_entropy_uses_calcEntropy(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('calcEntropy', content)
+        self.assertIn('Math.log2', content)
+
+    def test_viewer_entropy_sparkline_chars(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ENT_BLOCK', content)
+        self.assertIn('▁▂▃▄▅▆▇█', content)
+
+    def test_viewer_entropy_called_in_render(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('renderEntropySparklines()', content)
+
+    # --- run_animate ---
+
+    def test_run_animate_importable(self):
+        from projects.hexglyph.solan_ca import run_animate
+        self.assertTrue(callable(run_animate))
+
+    def test_animate_cli_flag_in_source(self):
+        import pathlib
+        src = pathlib.Path('projects/hexglyph/solan_ca.py').read_text()
+        self.assertIn('--animate', src)
+        self.assertIn('--delay', src)
+        self.assertIn('--rows', src)
+
+    def test_run_animate_signature(self):
+        import inspect
+        from projects.hexglyph.solan_ca import run_animate
+        sig = inspect.signature(run_animate)
+        params = list(sig.parameters)
+        for p in ('width', 'rule', 'ic', 'delay', 'rows', 'color'):
+            self.assertIn(p, params)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
