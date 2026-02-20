@@ -1,7 +1,7 @@
 """registry.py — База данных всех модулей, кластеров и супер-кластеров Q6.
 
 Структура:
-  MODULES  — 41 модуль: {name: ModuleInfo}
+  MODULES  — 42 модуля: {name: ModuleInfo}
   CLUSTERS — 8 кластеров: {id: ClusterInfo}
   SUPERCLUSTERS — 11 супер-кластеров: {id: SuperClusterInfo}
 
@@ -224,12 +224,6 @@ MODULES: dict[str, ModuleInfo] = {
     ),
 
     # K8 — Схематический кластер
-    'hexmat': ModuleInfo(
-        name='hexmat', path='projects.hexmat.hexmat',
-        commands=['matrix', 'det', 'eigen'],
-        cluster='K8', json_ready=False,
-        description='Матричные операции над GF(2)',
-    ),
     'hexalg': ModuleInfo(
         name='hexalg', path='projects.hexalg.hexalg',
         commands=['algebra', 'ideals', 'quotient'],
