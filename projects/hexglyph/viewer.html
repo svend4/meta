@@ -2888,6 +2888,302 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Спектральный анализ Q6 — ДПФ аттрактора</h2>
+<p class="meta">Пространственные частоты CA-аттрактора (k=1..8, λ=16..2 клетки)
+  · Слева: AC-спектр выбранного слова · Справа: карта всего лексикона (49 слов × 8 частот)</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="spec-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="spec-rule"
+    style="background:#111;color:#4fc3f7;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor3">XOR3</option>
+    <option value="xor">XOR ⊕</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <button id="spec-btn"
+    style="background:#1a1a2e;color:#80deea;border:1px solid #2a2a5a;
+           padding:5px 14px;cursor:pointer;font-size:13px">Спектр</button>
+</div>
+<canvas id="spec-canvas" width="700" height="460"
+  style="display:block;border:1px solid #1a1a1a;cursor:crosshair"></canvas>
+<div id="spec-info"
+  style="font-family:monospace;font-size:11px;color:#555;min-height:16px;margin-top:5px"> </div>
+<script>
+(function(){
+  var HALF = 8;  // N//2 for N=16
+  var N_CELLS = 16;
+
+  // ── DFT of one row ────────────────────────────────────────────────────────
+  function rowSpectrum(cells) {
+    var N = cells.length;
+    var result = [];
+    var tpi_N = 2 * Math.PI / N;
+    for (var k = 0; k <= N/2; k++) {
+      var re = 0, im = 0;
+      for (var n = 0; n < N; n++) {
+        var ang = tpi_N * k * n;
+        re += cells[n] * Math.cos(ang);
+        im += cells[n] * Math.sin(ang);
+      }
+      result.push((re*re + im*im) / (N*N));
+    }
+    return result;
+  }
+
+  // ── AC-normalise spectrum ─────────────────────────────────────────────────
+  function acNorm(spectrum) {
+    var acTotal = spectrum.slice(1).reduce(function(s,x){return s+x;},0);
+    if (acTotal < 1e-12) return spectrum.map(function(){return 0;});
+    return [0].concat(spectrum.slice(1).map(function(v){return v/acTotal;}));
+  }
+
+  // ── Compute attractor spectrum for one word/rule ──────────────────────────
+  function computeSpectrum(word, rule) {
+    var encFn = window.encL, padFn = window.padL;
+    var nexFn = window.caNextRow, orbitFn = window.findOrbitJS;
+    var lw = window.LEXW || 16, ls = window.LEXSTEPS || 800;
+    if (!encFn) return null;
+    var cells = padFn(encFn(word.toUpperCase()), lw);
+    var orb   = orbitFn(cells, rule, ls);
+    if (orb.transient === null) return null;
+    var tr = orb.transient, per = orb.period;
+    var c = cells.slice();
+    // advance to attractor
+    for (var i = 0; i < tr; i++) c = nexFn(c, rule);
+    // average spectrum over one period
+    var avg = new Array(HALF + 1).fill(0);
+    var cur = c.slice();
+    for (var p = 0; p < per; p++) {
+      var sp = rowSpectrum(cur);
+      for (var k = 0; k <= HALF; k++) avg[k] += sp[k];
+      cur = nexFn(cur, rule);
+    }
+    for (var k = 0; k <= HALF; k++) avg[k] /= per;
+    var ac = acNorm(avg);
+    var domK = 1;
+    for (var k = 2; k <= HALF; k++) { if (ac[k] > ac[domK]) domK = k; }
+    return {
+      power: avg, ac: ac, domK: domK, domWl: N_CELLS/domK,
+      transient: tr, period: per,
+      dc: avg[0], total: avg.reduce(function(s,x){return s+x;},0)
+    };
+  }
+
+  // ── Colour palettes ───────────────────────────────────────────────────────
+  var FREQ_HUE = [0, 30, 60, 120, 180, 210, 270, 310]; // hue for k=1..8
+  function freqColor(k, amp) {
+    var hue = FREQ_HUE[(k-1) % FREQ_HUE.length];
+    var lig = Math.round(15 + amp * 55);
+    return 'hsl(' + hue + ',75%,' + lig + '%)';
+  }
+
+  // ── Draw bar chart (left panel) ───────────────────────────────────────────
+  var LP=10, TP=30, LW=380, LH_INNER=380;
+
+  function drawBarChart(sp, word, rule, ctx) {
+    if (!sp) return;
+    var ac = sp.ac;
+    var barAreaW = LW - 60, barAreaH = LH_INNER - 20;
+    var barW = Math.floor(barAreaW / HALF) - 4;
+    var bx0  = LP + 50;
+
+    // Axes
+    ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(LP+48, TP+5); ctx.lineTo(LP+48, TP+barAreaH+5);
+    ctx.moveTo(LP+48, TP+barAreaH+5); ctx.lineTo(LP+LW, TP+barAreaH+5);
+    ctx.stroke();
+
+    // Rule label
+    var RNAMES = {xor:'XOR ⊕',xor3:'XOR3',and:'AND &',or:'OR |'};
+    var RCOLS  = {xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = RCOLS[rule] || '#aaa';
+    ctx.fillText(word + ' / ' + (RNAMES[rule]||rule), LP+52, TP-6);
+
+    // Y-axis label
+    ctx.save(); ctx.translate(LP+12, TP+barAreaH/2+30);
+    ctx.rotate(-Math.PI/2); ctx.fillStyle='#222'; ctx.font='9px monospace';
+    ctx.fillText('AC амплитуда', 0, 0); ctx.restore();
+
+    for (var k = 1; k <= HALF; k++) {
+      var amp = ac[k];
+      var bh  = Math.round(amp * barAreaH);
+      var bx  = bx0 + (k-1) * (barW + 4);
+      var by  = TP + 5 + barAreaH - bh;
+
+      // Bar
+      ctx.fillStyle = freqColor(k, amp);
+      if (bh > 0) ctx.fillRect(bx, by, barW, bh);
+
+      // Dominant marker
+      if (k === sp.domK) {
+        ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 1.5;
+        ctx.setLineDash([3,2]);
+        ctx.strokeRect(bx-1, TP+4, barW+2, barAreaH+1);
+        ctx.setLineDash([]);
+      }
+
+      // X labels
+      ctx.font = '9px monospace'; ctx.fillStyle = '#2a2a2a';
+      ctx.fillText('k='+k, bx, TP+barAreaH+16);
+      ctx.fillText('λ='+(N_CELLS/k).toFixed(0), bx, TP+barAreaH+26);
+
+      // Amplitude label (if significant)
+      if (amp > 0.05) {
+        ctx.fillStyle = '#444'; ctx.font = '8px monospace';
+        ctx.fillText(amp.toFixed(2), bx, by-2);
+      }
+    }
+
+    // Stats line
+    var dcF = sp.total > 1e-12 ? sp.dc / sp.total : 1;
+    ctx.font = '9px monospace'; ctx.fillStyle = '#222';
+    ctx.fillText('DC=' + (dcF*100).toFixed(0) + '%  T=' + sp.transient + '  P='+sp.period,
+      LP+52, TP+barAreaH+38);
+  }
+
+  // ── Draw lexicon heatmap (right panel) ────────────────────────────────────
+  var RP0 = 400, RW = 290, RP_TM = 30;
+
+  function drawLexiconMap(allSp, words, rule, selWord, ctx, canvasH) {
+    if (!allSp || !words.length) return;
+    var n = words.length;
+    var cellH = Math.max(7, Math.floor((canvasH - RP_TM - 20) / n));
+    var cellW = Math.floor((RW - 40) / HALF);
+
+    // Header
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = '#222'; ctx.fillText('Лексикон × k (XOR3)', RP0+2, RP_TM-6);
+    for (var k = 1; k <= HALF; k++) {
+      ctx.fillStyle = '#1a1a1a'; ctx.font = '8px monospace';
+      ctx.fillText('k'+k, RP0+36 + (k-1)*cellW, RP_TM-2);
+    }
+
+    // Sort words by dominant k then by amplitude
+    var sorted = words.slice().sort(function(a, b) {
+      var sa = allSp[a], sb = allSp[b];
+      if (!sa || !sb) return 0;
+      if (sa.domK !== sb.domK) return sa.domK - sb.domK;
+      return sb.ac[sa.domK] - sa.ac[sa.domK];
+    });
+
+    sorted.forEach(function(word, ri) {
+      var sp = allSp[word];
+      var y  = RP_TM + ri * cellH;
+      var isSelected = (word === selWord);
+
+      // Word label
+      ctx.font = isSelected ? 'bold 8px monospace' : '7px monospace';
+      ctx.fillStyle = isSelected ? '#80deea' : '#1e1e1e';
+      ctx.fillText(word.slice(0,6), RP0, y + cellH*0.8);
+
+      if (!sp) return;
+
+      for (var k = 1; k <= HALF; k++) {
+        var amp = sp.ac[k];
+        var cx  = RP0 + 36 + (k-1)*cellW;
+        ctx.fillStyle = freqColor(k, amp);
+        if (amp > 1e-4) ctx.fillRect(cx, y, cellW-1, cellH-1);
+        else {
+          ctx.fillStyle = '#0a0a0a';
+          ctx.fillRect(cx, y, cellW-1, cellH-1);
+        }
+        // Dominant marker
+        if (k === sp.domK) {
+          ctx.strokeStyle = isSelected ? '#ffd54f' : '#1e1e1e';
+          ctx.lineWidth = isSelected ? 1.5 : 0.5;
+          ctx.strokeRect(cx, y, cellW-1, cellH-1);
+        }
+      }
+    });
+  }
+
+  // ── Main draw ─────────────────────────────────────────────────────────────
+  var _allSpectra = null;
+
+  function draw(selWord, rule, canvas, ctx) {
+    var W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, W, H);
+
+    var sp = computeSpectrum(selWord, rule);
+    drawBarChart(sp, selWord, rule, ctx);
+
+    // Divider
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(395, 10); ctx.lineTo(395, H-10); ctx.stroke();
+
+    if (!_allSpectra) {
+      var lex = window.LEXICON_ARR || [];
+      _allSpectra = {};
+      lex.forEach(function(w){ _allSpectra[w] = computeSpectrum(w, rule); });
+    }
+    drawLexiconMap(_allSpectra, Object.keys(_allSpectra), rule, selWord, ctx, H);
+
+    // Info line
+    if (sp) {
+      document.getElementById('spec-info').textContent =
+        selWord + '/' + rule + '  T=' + sp.transient + '  P=' + sp.period
+        + '  dom_k=' + sp.domK + '  λ=' + sp.domWl.toFixed(1)
+        + '  dom_amp=' + sp.ac[sp.domK].toFixed(3);
+    }
+  }
+
+  function run() {
+    var word  = document.getElementById('spec-word').value || 'ГОРА';
+    var rule  = document.getElementById('spec-rule').value;
+    _allSpectra = null;  // recompute on rule change
+    var canvas = document.getElementById('spec-canvas');
+    draw(word, rule, canvas, canvas.getContext('2d'));
+  }
+  window.specRun = run;
+
+  // ── Hover ─────────────────────────────────────────────────────────────────
+  var _lastRule = 'xor3', _lastWord = 'ГОРА';
+  document.getElementById('spec-canvas').addEventListener('mousemove', function(e){
+    var rect = this.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var info = '';
+    if (mx > 400 && _allSpectra) {
+      var k = Math.floor((mx - 400 - 36) / Math.floor(250/HALF)) + 1;
+      if (k >= 1 && k <= HALF) {
+        var top = Object.keys(_allSpectra).map(function(w){
+          return {word: w, amp: _allSpectra[w] ? _allSpectra[w].ac[k] : 0};
+        }).sort(function(a,b){return b.amp - a.amp;}).slice(0,5);
+        info = 'k=' + k + '  λ=' + (N_CELLS/k).toFixed(1) + '  топ: '
+          + top.map(function(x){return x.word + '(' + x.amp.toFixed(2) + ')';}).join('  ');
+      }
+    }
+    document.getElementById('spec-info').textContent = info || document.getElementById('spec-info').textContent;
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  function populateDropdown() {
+    var sel = document.getElementById('spec-word');
+    (window.LEXICON_ARR || []).forEach(function(w) {
+      var opt = document.createElement('option');
+      opt.value = w; opt.textContent = w;
+      sel.appendChild(opt);
+    });
+    sel.value = 'ГОРА';
+  }
+
+  document.getElementById('spec-btn').addEventListener('click', run);
+  document.getElementById('spec-word').addEventListener('change', run);
+  document.getElementById('spec-rule').addEventListener('change', function(){
+    _allSpectra = null; run();
+  });
+
+  setTimeout(function(){
+    populateDropdown();
+    if (window.encL) run();
+  }, 1000);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Фонемный анализ Q6 — карта замен</h2>
 <p class="meta">Для каждой позиции слова: какие фонемные замены меняют орбитальный класс?
   · цвет ячейки = новый класс · серый = класс сохранён · × = исходная буква</p>

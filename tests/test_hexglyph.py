@@ -2978,6 +2978,261 @@ class TestSolanMatrix(unittest.TestCase):
         self.assertIn('setTimeout', content)
 
 
+class TestSolanSpectral(unittest.TestCase):
+    """Tests for solan_spectral.py and the viewer Spectral section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spectral import (
+            row_spectrum, attractor_spectrum, all_spectra,
+            spectral_distance, spectral_fingerprint,
+            build_spectral_data, spectral_dict,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.row_spectrum        = staticmethod(row_spectrum)
+        cls.attractor_spectrum  = staticmethod(attractor_spectrum)
+        cls.all_spectra         = staticmethod(all_spectra)
+        cls.spectral_distance   = staticmethod(spectral_distance)
+        cls.spectral_fingerprint = staticmethod(spectral_fingerprint)
+        cls.build_spectral_data = staticmethod(build_spectral_data)
+        cls.spectral_dict       = staticmethod(spectral_dict)
+        cls.LEXICON             = list(LEXICON)
+
+    # ── row_spectrum() ────────────────────────────────────────────────────────
+
+    def test_row_spectrum_zeros(self):
+        sp = self.row_spectrum([0] * 16)
+        self.assertAlmostEqual(sum(sp), 0.0, places=10)
+
+    def test_row_spectrum_uniform(self):
+        # All-same value → only DC component
+        sp = self.row_spectrum([32] * 16)
+        self.assertAlmostEqual(sp[0], 1024.0, places=5)   # 32² = 1024
+        self.assertTrue(all(abs(sp[k]) < 1e-8 for k in range(1, len(sp))))
+
+    def test_row_spectrum_length(self):
+        sp = self.row_spectrum([0] * 16)
+        self.assertEqual(len(sp), 9)  # N//2 + 1 = 9 for N=16
+
+    def test_row_spectrum_nonnegative(self):
+        import random
+        cells = [random.randint(0, 63) for _ in range(16)]
+        sp = self.row_spectrum(cells)
+        for v in sp:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_row_spectrum_periodic_input(self):
+        # Period-4 signal: only k=0,4,8 are non-zero
+        base = [49, 47, 15, 63]
+        cells = base * 4  # 16 cells with period 4
+        sp = self.row_spectrum(cells)
+        # k=1,2,3,5,6,7 should be (near) zero
+        for k in [1, 2, 3, 5, 6, 7]:
+            self.assertLess(sp[k], 1e-4,
+                msg=f'Expected sp[{k}] ≈ 0 for period-4 input, got {sp[k]}')
+        # k=4 and k=8 should be non-zero
+        self.assertGreater(sp[4], 1.0)
+        self.assertGreater(sp[8], 1.0)
+
+    # ── attractor_spectrum() ──────────────────────────────────────────────────
+
+    def test_attr_spectrum_keys(self):
+        sp = self.attractor_spectrum('ГОРА', 'xor3')
+        for k in ('rule', 'word', 'transient', 'period', 'n_freqs',
+                  'power', 'ac_power', 'dominant_k', 'dominant_wl',
+                  'dominant_amp', 'dc'):
+            self.assertIn(k, sp)
+
+    def test_attr_spectrum_xor_all_zero(self):
+        # XOR attractor = all-zeros → dc=0 and all ac=0
+        sp = self.attractor_spectrum('ГОРА', 'xor')
+        self.assertAlmostEqual(sp['dc'], 0.0, places=8)
+        self.assertAlmostEqual(sum(sp['ac_power']), 0.0, places=8)
+
+    def test_attr_spectrum_and_alternating(self):
+        # AND attractor for ТУНДРА: alternating → dominant k=8
+        sp = self.attractor_spectrum('ТУНДРА', 'and')
+        self.assertEqual(sp['dominant_k'], 8)
+
+    def test_attr_spectrum_period4_word_has_k4(self):
+        # 4-letter words padded 4× → k=4 and k=8 non-zero only
+        sp = self.attractor_spectrum('ГОРА', 'xor3')
+        ac = sp['ac_power']
+        # k=1,2,3,5,6,7 should be very small
+        for k in [1, 2, 3, 5, 6, 7]:
+            self.assertLess(ac[k], 1e-8,
+                msg=f'Expected ac[{k}]≈0 for 4-letter word, got {ac[k]}')
+
+    def test_attr_spectrum_ac_sums_to_one_or_zero(self):
+        for word in ['ГОРА', 'ЛУНА', 'ТУМАН']:
+            for rule in ['xor3', 'and', 'or']:
+                sp = self.attractor_spectrum(word, rule)
+                ac_sum = sum(sp['ac_power'])
+                self.assertTrue(abs(ac_sum - 1.0) < 1e-8 or abs(ac_sum) < 1e-8,
+                    msg=f'{word}/{rule} ac sum={ac_sum}')
+
+    def test_attr_spectrum_dominant_wl(self):
+        sp = self.attractor_spectrum('ГОРА', 'xor3')
+        expected_wl = 16 / sp['dominant_k']
+        self.assertAlmostEqual(sp['dominant_wl'], expected_wl, places=5)
+
+    def test_attr_spectrum_dc_nonneg(self):
+        for word in self.LEXICON[:5]:
+            for rule in ['xor3', 'and', 'or']:
+                sp = self.attractor_spectrum(word, rule)
+                self.assertGreaterEqual(sp['dc'], 0.0)
+
+    def test_attr_spectrum_n_freqs(self):
+        sp = self.attractor_spectrum('ГОРА', 'xor3', width=16)
+        self.assertEqual(sp['n_freqs'], 9)  # 16//2 + 1
+
+    # ── all_spectra() ─────────────────────────────────────────────────────────
+
+    def test_all_spectra_rules(self):
+        spectra = self.all_spectra('ГОРА')
+        self.assertEqual(set(spectra.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_spectra_consistent(self):
+        spectra = self.all_spectra('ЛУНА')
+        for rule, sp in spectra.items():
+            self.assertEqual(sp['rule'], rule)
+            self.assertEqual(sp['word'], 'ЛУНА')
+
+    # ── spectral_distance() ───────────────────────────────────────────────────
+
+    def test_spectral_distance_self_zero(self):
+        sp = self.attractor_spectrum('ГОРА', 'xor3')
+        self.assertAlmostEqual(self.spectral_distance(sp, sp), 0.0, places=10)
+
+    def test_spectral_distance_symmetric(self):
+        s1 = self.attractor_spectrum('ГОРА', 'xor3')
+        s2 = self.attractor_spectrum('ЛУНА', 'xor3')
+        d12 = self.spectral_distance(s1, s2)
+        d21 = self.spectral_distance(s2, s1)
+        self.assertAlmostEqual(d12, d21, places=10)
+
+    def test_spectral_distance_range(self):
+        s1 = self.attractor_spectrum('ГОРА', 'xor3')
+        s2 = self.attractor_spectrum('ТУМАН', 'xor3')
+        d = self.spectral_distance(s1, s2)
+        self.assertGreaterEqual(d, 0.0)
+        self.assertLessEqual(d, 1.0)
+
+    def test_spectral_distance_xor_zeros_all_equal(self):
+        # All XOR attractors are all-zeros → AC spectra identical (all-zero)
+        sp1 = self.attractor_spectrum('ГОРА', 'xor')
+        sp2 = self.attractor_spectrum('ЛУНА', 'xor')
+        d = self.spectral_distance(sp1, sp2)
+        self.assertAlmostEqual(d, 0.0, places=10)
+
+    # ── spectral_fingerprint() ────────────────────────────────────────────────
+
+    def test_spectral_fingerprint_length(self):
+        fp = self.spectral_fingerprint('ГОРА')
+        # 4 rules × (16//2) = 4 × 8 = 32 values
+        self.assertEqual(len(fp), 32)
+
+    def test_spectral_fingerprint_nonneg(self):
+        fp = self.spectral_fingerprint('ЛУНА')
+        for v in fp:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_spectral_fingerprint_self_similar(self):
+        fp1 = self.spectral_fingerprint('ГОРА')
+        fp2 = self.spectral_fingerprint('ГОРА')
+        self.assertEqual(fp1, fp2)
+
+    # ── build_spectral_data() ─────────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        data = self.build_spectral_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule', 'dom_freq',
+                  'most_harmonic', 'most_dc'):
+            self.assertIn(k, data)
+
+    def test_build_data_per_rule_words(self):
+        words = ['ГОРА', 'ЛУНА', 'ТУМАН']
+        data = self.build_spectral_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    def test_build_data_most_harmonic_is_word(self):
+        words = ['ГОРА', 'ЛУНА', 'ТУМАН']
+        data = self.build_spectral_data(words)
+        for rule in ['xor3', 'and', 'or']:
+            word, amp = data['most_harmonic'][rule]
+            self.assertIn(word, words)
+            self.assertGreaterEqual(amp, 0.0)
+
+    # ── spectral_dict() ───────────────────────────────────────────────────────
+
+    def test_spectral_dict_serialisable(self):
+        import json
+        d = self.spectral_dict('ГОРА')
+        j = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(j, str)
+
+    def test_spectral_dict_keys(self):
+        d = self.spectral_dict('ГОРА')
+        for k in ('word', 'width', 'rules'):
+            self.assertIn(k, d)
+        self.assertEqual(set(d['rules'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_spectral_dict_rule_keys(self):
+        d = self.spectral_dict('ГОРА')
+        for rule_data in d['rules'].values():
+            for k in ('transient', 'period', 'dominant_k', 'dominant_wl',
+                      'dominant_amp', 'dc', 'power', 'ac_power'):
+                self.assertIn(k, rule_data)
+
+    def test_spectral_dict_power_length(self):
+        d = self.spectral_dict('ГОРА', width=16)
+        for rule_data in d['rules'].values():
+            self.assertEqual(len(rule_data['power']), 9)  # N//2+1=9
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_spec_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spec-canvas', content)
+
+    def test_viewer_has_spec_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spec-info', content)
+
+    def test_viewer_has_row_spectrum_fn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rowSpectrum', content)
+
+    def test_viewer_has_ac_norm_fn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('acNorm', content)
+
+    def test_viewer_has_spec_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('specRun', content)
+
+    def test_viewer_spectral_section_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Спектральный анализ Q6', content)
+
+    def test_viewer_has_spec_word_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spec-word', content)
+
+    def test_viewer_has_spec_rule_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spec-rule', content)
+
+    def test_viewer_has_draw_bar_chart(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('drawBarChart', content)
+
+    def test_viewer_has_draw_lexicon_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('drawLexiconMap', content)
+
+
 class TestSolanPhonemeAnalysis(unittest.TestCase):
     """Tests for solan_phoneme.py and the viewer Phoneme Analysis section."""
 
