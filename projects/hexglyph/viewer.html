@@ -2888,6 +2888,248 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Диаграмма Деррида CA Q6</h2>
+<p class="meta">Нормированное расстояние до шага (x) vs после одного шага (y) · все C(49,2)=1176 пар слов лексикона · ниже y=x = упорядоченный CA, выше = хаотичный · пунктир = аналитическое приближение (q=½)</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <label style="color:#aaa;font-size:13px">
+    <input type="checkbox" id="der-xor"  checked/> <span style="color:#f55">XOR ⊕</span>
+  </label>
+  <label style="color:#aaa;font-size:13px">
+    <input type="checkbox" id="der-xor3" checked/> <span style="color:#4dd">XOR3</span>
+  </label>
+  <label style="color:#aaa;font-size:13px">
+    <input type="checkbox" id="der-and"  checked/> <span style="color:#7d7">AND &amp;</span>
+  </label>
+  <label style="color:#aaa;font-size:13px">
+    <input type="checkbox" id="der-or"   checked/> <span style="color:#fa0">OR |</span>
+  </label>
+  <label style="color:#555;font-size:12px;margin-left:10px">
+    <input type="checkbox" id="der-analytic" checked/> аналитика
+  </label>
+  <button id="der-btn"
+    style="background:#1a1e2a;color:#b39ddb;border:1px solid #4a3a7a;
+           padding:5px 14px;cursor:pointer;font-size:13px">Построить</button>
+</div>
+<canvas id="der-canvas" width="700" height="420"
+  style="display:block;border:1px solid #1a1a1a;cursor:crosshair"></canvas>
+<div id="der-info"
+  style="font-family:monospace;font-size:11px;color:#555;min-height:16px;margin-top:5px"> </div>
+<script>
+(function(){
+  var DER_RULES  = ['xor','xor3','and','or'];
+  var DER_COLS   = {xor:'#f55', xor3:'#4dd', and:'#7d7', or:'#fa0'};
+  var DER_NAMES  = {xor:'XOR ⊕', xor3:'XOR3', and:'AND &', or:'OR |'};
+
+  // ── Q6 bit Hamming ─────────────────────────────────────────────────────────
+  function q6h(a, b) { var x=a^b,c=0; while(x){c+=x&1;x>>=1;} return c; }
+  function stateDistNorm(s1, s2) {
+    var d = 0, n = s1.length;
+    for (var i = 0; i < n; i++) d += q6h(s1[i], s2[i]);
+    return d / (n * 6);
+  }
+
+  // ── CA step ────────────────────────────────────────────────────────────────
+  function caS(cells, rule) {
+    var n = cells.length, nxt = [];
+    for (var i = 0; i < n; i++) {
+      var l=cells[(i-1+n)%n], c=cells[i], r=cells[(i+1)%n];
+      if      (rule==='xor')  nxt.push(l^r);
+      else if (rule==='xor3') nxt.push(l^c^r);
+      else if (rule==='and')  nxt.push(l&r);
+      else                    nxt.push(l|r);
+    }
+    return nxt;
+  }
+
+  // ── Compute all lexicon pairs for one rule ─────────────────────────────────
+  function computePairs(rule) {
+    var encFn = window.encL, padFn = window.padL;
+    if (!encFn || !padFn || !window.LEXICON_ARR) return [];
+    var lw    = window.LEXW || 16;
+    var cells = window.LEXICON_ARR.map(function(w){ return padFn(encFn(w), lw); });
+    var pts   = [];
+    for (var i = 0; i < cells.length; i++) {
+      for (var j = i + 1; j < cells.length; j++) {
+        var s1 = cells[i], s2 = cells[j];
+        var x  = stateDistNorm(s1, s2);
+        var y  = stateDistNorm(caS(s1, rule), caS(s2, rule));
+        pts.push([x, y]);
+      }
+    }
+    return pts;
+  }
+
+  // ── Analytic curve ─────────────────────────────────────────────────────────
+  function analyticPts(rule) {
+    var pts = [], N = 60;
+    for (var i = 0; i <= N; i++) {
+      var x = i / N, y;
+      if      (rule==='xor')  y = 2*x*(1-x);
+      else if (rule==='xor3') y = 3*x - 6*x*x + 4*x*x*x;
+      else                    y = x*(1 - x/2)*0.5;
+      pts.push([x, Math.min(1, Math.max(0, y))]);
+    }
+    return pts;
+  }
+
+  // ── Binned average curve ───────────────────────────────────────────────────
+  function binnedCurve(pts, nBins) {
+    var sums = new Array(nBins).fill(0);
+    var cnts = new Array(nBins).fill(0);
+    pts.forEach(function(p){
+      var bi = Math.min(Math.floor(p[0] * nBins), nBins-1);
+      sums[bi] += p[1]; cnts[bi]++;
+    });
+    var out = [];
+    for (var i = 0; i < nBins; i++) {
+      if (cnts[i] > 0) out.push([(i+0.5)/nBins, sums[i]/cnts[i]]);
+    }
+    return out;
+  }
+
+  // ── Draw ───────────────────────────────────────────────────────────────────
+  function drawDerrida(canvas, allPairs, showAnalytic) {
+    var W = canvas.width, H = canvas.height;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, W, H);
+    var PAD = {t:25, b:50, l:55, r:110};
+    var cW = W - PAD.l - PAD.r, cH = H - PAD.t - PAD.b;
+
+    function px(x){ return PAD.l + x * cW; }
+    function py(y){ return PAD.t + (1-y) * cH; }
+
+    // Grid + axes
+    [0, 0.25, 0.5, 0.75, 1.0].forEach(function(v){
+      ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(px(0),py(v)); ctx.lineTo(px(1),py(v)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px(v),py(0)); ctx.lineTo(px(v),py(1)); ctx.stroke();
+      ctx.fillStyle='#444'; ctx.font='9px monospace'; ctx.textAlign='right';
+      ctx.fillText(v.toFixed(2), PAD.l-4, py(v)+3);
+      ctx.textAlign='center';
+      ctx.fillText(v.toFixed(2), px(v), PAD.t+cH+14);
+    });
+
+    // Axis labels
+    ctx.fillStyle='#555'; ctx.font='11px monospace';
+    ctx.textAlign='center';
+    ctx.fillText('x = d(s₁,s₂) / (width·6)  [до шага]', PAD.l+cW/2, H-6);
+    ctx.save(); ctx.translate(13, PAD.t+cH/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('y = d(step(s₁), step(s₂)) / (width·6)', 0, 0); ctx.restore();
+
+    // Diagonal y=x
+    ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(px(0),py(0)); ctx.lineTo(px(1),py(1)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Per rule
+    DER_RULES.forEach(function(rule) {
+      if (!allPairs[rule]) return;
+      var col   = DER_COLS[rule];
+      var pts   = allPairs[rule];
+      var above = pts.filter(function(p){ return p[1] > p[0]+0.005; }).length;
+      var pct   = Math.round(above/pts.length*100);
+
+      // Scatter (low opacity)
+      ctx.fillStyle = col.replace(')', ',0.25)').replace('rgb','rgba').replace('#','rgba_tmp');
+      // Rebuild with alpha
+      var rgb = col === '#f55' ? '255,85,85' : col === '#4dd' ? '68,221,221' :
+                col === '#7d7' ? '119,221,119' : '255,170,0';
+      pts.forEach(function(p){
+        ctx.fillStyle = 'rgba('+rgb+',0.20)';
+        ctx.beginPath(); ctx.arc(px(p[0]), py(p[1]), 2, 0, 2*Math.PI); ctx.fill();
+      });
+
+      // Binned mean curve
+      var binned = binnedCurve(pts, 20);
+      if (binned.length > 1) {
+        ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+        ctx.beginPath();
+        binned.forEach(function(p, i){
+          if(i===0) ctx.moveTo(px(p[0]), py(p[1]));
+          else      ctx.lineTo(px(p[0]), py(p[1]));
+        });
+        ctx.stroke();
+      }
+
+      // Analytic curve (dashed)
+      if (showAnalytic) {
+        var aPts = analyticPts(rule);
+        ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([3,4]);
+        ctx.globalAlpha = 0.55;
+        ctx.beginPath();
+        aPts.forEach(function(p, i){
+          if(i===0) ctx.moveTo(px(p[0]), py(p[1]));
+          else      ctx.lineTo(px(p[0]), py(p[1]));
+        });
+        ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1.0;
+      }
+
+      // Legend (right side)
+      var li = DER_RULES.indexOf(rule);
+      var ly = PAD.t + 20 + li * 28;
+      ctx.fillStyle = col; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(DER_NAMES[rule], W - PAD.r + 6, ly);
+      ctx.fillStyle = '#555'; ctx.font = '9px monospace';
+      ctx.fillText(pct + '% ↑', W - PAD.r + 6, ly + 12);
+    });
+
+    // Title
+    ctx.fillStyle='#777'; ctx.font='10px monospace'; ctx.textAlign='left';
+    ctx.fillText('Деррида: d(t+1) vs d(t) · лексикон · сплошная=среднее, пунктир=аналитика, линия y=x',
+                 PAD.l, 15);
+  }
+
+  // ── UI wiring ──────────────────────────────────────────────────────────────
+  var _derCache = null;
+
+  function derRun() {
+    var canvas  = document.getElementById('der-canvas');
+    var infoEl  = document.getElementById('der-info');
+    if (!canvas || !window.encL) { if(infoEl) infoEl.textContent='Ожидание…'; return; }
+    var showAna = document.getElementById('der-analytic');
+    var doAna   = showAna ? showAna.checked : true;
+
+    // Build pairs (cache them)
+    if (!_derCache) {
+      _derCache = {};
+      DER_RULES.forEach(function(r){ _derCache[r] = computePairs(r); });
+    }
+
+    // Apply rule checkboxes
+    var allPairs = {};
+    DER_RULES.forEach(function(r){
+      var cb = document.getElementById('der-'+r);
+      if (!cb || cb.checked) allPairs[r] = _derCache[r];
+    });
+
+    drawDerrida(canvas, allPairs, doAna);
+
+    // Info line
+    var parts = [];
+    DER_RULES.forEach(function(r){
+      if (!allPairs[r]) return;
+      var pts   = allPairs[r];
+      var above = pts.filter(function(p){ return p[1]>p[0]+0.005; }).length;
+      parts.push(DER_NAMES[r]+': '+Math.round(above/pts.length*100)+'%↑');
+    });
+    if(infoEl) infoEl.textContent = parts.join('  ');
+  }
+  window.derRun = derRun;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('der-btn');
+    if(btn) btn.addEventListener('click', function(){ _derCache=null; derRun(); });
+    ['xor','xor3','and','or','analytic'].forEach(function(r){
+      var cb = document.getElementById('der-'+r);
+      if(cb) cb.addEventListener('change', derRun);
+    });
+    setTimeout(function(){ if(window.encL) derRun(); }, 1000);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Ляпунов CA Q6 — расходимость траекторий</h2>
 <p class="meta">Однобитовые возмущения начального состояния (96 вариантов) → среднее Хэмминг-расстояние d(t) между оригинальной и возмущённой траекториями · пик = «максимальная чувствительность» · ↓ = сходится к 0</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">

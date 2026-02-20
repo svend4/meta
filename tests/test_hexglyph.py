@@ -3503,6 +3503,281 @@ class TestSolanPhonemeAnalysis(unittest.TestCase):
         self.assertIn('phon-word', content)
 
 
+class TestSolanDerrida(unittest.TestCase):
+    """Tests for solan_derrida.py and the viewer Derrida section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import (
+            state_dist_norm, derrida_point,
+            lexicon_points, random_points,
+            derrida_curve, analytic_curve,
+            classify_rule, build_derrida_data,
+            derrida_dict, _ALL_RULES,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.state_dist_norm   = staticmethod(state_dist_norm)
+        cls.derrida_point     = staticmethod(derrida_point)
+        cls.lexicon_points    = staticmethod(lexicon_points)
+        cls.random_points     = staticmethod(random_points)
+        cls.derrida_curve     = staticmethod(derrida_curve)
+        cls.analytic_curve    = staticmethod(analytic_curve)
+        cls.classify_rule     = staticmethod(classify_rule)
+        cls.build_derrida_data = staticmethod(build_derrida_data)
+        cls.derrida_dict      = staticmethod(derrida_dict)
+        cls.ALL_RULES         = _ALL_RULES
+        cls.LEXICON           = list(LEXICON)
+
+    # ── state_dist_norm() ─────────────────────────────────────────────────────
+
+    def test_sdn_identical_is_zero(self):
+        cells = [10, 20, 30, 40] * 4
+        self.assertAlmostEqual(self.state_dist_norm(cells, cells), 0.0)
+
+    def test_sdn_max_is_one(self):
+        c1 = [0] * 16
+        c2 = [63] * 16
+        self.assertAlmostEqual(self.state_dist_norm(c1, c2), 1.0)
+
+    def test_sdn_range(self):
+        c1 = [0] * 16
+        c2 = [42] * 16
+        d = self.state_dist_norm(c1, c2)
+        self.assertGreaterEqual(d, 0.0)
+        self.assertLessEqual(d, 1.0)
+
+    def test_sdn_symmetric(self):
+        c1 = [0, 1, 2, 3] * 4
+        c2 = [4, 5, 6, 7] * 4
+        self.assertAlmostEqual(
+            self.state_dist_norm(c1, c2),
+            self.state_dist_norm(c2, c1)
+        )
+
+    # ── derrida_point() ───────────────────────────────────────────────────────
+
+    def test_dp_returns_tuple(self):
+        c = [0] * 16
+        r = self.derrida_point(c, c, 'xor3')
+        self.assertIsInstance(r, tuple)
+        self.assertEqual(len(r), 2)
+
+    def test_dp_identical_x_zero(self):
+        c = [42] * 16
+        x, y = self.derrida_point(c, c, 'xor3')
+        self.assertAlmostEqual(x, 0.0)
+
+    def test_dp_identical_y_zero(self):
+        c = [42] * 16
+        x, y = self.derrida_point(c, c, 'xor3')
+        self.assertAlmostEqual(y, 0.0)
+
+    def test_dp_values_in_range(self):
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        c1 = pad_to(encode_word('ГОРА'),  16)
+        c2 = pad_to(encode_word('ЛУНА'),  16)
+        for rule in self.ALL_RULES:
+            x, y = self.derrida_point(c1, c2, rule)
+            self.assertGreaterEqual(x, 0.0)
+            self.assertLessEqual(x, 1.0)
+            self.assertGreaterEqual(y, 0.0)
+            self.assertLessEqual(y, 1.0)
+
+    # ── lexicon_points() ──────────────────────────────────────────────────────
+
+    def test_lp_count(self):
+        # C(49,2) = 1176
+        n = len(self.LEXICON)
+        expected = n * (n - 1) // 2
+        pts = self.lexicon_points('xor3')
+        self.assertEqual(len(pts), expected)
+
+    def test_lp_all_in_range(self):
+        pts = self.lexicon_points('xor3')
+        for x, y in pts:
+            self.assertGreaterEqual(x, 0.0)
+            self.assertLessEqual(x, 1.0)
+            self.assertGreaterEqual(y, 0.0)
+            self.assertLessEqual(y, 1.0)
+
+    def test_lp_x_positive(self):
+        # Different words have x > 0
+        pts = self.lexicon_points('xor3')
+        self.assertTrue(all(x > 0 for x, _ in pts))
+
+    # ── random_points() ───────────────────────────────────────────────────────
+
+    def test_rp_count(self):
+        pts = self.random_points('xor3', n=50, seed=0)
+        self.assertEqual(len(pts), 50)
+
+    def test_rp_reproducible(self):
+        p1 = self.random_points('xor3', n=10, seed=7)
+        p2 = self.random_points('xor3', n=10, seed=7)
+        self.assertEqual(p1, p2)
+
+    def test_rp_different_seeds(self):
+        p1 = self.random_points('xor3', n=10, seed=1)
+        p2 = self.random_points('xor3', n=10, seed=2)
+        self.assertNotEqual(p1, p2)
+
+    def test_rp_in_range(self):
+        pts = self.random_points('xor3', n=30, seed=0)
+        for x, y in pts:
+            self.assertGreaterEqual(x, 0.0)
+            self.assertLessEqual(x, 1.0)
+
+    # ── derrida_curve() ───────────────────────────────────────────────────────
+
+    def test_dc_returns_dict(self):
+        pts = [(0.1, 0.2), (0.5, 0.4), (0.8, 0.6)]
+        r = self.derrida_curve(pts)
+        self.assertIsInstance(r, dict)
+
+    def test_dc_required_keys(self):
+        pts = [(0.1, 0.2), (0.5, 0.4)]
+        r = self.derrida_curve(pts)
+        for k in ('bins', 'mean_y', 'count', 'above_diag', 'below_diag', 'on_diag'):
+            self.assertIn(k, r)
+
+    def test_dc_above_below_count(self):
+        pts = [(0.1, 0.3), (0.5, 0.3), (0.8, 0.5)]
+        r = self.derrida_curve(pts)
+        total = r['above_diag'] + r['below_diag'] + r['on_diag']
+        self.assertEqual(total, 3)
+
+    def test_dc_above_diag_correct(self):
+        # (0.1, 0.3): y>x → above
+        # (0.5, 0.3): y<x → below
+        pts = [(0.1, 0.3), (0.5, 0.3)]
+        r = self.derrida_curve(pts)
+        self.assertEqual(r['above_diag'], 1)
+        self.assertEqual(r['below_diag'], 1)
+
+    # ── analytic_curve() ──────────────────────────────────────────────────────
+
+    def test_ac_returns_list(self):
+        r = self.analytic_curve('xor3')
+        self.assertIsInstance(r, list)
+
+    def test_ac_xor_formula(self):
+        # XOR: y = 2x(1-x), at x=0.5 → y=0.5
+        pts = self.analytic_curve('xor', n_pts=100)
+        # Find point nearest x=0.5
+        mid = min(pts, key=lambda p: abs(p[0] - 0.5))
+        self.assertAlmostEqual(mid[1], 0.5, places=2)
+
+    def test_ac_xor_at_zero(self):
+        pts = self.analytic_curve('xor', n_pts=10)
+        x0, y0 = pts[0]
+        self.assertAlmostEqual(x0, 0.0)
+        self.assertAlmostEqual(y0, 0.0)
+
+    def test_ac_xor3_tangent_steep(self):
+        # XOR3 analytic: slope at x=0 is 3 (chaotic)
+        pts = self.analytic_curve('xor3', n_pts=100)
+        x1, y1 = pts[1]
+        self.assertGreater(y1 / x1, 1.0)  # slope > 1 near origin
+
+    def test_ac_all_y_in_range(self):
+        for rule in self.ALL_RULES:
+            for x, y in self.analytic_curve(rule):
+                self.assertGreaterEqual(y, 0.0)
+                self.assertLessEqual(y, 1.0 + 1e-9)
+
+    # ── classify_rule() ───────────────────────────────────────────────────────
+
+    def test_cr_returns_string(self):
+        c = self.classify_rule('xor3', n_random=50)
+        self.assertIsInstance(c, str)
+
+    def test_cr_valid_values(self):
+        for rule in self.ALL_RULES:
+            c = self.classify_rule(rule, n_random=50)
+            self.assertIn(c, ('ordered', 'chaotic', 'complex'))
+
+    def test_cr_or_ordered(self):
+        # OR tends toward ordered (d shrinks quickly)
+        c = self.classify_rule('or', n_random=200)
+        self.assertEqual(c, 'ordered')
+
+    def test_cr_and_ordered(self):
+        c = self.classify_rule('and', n_random=200)
+        self.assertEqual(c, 'ordered')
+
+    # ── build_derrida_data() ──────────────────────────────────────────────────
+
+    def test_bdd_returns_dict(self):
+        d = self.build_derrida_data(n_random=50)
+        self.assertIsInstance(d, dict)
+
+    def test_bdd_required_keys(self):
+        d = self.build_derrida_data(n_random=50)
+        for k in ('width', 'n_random', 'rules'):
+            self.assertIn(k, d)
+
+    def test_bdd_all_rules_present(self):
+        d = self.build_derrida_data(n_random=50)
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_bdd_rule_has_classification(self):
+        d = self.build_derrida_data(n_random=50)
+        for rule in self.ALL_RULES:
+            self.assertIn('classification', d['rules'][rule])
+
+    # ── derrida_dict() ────────────────────────────────────────────────────────
+
+    def test_dd_json_serialisable(self):
+        import json
+        d = self.derrida_dict(n_random=50)
+        dumped = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(dumped, str)
+
+    def test_dd_top_keys(self):
+        d = self.derrida_dict(n_random=50)
+        for k in ('width', 'n_random', 'rules'):
+            self.assertIn(k, d)
+
+    def test_dd_analytic_present(self):
+        d = self.derrida_dict(n_random=50)
+        for rule in self.ALL_RULES:
+            self.assertIn('analytic', d['rules'][rule])
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_der_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('der-canvas', content)
+
+    def test_viewer_has_der_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('der-btn', content)
+
+    def test_viewer_has_der_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('derRun', content)
+
+    def test_viewer_derrida_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Диаграмма Деррида CA Q6', content)
+
+    def test_viewer_has_analytic_curve(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('analyticPts', content)
+
+    def test_viewer_has_binned_curve(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('binnedCurve', content)
+
+    def test_viewer_has_compute_pairs(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('computePairs', content)
+
+    def test_viewer_has_diagonal(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('der-analytic', content)
+
+
 class TestSolanLyapunov(unittest.TestCase):
     """Tests for solan_lyapunov.py and the viewer Lyapunov section."""
 
