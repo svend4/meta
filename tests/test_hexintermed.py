@@ -92,5 +92,42 @@ class TestIntermediateSeries(unittest.TestCase):
             self.assertLess(hk, (k + 1) * (k + 1))
 
 
+    def test_recurrence_check_structure(self):
+        """recurrence_check(5) возвращает список из 5 словарей с нужными ключами."""
+        results = self.h.recurrence_check(5)
+        self.assertEqual(len(results), 5)
+        for r in results:
+            self.assertIn("k", r)
+            self.assertIn("h(k)", r)
+            self.assertIn("h(k+2)", r)
+            self.assertIn("diff", r)
+
+    def test_recurrence_check_diff_is_h_k2_minus_hk(self):
+        """diff == h(k+2) - h(k) для каждого k."""
+        for r in self.h.recurrence_check(10):
+            self.assertEqual(r["diff"], r["h(k+2)"] - r["h(k)"])
+
+    def test_symmetry_check_structure(self):
+        """symmetry_check(6, k=4, m=2) возвращает словарь с нужными ключами."""
+        res = self.h.symmetry_check(6, k=4, m=2)
+        self.assertIn("n", res)
+        self.assertIn("m", res)
+        self.assertIn("h(n+m)+h(n-m)", res)
+        self.assertIn("2·h(n)", res)
+
+    def test_symmetry_check_invalid(self):
+        """n <= m → ValueError."""
+        with self.assertRaises(ValueError):
+            self.h.symmetry_check(3, m=3)
+        with self.assertRaises(ValueError):
+            self.h.symmetry_check(2, m=5)
+
+    def test_plot_returns_string_with_header(self):
+        """plot() возвращает строку, содержащую 'H(k)'."""
+        s = self.h.plot(n_max=10)
+        self.assertIsInstance(s, str)
+        self.assertIn("H(k)", s)
+
+
 if __name__ == "__main__":
     unittest.main()

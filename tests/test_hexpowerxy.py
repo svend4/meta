@@ -101,5 +101,45 @@ class TestGenerateCurve(unittest.TestCase):
             self.assertTrue(pxy.verify(X, Y), f"Нарушение для ({X}, {Y})")
 
 
+class TestVerify(unittest.TestCase):
+    def setUp(self):
+        self.pxy = PowerXY()
+
+    def test_verify_trivial_xy_equal(self):
+        """X = Y: X^X = X^X всегда истинно."""
+        self.assertTrue(self.pxy.verify(3.0, 3.0))
+
+    def test_verify_invalid_returns_false(self):
+        """X=1, Y=2: 1^2 ≠ 2^1 → False."""
+        self.assertFalse(self.pxy.verify(1.0, 2.0))
+
+    def test_verify_known_pair(self):
+        """2^4 = 4^2 = 16 → True."""
+        self.assertTrue(self.pxy.verify(2.0, 4.0))
+
+
+class TestExceptionConstant(unittest.TestCase):
+    def test_is_exception_true(self):
+        pxy = PowerXY()
+        self.assertTrue(pxy.is_exception(_E))
+
+    def test_is_exception_false(self):
+        pxy = PowerXY()
+        self.assertFalse(pxy.is_exception(2.0))
+        self.assertFalse(pxy.is_exception(4.0))
+
+    def test_exception_constant_is_e(self):
+        pxy = PowerXY()
+        self.assertAlmostEqual(pxy.exception_constant(), _E, places=12)
+
+
+class TestPlotCurve(unittest.TestCase):
+    def test_plot_curve_returns_string(self):
+        pxy = PowerXY()
+        s = pxy.plot_curve(steps=20)
+        self.assertIsInstance(s, str)
+        self.assertGreater(len(s), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

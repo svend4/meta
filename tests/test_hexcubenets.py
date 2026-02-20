@@ -103,5 +103,34 @@ class TestCubeNets(unittest.TestCase):
                 self.assertIn(face, ascii_str, f"Грань {face} отсутствует в развёртке {net.index}")
 
 
+    def test_is_valid_net_valid(self):
+        """Разрезаем 7 рёбер так, что остаются 5 образующих дерево."""
+        # Оставляем: T-F, T-K, T-L, T-R, B-F (дерево: T-звезда + B через F)
+        # Разрезаем остальные 7: B-K, B-L, B-R, F-L, F-R, K-L, K-R
+        cut = ['B-K', 'B-L', 'B-R', 'F-L', 'F-R', 'K-L', 'K-R']
+        self.assertTrue(self.cn.is_valid_net(cut))
+
+    def test_is_valid_net_invalid(self):
+        """Разрезаем 7 рёбер так, что остаток образует цикл."""
+        # Оставляем: B-R, F-L, F-R, K-L, K-R (содержит цикл через K и R)
+        # Разрезаем: T-F, T-K, T-L, T-R, B-F, B-K, B-L
+        cut = ['T-F', 'T-K', 'T-L', 'T-R', 'B-F', 'B-K', 'B-L']
+        self.assertFalse(self.cn.is_valid_net(cut))
+
+    def test_to_colored_ascii_contains_faces(self):
+        """to_colored_ascii() содержит метки всех 6 граней."""
+        from projects.hexcubenets.hexcubenets import FACES
+        net = self.cn.get_net(0)
+        s = net.to_colored_ascii()
+        self.assertIsInstance(s, str)
+        for face in FACES:
+            self.assertIn(face, s)
+
+    def test_hypercube_unknown_returns_string(self):
+        """hypercube_nets(5) возвращает строку (неизвестный случай)."""
+        result = self.cn.hypercube_nets(5)
+        self.assertIsInstance(result, str)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -80,5 +80,63 @@ class TestBuffonParquet(unittest.TestCase):
         self.assertLess(result["error_pct"], 10.0)
 
 
+    def test_triangular_formula(self):
+        """Правильный треугольник side=2: W = needle·3·side / (π·√3/4·side²) = 12/(π·√3·side)."""
+        W = self.bp.triangular(2.0, 1.0)
+        expected = 12.0 / (_PI * math.sqrt(3) * 2.0)
+        self.assertAlmostEqual(W, expected, places=10)
+
+    def test_triangular_positive(self):
+        for side in [0.5, 1.0, 2.0, 5.0]:
+            W = self.bp.triangular(side, 1.0)
+            self.assertGreater(W, 0.0)
+
+    def test_find_needle_rectangle(self):
+        """L = W·π·F/U = W·π·ab / (2(a+b))."""
+        L = self.bp.find_needle_length(1.0, tile="rectangle", a=2.0, b=3.0)
+        expected = 1.0 * _PI * 6.0 / 10.0
+        self.assertAlmostEqual(L, expected, places=10)
+
+    def test_find_needle_hexagonal(self):
+        """L = W·π·(3√3/2·r²) / (6r) = W·π·√3·r/4."""
+        L = self.bp.find_needle_length(1.0, tile="hexagonal", r=1.0)
+        expected = _PI * math.sqrt(3) / 4.0
+        self.assertAlmostEqual(L, expected, places=10)
+
+    def test_find_needle_invalid_tile(self):
+        with self.assertRaises(ValueError):
+            self.bp.find_needle_length(1.0, tile="unknown_tile")
+
+    def test_hexagonal_q6_equals_hexagonal(self):
+        """hexagonal_q6(r, needle) == hexagonal(r, needle)."""
+        for r in [0.5, 1.0, 2.0]:
+            self.assertAlmostEqual(
+                self.bp.hexagonal_q6(r, 1.0),
+                self.bp.hexagonal(r, 1.0),
+                places=12
+            )
+
+    def test_plot_formula_relation_contains_phi_e_pi(self):
+        s = self.bp.plot_formula_relation()
+        self.assertIn('φ', s)
+        self.assertIn('e', s)
+        self.assertIn('π', s)
+
+    def test_simulate_rectangle(self):
+        res = self.bp.simulate("rectangle", needle=0.5, n=10_000, seed=7, a=1.0, b=2.0)
+        self.assertIn("estimated_W", res)
+        self.assertEqual(res["tile"], "rectangle")
+        self.assertLess(res["error_pct"], 15.0)
+
+    def test_simulate_golden(self):
+        res = self.bp.simulate("golden", needle=0.5, n=10_000, seed=99, a=1.0)
+        self.assertIn("exact_W", res)
+        self.assertEqual(res["tile"], "golden")
+
+    def test_simulate_invalid_tile(self):
+        with self.assertRaises(ValueError):
+            self.bp.simulate("unknown", needle=0.5, n=100, seed=1)
+
+
 if __name__ == "__main__":
     unittest.main()

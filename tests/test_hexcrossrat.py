@@ -112,5 +112,37 @@ class TestCrossRatioGroup(unittest.TestCase):
         self.assertEqual(len(v4), 4)
 
 
+    def test_compose_returns_value(self):
+        """compose(i, j) возвращает числовое значение r_i(r_j(w))."""
+        r6 = self._make(3.0)
+        val = r6.compose(1, 0)   # r1(r0(3)) = r1(3) = 1/3
+        self.assertAlmostEqual(complex(val).real, 1.0 / 3.0, places=9)
+
+    def test_compose_consistent_with_multiply(self):
+        """compose(i,j) индекс совпадает с multiply(i,j)."""
+        r6 = self._make(3.0)
+        for i in range(6):
+            for j in range(6):
+                idx = r6.multiply(i, j)
+                result_val = r6.compose(i, j)
+                elem_val = r6.elements()[idx]
+                self.assertAlmostEqual(complex(result_val), complex(elem_val), places=6,
+                                       msg=f"Несоответствие compose/multiply i={i},j={j}")
+
+    def test_print_cayley_table_is_string(self):
+        r6 = self._make(3.0)
+        s = r6.print_cayley_table()
+        self.assertIsInstance(s, str)
+        self.assertIn("Таблица Кэли", s)
+
+    def test_s4_decomposition_is_string(self):
+        r6 = self._make(2.0)
+        s = r6.s4_decomposition()
+        self.assertIsInstance(s, str)
+        self.assertIn("S4", s)
+        self.assertIn("V4", s)
+        self.assertIn("24", s)
+
+
 if __name__ == "__main__":
     unittest.main()
