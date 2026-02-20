@@ -930,6 +930,38 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
             padding:6px 8px;overflow-x:auto;white-space:nowrap;
             margin:4px 0;user-select:none"></div>
 <p class="meta" id="ca-status" style="margin-top:4px;font-family:monospace"></p>
+<!-- 4-panel rule comparison -->
+<p class="meta" style="margin:10px 0 4px">
+  Сравнение правил — одинаковые начальные условия, 18 шагов, 24 клетки
+  <span style="color:#444"> · нажмите панель → развернуть в главном CA</span>
+</p>
+<div id="ca-compare" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+  <div class="ca-panel" onclick="caSetRule('xor')">
+    <div class="ca-panel-title">XOR ⊕ — фрактал Серпинского</div>
+    <div id="ca-cmp-xor" class="ca-panel-grid"></div>
+  </div>
+  <div class="ca-panel" onclick="caSetRule('xor3')">
+    <div class="ca-panel-title">XOR3 — сдвиговый осциллятор</div>
+    <div id="ca-cmp-xor3" class="ca-panel-grid"></div>
+  </div>
+  <div class="ca-panel" onclick="caSetRule('and')">
+    <div class="ca-panel-title">AND &amp; — разрушительный, схлопывается</div>
+    <div id="ca-cmp-and" class="ca-panel-grid"></div>
+  </div>
+  <div class="ca-panel" onclick="caSetRule('or')">
+    <div class="ca-panel-title">OR | — заполняющий, расширяется</div>
+    <div id="ca-cmp-or" class="ca-panel-grid"></div>
+  </div>
+</div>
+<style>
+.ca-panel {
+  background:#060606;border:1px solid #1c1c1c;border-radius:3px;
+  padding:5px 7px;cursor:pointer;transition:border-color .15s;
+}
+.ca-panel:hover { border-color:#333; }
+.ca-panel-title { font-size:10px;color:#4a4a4a;margin-bottom:3px;font-family:monospace; }
+.ca-panel-grid  { font-family:Solan4,monospace;font-size:11px;line-height:1.1;white-space:nowrap;overflow:hidden; }
+</style>
 <style>
 .cabtn {
   background:#111; border:1px solid #2a2a2a; color:#555;
@@ -966,6 +998,37 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     return out;
   }
 
+  function nextRowWith(row, r) {
+    var n=row.length, out=[];
+    for(var i=0;i<n;i++){
+      var l=row[(i-1+n)%n], s=row[i], ri=row[(i+1)%n];
+      if(r==='xor')  out.push(l^ri);
+      else if(r==='xor3') out.push(l^s^ri);
+      else if(r==='and')  out.push(l&ri);
+      else                out.push(l|ri);
+    }
+    return out;
+  }
+
+  var CMP_W=24, CMP_H=18;
+  function renderCompare() {
+    var src = INIT.slice(0,CMP_W);
+    while(src.length < CMP_W) src.push(0);
+    ['xor','xor3','and','or'].forEach(function(r) {
+      var el=document.getElementById('ca-cmp-'+r); if(!el) return;
+      var html='', cur=src.slice();
+      for(var t=0;t<CMP_H;t++){
+        html+='<div>';
+        for(var i=0;i<CMP_W;i++){
+          var h=cur[i]; html+='<span style="color:'+col(h)+'">'+(H2C[h]||'?')+'</span>';
+        }
+        html+='</div>';
+        cur=nextRowWith(cur,r);
+      }
+      el.innerHTML=html;
+    });
+  }
+
   function buildHistory() {
     HIST = [INIT.slice()];
     var cur = HIST[0];
@@ -999,6 +1062,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     });
     var t0 = HIST.length-1;
     var st = document.getElementById('ca-status'); if(st) st.textContent='правило: '+RULE+'  ·  t='+t0+'  ·  ширина='+CW;
+    renderCompare();
   }
 
   window.caSetRule = function(r){

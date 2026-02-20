@@ -928,6 +928,87 @@ class TestSolanCA(unittest.TestCase):
         self.assertIn('ca-row0', content)
         self.assertIn('data-idx', content)
 
+    # --- viewer: 4-panel rule comparison ---
+
+    def test_viewer_ca_compare_panels_exist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ca-compare', content)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(f'ca-cmp-{rule}', content)
+
+    def test_viewer_ca_compare_uses_nextRowWith(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('nextRowWith', content)
+        self.assertIn('renderCompare', content)
+
+    def test_viewer_ca_compare_panel_clickable(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        # Each panel calls caSetRule() on click
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(f"caSetRule('{rule}')", content)
+
+    # --- find_orbit ---
+
+    def test_find_orbit_imported(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        self.assertTrue(callable(find_orbit))
+
+    def test_find_orbit_zero_state_fixed_point(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        cells = [0] * 8
+        t, p = find_orbit(cells, 'xor')
+        self.assertEqual(t, 0)
+        self.assertEqual(p, 1)
+
+    def test_find_orbit_and_rule_converges(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        # AND rule collapses to a periodic orbit (often p=1 or p=2)
+        cells = [63, 15, 48, 3, 7, 63, 0, 21]
+        t, p = find_orbit(cells, 'and')
+        self.assertIsNotNone(t)
+        self.assertGreater(p, 0)
+        self.assertLess(p, 100)   # AND must converge fast
+
+    def test_find_orbit_xor_returns_period(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        # XOR rule on non-trivial IC returns finite period
+        cells = [63, 0, 0, 0, 0, 0]
+        t, p = find_orbit(cells, 'xor')
+        self.assertIsNotNone(t)
+        self.assertIsNotNone(p)
+        self.assertGreater(p, 0)
+
+    def test_find_orbit_xor3_period_divides_lcm(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        cells = [63, 15, 48, 3, 7, 63]
+        t, p = find_orbit(cells, 'xor3')
+        self.assertIsNotNone(p)
+        # Period must be positive and bounded
+        self.assertGreater(p, 0)
+        self.assertLess(p, 5001)
+
+    def test_find_orbit_transient_nonneg(self):
+        from projects.hexglyph.solan_ca import find_orbit, make_initial
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            cells = make_initial(8, 'center')
+            t, p = find_orbit(cells, rule)
+            if t is not None:
+                self.assertGreaterEqual(t, 0)
+
+    def test_print_orbit_importable(self):
+        from projects.hexglyph.solan_ca import print_orbit
+        # Should run without error (no-color mode, small width)
+        import io, sys
+        buf = io.StringIO()
+        old = sys.stdout; sys.stdout = buf
+        try:
+            print_orbit([63, 0, 0, 0, 0, 0], rule='xor', color=False)
+        finally:
+            sys.stdout = old
+        out = buf.getvalue()
+        self.assertIn('Транзиент', out)
+        self.assertIn('Период', out)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

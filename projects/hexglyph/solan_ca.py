@@ -221,6 +221,64 @@ def _legend(color: bool = True) -> str:
     return ''.join(parts)
 
 
+# ── Анализ орбит ────────────────────────────────────────────────────────────
+
+def find_orbit(
+    cells: list[int],
+    rule:  str = 'xor',
+    max_steps: int = 5000,
+) -> tuple[int | None, int | None]:
+    """Найти транзиент и период орбиты для данного начального состояния.
+
+    Возвращает ``(transient, period)`` или ``(None, None)``,
+    если цикл не обнаружен за ``max_steps`` шагов.
+
+    Алгоритм: наивный hash-map — O(max_steps · width) по времени и памяти.
+    Для линейных правил (xor, xor3) период не превышает 2^width − 1,
+    поэтому max_steps=5000 достаточен для width ≤ 12.
+    """
+    seen: dict[tuple[int, ...], int] = {}
+    cur = list(cells)
+    for t in range(max_steps + 1):
+        key = tuple(cur)
+        if key in seen:
+            return seen[key], t - seen[key]
+        seen[key] = t
+        cur = step(cur, rule)
+    return None, None
+
+
+def print_orbit(cells: list[int], rule: str = 'xor',
+                color: bool = True) -> None:
+    """Найти и красиво напечатать информацию об орбите."""
+    transient, period = find_orbit(cells, rule)
+    bold  = _BOLD if color else ''
+    reset = _RST  if color else ''
+    dim   = _DIM  if color else ''
+
+    if transient is None:
+        print(f"{bold}Орбита не найдена{reset} (период > 5000)")
+        return
+
+    print(f"{bold}Транзиент:{reset} {transient}   "
+          f"{bold}Период:{reset} {period}")
+
+    # Показать цикл (не более 12 шагов)
+    cur = list(cells)
+    for _ in range(transient):
+        cur = step(cur, rule)
+
+    limit = min(period, 12)
+    print(f"{dim}──── цикл ({period} {'шаг' if period == 1 else 'шага' if 2 <= period <= 4 else 'шагов'}) ────{reset}")
+    for t in range(limit):
+        prefix = f"t={transient + t:>4d} │ "
+        print(prefix + render_row_char(cur, color))
+        cur = step(cur, rule)
+    if period > limit:
+        print(f"  {dim}... ещё {period - limit} шагов{reset}")
+    print(f"{dim}{'─' * 20}{reset}")
+
+
 # ── Основной прогон CA ──────────────────────────────────────────────────────
 
 def run_ca(
@@ -291,15 +349,23 @@ if __name__ == '__main__':
                         help='режим рендеринга (default: char)')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--orbit', action='store_true',
+                        help='найти транзиент и период орбиты, показать цикл')
     args = parser.parse_args()
 
-    run_ca(
-        width=args.width,
-        steps=args.steps,
-        rule=args.rule,
-        ic=args.ic,
-        mode=args.mode,
-        color=not args.no_color,
-        word=args.word,
-        seed=args.seed,
-    )
+    _color = not args.no_color
+    _cells = make_initial(args.width, args.ic, word=args.word, seed=args.seed)
+
+    if args.orbit:
+        print_orbit(_cells, rule=args.rule, color=_color)
+    else:
+        run_ca(
+            width=args.width,
+            steps=args.steps,
+            rule=args.rule,
+            ic=args.ic,
+            mode=args.mode,
+            color=_color,
+            word=args.word,
+            seed=args.seed,
+        )
