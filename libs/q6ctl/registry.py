@@ -217,10 +217,10 @@ MODULES: dict[str, ModuleInfo] = {
         description='Спираль и хиральность в Q6',
     ),
     'hexphi': ModuleInfo(
-        name='hexphi', path='projects.hexphi.hexphi',
-        commands=['ratio', 'fibonacci', 'lucas'],
-        cluster='K7', json_ready=False,
-        description='Числа Фибоначчи и φ в структуре Q6',
+        name='hexphi', path='projects.hexphi.phi_glyphs',
+        commands=['fibonacci', 'grid'],
+        cluster='K7', json_ready=True,
+        description='Fibonacci cube Γ₆ ⊂ Q6: F(8)=21 вершин, ян-соотношение 5/3≈φ',
     ),
 
     # K8 — Схематический кластер
@@ -453,9 +453,15 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'SC-7': SuperClusterInfo(
         id='SC-7', name='φ как Q6-инвариант',
         cluster_ids=['K7', 'K5'],
-        description='Золотое сечение в упаковках и эллиптических орбитах',
-        pipeline=['hexgeom:phi', 'hexpack:periods', 'hexellipse:foci'],
-        emergent='φ проявляется в периодах упаковок и эксцентриситете орбит Q6',
+        description='Fibonacci cube Γ₆ ⊂ Q6: F(8)=21 вершин × упаковка Германа (ring)',
+        pipeline=['hexpack:ring',
+                  'hexphi:fibonacci --from-ring'],
+        emergent=(
+            'K7×K5: Γ₆ ⊂ Q6 имеет F(8)=21 вершин (φ⁸/√5 ≈ 21, Бине). '
+            'Ян-слои Γ₆: [1,6,10,4]; ratio 10/6 = 5/3 = F(5)/F(4) ≈ φ (Fibonacci-сходимость!). '
+            'K4-совпадение: 21 = F(8) = число символов генетического кода. '
+            'K5: Γ₆-гексаграммы в ring Германа имеют пониженное среднее (30.3 < 32.5).'
+        ),
     ),
     'TSC-1': SuperClusterInfo(
         id='TSC-1', name='Шифр + Симметрия',
