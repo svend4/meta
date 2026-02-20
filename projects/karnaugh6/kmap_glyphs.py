@@ -17,6 +17,7 @@
 """
 
 from __future__ import annotations
+import json
 import sys
 from itertools import combinations
 
@@ -258,13 +259,118 @@ def example_triangle(color: bool = True) -> str:
 # CLI
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# JSON-экспорт (для пайплайнов TSC-1)
+# ---------------------------------------------------------------------------
+
+def json_sbox_minimize(sbox_data: dict) -> dict:
+    """
+    Минимизировать все 6 компонентных функций S-блока.
+    Также показывает линейную маску u, объясняющую NL=0.
+
+    Входной формат: вывод hexcrypt:analyze или hexpack:ring (поля 'table' или 'ring').
+    """
+    # Принять как table (sbox 0-63) или ring (1-64)
+    if 'table' in sbox_data:
+        table = sbox_data['table']
+    elif 'ring' in sbox_data:
+        table = [v - 1 for v in sbox_data['ring']]
+    elif 'data' in sbox_data and 'table' in sbox_data['data']:
+        table = sbox_data['data']['table']
+    else:
+        return {'error': 'не найдены поля "table" или "ring" во входных данных'}
+
+    components = []
+    total_literals = 0
+
+    for bit in range(6):
+        minterms = [h for h in range(64) if (table[h] >> bit) & 1]
+        result = minimize(minterms)
+
+        ess = result['essential']
+        n_imps = len(ess)
+        n_lits = sum(imp.bits.count('0') + imp.bits.count('1') for imp in ess)
+        total_literals += n_lits
+
+        # Линейная ли функция? Признак: 1 существенная импликанта и 32 минтерма
+        is_linear_est = (n_imps == 1 and len(minterms) == 32)
+
+        components.append({
+            'bit': bit,
+            'n_minterms': len(minterms),
+            'n_essential_implicants': n_imps,
+            'total_literals': n_lits,
+            'expression': result['expression'],
+            'is_linear_est': is_linear_est,
+            'implicants': [
+                {
+                    'pattern': imp.bits,
+                    'literals': imp.bits.count('0') + imp.bits.count('1'),
+                    'cube_size': imp.size(),
+                    'covered': len(imp.covered),
+                }
+                for imp in ess
+            ],
+        })
+
+    # Специальный анализ: линейная маска u=3 (биты 0+1)
+    # f₀⊕f₁(h) должна быть линейной (= input bit 0) для Hermann ring
+    combined_minterms = [h for h in range(64)
+                         if ((table[h] & 1) ^ ((table[h] >> 1) & 1))]
+    combined_result = minimize(combined_minterms)
+    combined_ess = combined_result['essential']
+    n_combined_lits = sum(
+        imp.bits.count('0') + imp.bits.count('1') for imp in combined_ess
+    )
+    # Проверить: совпадают ли мнтермы с {h : bit0(h)=1} = нечётные числа
+    odd_numbers = set(range(1, 64, 2))
+    mask3_is_bit0 = set(combined_minterms) == odd_numbers
+
+    n_linear = sum(1 for c in components if c['is_linear_est'])
+
+    return {
+        'command': 'sbox_minimize',
+        'n_bits': 6,
+        'total_literals': total_literals,
+        'n_linear_components': n_linear,
+        'components': components,
+        'linear_mask_u3': {
+            'description': 'f₀(x) XOR f₁(x) — комбинированная компонента с маской u=3',
+            'n_minterms': len(combined_minterms),
+            'n_essential_implicants': len(combined_ess),
+            'total_literals': n_combined_lits,
+            'expression': combined_result['expression'],
+            'mask3_equals_bit0_input': mask3_is_bit0,
+            'nl0_explanation': (
+                'f₀⊕f₁(h) = bit0(h) (вход, не выход) → линейна → NL=0 для маски u=3'
+                if mask3_is_bit0 else
+                'f₀⊕f₁ ≠ bit0(h): другое правило, NL > 0 для маски u=3'
+            ),
+        },
+        'table': table,  # передать дальше по пайплайну
+    }
+
+
+_KMAP_JSON_DISPATCH = {
+    'sbox-minimize': lambda args, data: json_sbox_minimize(data),
+}
+
+
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(
         description='kmap_glyphs — Карта Карно 6 переменных с глифами Q6'
     )
+    parser.add_argument('--json', action='store_true',
+                        help='Машиночитаемый JSON-вывод (для пайплайнов)')
+    parser.add_argument('--from-sbox', action='store_true',
+                        help='Читать S-box JSON из stdin (hexcrypt:analyze или hexpack:ring)')
     sub = parser.add_subparsers(dest='cmd')
+
+    # sbox-minimize — TSC-1 шаг 3: минимизация компонент S-блока
+    sub.add_parser('sbox-minimize',
+                   help='Минимизировать компонентные функции S-блока → JSON')
 
     p_min = sub.add_parser('minimize', help='Минимизировать функцию (минтермы)')
     p_min.add_argument('minterms', nargs='+', type=int)
@@ -284,6 +390,36 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     color = not getattr(args, 'no_color', False)
+
+    if args.cmd == 'sbox-minimize':
+        if args.from_sbox:
+            raw = sys.stdin.read().strip()
+            sbox_data = json.loads(raw)
+        else:
+            # Demo: use Hermann ring by default
+            import subprocess
+            result_proc = subprocess.run(
+                [sys.executable, '-m', 'projects.hexpack.pack_glyphs', '--json', 'ring'],
+                capture_output=True, text=True,
+            )
+            sbox_data = json.loads(result_proc.stdout)
+        result = json_sbox_minimize(sbox_data)
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f'  S-блок: минимизация 6 компонентных функций')
+            print()
+            for c in result['components']:
+                lin = '✓ линейна' if c['is_linear_est'] else f'{c["n_essential_implicants"]} импликант'
+                print(f'  Бит {c["bit"]}: мнтермов={c["n_minterms"]}  '
+                      f'лит={c["total_literals"]}  {lin}')
+                print(f'    {c["expression"][:72]}')
+            m3 = result['linear_mask_u3']
+            print()
+            print(f'  Маска u=3 (f₀⊕f₁): лит={m3["total_literals"]}  '
+                  f'{"= bit0(h) → NL=0 !" if m3["mask3_equals_bit0_input"] else ""}')
+            print(f'  {m3["expression"]}')
+        sys.exit(0)
 
     if args.cmd == 'minimize':
         print(render_minimization(args.minterms, args.dc, color=color))

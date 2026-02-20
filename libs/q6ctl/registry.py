@@ -73,10 +73,10 @@ MODULES: dict[str, ModuleInfo] = {
         description='Коды с исправлением ошибок на Q6',
     ),
     'karnaugh6': ModuleInfo(
-        name='karnaugh6', path='projects.karnaugh6.karnaugh6',
-        commands=['map', 'minimize', 'primes'],
-        cluster='K1', json_ready=False,
-        description='Карты Карно 6-переменных булевых функций',
+        name='karnaugh6', path='projects.karnaugh6.kmap_glyphs',
+        commands=['sbox-minimize', 'minimize', 'map', 'yang_parity', 'rank3', 'triangle'],
+        cluster='K1', json_ready=True,
+        description='Карты Карно 6 переменных + Q-M минимизация компонент S-блока',
     ),
 
     # K2 — Динамический кластер (CA/физика)
@@ -445,9 +445,16 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'TSC-1': SuperClusterInfo(
         id='TSC-1', name='Шифр + Симметрия',
         cluster_ids=['K5', 'K1', 'K8'],
-        description='Упаковки + крипто + алгебра = минимальные схемы',
-        pipeline=['hexpack:ring', 'hexcrypt:sbox', 'karnaugh6:minimize', 'hexsym:orbit'],
-        emergent='Алгебраически симметричные минимальные крипто-схемы',
+        description='Упаковки + Карно + Aut(Q6) = алгебраически объяснённая крипто-слабость',
+        pipeline=['hexpack:ring',
+                  'karnaugh6:sbox-minimize --from-sbox',
+                  'hexsym:sbox-symmetry --from-minimize'],
+        emergent=(
+            'K5→K8→K1: Германова антиподальная упаковка (ring[h]+ring[h⊕32]=65) '
+            '↔ σ₃₂∈Aut(Q6) (K8) — все 64 пары: sbox[h⊕32]⊕sbox[h]=63. '
+            'Карно (K1): f₀⊕f₁=x₀ (1 литерал!). Вывод: геометрия К5 '
+            'ПРИНУЖДАЕТ к NL=0 через алгебраическую симметрию K8.'
+        ),
     ),
     'TSC-2': SuperClusterInfo(
         id='TSC-2', name='AutoML-крипто',

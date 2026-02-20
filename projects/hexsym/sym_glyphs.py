@@ -471,6 +471,97 @@ def _entropy(row: list[int]) -> float:
     return -sum(c / n * math.log2(c / n) for c in cnt.values()) if n > 0 else 0.0
 
 
+def json_sbox_symmetry(minimize_data: dict) -> dict:
+    """
+    Проанализировать Aut(Q6)-симметрию S-блока (TSC-1 шаг 4).
+
+    Входной формат: вывод karnaugh6:sbox-minimize (поле 'table').
+    Ключевой результат для Hermann ring:
+      σ₃₂: h → h⊕32 ∈ Aut(Q6) — антиподальная симметрия.
+      sbox[h⊕32] = ~sbox[h] для всех h.
+      K5-геометрия → K8-алгебра → K1-криптослабость.
+    """
+    table = minimize_data.get('table')
+    if table is None:
+        return {'error': 'поле "table" не найдено во входных данных'}
+
+    # ── 1. Антиподальная симметрия σ₃₂: h→h⊕32 ─────────────────────────────
+    antipodal_ok = 0
+    antipodal_fail = []
+    for h in range(64):
+        h_flip = h ^ 32
+        if table[h] ^ table[h_flip] == 63:
+            antipodal_ok += 1
+        else:
+            antipodal_fail.append({'h': h, 'sbox_h': table[h], 'sbox_h32': table[h_flip],
+                                   'xor': table[h] ^ table[h_flip]})
+    antipodal_symmetric = len(antipodal_fail) == 0
+
+    # ── 2. Основные XOR-маскные автоморфизмы ─────────────────────────────────
+    xor_auts = []
+    for m, label in [(0, 'тождество'), (32, 'σ₃₂ (антипод)'), (63, 'дополнение')]:
+        deltas = set()
+        for h in range(64):
+            deltas.add(table[h ^ m] ^ table[h])
+        is_const = len(deltas) == 1
+        delta_val = next(iter(deltas)) if is_const else None
+        xor_auts.append({
+            'mask': m,
+            'label': label,
+            'output_xor_is_constant': is_const,
+            'output_xor_delta': delta_val,
+            'strict_symmetry': is_const and delta_val == 0,
+            'complement_symmetry': is_const and delta_val == 63,
+        })
+
+    # ── 3. Бит-транспозиции τᵢ (перестановочная часть S₆) ────────────────────
+    bit_transpositions = []
+    for i in range(5):
+        def apply_t(h, i=i):
+            bi = (h >> i) & 1
+            bj = (h >> (i + 1)) & 1
+            h2 = h & ~((1 << i) | (1 << (i + 1)))
+            h2 |= (bj << i) | (bi << (i + 1))
+            return h2
+
+        deltas = set(table[apply_t(h)] ^ table[h] for h in range(64))
+        bit_transpositions.append({
+            'transposition': f'τ({i},{i+1})',
+            'n_unique_deltas': len(deltas),
+            'is_symmetry': (len(deltas) == 1 and next(iter(deltas)) == 0),
+        })
+
+    # ── 4. TSC-1 синтез: K5→K8→K1 ────────────────────────────────────────────
+    linear_mask_u3 = minimize_data.get('linear_mask_u3', {})
+    nl0_confirmed = linear_mask_u3.get('mask3_equals_bit0_input', False)
+
+    n_xor_symmetries = sum(1 for a in xor_auts if a['strict_symmetry'] or a['complement_symmetry'])
+    n_perm_symmetries = sum(1 for t in bit_transpositions if t['is_symmetry'])
+
+    return {
+        'command': 'sbox_symmetry',
+        'aut_q6_order': _AUT_ORDER,
+        'antipodal_symmetry': {
+            'automorphism': 'σ₃₂: h → h XOR 32',
+            'pairs_ok': antipodal_ok,
+            'pairs_fail': len(antipodal_fail),
+            'is_antipodal_symmetric': antipodal_symmetric,
+            'k5_connection': 'ring[h] + ring[h⊕32] = 65 (Hermann) ↔ sbox[h] XOR sbox[h⊕32] = 63',
+        },
+        'xor_automorphisms': xor_auts,
+        'bit_transpositions': bit_transpositions,
+        'n_active_symmetries': n_xor_symmetries + n_perm_symmetries,
+        'nl0_from_karnaugh': nl0_confirmed,
+        'tsc1_finding': (
+            'K5→K8→K1: Германова упаковка (антипод ring[h]+ring[h⊕32]=65) '
+            '↔ Aut(Q6)-симметрия σ₃₂ (K8) '
+            '→ линейная маска u=3: f₀⊕f₁=x₀ (Карно: 1 литерал) '
+            '→ NL=0 криптослабость (K1). '
+            'Геометрическая структура ПРИНУЖДАЕТ к алгебраической → криптографической слабости.'
+        ),
+    }
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -483,7 +574,13 @@ def _make_parser() -> argparse.ArgumentParser:
     p.add_argument('--no-color', action='store_true')
     p.add_argument('--json', action='store_true',
                    help='Машиночитаемый JSON-вывод (для пайплайнов)')
+    p.add_argument('--from-minimize', action='store_true',
+                   help='Читать karnaugh:sbox-minimize JSON из stdin (TSC-1)')
     sub = p.add_subparsers(dest='cmd', required=True)
+
+    # sbox-symmetry — TSC-1 шаг 4: Aut(Q6)-симметрия S-блока
+    sub.add_parser('sbox-symmetry',
+                   help='Aut(Q6)-симметрия S-блока: K5→K8→K1 пайплайн → JSON')
 
     # rule-orbits — SC-3 шаг 3: классификация КА-правил по орбитам Aut(Q6)
     sub.add_parser('rule-orbits',
@@ -503,6 +600,43 @@ def main(argv: list[str] | None = None) -> None:
     p = _make_parser()
     args = p.parse_args(argv)
     color = not args.no_color
+
+    if args.cmd == 'sbox-symmetry':
+        if args.from_minimize:
+            raw = sys.stdin.read().strip()
+            minimize_data = json.loads(raw)
+        else:
+            # Demo: use Hermann ring by default
+            import subprocess
+            step1 = subprocess.run(
+                [sys.executable, '-m', 'projects.hexpack.pack_glyphs', '--json', 'ring'],
+                capture_output=True, text=True,
+            )
+            step2 = subprocess.run(
+                [sys.executable, '-m', 'projects.karnaugh6.kmap_glyphs',
+                 '--json', '--from-sbox', 'sbox-minimize'],
+                input=step1.stdout, capture_output=True, text=True,
+            )
+            minimize_data = json.loads(step2.stdout)
+        result = json_sbox_symmetry(minimize_data)
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            ap = result['antipodal_symmetry']
+            ap_status = '✓ ВСЕ 64 пары' if ap['is_antipodal_symmetric'] else f'✗ {ap["pairs_fail"]} сбоев'
+            print(f'  Антиподальная симметрия σ₃₂: {ap_status}')
+            print(f'  K5: {ap["k5_connection"]}')
+            print()
+            print('  XOR-автоморфизмы:')
+            for a in result['xor_automorphisms']:
+                sym = '✓ строгая' if a['strict_symmetry'] else ('≈ дополнение' if a['complement_symmetry'] else '✗')
+                print(f'    mask={a["mask"]:2d} ({a["label"]}): delta={a["output_xor_delta"]}  {sym}')
+            print()
+            nl0_ok = '✓' if result['nl0_from_karnaugh'] else '✗'
+            print(f'  Карно (маска u=3): NL=0 подтверждён: {nl0_ok}')
+            print()
+            print(f'  TSC-1: {result["tsc1_finding"]}')
+        return
 
     if args.cmd == 'rule-orbits':
         result = json_rule_orbits()
