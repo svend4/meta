@@ -1714,6 +1714,218 @@ class TestSolanDendrogram(unittest.TestCase):
         self.assertIn('_hovLeaf', content)
 
 
+class TestSolanPredict(unittest.TestCase):
+    """Tests for solan_predict.py and the viewer Prediction section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import (
+            predict, batch_predict, predict_text, prediction_dict,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.predict          = staticmethod(predict)
+        cls.batch_predict    = staticmethod(batch_predict)
+        cls.predict_text     = staticmethod(predict_text)
+        cls.prediction_dict  = staticmethod(prediction_dict)
+        cls.LEXICON          = list(LEXICON)
+
+    # ── predict() basics ──────────────────────────────────────────────────────
+
+    def test_predict_returns_dict(self):
+        r = self.predict('ГОРА')
+        self.assertIsInstance(r, dict)
+
+    def test_predict_required_keys(self):
+        r = self.predict('ГОРА')
+        for k in ('word', 'signature', 'full_key', 'class_id',
+                  'class_words', 'is_new_class', 'neighbors'):
+            self.assertIn(k, r)
+
+    def test_predict_word_preserved(self):
+        r = self.predict('ГОРА')
+        self.assertEqual(r['word'], 'ГОРА')
+
+    def test_predict_signature_has_rules(self):
+        r = self.predict('ГОРА')
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, r['signature'])
+
+    def test_predict_full_key_is_tuple_of_5(self):
+        r = self.predict('ГОРА')
+        self.assertIsInstance(r['full_key'], tuple)
+        self.assertEqual(len(r['full_key']), 5)
+
+    # ── Class membership ──────────────────────────────────────────────────────
+
+    def test_gora_class_key(self):
+        r = self.predict('ГОРА')
+        self.assertEqual(r['full_key'], (2, 1, 2, 1, 1))
+        self.assertFalse(r['is_new_class'])
+        self.assertIsNotNone(r['class_id'])
+
+    def test_luna_class_key(self):
+        r = self.predict('ЛУНА')
+        self.assertEqual(r['full_key'], (2, 1, 2, 1, 2))
+        self.assertFalse(r['is_new_class'])
+
+    def test_zhurnal_class_key(self):
+        r = self.predict('ЖУРНАЛ')
+        self.assertEqual(r['full_key'], (8, 4, 2, 4, 2))
+        self.assertFalse(r['is_new_class'])
+
+    def test_is_new_class_false_for_all_lexicon(self):
+        results = self.batch_predict(self.LEXICON)
+        new_class_words = [r['word'] for r in results if r['is_new_class']]
+        self.assertEqual(new_class_words, [],
+                         msg=f'Lexicon words unexpectedly new: {new_class_words}')
+
+    def test_class_id_in_range(self):
+        results = self.batch_predict(self.LEXICON[:10])
+        for r in results:
+            if not r['is_new_class']:
+                self.assertGreaterEqual(r['class_id'], 0)
+                self.assertLess(r['class_id'], 13)
+
+    def test_class_words_nonempty_for_lexicon(self):
+        r = self.predict('ВОДА')
+        self.assertGreater(len(r['class_words']), 0)
+
+    def test_gora_class_words_contains_gora(self):
+        r = self.predict('ГОРА')
+        self.assertIn('ГОРА', r['class_words'])
+
+    # ── Neighbors ─────────────────────────────────────────────────────────────
+
+    def test_lexicon_word_self_neighbor_first(self):
+        r = self.predict('ГОРА')
+        # Word should appear among neighbors with distance 0
+        zero_neighbors = [w for w, d in r['neighbors'] if d == 0.0]
+        self.assertIn('ГОРА', zero_neighbors)
+
+    def test_neighbors_sorted_ascending(self):
+        r = self.predict('ГОРА')
+        dists = [d for _, d in r['neighbors']]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_neighbors_count_default(self):
+        r = self.predict('ГОРА')
+        self.assertLessEqual(len(r['neighbors']), 10)
+        self.assertGreater(len(r['neighbors']), 0)
+
+    def test_neighbors_top_n(self):
+        r = self.predict('ГОРА', top_n=5)
+        self.assertLessEqual(len(r['neighbors']), 5)
+
+    def test_neighbors_no_nan(self):
+        import math
+        r = self.predict('ГОРА')
+        for _, d in r['neighbors']:
+            self.assertFalse(math.isnan(d))
+
+    # ── batch_predict() ───────────────────────────────────────────────────────
+
+    def test_batch_predict_length(self):
+        words = ['ГОРА', 'ЛУНА', 'ЖУРНАЛ']
+        results = self.batch_predict(words)
+        self.assertEqual(len(results), 3)
+
+    def test_batch_predict_words_preserved(self):
+        words = ['ГОРА', 'ЛУНА']
+        results = self.batch_predict(words)
+        self.assertEqual([r['word'] for r in results], words)
+
+    def test_batch_predict_consistent_with_single(self):
+        single = self.predict('ЛУНА')
+        batch  = self.batch_predict(['ЛУНА'])
+        self.assertEqual(single['full_key'], batch[0]['full_key'])
+        self.assertEqual(single['class_id'], batch[0]['class_id'])
+
+    # ── predict_text() ────────────────────────────────────────────────────────
+
+    def test_predict_text_tokenises(self):
+        results = self.predict_text('ГОРА И ЛУНА')
+        words = [r['word'] for r in results]
+        self.assertIn('ГОРА', words)
+        self.assertIn('ЛУНА', words)
+
+    def test_predict_text_skips_non_cyrillic(self):
+        results = self.predict_text('ГОРА 123 --- ЛУНА')
+        words = [r['word'] for r in results]
+        self.assertNotIn('123', words)
+
+    def test_predict_text_deduplicates(self):
+        results = self.predict_text('ГОРА ГОРА ГОРА')
+        words = [r['word'] for r in results]
+        self.assertEqual(len(words), len(set(words)))
+
+    def test_predict_text_upcases(self):
+        results = self.predict_text('гора')
+        words = [r['word'] for r in results]
+        self.assertIn('ГОРА', words)
+
+    # ── prediction_dict() ─────────────────────────────────────────────────────
+
+    def test_prediction_dict_serialisable(self):
+        import json
+        r = self.predict('ГОРА')
+        d = self.prediction_dict(r)
+        dumped = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(dumped, str)
+
+    def test_prediction_dict_keys(self):
+        r = self.predict('ГОРА')
+        d = self.prediction_dict(r)
+        for k in ('word', 'signature', 'full_key', 'class_id',
+                  'class_words', 'is_new_class', 'neighbors'):
+            self.assertIn(k, d)
+
+    def test_prediction_dict_full_key_is_list(self):
+        r = self.predict('ГОРА')
+        d = self.prediction_dict(r)
+        self.assertIsInstance(d['full_key'], list)
+
+    def test_prediction_dict_neighbors_have_dist(self):
+        r = self.predict('ГОРА')
+        d = self.prediction_dict(r)
+        for item in d['neighbors']:
+            self.assertIn('word', item)
+            self.assertIn('dist', item)
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_pred_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pred-canvas', content)
+
+    def test_viewer_has_pred_result(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pred-result', content)
+
+    def test_viewer_has_pred_classes(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('PRED_CLASSES', content)
+
+    def test_viewer_has_pred_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('predRun', content)
+
+    def test_viewer_pred_classes_count_13(self):
+        import re
+        content = viewer_path().read_text(encoding='utf-8')
+        # Count entries in PRED_CLASSES array: each entry starts with {key:[
+        m = re.findall(r'\{key:\[', content)
+        self.assertGreaterEqual(len(m), 13)
+
+    def test_viewer_pred_classes_has_class1(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        # Class 1 key is [2, 1, 2, 1, 2] with 20 words
+        self.assertIn('[2, 1, 2, 1, 2]', content)
+
+    def test_viewer_has_sigl_export(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.sigL', content)
+
+
 class TestSolanTransient(unittest.TestCase):
     """Tests for solan_transient.py and the viewer Transient section."""
 

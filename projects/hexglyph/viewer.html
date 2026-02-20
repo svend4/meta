@@ -1459,6 +1459,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
   // Export for sibling sections
   window.lexAllSigs = getLexSigs;
   window.lexDistL   = distL;
+  window.sigL       = sigL;
 
   // Init on load
   setTimeout(lexFind,100);
@@ -2263,6 +2264,9 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     draw(canvas,ctx);
   }
 
+  window.classicalMds  = classicalMds;
+  window.kruskalStress = kruskalStress;
+
   setTimeout(function(){
     var canvas=document.getElementById('mds-canvas');
     var ctx=canvas.getContext('2d');
@@ -2642,6 +2646,244 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
     var sigs=window.lexAllSigs?window.lexAllSigs():null;
     if(sigs){build(sigs);draw(canvas,ctx);}
   },900);
+})();
+</script>
+</div>
+<div class="section">
+<h2>Предсказание Q6 — любое слово</h2>
+<p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <input id="pred-inp" type="text" value="КОМПЬЮТЕР"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:6px 10px;
+           font-size:14px;width:160px;text-transform:uppercase"/>
+  <button onclick="predRun()"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:6px 16px;cursor:pointer;font-size:13px">Предсказать</button>
+</div>
+<canvas id="pred-canvas" width="700" height="300"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="pred-result"
+  style="font-family:monospace;font-size:12px;color:#888;min-height:20px;margin-top:6px"> </div>
+<script>
+(function(){
+var PRED_CLASSES = [
+  {key:[2, 1, 2, 1, 2], count:20, words:["ВОДА", "НОРА", "ЛУНА", "ДУГА", "ЗИМА", "ЛУГА", "НАДО", "ТРОН", "ГОРН", "БОЛТ", "ЛИТР", "НОТА", "ЗОНТ", "ЗУБР", "ДРОН", "МАРТ", "РИТМ", "ДУМА", "МОДА", "ЖИТО"]},
+  {key:[8, 7, 1, 3, 1], count:5,  words:["ГРУДА", "ОБРАЗ", "НАРОД", "НОРМА", "ЖАТВА"]},
+  {key:[2, 1, 2, 1, 1], count:4,  words:["ГОРА", "УДАР", "РОТА", "УТРО"]},
+  {key:[8, 7, 1, 7, 1], count:4,  words:["ТУМАН", "РУЛОН", "НАБОР", "БИТВА"]},
+  {key:[8, 7, 1, 2, 1], count:4,  words:["ДОМРА", "ГОРОД", "ДРОВА", "РАТОН"]},
+  {key:[8, 4, 1, 4, 1], count:3,  words:["ДОБРО", "МОНТАЖ", "МАТ"]},
+  {key:[8, 4, 1, 3, 1], count:2,  words:["ВОЛНА", "ТОННА"]},
+  {key:[8, 2, 2, 4, 1], count:2,  words:["ТУНДРА", "ВИТРАЖ"]},
+  {key:[8, 2, 1, 7, 1], count:1,  words:["ВЗЛОМ"]},
+  {key:[8, 4, 2, 4, 1], count:1,  words:["РАБОТА"]},
+  {key:[8, 4, 2, 4, 2], count:1,  words:["ЖУРНАЛ"]},
+  {key:[8, 3, 1, 7, 1], count:1,  words:["НИТРО"]},
+  {key:[8, 7, 1, 6, 1], count:1,  words:["ЗАВОД"]},
+];
+var CLASS_PALETTE = [
+  '#4fc3f7','#80deea','#ffd54f','#ce93d8','#ff9800',
+  '#a5d6a7','#ef5350','#90caf9','#ffe082','#b39ddb',
+  '#80cbc4','#f48fb1','#bcaaa4'
+];
+
+function keysEq(a,b){return a.length===b.length&&a.every(function(v,i){return v===b[i];});}
+
+function predFullKey(sig){
+  return [
+    sig.xor  ? sig.xor.transient  : null,
+    sig.and  ? sig.and.transient  : null,
+    sig.and  ? sig.and.period     : null,
+    sig.or   ? sig.or.transient   : null,
+    sig.or   ? sig.or.period      : null,
+  ];
+}
+
+window.predRun = function(){
+  var word = (document.getElementById('pred-inp').value||'ГОРА').toUpperCase()
+               .replace(/[^А-ЯЁ]/g,'');
+  if(!word) return;
+  document.getElementById('pred-inp').value = word;
+
+  var sig = window.sigL ? window.sigL(word) : null;
+  if(!sig){document.getElementById('pred-result').textContent='(сигнатура недоступна)';return;}
+
+  var fk = predFullKey(sig);
+
+  // Match class
+  var classId = -1;
+  for(var ci=0;ci<PRED_CLASSES.length;ci++){
+    if(fk.every(function(v,i){return v===PRED_CLASSES[ci].key[i];})){classId=ci;break;}
+  }
+  var isNew = classId < 0;
+
+  // Neighbors
+  var lsigs = window.lexAllSigs ? window.lexAllSigs() : {};
+  var lexWords = Object.keys(lsigs);
+  var dists = lexWords.map(function(w){
+    var d = window.lexDistL ? window.lexDistL(sig, lsigs[w]) : NaN;
+    return {word:w, dist:d};
+  });
+  dists.sort(function(a,b){return isNaN(a.dist)?1:isNaN(b.dist)?-1:a.dist-b.dist;});
+  var top10 = dists.slice(0,10);
+
+  // Draw canvas
+  var canvas = document.getElementById('pred-canvas');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#0d0d0d';
+  ctx.fillRect(0,0,W,H);
+
+  // ── Left: signature table ─────────────────────────────
+  var RULES = ['xor','xor3','and','or'];
+  var RNAMES = {xor:'XOR ⊕', xor3:'XOR3', and:'AND &', or:'OR |'};
+  var RCOL   = {xor:'#4fc3f7', xor3:'#80deea', and:'#ef5350', or:'#ffd54f'};
+
+  var LX=20, TY=32, rowH=38, colW=80;
+  ctx.font='bold 12px monospace';
+  ctx.fillStyle='#555'; ctx.fillText('Правило',LX,TY);
+  ctx.fillStyle='#4fc3f7'; ctx.fillText('Транзиент',LX+colW,TY);
+  ctx.fillStyle='#4fc3f7'; ctx.fillText('Период',LX+colW*2,TY);
+  ctx.strokeStyle='#222'; ctx.beginPath();
+  ctx.moveTo(LX,TY+6); ctx.lineTo(LX+colW*3+10,TY+6); ctx.stroke();
+
+  RULES.forEach(function(r,ri){
+    var y = TY + rowH*(ri+1);
+    var o = sig[r] || {};
+    ctx.font='bold 11px monospace';
+    ctx.fillStyle=RCOL[r]||'#aaa';
+    ctx.fillText(RNAMES[r],LX,y);
+    ctx.font='12px monospace';
+    ctx.fillStyle='#ccc';
+    ctx.fillText(o.transient!==null&&o.transient!==undefined?o.transient:'?', LX+colW+20, y);
+    ctx.fillText(o.period!==null&&o.period!==undefined?o.period:'?',        LX+colW*2+20, y);
+  });
+
+  // Class label below table
+  var clsY = TY + rowH*5 + 8;
+  ctx.font='11px monospace';
+  if(isNew){
+    ctx.fillStyle='#ffd54f';
+    ctx.fillText('Класс: НОВЫЙ  ключ=(' + fk.join(',') + ')', LX, clsY);
+  } else {
+    ctx.fillStyle = CLASS_PALETTE[classId % CLASS_PALETTE.length];
+    var cls = PRED_CLASSES[classId];
+    ctx.fillText('Класс ' + (classId+1) + '/13  (' + cls.count + ' слов)', LX, clsY);
+    ctx.fillStyle='#555';
+    ctx.font='10px monospace';
+    ctx.fillText('ключ=(' + fk.join(',') + ')', LX, clsY+16);
+    ctx.fillText(cls.words.slice(0,6).join('  ') + (cls.words.length>6?'  …':''), LX, clsY+30);
+  }
+
+  // Top neighbors below class
+  var nbY = clsY + 58;
+  ctx.font='bold 11px monospace';
+  ctx.fillStyle='#555'; ctx.fillText('Ближайшие соседи:', LX, nbY);
+  top10.slice(0,8).forEach(function(item,i){
+    var y = nbY + 14*(i+1);
+    var dStr = isNaN(item.dist)?'NaN':(item.dist===0?'0 (та же орбита)':item.dist.toFixed(4));
+    ctx.font='10px monospace';
+    ctx.fillStyle = item.dist===0 ? '#4caf50' : '#888';
+    ctx.fillText((i+1)+'. '+item.word+'  d='+dStr, LX, y);
+  });
+
+  // ── Right: mini-MDS scatter ───────────────────────────
+  var RX = 355, RW = W - RX - 10;
+
+  if(window.classicalMds && lexWords.length > 2){
+    var allWords = lexWords.concat([word]);
+    var allSigs  = {};
+    lexWords.forEach(function(w){ allSigs[w]=lsigs[w]; });
+    allSigs[word] = sig;
+    var n = allWords.length;
+    var dmat = Array.from({length:n},function(_,i){
+      return Array.from({length:n},function(_,j){
+        if(i===j) return 0;
+        var d = window.lexDistL ? window.lexDistL(allSigs[allWords[i]], allSigs[allWords[j]]) : NaN;
+        return isNaN(d)?0:d;
+      });
+    });
+    var coords = window.classicalMds(n, dmat);
+
+    // Normalise to canvas area
+    var xs=coords.map(function(c){return c[0];}), ys=coords.map(function(c){return c[1];});
+    var xmin=Math.min.apply(null,xs), xmax=Math.max.apply(null,xs);
+    var ymin=Math.min.apply(null,ys), ymax=Math.max.apply(null,ys);
+    var pad=20;
+    function cx(x){return RX+pad+(x-xmin)/(xmax-xmin||1)*(RW-2*pad);}
+    function cy(y){return pad+(ymax-y)/(ymax-ymin||1)*(H-2*pad);}
+
+    // Draw lexicon dots
+    lexWords.forEach(function(w,i){
+      // Determine class color
+      var ws = window.lexAllSigs()[w];
+      var wfk = predFullKey(ws);
+      var wci = -1;
+      for(var ci=0;ci<PRED_CLASSES.length;ci++){
+        if(wfk.every(function(v,k){return v===PRED_CLASSES[ci].key[k];})){wci=ci;break;}
+      }
+      var col = wci>=0 ? CLASS_PALETTE[wci % CLASS_PALETTE.length] : '#555';
+      ctx.beginPath();
+      ctx.arc(cx(coords[i][0]), cy(coords[i][1]), 4, 0, 2*Math.PI);
+      ctx.fillStyle = col + '88';
+      ctx.fill();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.font='8px monospace';
+      ctx.fillStyle='#444';
+      ctx.fillText(w.slice(0,3), cx(coords[i][0])+5, cy(coords[i][1])+3);
+    });
+
+    // Draw query word (large dot)
+    var qi = allWords.length - 1;
+    var qx = cx(coords[qi][0]), qy = cy(coords[qi][1]);
+    var qcol = isNew ? '#ffd54f' : CLASS_PALETTE[classId % CLASS_PALETTE.length];
+    ctx.beginPath();
+    ctx.arc(qx, qy, 8, 0, 2*Math.PI);
+    ctx.fillStyle = qcol + 'cc';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.font='bold 10px monospace';
+    ctx.fillStyle='#fff';
+    ctx.fillText(word.slice(0,6), qx+10, qy+4);
+
+    // Title
+    ctx.font='10px monospace';
+    ctx.fillStyle='#333';
+    ctx.fillText('MDS-карта орбит ('+n+' слов)', RX+pad, H-8);
+  }
+
+  // ── Text result ───────────────────────────────────────
+  var html = '';
+  if(isNew){
+    html = '<span style="color:#ffd54f">Новый класс!</span>  '
+          +'ключ=(' + fk.join(',') + ')  ';
+  } else {
+    var cls2 = PRED_CLASSES[classId];
+    html = '<span style="color:'+CLASS_PALETTE[classId%CLASS_PALETTE.length]+'">'
+          +'Класс '+(classId+1)+'/13</span>  '
+          +'ключ=('+fk.join(',')+')  '
+          +cls2.count+' слов: <span style="color:#555">'+cls2.words.join(' ')+'</span>  ';
+  }
+  html += '<br>Соседи: '+top10.slice(0,5).map(function(x){
+    var ds=x.dist===0?'≡':(isNaN(x.dist)?'?':x.dist.toFixed(3));
+    return '<span style="color:#4fc3f7">'+x.word+'</span> <span style="color:#333">('+ds+')</span>';
+  }).join('  ');
+  document.getElementById('pred-result').innerHTML = html;
+};
+
+// Run on Enter in input
+document.getElementById('pred-inp').addEventListener('keydown', function(e){
+  if(e.key==='Enter') predRun();
+});
+
+// Auto-run after page fully loaded
+setTimeout(function(){
+  if(window.lexAllSigs) predRun();
+}, 1200);
 })();
 </script>
 </div>
