@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from projects.hexhept.hexhept import (
     Heptahedron,
     RP2Checker,
+    _euler_characteristic,
 )
 
 
@@ -103,6 +104,29 @@ class TestRP2Checker(unittest.TestCase):
         candidates = self.checker.enumerate_rp2_candidates(8)
         for c in candidates:
             self.assertEqual(c["chi"], 1)
+
+
+class TestEulerCharacteristic(unittest.TestCase):
+    def test_heptahedron(self):
+        self.assertEqual(_euler_characteristic(6, 7, 12), 1)
+
+    def test_tetrahedron(self):
+        self.assertEqual(_euler_characteristic(4, 4, 6), 2)
+
+    def test_icosahedron(self):
+        self.assertEqual(_euler_characteristic(12, 20, 30), 2)
+
+
+class TestSphereIsomorphism(unittest.TestCase):
+    def test_contains_rp2_and_sphere(self):
+        h = Heptahedron(1.0)
+        s = h.sphere_isomorphism()
+        self.assertIn('RP²', s)
+        self.assertIn('S²', s)
+
+    def test_returns_string(self):
+        h = Heptahedron(1.0)
+        self.assertIsInstance(h.sphere_isomorphism(), str)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from projects.hexperms.hexperms import PermutationEngine, _factoradic
+from projects.hexperms.hexperms import PermutationEngine, _factoradic, _factoradic_to_int
 
 
 class TestFactoradic(unittest.TestCase):
@@ -123,6 +123,60 @@ class TestPermutationEngine(unittest.TestCase):
     def test_rank_invalid(self):
         with self.assertRaises(ValueError):
             self.pe4.rank([1, 2, 3, 5])  # не перестановка {1..4}
+
+
+class TestFactoradicToInt(unittest.TestCase):
+    def test_roundtrip_zero(self):
+        """_factoradic_to_int(_factoradic(0, n)) == 0."""
+        self.assertEqual(_factoradic_to_int(_factoradic(0, 4)), 0)
+
+    def test_known(self):
+        """[2,1,0] → 5 = 2·2! + 1·1! + 0·0!"""
+        self.assertEqual(_factoradic_to_int([2, 1, 0]), 5)
+
+    def test_roundtrip_arbitrary(self):
+        """_factoradic_to_int(_factoradic(k, n)) == k для любого k."""
+        for k in range(24):   # 4! = 24
+            self.assertEqual(_factoradic_to_int(_factoradic(k, 4)), k)
+
+
+class TestAutQ6(unittest.TestCase):
+    def test_count(self):
+        """|Aut(Q6)| = 6! = 720."""
+        pe6 = PermutationEngine(6)
+        auts = pe6.generate_aut_q6()
+        self.assertEqual(len(auts), math.factorial(6))
+
+    def test_wrong_n_raises(self):
+        """generate_aut_q6 только для n=6."""
+        pe4 = PermutationEngine(4)
+        with self.assertRaises(ValueError):
+            pe4.generate_aut_q6()
+
+    def test_each_aut_is_permutation(self):
+        """Каждый элемент — перестановка {1..6}."""
+        pe6 = PermutationEngine(6)
+        for p in pe6.generate_aut_q6()[:5]:  # первые 5 достаточно
+            self.assertEqual(sorted(p), [1, 2, 3, 4, 5, 6])
+
+
+class TestBenchmark(unittest.TestCase):
+    def test_returns_string(self):
+        pe3 = PermutationEngine(3)
+        s = pe3.benchmark(3)
+        self.assertIsInstance(s, str)
+
+    def test_contains_counts(self):
+        """Строка содержит число перестановок."""
+        pe3 = PermutationEngine(3)
+        s = pe3.benchmark(3)
+        self.assertIn('6', s)   # 3! = 6
+
+    def test_default_n(self):
+        """benchmark() без аргумента использует self.n."""
+        pe3 = PermutationEngine(3)
+        s = pe3.benchmark()
+        self.assertIsInstance(s, str)
 
 
 if __name__ == "__main__":
