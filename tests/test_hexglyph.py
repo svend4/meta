@@ -686,6 +686,17 @@ class TestSolanPhonetic(unittest.TestCase):
         self.assertIn('ru-inp', content)
         self.assertIn('ru-out', content)
 
+    def test_viewer_has_q6_explorer(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('q6-char', content)
+        self.assertIn('q6toggle', content)
+        self.assertIn('q6setH', content)
+
+    def test_viewer_q6_explorer_has_all_segments(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        for seg in ('sv-T', 'sv-B', 'sv-L', 'sv-R', 'sv-D1', 'sv-D2'):
+            self.assertIn(seg, content)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -715,6 +715,125 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Q6-Эксплорер — Интерактивный подбор символа</h2>
+<p class="meta">Нажмите на сегмент квадрата или кнопку ниже · Ползунок перебирает все 64 вершины Q6</p>
+<div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;margin:12px 0">
+  <!-- SVG interactive square -->
+  <svg id="q6-svg" width="160" height="160" viewBox="0 0 100 100"
+       style="display:block;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:4px;flex-shrink:0">
+    <rect x="10" y="10" width="80" height="80" fill="none" stroke="#1a1a1a" stroke-width="0.5"/>
+    <!-- visible segments -->
+    <line id="sv-D1" x1="10" y1="10" x2="90" y2="90" stroke="#2a2a2a" stroke-width="5" stroke-linecap="round"/>
+    <line id="sv-D2" x1="90" y1="10" x2="10" y2="90" stroke="#2a2a2a" stroke-width="5" stroke-linecap="round"/>
+    <line id="sv-T"  x1="10" y1="10" x2="90" y2="10" stroke="#2a2a2a" stroke-width="5" stroke-linecap="round"/>
+    <line id="sv-B"  x1="10" y1="90" x2="90" y2="90" stroke="#2a2a2a" stroke-width="5" stroke-linecap="round"/>
+    <line id="sv-L"  x1="10" y1="10" x2="10" y2="90" stroke="#2a2a2a" stroke-width="5" stroke-linecap="round"/>
+    <line id="sv-R"  x1="90" y1="10" x2="90" y2="90" stroke="#2a2a2a" stroke-width="5" stroke-linecap="round"/>
+    <!-- hit zones (transparent, on top) -->
+    <line x1="10" y1="10" x2="90" y2="90" stroke="transparent" stroke-width="18" class="q6hit" data-s="D1" style="cursor:pointer"/>
+    <line x1="90" y1="10" x2="10" y2="90" stroke="transparent" stroke-width="18" class="q6hit" data-s="D2" style="cursor:pointer"/>
+    <line x1="10" y1="10" x2="90" y2="10" stroke="transparent" stroke-width="18" class="q6hit" data-s="T"  style="cursor:pointer"/>
+    <line x1="10" y1="90" x2="90" y2="90" stroke="transparent" stroke-width="18" class="q6hit" data-s="B"  style="cursor:pointer"/>
+    <line x1="10" y1="10" x2="10" y2="90" stroke="transparent" stroke-width="18" class="q6hit" data-s="L"  style="cursor:pointer"/>
+    <line x1="90" y1="10" x2="90" y2="90" stroke="transparent" stroke-width="18" class="q6hit" data-s="R"  style="cursor:pointer"/>
+  </svg>
+  <!-- Info panel -->
+  <div style="min-width:140px">
+    <div style="display:flex;gap:16px;align-items:flex-end;margin-bottom:8px">
+      <div id="q6-char"
+           style="font-family:Solan4,sans-serif;font-size:80px;color:#4fc3f7;
+                  line-height:1;background:#111;padding:6px 12px;
+                  border:1px solid #1e1e1e;border-radius:3px;min-width:64px;text-align:center">0</div>
+      <div id="q6-ru"
+           style="font-size:52px;color:#e0c080;line-height:1;
+                  background:#111;padding:6px 10px;
+                  border:1px solid #1e1e1e;border-radius:3px;min-width:48px;text-align:center">—</div>
+    </div>
+    <div id="q6-h"    style="font-family:monospace;font-size:16px;color:#4fc3f7;margin:4px 0">h = 0</div>
+    <div id="q6-bits" style="font-family:monospace;font-size:14px;color:#555">D2·D1·R·L·B·T = 000000</div>
+    <div id="q6-segs" style="font-size:13px;color:#888;margin-top:4px">—</div>
+    <div id="q6-conf" style="font-size:11px;color:#444;margin-top:4px"></div>
+  </div>
+</div>
+<!-- Segment toggle buttons -->
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px">
+  <button class="q6btn" data-s="T"  onclick="q6toggle('T')" >T  верх ─</button>
+  <button class="q6btn" data-s="B"  onclick="q6toggle('B')" >B  низ  ─</button>
+  <button class="q6btn" data-s="L"  onclick="q6toggle('L')" >L  лево │</button>
+  <button class="q6btn" data-s="R"  onclick="q6toggle('R')" >R  право│</button>
+  <button class="q6btn" data-s="D1" onclick="q6toggle('D1')">D1 диаг ╲</button>
+  <button class="q6btn" data-s="D2" onclick="q6toggle('D2')">D2 диаг ╱</button>
+  <button onclick="q6reset()"
+          style="background:#111;border:1px solid #333;color:#666;
+                 padding:5px 12px;cursor:pointer;border-radius:3px;font-size:12px">↺ сброс</button>
+</div>
+<!-- h slider -->
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span style="color:#555;font-size:12px">h:</span>
+  <input id="q6-range" type="range" min="0" max="63" value="0"
+         oninput="q6setH(+this.value)"
+         style="width:200px;accent-color:#4fc3f7">
+  <span id="q6-rval" style="font-family:monospace;font-size:12px;color:#555">0 / 63</span>
+</div>
+<style>
+.q6btn {
+  background:#111; border:1px solid #2a2a2a; color:#555;
+  padding:5px 10px; cursor:pointer; border-radius:3px;
+  font-family:monospace; font-size:12px; transition:all .1s;
+}
+.q6btn.on { background:#0d2030; border-color:#4fc3f7; color:#4fc3f7; }
+</style>
+<script>
+(function() {
+  var BITS = {T:1,B:2,L:4,R:8,D1:16,D2:32};
+  var st = {T:0,B:0,L:0,R:0,D1:0,D2:0};
+  var H2C = {0:"0",1:"1",2:"2",3:"7",4:"3",5:"8",6:"9",7:"M",8:"4",9:"A",10:"B",11:"N",12:"H",13:"O",14:"Z",15:"A",16:"5",17:"D",18:"E",19:"C",20:"F",21:"G",22:"S",23:"O",24:"G",25:"T",26:"U",27:"i",28:"V",29:"j",30:"k",31:"K",32:"6",33:"H",34:"I",35:"J",36:"J",37:"X",38:"Y",39:"a",40:"K",41:"N",42:"a",43:"m",44:"B",45:"t",46:"o",47:"w",48:"L",49:"D",50:"d",51:"U",52:"e",53:"q",54:"I",55:"P",56:"h",57:"X",58:"t",59:"y",60:"W",61:"f",62:"Q",63:"E"};
+  var H2RU = {3:"Н",9:"Л",14:"Б",15:"Р",19:"З",20:"В",24:"М",28:"Ж",35:"Ч",44:"И",47:"О",48:"Т",49:"Г",50:"Д",51:"У",63:"А"};
+  var H2OK = {12:1,14:1,15:1,19:1,21:1,23:1,28:1,31:1,35:1,39:1,41:1,44:1,45:1,48:1,49:1,51:1,54:1,55:1,56:1,57:1,60:1,61:1,62:1,63:1};
+  var SEG_COL = "#4fc3f7";
+  var SEG_OFF = "#2a2a2a";
+
+  function hval() {
+    var v=0; for(var s in BITS) v += st[s]*BITS[s]; return v;
+  }
+  function segsStr(hv) {
+    var a=[]; for(var s in BITS) if(BITS[s]&hv) a.push(s); return a.join("+") || "—";
+  }
+  function update() {
+    var hv = hval();
+    var ch = H2C[hv]||"?";
+    var ru = H2RU[hv]||"—";
+    var bits = hv.toString(2).padStart(6,"0");
+    document.getElementById("q6-char").textContent = ch;
+    document.getElementById("q6-ru").textContent = ru;
+    document.getElementById("q6-h").textContent = "h = "+hv;
+    document.getElementById("q6-bits").textContent = "D2·D1·R·L·B·T = "+bits;
+    document.getElementById("q6-segs").textContent = segsStr(hv);
+    document.getElementById("q6-conf").textContent = H2OK[hv] ? "● пиксельно подтверждено" : "○ последовательное назначение";
+    document.getElementById("q6-range").value = hv;
+    document.getElementById("q6-rval").textContent = hv+" / 63";
+    var ruEl = document.getElementById("q6-ru");
+    ruEl.style.color = ru==="—" ? "#333" : "#e0c080";
+    for(var s in BITS) {
+      var vis = document.getElementById("sv-"+s);
+      if(vis) vis.setAttribute("stroke", st[s] ? SEG_COL : SEG_OFF);
+      var btn = document.querySelector(".q6btn[data-s='"+s+"']");
+      if(btn) { if(st[s]) btn.classList.add("on"); else btn.classList.remove("on"); }
+    }
+  }
+  window.q6toggle = function(s) { st[s]=st[s]?0:1; update(); };
+  window.q6setH = function(hv) {
+    for(var s in BITS) st[s]=(hv&BITS[s])?1:0; update();
+  };
+  window.q6reset = function() { for(var s in st) st[s]=0; update(); };
+  document.querySelectorAll(".q6hit").forEach(function(el) {
+    el.addEventListener("click", function() { q6toggle(this.getAttribute("data-s")); });
+  });
+  update();
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
