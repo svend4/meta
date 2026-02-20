@@ -790,5 +790,117 @@ class TestSolanPhonetic(unittest.TestCase):
         self.assertGreaterEqual(len(pairs), 15)
 
 
+class TestSolanCA(unittest.TestCase):
+    """Тесты клеточного автомата Q6/Solan."""
+
+    def setUp(self):
+        from projects.hexglyph.solan_ca import (
+            step, make_initial,
+            render_row_char, render_row_braille, render_row_quad,
+        )
+        self.step              = step
+        self.make_initial      = make_initial
+        self.render_row_char   = render_row_char
+        self.render_row_braille = render_row_braille
+        self.render_row_quad   = render_row_quad
+
+    # --- step rules ---
+
+    def test_step_xor_all_zeros_stays_zero(self):
+        cells = [0] * 10
+        self.assertEqual(self.step(cells, 'xor'), [0] * 10)
+
+    def test_step_xor3_all_zeros_stays_zero(self):
+        cells = [0] * 10
+        self.assertEqual(self.step(cells, 'xor3'), [0] * 10)
+
+    def test_step_preserves_length(self):
+        for rule in ('xor', 'xor3', 'and', 'or', 'hamming'):
+            cells = [i % 64 for i in range(12)]
+            out = self.step(cells, rule)
+            self.assertEqual(len(out), 12, f"len changed for rule={rule!r}")
+
+    def test_step_xor_values_in_range(self):
+        cells = list(range(64))
+        out = self.step(cells, 'xor')
+        for v in out:
+            self.assertGreaterEqual(v, 0)
+            self.assertLessEqual(v, 63)
+
+    def test_step_single_center_spreads(self):
+        # XOR rule: center=63 → два соседних cell XOR-ятся с 63
+        cells = [0] * 7
+        cells[3] = 63
+        nxt = self.step(cells, 'xor')
+        # cells[2] и cells[4] должны получить 63 XOR 0 = 63
+        self.assertEqual(nxt[2], 63)
+        self.assertEqual(nxt[4], 63)
+        self.assertEqual(nxt[3], 0)   # center становится 63 XOR 63 = 0
+
+    def test_step_unknown_rule_raises(self):
+        with self.assertRaises(ValueError):
+            self.step([0, 1, 2], 'bogus')
+
+    # --- make_initial ---
+
+    def test_make_initial_center(self):
+        cells = self.make_initial(10, 'center')
+        self.assertEqual(len(cells), 10)
+        self.assertEqual(cells[5], 63)
+        self.assertEqual(sum(cells), 63)
+
+    def test_make_initial_edge(self):
+        cells = self.make_initial(8, 'edge')
+        self.assertEqual(cells[0], 63)
+        self.assertEqual(sum(cells), 63)
+
+    def test_make_initial_random_length(self):
+        cells = self.make_initial(20, 'random', seed=0)
+        self.assertEqual(len(cells), 20)
+        for v in cells:
+            self.assertGreaterEqual(v, 0)
+            self.assertLessEqual(v, 63)
+
+    def test_make_initial_phonetic(self):
+        cells = self.make_initial(10, 'phonetic', word='АТ')
+        self.assertEqual(len(cells), 10)
+        # А=63, Т=48 — должны чередоваться
+        self.assertEqual(cells[0], 63)
+        self.assertEqual(cells[1], 48)
+
+    def test_make_initial_unknown_raises(self):
+        with self.assertRaises(ValueError):
+            self.make_initial(10, 'unknown_ic')
+
+    # --- render ---
+
+    def test_render_row_char_length(self):
+        cells = [0, 63, 15, 48, 3]
+        row = self.render_row_char(cells, color=False)
+        self.assertEqual(len(row), 5)
+
+    def test_render_row_braille_returns_2_lines(self):
+        cells = [0, 63, 15]
+        lines = self.render_row_braille(cells, color=False)
+        self.assertEqual(len(lines), 2)
+
+    def test_render_row_braille_line_width(self):
+        cells = [0, 63, 15]
+        lines = self.render_row_braille(cells, color=False)
+        for line in lines:
+            self.assertEqual(len(line), 3 * 4)  # 3 cells × 4 Braille chars
+
+    def test_render_row_quad_returns_4_lines(self):
+        cells = [0, 63]
+        lines = self.render_row_quad(cells, color=False)
+        self.assertEqual(len(lines), 4)
+
+    def test_render_row_quad_line_width(self):
+        cells = [0, 63]
+        lines = self.render_row_quad(cells, color=False)
+        for line in lines:
+            self.assertEqual(len(line), 2 * 4)  # 2 cells × 4 quad chars
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
