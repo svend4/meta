@@ -137,6 +137,32 @@ class TestBuffonParquet(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.bp.simulate("unknown", needle=0.5, n=100, seed=1)
 
+    def test_general_formula_method_equals_function(self):
+        """general_formula() метода идентичен функции buffon_general()."""
+        from projects.hexbuffon.hexbuffon import buffon_general
+        W_method = self.bp.general_formula(1.0, 4.0, 1.0)
+        W_func = buffon_general(1.0, 4.0, 1.0)
+        self.assertAlmostEqual(W_method, W_func, places=12)
+
+    def test_simulate_result_keys(self):
+        """simulate возвращает dict с ключами tile, n, estimated_W, exact_W, error_pct."""
+        res = self.bp.simulate("square", needle=0.5, n=500, seed=5, a=1.0)
+        for key in ("tile", "n", "estimated_W", "exact_W", "error_pct"):
+            self.assertIn(key, res)
+        self.assertEqual(res["tile"], "square")
+        self.assertEqual(res["n"], 500)
+
+    def test_simulate_rectangle_exact_w(self):
+        """exact_W в симуляции прямоугольника совпадает с rectangular()."""
+        res = self.bp.simulate("rectangle", needle=1.0, n=100, seed=1, a=2.0, b=3.0)
+        expected_exact = self.bp.rectangular(2.0, 3.0, 1.0)
+        self.assertAlmostEqual(res["exact_W"], expected_exact, places=12)
+
+    def test_square_direct_value(self):
+        """square(a=1, needle=1) = 4/π."""
+        W = self.bp.square(1.0, 1.0)
+        self.assertAlmostEqual(W, 4.0 / _PI, places=10)
+
 
 if __name__ == "__main__":
     unittest.main()

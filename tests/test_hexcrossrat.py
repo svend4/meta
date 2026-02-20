@@ -143,6 +143,55 @@ class TestCrossRatioGroup(unittest.TestCase):
         self.assertIn("V4", s)
         self.assertIn("24", s)
 
+    def test_repr_contains_w(self):
+        """__repr__ содержит w=."""
+        r6 = self._make(3.0)
+        s = repr(r6)
+        self.assertIn("w=", s)
+        self.assertIn("3.0", s)
+
+    def test_verify_sum_dict_keys(self):
+        """verify_sum_identity возвращает dict с 'sum', 'expected', 'ok'."""
+        r6 = self._make(2.0)
+        d = r6.verify_sum_identity()
+        for key in ("sum", "expected", "ok"):
+            self.assertIn(key, d)
+        self.assertEqual(d["expected"], 3)
+
+    def test_verify_product_dict_keys(self):
+        """verify_product_identity возвращает dict с 'product', 'expected', 'ok'."""
+        r6 = self._make(2.0)
+        d = r6.verify_product_identity()
+        for key in ("product", "expected", "ok"):
+            self.assertIn(key, d)
+        self.assertEqual(d["expected"], 1)
+
+    def test_klein_four_group_elements_are_4tuples(self):
+        """Каждый элемент V4 — кортеж длины 4."""
+        r6 = self._make(0.5)
+        v4 = r6.klein_four_group()
+        for elem in v4:
+            self.assertIsInstance(elem, tuple)
+            self.assertEqual(len(elem), 4)
+
+    def test_isomorphism_perms_are_valid_s3(self):
+        """Каждая перестановка изоморфизма содержит {0,1,2}."""
+        r6 = self._make(2.0)
+        iso = r6.isomorphism_to_s3()
+        for name, perm in iso.items():
+            self.assertEqual(set(perm), {0, 1, 2},
+                             f"Некорректная перестановка для {name}: {perm}")
+
+    def test_cross_ratio_projective(self):
+        """cross_ratio с projective=True и однородными координатами."""
+        A1 = (0.0, 1.0)   # 0
+        A2 = (2.0, 1.0)   # 2
+        A3 = (1.0, 1.0)   # 1
+        A4 = (3.0, 1.0)   # 3
+        w = cross_ratio(A1, A2, A3, A4, projective=True)
+        w_plain = cross_ratio(0.0, 2.0, 1.0, 3.0)
+        self.assertAlmostEqual(complex(w).real, complex(w_plain).real, places=9)
+
 
 if __name__ == "__main__":
     unittest.main()

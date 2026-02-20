@@ -131,6 +131,38 @@ class TestCubeNets(unittest.TestCase):
         result = self.cn.hypercube_nets(5)
         self.assertIsInstance(result, str)
 
+    def test_net_index_attribute(self):
+        """Net.index совпадает с позицией в enumerate_all()."""
+        for i, net in enumerate(self.cn.enumerate_all()):
+            self.assertEqual(net.index, i)
+
+    def test_get_net_index_matches(self):
+        """get_net(k).index == k."""
+        for k in range(11):
+            net = self.cn.get_net(k)
+            self.assertEqual(net.index, k)
+
+    def test_to_ascii_contains_header(self):
+        """to_ascii() содержит слово 'Развёртка'."""
+        net = self.cn.get_net(0)
+        s = net.to_ascii()
+        self.assertIn("Развёртка", s)
+
+    def test_classify_keys_present(self):
+        """classify() содержит ключи 'mirror', 'central', 'none'."""
+        cls = self.cn.classify()
+        self.assertIn("mirror", cls)
+        self.assertIn("central", cls)
+        self.assertIn("none", cls)
+
+    def test_to_colored_ascii_with_custom_colors(self):
+        """to_colored_ascii с явными цветами не падает."""
+        net = self.cn.get_net(0)
+        colors = {f: f.lower() for f in ["T", "B", "F", "K", "L", "R"]}
+        s = net.to_colored_ascii(colors=colors)
+        self.assertIsInstance(s, str)
+        self.assertGreater(len(s), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -140,6 +140,49 @@ class TestPlotCurve(unittest.TestCase):
         self.assertIsInstance(s, str)
         self.assertGreater(len(s), 0)
 
+    def test_plot_curve_contains_axis_label(self):
+        """plot_curve содержит ось Y и символ точки '*'."""
+        pxy = PowerXY()
+        s = pxy.plot_curve(steps=15)
+        self.assertIn("Y", s)
+        self.assertIn("*", s)
+
+
+class TestXYFromTLargeT(unittest.TestCase):
+    def test_large_t_gives_x_near_1(self):
+        """При t → ∞: X = t/(t-1) → 1, Y = t^(1/(t-1)) → 1."""
+        pxy = PowerXY()
+        X, Y = pxy.xy_from_t(100.0)
+        self.assertGreater(X, 1.0)
+        self.assertGreater(Y, 1.0)
+
+    def test_large_t_verified(self):
+        """Точка при t=10 удовлетворяет X^Y = Y^X."""
+        pxy = PowerXY()
+        X, Y = pxy.xy_from_t(10.0)
+        self.assertTrue(pxy.verify(X, Y, tol=1e-6))
+
+
+class TestNotablePairsCount(unittest.TestCase):
+    def test_notable_pairs_count_gte_2(self):
+        """notable_pairs() содержит хотя бы 2 пары."""
+        pxy = PowerXY()
+        self.assertGreaterEqual(len(pxy.notable_pairs()), 2)
+
+
+class TestGenerateCurveDefault(unittest.TestCase):
+    def test_default_curve_positive_count(self):
+        """generate_curve() с параметрами по умолчанию возвращает точки."""
+        pxy = PowerXY()
+        curve = pxy.generate_curve()
+        self.assertGreater(len(curve), 0)
+
+    def test_default_curve_x_greater_1(self):
+        """X-координата каждой точки > 1."""
+        pxy = PowerXY()
+        for X, Y in pxy.generate_curve(steps=10):
+            self.assertGreater(X, 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

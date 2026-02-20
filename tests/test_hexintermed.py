@@ -128,6 +128,30 @@ class TestIntermediateSeries(unittest.TestCase):
         self.assertIsInstance(s, str)
         self.assertIn("H(k)", s)
 
+    def test_partial_sum_known_n3(self):
+        """S(3) = h(1)+h(2)+h(3) = 3+5+14 = 22."""
+        self.assertEqual(self.h.partial_sum(3), 22)
+
+    def test_factorize_product_equals_term(self):
+        """x * y == h(k) для k=1..10."""
+        for k in range(1, 11):
+            f = self.h.factorize(k)
+            self.assertEqual(f["x"] * f["y"], self.h.term(k))
+
+    def test_recurrence_check_hk_matches_term(self):
+        """h(k) в словаре совпадает с term(k)."""
+        for r in self.h.recurrence_check(8):
+            self.assertEqual(r["h(k)"], self.h.term(r["k"]))
+
+    def test_symmetry_check_diff_is_int(self):
+        """diff — целое число."""
+        res = self.h.symmetry_check(6, m=2)
+        self.assertIsInstance(res["diff"], int)
+
+    def test_h_by_search_k1_is_3(self):
+        """_h_by_search(1) == 3 (первый элемент ряда H)."""
+        self.assertEqual(_h_by_search(1), 3)
+
 
 if __name__ == "__main__":
     unittest.main()
