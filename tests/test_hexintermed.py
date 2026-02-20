@@ -179,5 +179,31 @@ class TestIntermediateSeries(unittest.TestCase):
         self.assertEqual(res["diff"], expected_diff)
 
 
+class TestIntermediateExtra(unittest.TestCase):
+    def setUp(self):
+        self.h = IntermediateSeries()
+
+    def test_h_by_formula_k5(self):
+        """_h_by_formula(5) == 33."""
+        self.assertEqual(_h_by_formula(5), 33)
+
+    def test_generate_first_three(self):
+        """generate(3) возвращает [3, 5, 14]."""
+        self.assertEqual(self.h.generate(3), [3, 5, 14])
+
+    def test_polygonal_triangle_k3(self):
+        """polygonal(3, 3) = T(3) = 6 (третье треугольное число)."""
+        self.assertEqual(IntermediateSeries.polygonal(3, 3), 6)
+
+    def test_partial_sum_n5(self):
+        """partial_sum(5) == 73."""
+        self.assertEqual(self.h.partial_sum(5), 73)
+
+    def test_recurrence_check_all_ok(self):
+        """recurrence_check(5): все записи имеют ok == True."""
+        for entry in self.h.recurrence_check(5):
+            self.assertTrue(entry["ok"], f"Рекуррентность нарушена: {entry}")
+
+
 if __name__ == "__main__":
     unittest.main()

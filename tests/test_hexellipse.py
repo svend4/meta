@@ -196,5 +196,36 @@ class TestParameterConstruction(unittest.TestCase):
         self.assertIn('8.33', s)
 
 
+class TestEllipseExtra(unittest.TestCase):
+    def setUp(self):
+        self.ea = EllipseAnalysis(5.0, 3.0)
+
+    def test_verify_identity_keys(self):
+        """verify_identity() содержит ключи 'a*b', 'c*p', 'ok'."""
+        d = self.ea.verify_identity()
+        for key in ("a*b", "c*p", "ok"):
+            self.assertIn(key, d)
+
+    def test_at_catastrophe_q_is_focal_param(self):
+        """at_catastrophe()['q'] == focal_parameter() = b²/a = 1.8."""
+        r = self.ea.at_catastrophe()
+        self.assertAlmostEqual(r["q"], self.ea.focal_parameter(), places=9)
+
+    def test_at_catastrophe_inflection_count(self):
+        """at_catastrophe() имеет ровно 2 точки перегиба."""
+        r = self.ea.at_catastrophe()
+        self.assertEqual(len(r["inflection_points"]), 2)
+
+    def test_catastrophe_curve_custom_n(self):
+        """catastrophe_curve(n_points=50) возвращает ровно 50 точек."""
+        pts = self.ea.catastrophe_curve(50)
+        self.assertEqual(len(pts), 50)
+
+    def test_summary_contains_eccentricity_value(self):
+        """summary() упоминает значение эксцентриситета e=0.8."""
+        s = self.ea.summary()
+        self.assertIn("0.8", s)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -175,5 +175,41 @@ class TestRP2CheckerExtended(unittest.TestCase):
         self.assertEqual(result["chi"], 1)
 
 
+class TestRP2CheckerConvenience(unittest.TestCase):
+    def setUp(self):
+        self.checker = RP2Checker()
+
+    def test_check_heptahedron_ok(self):
+        """check_heptahedron() → ok=True, chi=1."""
+        r = self.checker.check_heptahedron()
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["chi"], 1)
+
+    def test_check_icosahedron_not_rp2(self):
+        """Икосаэдр (χ=2) — не RP²."""
+        r = self.checker.check_icosahedron()
+        self.assertFalse(r["ok"])
+
+    def test_check_cuboctahedron_not_rp2(self):
+        """Кубоктаэдр — не RP²."""
+        r = self.checker.check_cuboctahedron()
+        self.assertFalse(r["ok"])
+
+
+class TestHeptahedronExtra(unittest.TestCase):
+    def setUp(self):
+        self.h = Heptahedron(1.0)
+
+    def test_sphere_isomorphism_is_string(self):
+        """sphere_isomorphism() возвращает строку, упоминающую RP²."""
+        s = self.h.sphere_isomorphism()
+        self.assertIsInstance(s, str)
+        self.assertGreater(len(s), 0)
+
+    def test_euler_characteristic_icosahedron(self):
+        """_euler_characteristic(12,20,30) = 2 (сфера)."""
+        self.assertEqual(_euler_characteristic(12, 20, 30), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
