@@ -4156,6 +4156,265 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Бассейн аттрактора CA Q6 — профиль устойчивости</h2>
+<p class="meta">Для каждого k = 0..max_k: случайно переворачивается ровно k бит из 96 (16 клеток × 6 бит) → доля выборок, попавших в тот же аттрактор · k=0 ≡ 1.0 (само слово) · XOR: глобальный бассейн «ноль» → доля ≈ 1.0 · XOR3: узкие частные бассейны → резкий обрыв · пунктир = порог 50%</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="ba-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="ba-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <label style="color:#aaa;font-size:12px">max k =
+    <select id="ba-maxk"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="12">12</option>
+      <option value="18" selected>18</option>
+      <option value="24">24</option>
+      <option value="48">48</option>
+    </select>
+  </label>
+  <label style="color:#aaa;font-size:12px">n/k =
+    <select id="ba-n"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="30">30</option>
+      <option value="50" selected>50</option>
+      <option value="100">100</option>
+    </select>
+  </label>
+  <button id="ba-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Бассейн</button>
+  <button id="ba-hmap-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Heatmap (лексикон)</button>
+</div>
+<canvas id="ba-canvas" style="display:block;margin-bottom:6px"></canvas>
+<div id="ba-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-bottom:6px"></div>
+<canvas id="ba-hmap" style="display:none;margin-top:8px"></canvas>
+<script>
+(function(){
+  var BA_COLS = {xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+  var BA_RGB  = {xor:[255,85,85],xor3:[68,221,221],and:[119,221,119],or:[255,170,0]};
+  var ALL_RULES=['xor','xor3','and','or'];
+  var RNAMES  = {xor:'XOR \u2295',xor3:'XOR3',and:'AND \u0026',or:'OR |'};
+  var N_BITS  = 6;
+
+  function baStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function baOrbit(cells0,rule){
+    var seen={},c=cells0.slice(),t=0;
+    for(;;){
+      var key=c.join(',');
+      if(key in seen) return {transient:seen[key],period:t-seen[key]};
+      seen[key]=t; c=baStep(c,rule); t++;
+    }
+  }
+
+  function baAttractorSig(cells,rule){
+    var orb=baOrbit(cells.slice(),rule);
+    var T=orb.transient,P=Math.max(orb.period,1),c=cells.slice();
+    for(var t=0;t<T;t++) c=baStep(c,rule);
+    var states=[];
+    for(var t=0;t<P;t++){states.push(c.join(','));c=baStep(c,rule);}
+    return states.sort().join('|');
+  }
+
+  // Partial Fisher-Yates to sample k positions without replacement
+  function baFlipK(cells,k){
+    var total=cells.length*N_BITS;
+    var pos=[];
+    for(var i=0;i<total;i++) pos.push(i);
+    for(var i=0;i<k && i<total;i++){
+      var j=i+Math.floor(Math.random()*(total-i));
+      var tmp=pos[i];pos[i]=pos[j];pos[j]=tmp;
+    }
+    var result=cells.slice();
+    var mask=(1<<N_BITS)-1;
+    for(var i=0;i<Math.min(k,total);i++){
+      var ci=Math.floor(pos[i]/N_BITS),bi=pos[i]%N_BITS;
+      result[ci]=(result[ci]^(1<<bi))&mask;
+    }
+    return result;
+  }
+
+  function baProfile(word,rule,maxK,nPerK){
+    var cells=window.padL(window.encL(word.toUpperCase()),16);
+    var tgtSig=baAttractorSig(cells,rule);
+    var profile=[1.0];
+    for(var k=1;k<=maxK;k++){
+      var hits=0;
+      for(var n=0;n<nPerK;n++){
+        var ic=baFlipK(cells,k);
+        if(baAttractorSig(ic,rule)===tgtSig) hits++;
+      }
+      profile.push(hits/nPerK);
+    }
+    return profile;
+  }
+
+  function baGlobalSample(word,rule,nSamples){
+    var cells=window.padL(window.encL(word.toUpperCase()),16);
+    var tgtSig=baAttractorSig(cells,rule);
+    var hits=0;
+    for(var n=0;n<nSamples;n++){
+      var ic=cells.slice().map(function(){return Math.floor(Math.random()*64);});
+      if(baAttractorSig(ic,rule)===tgtSig) hits++;
+    }
+    return hits/nSamples;
+  }
+
+  function drawBasinChart(canvas,profile,rule){
+    var maxK=profile.length-1;
+    var padL=10,padR=10,padT=14,padB=28;
+    var W=Math.max(360,Math.min(600,(maxK+1)*22+padL+padR));
+    var H=160;
+    canvas.width=W; canvas.height=H;
+    var ctx=canvas.getContext('2d');
+    var rgb=BA_RGB[rule]||[128,128,128];
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,W,H);
+
+    var chartW=W-padL-padR, chartH=H-padT-padB;
+    var barW=Math.max(3,Math.floor(chartW/(maxK+1))-1);
+    var col50='rgba(128,128,128,0.4)';
+
+    // 50% line
+    var y50=padT+chartH*(1-0.5);
+    ctx.strokeStyle=col50; ctx.lineWidth=1;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(padL,y50); ctx.lineTo(W-padR,y50); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#555'; ctx.font='9px monospace'; ctx.textAlign='left';
+    ctx.fillText('0.5',W-padR-18,y50-2);
+
+    // bars
+    var k50=-1;
+    for(var k=0;k<=maxK;k++){
+      var f=profile[k];
+      if(k>0 && k50<0 && f<0.5) k50=k;
+      var x=padL+k*(chartW/(maxK+1));
+      var bH=Math.round(f*chartH);
+      var a=Math.max(0.15,f);
+      ctx.fillStyle='rgba('+Math.round(rgb[0]*a+0x1c*(1-a))+','
+                           +Math.round(rgb[1]*a+0x1c*(1-a))+','
+                           +Math.round(rgb[2]*a+0x1c*(1-a))+',1)';
+      ctx.fillRect(x,padT+chartH-bH,barW,bH);
+      // x label
+      if(k%3===0){
+        ctx.fillStyle='#666'; ctx.font='9px monospace'; ctx.textAlign='center';
+        ctx.fillText(k,x+barW/2,H-padB+10);
+      }
+    }
+    // k50 marker
+    if(k50>0){
+      var xk=padL+k50*(chartW/(maxK+1));
+      ctx.strokeStyle=BA_COLS[rule]; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(xk,padT); ctx.lineTo(xk,H-padB); ctx.stroke();
+      ctx.fillStyle=BA_COLS[rule]; ctx.font='9px monospace'; ctx.textAlign='left';
+      ctx.fillText('k\u2085\u2080='+k50,xk+2,padT+10);
+    }
+  }
+
+  function baRun(){
+    if(!window.encL||!window.padL) return;
+    var word=(document.getElementById('ba-word').value||'ГОРА').toUpperCase();
+    var rule=document.getElementById('ba-rule').value||'xor3';
+    var maxK=parseInt(document.getElementById('ba-maxk').value||'18',10);
+    var nPerK=parseInt(document.getElementById('ba-n').value||'50',10);
+    var canvas=document.getElementById('ba-canvas');
+    var statsDiv=document.getElementById('ba-stats');
+
+    var profile=baProfile(word,rule,maxK,nPerK);
+    drawBasinChart(canvas,profile,rule);
+
+    var meanP=profile.slice(1).reduce(function(a,b){return a+b;},0)/maxK;
+    var k50=-1;
+    for(var k=1;k<=maxK;k++) if(profile[k]<0.5){k50=k;break;}
+    var gbFrac=baGlobalSample(word,rule,nPerK);
+    statsDiv.innerHTML='<span style="color:'+BA_COLS[rule]+'">'+RNAMES[rule]+'</span>'
+      +'  k\u2085\u2080='+(k50<0?'&gt;'+maxK:k50)
+      +'  ср.профиль='+meanP.toFixed(3)
+      +'  глобальный бассейн='+gbFrac.toFixed(3)
+      +' ('+nPerK+' случ. ИУ)';
+  }
+
+  function baHmapRun(){
+    if(!window.encL||!window.padL||!window.LEXICON_ARR) return;
+    var words=window.LEXICON_ARR.slice().sort();
+    var nPerK=parseInt(document.getElementById('ba-n').value||'50',10);
+    var cellW=13,cellH=18,leftPad=54,topPad=75;
+    var hmCv=document.getElementById('ba-hmap');
+    hmCv.width=leftPad+words.length*cellW+4;
+    hmCv.height=topPad+ALL_RULES.length*cellH+4;
+    var ctx=hmCv.getContext('2d');
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,hmCv.width,hmCv.height);
+
+    ctx.save(); ctx.font='9px monospace'; ctx.fillStyle='#999';
+    for(var wi=0;wi<words.length;wi++){
+      ctx.save();
+      ctx.translate(leftPad+wi*cellW+cellW/2,topPad-4);
+      ctx.rotate(-Math.PI/2); ctx.textAlign='left';
+      ctx.fillText(words[wi],0,0); ctx.restore();
+    }
+    ctx.restore();
+    ctx.textAlign='right'; ctx.font='11px monospace';
+    for(var ri=0;ri<ALL_RULES.length;ri++){
+      ctx.fillStyle=BA_COLS[ALL_RULES[ri]];
+      ctx.fillText(RNAMES[ALL_RULES[ri]],leftPad-4,topPad+ri*cellH+cellH-3);
+    }
+    for(var ri2=0;ri2<ALL_RULES.length;ri2++){
+      var rule2=ALL_RULES[ri2];
+      var rgb2=BA_RGB[rule2]||[128,128,128];
+      for(var wi2=0;wi2<words.length;wi2++){
+        // use global basin fraction as color intensity
+        var gbFrac2=baGlobalSample(words[wi2],rule2,nPerK);
+        var a=gbFrac2;
+        var cr=Math.round(rgb2[0]*a+0x1c*(1-a));
+        var cg=Math.round(rgb2[1]*a+0x1c*(1-a));
+        var cb=Math.round(rgb2[2]*a+0x1c*(1-a));
+        ctx.fillStyle='rgb('+cr+','+cg+','+cb+')';
+        ctx.fillRect(leftPad+wi2*cellW,topPad+ri2*cellH,cellW-1,cellH-1);
+      }
+    }
+    hmCv.style.display='block';
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('ba-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.text=w; if(w==='\u0413\u041e\u0420\u0410') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('ba-btn');
+    var hmBtn=document.getElementById('ba-hmap-btn');
+    var ruleEl=document.getElementById('ba-rule');
+    var wordEl=document.getElementById('ba-word');
+    if(btn)    btn.addEventListener('click',baRun);
+    if(hmBtn)  hmBtn.addEventListener('click',baHmapRun);
+    if(ruleEl) ruleEl.addEventListener('change',baRun);
+    if(wordEl) wordEl.addEventListener('change',baRun);
+    setTimeout(function(){if(window.encL) baRun();},1200);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Ляпунов CA Q6 — расходимость траекторий</h2>
 <p class="meta">Однобитовые возмущения начального состояния (96 вариантов) → среднее Хэмминг-расстояние d(t) между оригинальной и возмущённой траекториями · пик = «максимальная чувствительность» · ↓ = сходится к 0</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">

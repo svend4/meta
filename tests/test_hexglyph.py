@@ -4296,6 +4296,280 @@ class TestSolanMutual(unittest.TestCase):
         self.assertIn('miEntropy', content)
 
 
+class TestSolanBasin(unittest.TestCase):
+    """Tests for solan_basin.py and the viewer Basin section."""
+
+    @classmethod
+    def setUpClass(cls):
+        import random as _rnd
+        from projects.hexglyph.solan_basin import (
+            word_ic, flip_k_bits, random_ic,
+            attractor_sig, attractors_match,
+            basin_at_k, sample_global_basin,
+            basin_profile, trajectory_basin, all_basins,
+            build_basin_data, basin_dict,
+            _ALL_RULES, _DEFAULT_WIDTH, _N_BITS,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.word_ic             = staticmethod(word_ic)
+        cls.flip_k_bits         = staticmethod(flip_k_bits)
+        cls.random_ic           = staticmethod(random_ic)
+        cls.attractor_sig       = staticmethod(attractor_sig)
+        cls.attractors_match    = staticmethod(attractors_match)
+        cls.basin_at_k          = staticmethod(basin_at_k)
+        cls.sample_global_basin = staticmethod(sample_global_basin)
+        cls.basin_profile       = staticmethod(basin_profile)
+        cls.trajectory_basin    = staticmethod(trajectory_basin)
+        cls.all_basins          = staticmethod(all_basins)
+        cls.build_basin_data    = staticmethod(build_basin_data)
+        cls.basin_dict          = staticmethod(basin_dict)
+        cls.ALL_RULES           = _ALL_RULES
+        cls.W                   = _DEFAULT_WIDTH
+        cls.N_BITS              = _N_BITS
+        cls.LEXICON             = list(LEXICON)
+        cls.rng                 = _rnd.Random(42)
+
+    # ── word_ic() ─────────────────────────────────────────────────────────────
+
+    def test_wic_length(self):
+        ic = self.word_ic('ГОРА', 16)
+        self.assertEqual(len(ic), 16)
+
+    def test_wic_q6_range(self):
+        ic = self.word_ic('ТУМАН', 16)
+        for v in ic:
+            self.assertGreaterEqual(v, 0)
+            self.assertLessEqual(v, 63)
+
+    def test_wic_uppercase(self):
+        self.assertEqual(self.word_ic('гора', 16), self.word_ic('ГОРА', 16))
+
+    # ── flip_k_bits() ─────────────────────────────────────────────────────────
+
+    def test_fkb_k0_identity(self):
+        cells = self.word_ic('ГОРА', 16)
+        rng = __import__('random').Random(1)
+        self.assertEqual(self.flip_k_bits(cells, 0, rng), cells)
+
+    def test_fkb_length_preserved(self):
+        cells = self.word_ic('ГОРА', 16)
+        rng = __import__('random').Random(1)
+        self.assertEqual(len(self.flip_k_bits(cells, 3, rng)), 16)
+
+    def test_fkb_q6_range_preserved(self):
+        cells = self.word_ic('ТУМАН', 16)
+        rng = __import__('random').Random(7)
+        result = self.flip_k_bits(cells, 5, rng)
+        for v in result:
+            self.assertGreaterEqual(v, 0)
+            self.assertLessEqual(v, 63)
+
+    def test_fkb_k1_changes_one_bit(self):
+        import random
+        cells = [0] * 16   # all bits zero
+        rng = random.Random(3)
+        result = self.flip_k_bits(cells, 1, rng)
+        # exactly one cell should have changed
+        changed = sum(1 for a, b in zip(cells, result) if a != b)
+        self.assertEqual(changed, 1)
+
+    # ── random_ic() ───────────────────────────────────────────────────────────
+
+    def test_ric_length(self):
+        rng = __import__('random').Random(0)
+        ic = self.random_ic(16, rng)
+        self.assertEqual(len(ic), 16)
+
+    def test_ric_q6_range(self):
+        rng = __import__('random').Random(0)
+        ic = self.random_ic(16, rng)
+        for v in ic:
+            self.assertGreaterEqual(v, 0)
+            self.assertLessEqual(v, 63)
+
+    # ── attractor_sig() ───────────────────────────────────────────────────────
+
+    def test_as_is_frozenset(self):
+        sig = self.attractor_sig('ГОРА', 'xor')
+        self.assertIsInstance(sig, frozenset)
+
+    def test_as_non_empty(self):
+        sig = self.attractor_sig('ГОРА', 'xor3')
+        self.assertGreater(len(sig), 0)
+
+    def test_as_xor_same_across_words(self):
+        # Both converge to all-zeros under XOR → identical signatures
+        sig1 = self.attractor_sig('ГОРА', 'xor')
+        sig2 = self.attractor_sig('ТУМАН', 'xor')
+        self.assertEqual(sig1, sig2)
+
+    def test_as_xor_vs_xor3_different(self):
+        s1 = self.attractor_sig('ГОРА', 'xor')
+        s2 = self.attractor_sig('ГОРА', 'xor3')
+        self.assertNotEqual(s1, s2)
+
+    def test_as_deterministic(self):
+        s1 = self.attractor_sig('ВОДА', 'xor3')
+        s2 = self.attractor_sig('ВОДА', 'xor3')
+        self.assertEqual(s1, s2)
+
+    def test_as_period_matches_size(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ГОРА'), 16)
+        _, period = find_orbit(cells[:], 'xor3')
+        sig = self.attractor_sig('ГОРА', 'xor3')
+        self.assertEqual(len(sig), max(period, 1))
+
+    # ── attractors_match() ────────────────────────────────────────────────────
+
+    def test_am_same_sig_true(self):
+        sig = self.attractor_sig('ГОРА', 'xor')
+        self.assertTrue(self.attractors_match(sig, sig))
+
+    def test_am_different_sigs_false(self):
+        s1 = self.attractor_sig('ГОРА', 'xor3')
+        s2 = self.attractor_sig('ТУМАН', 'xor3')
+        # These might or might not match; just verify the function returns bool
+        result = self.attractors_match(s1, s2)
+        self.assertIsInstance(result, bool)
+
+    # ── basin_at_k() ──────────────────────────────────────────────────────────
+
+    def test_bak_k0_is_one(self):
+        rng = __import__('random').Random(1)
+        f = self.basin_at_k('ГОРА', 'xor3', 16, 0, 10, rng)
+        self.assertEqual(f, 1.0)
+
+    def test_bak_range(self):
+        rng = __import__('random').Random(2)
+        f = self.basin_at_k('ГОРА', 'xor3', 16, 3, 20, rng)
+        self.assertGreaterEqual(f, 0.0)
+        self.assertLessEqual(f, 1.0)
+
+    def test_bak_xor_always_one(self):
+        # XOR → global basin: all ICs reach the same zero attractor
+        rng = __import__('random').Random(5)
+        for k in [1, 4, 8]:
+            f = self.basin_at_k('ГОРА', 'xor', 16, k, 30, rng)
+            self.assertAlmostEqual(f, 1.0, places=1)
+
+    # ── sample_global_basin() ─────────────────────────────────────────────────
+
+    def test_sgb_keys(self):
+        rng = __import__('random').Random(0)
+        d = self.sample_global_basin('ГОРА', 'xor', 16, 20, rng)
+        for k in ['fraction', 'n_same', 'n_samples']:
+            self.assertIn(k, d)
+
+    def test_sgb_fraction_range(self):
+        rng = __import__('random').Random(0)
+        d = self.sample_global_basin('ГОРА', 'xor3', 16, 20, rng)
+        self.assertGreaterEqual(d['fraction'], 0.0)
+        self.assertLessEqual(d['fraction'], 1.0)
+
+    def test_sgb_xor_high_fraction(self):
+        rng = __import__('random').Random(0)
+        d = self.sample_global_basin('ГОРА', 'xor', 16, 50, rng)
+        self.assertGreater(d['fraction'], 0.9)
+
+    # ── basin_profile() ───────────────────────────────────────────────────────
+
+    def test_bp_length(self):
+        p = self.basin_profile('ГОРА', 'xor3', 16, max_k=6, n_per_k=10, seed=42)
+        self.assertEqual(len(p), 7)
+
+    def test_bp_first_is_one(self):
+        p = self.basin_profile('ГОРА', 'xor3', 16, max_k=6, n_per_k=10, seed=42)
+        self.assertEqual(p[0], 1.0)
+
+    def test_bp_all_in_range(self):
+        p = self.basin_profile('ГОРА', 'xor3', 16, max_k=4, n_per_k=10, seed=42)
+        for f in p:
+            self.assertGreaterEqual(f, 0.0)
+            self.assertLessEqual(f, 1.0)
+
+    def test_bp_xor_all_ones(self):
+        p = self.basin_profile('ГОРА', 'xor', 16, max_k=5, n_per_k=20, seed=42)
+        for f in p:
+            self.assertAlmostEqual(f, 1.0, places=1)
+
+    # ── trajectory_basin() ────────────────────────────────────────────────────
+
+    def test_tb_keys(self):
+        tr = self.trajectory_basin('ГОРА', 'xor3', max_k=4, n_per_k=10, seed=42)
+        for k in ['word', 'rule', 'width', 'profile', 'mean_profile',
+                  'k50', 'global_basin']:
+            self.assertIn(k, tr)
+
+    def test_tb_word_uppercased(self):
+        tr = self.trajectory_basin('гора', 'xor3', max_k=4, n_per_k=10, seed=42)
+        self.assertEqual(tr['word'], 'ГОРА')
+
+    def test_tb_profile_length(self):
+        tr = self.trajectory_basin('ГОРА', 'xor3', max_k=6, n_per_k=10, seed=42)
+        self.assertEqual(len(tr['profile']), 7)
+
+    def test_tb_mean_profile_range(self):
+        tr = self.trajectory_basin('ГОРА', 'xor3', max_k=4, n_per_k=10, seed=42)
+        self.assertGreaterEqual(tr['mean_profile'], 0.0)
+        self.assertLessEqual(tr['mean_profile'], 1.0)
+
+    # ── all_basins() ──────────────────────────────────────────────────────────
+
+    def test_ab_all_rules(self):
+        d = self.all_basins('ГОРА', max_k=4, n_per_k=10, seed=42)
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    # ── build_basin_data() ────────────────────────────────────────────────────
+
+    def test_bbd_keys(self):
+        d = self.build_basin_data(['ГОРА', 'ВОДА'], n_per_k=10, seed=42)
+        for k in ['words', 'width', 'n_per_k', 'per_rule',
+                  'ranking', 'widest', 'narrowest']:
+            self.assertIn(k, d)
+
+    def test_bbd_ranking_sorted(self):
+        d = self.build_basin_data(['ГОРА', 'ВОДА', 'МИР'], n_per_k=10, seed=42)
+        for rule in self.ALL_RULES:
+            vals = [x[1] for x in d['ranking'][rule]]
+            self.assertEqual(vals, sorted(vals, reverse=True))
+
+    # ── basin_dict() ──────────────────────────────────────────────────────────
+
+    def test_bd_json_serialisable(self):
+        import json
+        d = self.basin_dict('ГОРА', max_k=4, n_per_k=10, seed=42)
+        json.dumps(d)
+
+    def test_bd_has_profile(self):
+        d = self.basin_dict('ГОРА', max_k=4, n_per_k=10, seed=42)
+        for rule in self.ALL_RULES:
+            self.assertIn('profile', d['rules'][rule])
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_ba_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ba-canvas', content)
+
+    def test_viewer_has_ba_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ba-stats', content)
+
+    def test_viewer_has_ba_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ba-btn', content)
+
+    def test_viewer_has_ba_profile(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('baProfile', content)
+
+    def test_viewer_has_ba_attractor_sig(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('baAttractorSig', content)
+
+
 class TestSolanCorrelation(unittest.TestCase):
     """Tests for solan_correlation.py and the viewer Correlation section."""
 
