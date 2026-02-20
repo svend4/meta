@@ -1714,6 +1714,250 @@ class TestSolanDendrogram(unittest.TestCase):
         self.assertIn('_hovLeaf', content)
 
 
+class TestSolanTransient(unittest.TestCase):
+    """Tests for solan_transient.py and the viewer Transient section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import (
+            build_transient_data, transient_classes, full_key,
+            transient_dist, transient_dict, RULES,
+        )
+        cls.build     = staticmethod(build_transient_data)
+        cls.classes   = staticmethod(transient_classes)
+        cls.full_key  = staticmethod(full_key)
+        cls.t_dist    = staticmethod(transient_dist)
+        cls.t_dict    = staticmethod(transient_dict)
+        cls.RULES     = RULES
+        cls._w9 = ['ГОРА','УДАР','РОТА','УТРО',
+                   'ВОДА','НОРА','ЛУНА','РАТОН','ЖУРНАЛ']
+
+    # ── full_key ─────────────────────────────────────────────────────────
+
+    def test_full_key_tuple_length(self):
+        k = self.full_key('ГОРА')
+        self.assertEqual(len(k), 5)
+
+    def test_full_key_all_ints(self):
+        k = self.full_key('ГОРА')
+        for v in k:
+            self.assertIsInstance(v, int)
+
+    def test_full_key_same_word(self):
+        self.assertEqual(self.full_key('ГОРА'), self.full_key('ГОРА'))
+
+    def test_full_key_gora_class(self):
+        """ГОРА должна быть в классе (2,1,2,1,1)."""
+        self.assertEqual(self.full_key('ГОРА'), (2, 1, 2, 1, 1))
+
+    def test_full_key_voda_class(self):
+        """ВОДА должна быть в классе (2,1,2,1,2)."""
+        self.assertEqual(self.full_key('ВОДА'), (2, 1, 2, 1, 2))
+
+    def test_full_key_zhurnal_class(self):
+        """ЖУРНАЛ — singleton (8,4,2,4,2)."""
+        self.assertEqual(self.full_key('ЖУРНАЛ'), (8, 4, 2, 4, 2))
+
+    # ── build_transient_data ─────────────────────────────────────────────
+
+    def test_build_has_required_keys(self):
+        data = self.build(self._w9)
+        for k in ('words','signatures','by_rule','classes','n_classes',
+                  'xor_t_isomorphic_xor3_p'):
+            self.assertIn(k, data)
+
+    def test_build_words_preserved(self):
+        data = self.build(self._w9)
+        self.assertEqual(data['words'], self._w9)
+
+    def test_build_signatures_all_words(self):
+        data = self.build(self._w9)
+        self.assertEqual(set(data['signatures'].keys()), set(self._w9))
+
+    def test_build_by_rule_all_rules(self):
+        data = self.build(self._w9)
+        for rule in self.RULES:
+            self.assertIn(rule, data['by_rule'])
+
+    def test_build_by_rule_keys(self):
+        data = self.build(self._w9)
+        req = {'transients','periods','tp_pairs','entropy_t',
+               'entropy_p','unique_t','hist_t','unique_tp'}
+        for rule in self.RULES:
+            self.assertTrue(req.issubset(data['by_rule'][rule].keys()))
+
+    def test_xor_transient_equiv_xor3_period(self):
+        """XOR transient ≡ XOR3 period for all 49 words."""
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        self.assertTrue(data['xor_t_isomorphic_xor3_p'])
+
+    def test_xor3_transient_all_zero(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        for t in data['by_rule']['xor3']['transients'].values():
+            self.assertEqual(t, 0)
+
+    def test_xor3_entropy_transient_zero(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        self.assertAlmostEqual(data['by_rule']['xor3']['entropy_t'], 0.0, places=6)
+
+    def test_xor_transients_values(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        self.assertEqual(sorted(data['by_rule']['xor']['unique_t']), [2, 8])
+
+    def test_and_transients_5_unique(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        self.assertEqual(len(data['by_rule']['and']['unique_t']), 5)
+
+    def test_or_transients_6_unique(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        self.assertEqual(len(data['by_rule']['or']['unique_t']), 6)
+
+    def test_and_entropy_t_greater_p(self):
+        """AND transient entropy > AND period entropy."""
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        rd = data['by_rule']['and']
+        self.assertGreater(rd['entropy_t'], rd['entropy_p'])
+
+    def test_or_entropy_t_greater_p(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        rd = data['by_rule']['or']
+        self.assertGreater(rd['entropy_t'], rd['entropy_p'])
+
+    # ── transient_classes ────────────────────────────────────────────────
+
+    def test_13_classes_full_lexicon(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        self.assertEqual(data['n_classes'], 13)
+
+    def test_classes_cover_all_words(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        all_words = [w for c in data['classes'] for w in c['words']]
+        self.assertEqual(sorted(all_words), sorted(LEXICON))
+
+    def test_classes_no_overlap(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        seen: set[str] = set()
+        for c in data['classes']:
+            for w in c['words']:
+                self.assertNotIn(w, seen)
+                seen.add(w)
+
+    def test_classes_sorted_desc(self):
+        data = self.build()
+        sizes = [c['count'] for c in data['classes']]
+        self.assertEqual(sizes, sorted(sizes, reverse=True))
+
+    def test_largest_class_20(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        data = self.build()
+        self.assertEqual(data['classes'][0]['count'], 20)
+
+    def test_largest_class_key(self):
+        data = self.build()
+        self.assertEqual(data['classes'][0]['key'], (2, 1, 2, 1, 2))
+
+    def test_singleton_zhurnal(self):
+        data = self.build()
+        for c in data['classes']:
+            if 'ЖУРНАЛ' in c['words']:
+                self.assertEqual(c['count'], 1)
+                self.assertEqual(c['key'], (8, 4, 2, 4, 2))
+                break
+
+    def test_class_sizes_known(self):
+        """Known sizes: 20,5,4,4,4,3,2,2,1,1,1,1,1."""
+        data = self.build()
+        sizes = sorted([c['count'] for c in data['classes']], reverse=True)
+        self.assertEqual(sizes, [20, 5, 4, 4, 4, 3, 2, 2, 1, 1, 1, 1, 1])
+
+    # ── transient_dist ───────────────────────────────────────────────────
+
+    def test_transient_dist_same(self):
+        from projects.hexglyph.solan_word import word_signature
+        sig = word_signature('ГОРА')
+        self.assertAlmostEqual(self.t_dist(sig, sig), 0.0)
+
+    def test_transient_dist_nonneg(self):
+        from projects.hexglyph.solan_word import word_signature
+        s1 = word_signature('ГОРА')
+        s2 = word_signature('ЖУРНАЛ')
+        d = self.t_dist(s1, s2)
+        self.assertGreaterEqual(d, 0.0)
+
+    def test_transient_dist_symmetric(self):
+        from projects.hexglyph.solan_word import word_signature
+        s1 = word_signature('ГОРА')
+        s2 = word_signature('РАТОН')
+        self.assertAlmostEqual(self.t_dist(s1, s2), self.t_dist(s2, s1))
+
+    def test_transient_dist_same_class_zero(self):
+        """Words in same transient class → dist=0."""
+        from projects.hexglyph.solan_word import word_signature
+        # ГОРА and УДАР are in same class (2,1,2,1,1)
+        s1 = word_signature('ГОРА')
+        s2 = word_signature('УДАР')
+        self.assertAlmostEqual(self.t_dist(s1, s2), 0.0)
+
+    # ── transient_dict ───────────────────────────────────────────────────
+
+    def test_t_dict_keys(self):
+        data = self.build(self._w9)
+        d = self.t_dict(data)
+        for k in ('words','signatures','by_rule','classes','n_classes',
+                  'xor_t_isomorphic_xor3_p'):
+            self.assertIn(k, d)
+
+    def test_t_dict_sig_lists(self):
+        data = self.build(self._w9)
+        d = self.t_dict(data)
+        for w, sig in d['signatures'].items():
+            self.assertIsInstance(sig, list)
+            self.assertEqual(len(sig), 5)
+
+    def test_t_dict_classes_have_key(self):
+        data = self.build(self._w9)
+        d = self.t_dict(data)
+        for c in d['classes']:
+            self.assertIn('key', c)
+            self.assertIsInstance(c['key'], list)
+
+    # ── viewer: Transient section ────────────────────────────────────────
+
+    def test_viewer_has_transient_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Транзиентный анализ Q6', content)
+        self.assertIn('trans-canvas', content)
+
+    def test_viewer_trans_has_and_or_axes(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('AND_T', content)
+        self.assertIn('OR_T', content)
+
+    def test_viewer_trans_has_hover(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('trans-info', content)
+        self.assertIn('_hovIdx', content)
+
+    def test_viewer_trans_has_structural_note(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('XOR транзиент', content)
+
+    def test_viewer_trans_uses_lex_sigs(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lexAllSigs', content)
+
+
 class TestSolanRules(unittest.TestCase):
     """Tests for solan_rules.py and the viewer Rules section."""
 

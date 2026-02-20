@@ -2487,6 +2487,165 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Транзиентный анализ Q6 — 13 классов</h2>
+<p class="meta">Позиция = (AND транзиент × OR транзиент) · цвет = XOR транзиент (синий=2 / оранжевый=8) · hover = подробности</p>
+<canvas id="trans-canvas" width="700" height="430"
+  style="display:block;border:1px solid #1a1a1a;cursor:crosshair"></canvas>
+<div id="trans-info"
+  style="font-family:monospace;font-size:11px;color:#444;min-height:16px;margin-top:4px"> </div>
+<script>
+(function(){
+  var AND_T=[1,2,3,4,7], OR_T=[7,6,4,3,2,1]; // grid axes (or_t top→bottom)
+  var LM=50, TM=52, RM=10, BM=32;
+  var CW=null, CH=null; // computed in build
+  var BLUE='#2196f3', ORANGE='#ff9800';
+  var _words=null, _entries=null, _hovIdx=-1, _dotPos=[];
+
+  function xorCol(xt){return xt===2?BLUE:ORANGE;}
+
+  function build(sigs){
+    _words=Object.keys(sigs);
+    _entries=_words.map(function(w){
+      var s=sigs[w];
+      return{
+        word:w,
+        xor_t:s.xor?s.xor.transient:null,
+        and_t:s.and?s.and.transient:null, and_p:s.and?s.and.period:null,
+        or_t :s.or ?s.or.transient :null, or_p :s.or ?s.or.period :null,
+        xor3_p:s.xor3?s.xor3.period:null,
+      };
+    });
+  }
+
+  function draw(canvas,ctx){
+    if(!_entries) return;
+    var W=canvas.width, H=canvas.height;
+    var gridW=W-LM-RM, gridH=H-TM-BM;
+    CW=gridW/AND_T.length; CH=gridH/OR_T.length;
+    ctx.fillStyle='#0d0d0d'; ctx.fillRect(0,0,W,H);
+
+    // Grid lines
+    ctx.strokeStyle='#222'; ctx.lineWidth=0.5;
+    for(var ci=0;ci<=AND_T.length;ci++){
+      var gx=LM+ci*CW;
+      ctx.beginPath(); ctx.moveTo(gx,TM); ctx.lineTo(gx,TM+gridH); ctx.stroke();
+    }
+    for(var ri=0;ri<=OR_T.length;ri++){
+      var gy=TM+ri*CH;
+      ctx.beginPath(); ctx.moveTo(LM,gy); ctx.lineTo(LM+gridW,gy); ctx.stroke();
+    }
+
+    // Axis labels
+    ctx.fillStyle='#555'; ctx.font='10px monospace';
+    ctx.fillText('AND транзиент →',LM,TM-36);
+    AND_T.forEach(function(v,ci){
+      ctx.fillStyle='#888'; ctx.font='10px monospace';
+      ctx.textAlign='center';
+      ctx.fillText('t='+v, LM+ci*CW+CW/2, TM-20);
+    });
+    ctx.textAlign='left';
+    ctx.fillStyle='#555'; ctx.font='10px monospace';
+    ctx.fillText('OR',4,TM+gridH/2);
+    ctx.fillText('транз',2,TM+gridH/2+12);
+    ctx.fillText('↑',18,TM+12);
+    OR_T.forEach(function(v,ri){
+      ctx.fillStyle='#888'; ctx.font='9px monospace';
+      ctx.textAlign='right';
+      ctx.fillText('t='+v, LM-4, TM+ri*CH+CH/2+4);
+    });
+    ctx.textAlign='left';
+
+    // Structural note
+    ctx.fillStyle='#444'; ctx.font='9px monospace';
+    ctx.fillText('XOR транзиент ≡ XOR3 период  (синий=2, оранжевый=8)',LM,H-8);
+
+    // Group cells by (and_t, or_t), then arrange words
+    var cellWords={};
+    _entries.forEach(function(e){
+      if(e.and_t===null||e.or_t===null) return;
+      var k=e.and_t+','+e.or_t;
+      (cellWords[k]=cellWords[k]||[]).push(e);
+    });
+
+    _dotPos=[];
+    Object.keys(cellWords).forEach(function(k){
+      var ws=cellWords[k]; if(!ws.length) return;
+      var parts=k.split(',');
+      var at=parseInt(parts[0]),ot=parseInt(parts[1]);
+      var ci=AND_T.indexOf(at), ri=OR_T.indexOf(ot);
+      if(ci<0||ri<0) return;
+      var cx=LM+ci*CW, cy=TM+ri*CH;
+      var pw=CW-6, ph=CH-10;
+      // Cell background tint
+      var allXt=ws[0].xor_t; var mixed=ws.some(function(e){return e.xor_t!==allXt;});
+      var bgCol=mixed?'#88888820':(allXt===2?BLUE+'18':ORANGE+'18');
+      ctx.fillStyle=bgCol; ctx.fillRect(cx+1,cy+1,CW-2,CH-2);
+
+      // Arrange words
+      var perRow=Math.max(1,Math.floor(pw/27));
+      var rowH=Math.min(11, Math.floor(ph/Math.ceil(ws.length/perRow)));
+      ws.forEach(function(e,i){
+        var col=xorCol(e.xor_t);
+        var r=Math.floor(i/perRow), c=i%perRow;
+        var wx=cx+4+c*27, wy=cy+11+r*rowH;
+        var hl=(_words?_words.indexOf(e.word):i)===_hovIdx;
+        if(hl){
+          ctx.fillStyle=col+'33';
+          ctx.fillRect(wx-1,wy-8,26,10);
+        }
+        ctx.fillStyle=hl?'#fff':col;
+        ctx.font=(hl?'bold ':'')+'8px monospace';
+        var abbr=e.word.substring(0,4);
+        ctx.fillText(abbr,wx,wy);
+        // Store dot position
+        _dotPos.push({idx:_words?_words.indexOf(e.word):i, cx:wx+12, cy:wy-4, e:e});
+      });
+    });
+  }
+
+  function initHover(canvas,ctx){
+    canvas.addEventListener('mousemove',function(ev){
+      if(!_entries||!_dotPos.length) return;
+      var r=canvas.getBoundingClientRect();
+      var mx=(ev.clientX-r.left)*(canvas.width/r.width);
+      var my=(ev.clientY-r.top)*(canvas.height/r.height);
+      var best=-1,bestD=Infinity;
+      _dotPos.forEach(function(dp){
+        var d=(dp.cx-mx)**2+(dp.cy-my)**2;
+        if(d<bestD){bestD=d;best=dp.idx;}
+      });
+      var nh=bestD<200?best:-1;
+      if(nh!==_hovIdx){
+        _hovIdx=nh; draw(canvas,ctx);
+        var info=document.getElementById('trans-info');
+        if(info){
+          if(nh>=0){
+            var e=_entries[nh];
+            info.textContent='▸ '+e.word
+              +'  xor_t='+e.xor_t+'  xor3_p='+e.xor3_p
+              +'  and=(t='+e.and_t+',p='+e.and_p+')'
+              +'  or=(t='+e.or_t+',p='+e.or_p+')';
+          } else { info.textContent=' '; }
+        }
+      }
+    });
+    canvas.addEventListener('mouseleave',function(){
+      _hovIdx=-1; draw(canvas,ctx);
+      var info=document.getElementById('trans-info'); if(info) info.textContent=' ';
+    });
+  }
+
+  setTimeout(function(){
+    var canvas=document.getElementById('trans-canvas');
+    var ctx=canvas.getContext('2d');
+    initHover(canvas,ctx);
+    var sigs=window.lexAllSigs?window.lexAllSigs():null;
+    if(sigs){build(sigs);draw(canvas,ctx);}
+  },900);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
