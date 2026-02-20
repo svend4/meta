@@ -12,7 +12,7 @@ from projects.hextrimat.trimat_glyphs import (
     json_center,
     render_triangle,
 )
-from projects.hextrimat.hextrimat import TriangularMatrix
+from projects.hextrimat.hextrimat import TriangularMatrix, _T, _row_col, _idx
 from projects.hexbio.codon_glyphs import json_codon_map
 
 
@@ -261,6 +261,43 @@ class TestRenderTriangle(unittest.TestCase):
     def test_lines_are_strings(self):
         for line in render_triangle():
             self.assertIsInstance(line, str)
+
+
+class TestTrimatPrivateHelpers(unittest.TestCase):
+    def test_T_3(self):
+        """_T(3) = 6 (3-е треугольное число)."""
+        self.assertEqual(_T(3), 6)
+
+    def test_T_4(self):
+        """_T(4) = 10."""
+        self.assertEqual(_T(4), 10)
+
+    def test_row_col_first(self):
+        """_row_col(0) = (1, 1) — первая клетка."""
+        self.assertEqual(_row_col(0), (1, 1))
+
+    def test_idx_first(self):
+        """_idx(1, 1) = 0 — индекс первой клетки."""
+        self.assertEqual(_idx(1, 1), 0)
+
+    def test_d3_sectors_three_lists(self):
+        """d3_sectors() возвращает кортеж из 3 непустых списков."""
+        tm = TriangularMatrix()
+        sectors = tm.d3_sectors()
+        self.assertIsInstance(sectors, tuple)
+        self.assertEqual(len(sectors), 3)
+        for s in sectors:
+            self.assertGreater(len(s), 0)
+
+    def test_proportion_345_check(self):
+        """proportion_345()['check_345'] == True."""
+        tm = TriangularMatrix()
+        self.assertTrue(tm.proportion_345()["check_345"])
+
+    def test_find_contiguous_subsets_27(self):
+        """find_contiguous_subsets(27) возвращает 4 подмножества."""
+        tm = TriangularMatrix()
+        self.assertEqual(len(tm.find_contiguous_subsets(27)), 4)
 
 
 if __name__ == '__main__':

@@ -209,5 +209,40 @@ class TestSpectrum(unittest.TestCase):
         self.assertIn('2', s)
 
 
+class TestClassify(unittest.TestCase):
+    def setUp(self):
+        self.nd = NumberDerivative()
+
+    def test_classify_ordinary(self):
+        """classify(7) == 'ordinary' (простое → обычное)."""
+        self.assertEqual(self.nd.classify(7), "ordinary")
+
+    def test_classify_perfect(self):
+        """classify(4) == 'perfect' (∂4=4)."""
+        self.assertEqual(self.nd.classify(4), "perfect")
+
+    def test_classify_super(self):
+        """classify(138) == 'super'."""
+        self.assertEqual(self.nd.classify(138), "super")
+
+    def test_upper_envelope_exact(self):
+        """upper_envelope(4) == 5.0."""
+        self.assertAlmostEqual(NumberDerivative.upper_envelope(4), 5.0)
+
+    def test_lower_envelope_exact(self):
+        """lower_envelope(4) == 3.0."""
+        self.assertAlmostEqual(NumberDerivative.lower_envelope(4), 3.0)
+
+    def test_leibniz_holds_is_bool(self):
+        """leibniz_rule(3, 4)['holds'] — булево значение."""
+        result = self.nd.leibniz_rule(3, 4)
+        self.assertIsInstance(result["holds"], bool)
+
+    def test_spectrum_contains_super_marker(self):
+        """Спектр для n=140 содержит маркер [S] (суперсовершенные числа)."""
+        s = self.nd.spectrum(140)
+        self.assertIn("[S]", s)
+
+
 if __name__ == "__main__":
     unittest.main()

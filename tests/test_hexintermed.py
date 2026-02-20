@@ -205,5 +205,30 @@ class TestIntermediateExtra(unittest.TestCase):
             self.assertTrue(entry["ok"], f"Рекуррентность нарушена: {entry}")
 
 
+class TestIntermediateMore(unittest.TestCase):
+    def setUp(self):
+        self.h = IntermediateSeries()
+
+    def test_term_k10(self):
+        """term(10) == 105."""
+        self.assertEqual(self.h.term(10), 105)
+
+    def test_partial_sum_n2(self):
+        """partial_sum(2) = term(1) + term(2) = 3 + 5 = 8."""
+        self.assertEqual(self.h.partial_sum(2), 8)
+
+    def test_polygonal_square_k4(self):
+        """polygonal(4, 4) = 4-е квадратное число = 16."""
+        self.assertEqual(IntermediateSeries.polygonal(4, 4), 16)
+
+    def test_generate_first_five(self):
+        """generate(5) == [3, 5, 14, 18, 33]."""
+        self.assertEqual(self.h.generate(5), [3, 5, 14, 18, 33])
+
+    def test_factorize_k2_check(self):
+        """factorize(2)['check'] == True."""
+        self.assertTrue(self.h.factorize(2)["check"])
+
+
 if __name__ == "__main__":
     unittest.main()

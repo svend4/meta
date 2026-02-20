@@ -211,5 +211,31 @@ class TestHeptahedronExtra(unittest.TestCase):
         self.assertEqual(_euler_characteristic(12, 20, 30), 2)
 
 
+class TestHeptahedronProperties(unittest.TestCase):
+    def setUp(self):
+        self.h = Heptahedron(1.0)
+
+    def test_euler_characteristic_is_1(self):
+        """euler_characteristic() == 1 (RP²)."""
+        self.assertEqual(self.h.euler_characteristic(), 1)
+
+    def test_face_types_triangle_4(self):
+        """Гептаэдр имеет 4 треугольных грани."""
+        self.assertEqual(self.h.face_types()["triangle"], 4)
+
+    def test_face_types_square_3(self):
+        """Гептаэдр имеет 3 квадратных грани."""
+        self.assertEqual(self.h.face_types()["square"], 3)
+
+    def test_net_description_mentions_vertices(self):
+        """net_description() упоминает 6 вершин."""
+        s = self.h.net_description()
+        self.assertIn("6", s)
+
+    def test_surface_area_positive(self):
+        """surface_area() > 0 для a=1."""
+        self.assertGreater(self.h.surface_area(), 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
