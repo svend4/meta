@@ -3627,6 +3627,267 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Рекуррентный анализ CA Q6 — диаграмма Рекуррантности</h2>
+<p class="meta">R[t₁,t₂] = 1 когда H(state(t₁), state(t₂)) ≤ ε · n_cycles=4 циклов аттрактора · RQA: RR=рекуррентность, DET=детерминизм (диагональные линии ≥2), L=ср.длина, LAM=ламинарность (вертикальные линии), TT=среднее время захвата · XOR3: шахматная DET=1 · XOR/OR: сплошной блок аттрактора</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="rc-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="rc-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <label style="color:#aaa;font-size:12px">ε =
+    <select id="rc-eps"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="0" selected>0 (точное)</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="4">4</option>
+    </select>
+  </label>
+  <button id="rc-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    RQA-граф</button>
+  <button id="rc-hmap-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Heatmap (лексикон)</button>
+</div>
+<canvas id="rc-canvas" style="display:block;margin-bottom:10px"></canvas>
+<div id="rc-metrics" style="color:#ccc;font-family:monospace;font-size:12px;margin-bottom:10px"></div>
+<canvas id="rc-hmap" style="display:none;margin-top:8px"></canvas>
+<script>
+(function(){
+  var RC_COLS  = {xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+  var RC_RGB   = {xor:[255,85,85],xor3:[68,221,221],and:[119,221,119],or:[255,170,0]};
+  var ALL_RULES= ['xor','xor3','and','or'];
+  var RNAMES   = {xor:'XOR \u2295',xor3:'XOR3',and:'AND \u0026',or:'OR |'};
+  var N_CYCLES = 4;
+
+  function rcStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function rcOrbit(cells0,rule){
+    var seen={},c=cells0.slice(),t=0;
+    for(;;){
+      var key=c.join(',');
+      if(key in seen) return {transient:seen[key],period:t-seen[key]};
+      seen[key]=t; c=rcStep(c,rule); t++;
+    }
+  }
+
+  function rcRows(word,rule){
+    var cells=window.padL(window.encL(word.toUpperCase()),16);
+    var orb=rcOrbit(cells,rule);
+    var T=orb.transient,P=Math.max(orb.period,1);
+    var nSteps=T+N_CYCLES*P,rows=[],c=cells.slice();
+    for(var t=0;t<nSteps;t++){rows.push(c.slice());c=rcStep(c,rule);}
+    return {rows:rows,transient:T,period:P};
+  }
+
+  function stHam(r1,r2){
+    var d=0;
+    for(var k=0;k<r1.length;k++){var x=r1[k]^r2[k];while(x){d+=x&1;x>>=1;}}
+    return d;
+  }
+
+  function rcMat(rows,eps){
+    var N=rows.length,R=[];
+    for(var i=0;i<N;i++){
+      R.push([]);
+      for(var j=0;j<N;j++) R[i].push(stHam(rows[i],rows[j])<=eps?1:0);
+    }
+    return R;
+  }
+
+  function rqaMet(R,minLine){
+    minLine=minLine||2;
+    var N=R.length;
+    if(!N) return {N:0,RR:0,DET:0,L:0,LAM:0,TT:0};
+    var total=0;
+    for(var i=0;i<N;i++) for(var j=0;j<N;j++) if(i!==j) total+=R[i][j];
+    var RR=N>1?total/(N*(N-1)):0;
+
+    var dPts=0,dLens=[];
+    for(var off=1;off<N;off++){
+      for(var ud=0;ud<2;ud++){
+        var run=0;
+        for(var k=0;k<N-off;k++){
+          var ii=ud?k+off:k, jj=ud?k:k+off;
+          if(R[ii][jj]){run++;}
+          else{if(run>=minLine){dPts+=run;dLens.push(run);}run=0;}
+        }
+        if(run>=minLine){dPts+=run;dLens.push(run);}
+      }
+    }
+    var DET=total>0?dPts/total:0;
+    var L=dLens.length?dLens.reduce(function(a,b){return a+b;},0)/dLens.length:0;
+
+    var vPts=0,vLens=[];
+    for(var j2=0;j2<N;j2++){
+      var segs=[[0,j2],[j2+1,N]];
+      for(var s=0;s<2;s++){
+        var run2=0;
+        for(var i2=segs[s][0];i2<segs[s][1];i2++){
+          if(R[i2][j2]){run2++;}
+          else{if(run2>=minLine){vPts+=run2;vLens.push(run2);}run2=0;}
+        }
+        if(run2>=minLine){vPts+=run2;vLens.push(run2);}
+      }
+    }
+    var LAM=total>0?vPts/total:0;
+    var TT=vLens.length?vLens.reduce(function(a,b){return a+b;},0)/vLens.length:0;
+
+    function r4(x){return Math.round(x*1e4)/1e4;}
+    function r2(x){return Math.round(x*1e2)/1e2;}
+    return {N:N,RR:r4(RR),DET:r4(DET),L:r2(L),LAM:r4(LAM),TT:r2(TT)};
+  }
+
+  function drawRecPlot(canvas,R,transient,period,rule){
+    var N=R.length;
+    if(!N){canvas.width=2;canvas.height=2;return;}
+    var cellSz=Math.max(Math.min(Math.floor(550/N),32),6);
+    canvas.width=cellSz*N+2; canvas.height=cellSz*N+2;
+    var ctx=canvas.getContext('2d');
+    var ruleCol=RC_COLS[rule]||'#aaa';
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    for(var i=0;i<N;i++){
+      for(var j=0;j<N;j++){
+        var x=j*cellSz+1,y=i*cellSz+1;
+        if(i===j)         ctx.fillStyle='#555';
+        else if(R[i][j])  ctx.fillStyle=ruleCol;
+        else              ctx.fillStyle='#1c1c1c';
+        ctx.fillRect(x,y,cellSz-1,cellSz-1);
+      }
+    }
+    if(transient>0 && transient<N){
+      var sx=transient*cellSz+1;
+      ctx.strokeStyle='#888'; ctx.lineWidth=1;
+      ctx.setLineDash([3,2]);
+      ctx.beginPath(); ctx.moveTo(sx,1); ctx.lineTo(sx,canvas.height-1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(1,sx); ctx.lineTo(canvas.width-1,sx); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function rcRun(){
+    if(!window.encL||!window.padL) return;
+    var word=(document.getElementById('rc-word').value||'ГОРА').toUpperCase();
+    var selRule=document.getElementById('rc-rule').value||'xor3';
+    var eps=parseInt(document.getElementById('rc-eps').value||'0',10);
+    var canvas=document.getElementById('rc-canvas');
+    var metrDiv=document.getElementById('rc-metrics');
+
+    var rd=rcRows(word,selRule);
+    var R=rcMat(rd.rows,eps);
+    drawRecPlot(canvas,R,rd.transient,rd.period,selRule);
+
+    var html='<table style="border-collapse:collapse;font-size:12px">'
+      +'<tr style="color:#888"><th style="padding:3px 10px;text-align:left">Правило</th>'
+      +'<th style="padding:3px 8px">T</th><th style="padding:3px 8px">P</th>'
+      +'<th style="padding:3px 8px">N</th><th style="padding:3px 8px">RR</th>'
+      +'<th style="padding:3px 8px">DET</th><th style="padding:3px 8px">L</th>'
+      +'<th style="padding:3px 8px">LAM</th><th style="padding:3px 8px">TT</th></tr>';
+    for(var ri=0;ri<ALL_RULES.length;ri++){
+      var rule=ALL_RULES[ri];
+      var rd2=rcRows(word,rule);
+      var R2=rcMat(rd2.rows,eps);
+      var m=rqaMet(R2);
+      var col=RC_COLS[rule];
+      html+='<tr><td style="padding:3px 10px;color:'+col+'">'+RNAMES[rule]+'</td>'
+        +'<td style="padding:3px 8px;text-align:center">'+rd2.transient+'</td>'
+        +'<td style="padding:3px 8px;text-align:center">'+rd2.period+'</td>'
+        +'<td style="padding:3px 8px;text-align:center">'+m.N+'</td>'
+        +'<td style="padding:3px 8px;text-align:right">'+m.RR.toFixed(3)+'</td>'
+        +'<td style="padding:3px 8px;text-align:right">'+m.DET.toFixed(3)+'</td>'
+        +'<td style="padding:3px 8px;text-align:right">'+m.L.toFixed(2)+'</td>'
+        +'<td style="padding:3px 8px;text-align:right">'+m.LAM.toFixed(3)+'</td>'
+        +'<td style="padding:3px 8px;text-align:right">'+m.TT.toFixed(2)+'</td>'
+        +'</tr>';
+    }
+    html+='</table>';
+    metrDiv.innerHTML=html;
+  }
+
+  function rcHmapRun(){
+    if(!window.encL||!window.padL||!window.LEXICON_ARR) return;
+    var eps=parseInt(document.getElementById('rc-eps').value||'0',10);
+    var words=window.LEXICON_ARR.slice().sort();
+    var cellW=13,cellH=18,leftPad=54,topPad=75;
+    var hmCv=document.getElementById('rc-hmap');
+    hmCv.width=leftPad+words.length*cellW+4;
+    hmCv.height=topPad+ALL_RULES.length*cellH+4;
+    var ctx=hmCv.getContext('2d');
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,hmCv.width,hmCv.height);
+
+    ctx.save(); ctx.font='9px monospace'; ctx.fillStyle='#999';
+    for(var wi=0;wi<words.length;wi++){
+      ctx.save();
+      ctx.translate(leftPad+wi*cellW+cellW/2,topPad-4);
+      ctx.rotate(-Math.PI/2);
+      ctx.textAlign='left'; ctx.fillText(words[wi],0,0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    ctx.textAlign='right'; ctx.font='11px monospace';
+    for(var ri2=0;ri2<ALL_RULES.length;ri2++){
+      ctx.fillStyle=RC_COLS[ALL_RULES[ri2]];
+      ctx.fillText(RNAMES[ALL_RULES[ri2]],leftPad-4,topPad+ri2*cellH+cellH-3);
+    }
+
+    for(var ri3=0;ri3<ALL_RULES.length;ri3++){
+      var rule3=ALL_RULES[ri3];
+      var rgb=RC_RGB[rule3]||[128,128,128];
+      for(var wi2=0;wi2<words.length;wi2++){
+        var rd3=rcRows(words[wi2],rule3);
+        var R3=rcMat(rd3.rows,eps);
+        var m3=rqaMet(R3);
+        var a=m3.RR;
+        var cr=Math.round(rgb[0]*a+0x1c*(1-a));
+        var cg=Math.round(rgb[1]*a+0x1c*(1-a));
+        var cb=Math.round(rgb[2]*a+0x1c*(1-a));
+        ctx.fillStyle='rgb('+cr+','+cg+','+cb+')';
+        ctx.fillRect(leftPad+wi2*cellW,topPad+ri3*cellH,cellW-1,cellH-1);
+      }
+    }
+    hmCv.style.display='block';
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('rc-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.text=w; if(w==='\u0413\u041e\u0420\u0410') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('rc-btn');
+    var hmBtn=document.getElementById('rc-hmap-btn');
+    var ruleEl=document.getElementById('rc-rule');
+    var wordEl=document.getElementById('rc-word');
+    if(btn)    btn.addEventListener('click',rcRun);
+    if(hmBtn)  hmBtn.addEventListener('click',rcHmapRun);
+    if(ruleEl) ruleEl.addEventListener('change',rcRun);
+    if(wordEl) wordEl.addEventListener('change',rcRun);
+    setTimeout(function(){if(window.encL) rcRun();},1100);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Ляпунов CA Q6 — расходимость траекторий</h2>
 <p class="meta">Однобитовые возмущения начального состояния (96 вариантов) → среднее Хэмминг-расстояние d(t) между оригинальной и возмущённой траекториями · пик = «максимальная чувствительность» · ↓ = сходится к 0</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
