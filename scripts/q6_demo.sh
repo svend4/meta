@@ -78,8 +78,11 @@ echo "  \$ python -m libs.q6ctl.q6cli info hextrimat:"
 python -m libs.q6ctl.q6cli info hextrimat
 echo ""
 
-echo "  \$ python -m libs.q6ctl.q6cli run SC-4 --dry:"
-python -m libs.q6ctl.q6cli run SC-4 --dry
+echo "  \$ python -m libs.q6ctl.q6cli run TSC-3 --dry:"
+python -m libs.q6ctl.q6cli run TSC-3 --dry
+echo ""
+echo "  \$ python -m libs.q6ctl.q6cli run all --dry:"
+python -m libs.q6ctl.q6cli run all --dry
 echo ""
 
 # ── Тип 4: Контекст (shared state) ────────────────────────────────────────────
@@ -111,16 +114,24 @@ echo ""
 
 # ── Итог ───────────────────────────────────────────────────────────────────────
 echo "╔══════════════════════════════════════════════════════════════════╗"
-echo "║  Сводка интерфейсов Q6:                                        ║"
+echo "║  Сводка интерфейсов Q6 (K1–K8 — все 11 SC):                   ║"
 echo "║                                                                  ║"
 echo "║  Tier 1 — Прямой:  python -m projects.<mod>.<glyphs> <cmd>     ║"
 echo "║  Tier 2 — JSON:    ... --json <cmd> | python -c 'import json..'║"
 echo "║  Tier 3 — Оркестр: python -m libs.q6ctl.q6cli run <SC-N>       ║"
+echo "║           q6ctl run all  — запустить все 11 SC подряд           ║"
 echo "║  Tier 4 — Контекст: q6ctl ctx new/show/get <session>           ║"
 echo "║                                                                  ║"
-echo "║  Скрипты пайплайнов:                                            ║"
-echo "║    scripts/sc1_herman_cipher.sh    — K5×K1                     ║"
-echo "║    scripts/sc4_genomic_iching.sh   — K4×K6                     ║"
+echo "║  Парные SC (7):                                                  ║"
+echo "║    sc1_herman_cipher     K5×K1   sc4_genomic_iching   K4×K6    ║"
+echo "║    sc2_platinum_sbox     K1×K8   sc5_automl_crypto    K3×K1    ║"
+echo "║    sc3_ca_atlas          K2×K8   sc6_genomic_ca       K2×K4    ║"
+echo "║    sc7_phi_q6            K7×K5                                  ║"
+echo "║  Тройные TSC (3):                                                ║"
+echo "║    tsc1_cipher_symmetry  K5×K1×K8   tsc2_automl_crypto K3×K2×K1║"
+echo "║    tsc3_genomic_oracle   K4×K6×K3                               ║"
+echo "║  Мега MC (1):                                                    ║"
+echo "║    mc_genomic_oracle_q6  K1–K8 (все 8 кластеров)               ║"
 echo "╚══════════════════════════════════════════════════════════════════╝"
 
 if [ $SHOW_ALL -eq 1 ]; then

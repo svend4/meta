@@ -30,6 +30,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -40,6 +41,21 @@ sys.path.insert(0, str(_REPO))
 from libs.q6ctl import registry as reg
 from libs.q6ctl import context as ctx
 from libs.q6ctl import pipeline as pip
+
+# Карта SC-ID → путь к shell-скрипту
+_SCRIPT_MAP: dict[str, str] = {
+    'SC-1':  'scripts/sc1_herman_cipher.sh',
+    'SC-2':  'scripts/sc2_platinum_sbox.sh',
+    'SC-3':  'scripts/sc3_ca_atlas.sh',
+    'SC-4':  'scripts/sc4_genomic_iching.sh',
+    'SC-5':  'scripts/sc5_automl_crypto.sh',
+    'SC-6':  'scripts/sc6_genomic_ca.sh',
+    'SC-7':  'scripts/sc7_phi_q6.sh',
+    'TSC-1': 'scripts/tsc1_cipher_symmetry.sh',
+    'TSC-2': 'scripts/tsc2_automl_crypto.sh',
+    'TSC-3': 'scripts/tsc3_genomic_oracle.sh',
+    'MC':    'scripts/mc_genomic_oracle_q6.sh',
+}
 
 
 # ─── ANSI-цвета ───────────────────────────────────────────────────────────────
@@ -187,18 +203,38 @@ def cmd_info(name: str) -> int:
 # ─── run ───────────────────────────────────────────────────────────────────────
 
 def cmd_run(sc_id: str, dry: bool = False, verbose: bool = False) -> int:
+    # Специальный случай: run all
+    if sc_id == 'all':
+        return _run_all(dry=dry, verbose=verbose)
+
     sc = reg.get_supercluster(sc_id)
     if sc is None:
-        print(f'  ✗ Неизвестный супер-кластер: {sc_id}')
-        print(f'  Доступные: {", ".join(reg.all_supercluster_ids())}')
+        print(f'  ✗ Неизвестный супер-кластер: {sc_id!r}')
+        print(f'  Доступные: {", ".join(reg.all_supercluster_ids())} | all')
         return 1
+
+    script_rel = _SCRIPT_MAP.get(sc_id)
+    script_path = (_REPO / script_rel) if script_rel else None
 
     if dry:
         lines = pip.dry_run_supercluster(sc_id)
         for line in lines:
             print(line)
+        if script_path:
+            print(f'\n  {_g("✓")} Shell-скрипт: bash {script_path}')
         return 0
 
+    # Запустить через shell-скрипт (если есть)
+    if script_path and script_path.exists():
+        print(f'\n{_h("Запуск:")} {_c(sc.id)} — {sc.name}')
+        print(f'  {_g("→")} bash {script_path}\n')
+        import os
+        env = os.environ.copy()
+        env['PYTHONPATH'] = str(_REPO)
+        result = subprocess.run(['bash', str(script_path)], env=env, cwd=str(_REPO))
+        return result.returncode
+
+    # Запасной вариант: прямой pipeline.py
     print(f'\n{_h("Запуск супер-кластера:")} {_c(sc.id)} — {sc.name}')
     print(f'  {sc.emergent}\n')
     results = pip.run_supercluster(sc_id, json_pipe=True, verbose=verbose)
@@ -206,6 +242,61 @@ def cmd_run(sc_id: str, dry: bool = False, verbose: bool = False) -> int:
     print(f'\n  {_g("✓") if ok_count == len(results) else "⚠"} '
           f'{ok_count}/{len(results)} шагов успешно', file=sys.stderr)
     return 0 if ok_count == len(results) else 1
+
+
+def _run_all(dry: bool = False, verbose: bool = False) -> int:
+    """Запустить все супер-кластеры по порядку."""
+    order = ['SC-1', 'SC-2', 'SC-3', 'SC-4', 'SC-5', 'SC-6', 'SC-7',
+             'TSC-1', 'TSC-2', 'TSC-3', 'MC']
+
+    if dry:
+        print(f'\n{_h("Запуск всех супер-кластеров Q6")}  ({len(order)} SC)\n')
+        for sid in order:
+            sc = reg.get_supercluster(sid)
+            script_rel = _SCRIPT_MAP.get(sid, '?')
+            label = f'{sc.name}' if sc else sid
+            clusters = ' × '.join(sc.cluster_ids) if sc else '?'
+            print(f'  {_c(sid):<8} {label:<28} [{clusters}]')
+            print(f'           bash {script_rel}')
+        print()
+        return 0
+
+    print(f'\n{_h("Q6 Полный прогон")}  ({len(order)} супер-кластеров)\n')
+    failed: list[str] = []
+    import os
+    env = os.environ.copy()
+    env['PYTHONPATH'] = str(_REPO)
+
+    for sid in order:
+        sc = reg.get_supercluster(sid)
+        script_rel = _SCRIPT_MAP.get(sid)
+        if not script_rel:
+            print(f'  {_y("⚠")} {sid}: нет скрипта, пропуск')
+            continue
+
+        script_path = _REPO / script_rel
+        if not script_path.exists():
+            print(f'  ✗ {sid}: скрипт не найден: {script_path}')
+            failed.append(sid)
+            continue
+
+        name = sc.name if sc else sid
+        print(f'  {_g("▶")} {_c(sid)}: {name}')
+        result = subprocess.run(['bash', str(script_path)], env=env, cwd=str(_REPO))
+        if result.returncode != 0:
+            print(f'  ✗ {sid} завершился с кодом {result.returncode}')
+            failed.append(sid)
+        else:
+            print(f'  {_g("✓")} {sid} готов\n')
+
+    total = len(order)
+    ok = total - len(failed)
+    print(f'\n{_h("Итог:")} {ok}/{total} успешно', end='')
+    if failed:
+        print(f'  ✗ ошибки: {", ".join(failed)}')
+    else:
+        print(f'  {_g("✓ все SC выполнены")}')
+    return 0 if not failed else 1
 
 
 # ─── pipe ──────────────────────────────────────────────────────────────────────
@@ -331,9 +422,9 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument('name', help='Имя модуля / кластера / SC')
 
     # run
-    rp = sub.add_parser('run', help='Запустить супер-кластер')
+    rp = sub.add_parser('run', help='Запустить супер-кластер (или all)')
     rp.add_argument('sc_id', metavar='SC-ID',
-                    help='ID супер-кластера (SC-1, TSC-2, MC, ...)')
+                    help='ID супер-кластера (SC-1, TSC-2, MC, ...) или "all"')
     rp.add_argument('--dry', action='store_true', help='Только показать план')
 
     # pipe
