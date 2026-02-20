@@ -707,6 +707,25 @@ class TestSolanPhonetic(unittest.TestCase):
         self.assertIn('phon-cell', content)
         self.assertIn('scrollIntoView', content)
 
+    def test_viewer_q6_hamming_neighbours(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('q6-nbrs', content)
+        self.assertIn('Соседи по Q6', content)
+
+    def test_viewer_solan_reverse_decoder(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan-inp', content)
+        self.assertIn('solan-out', content)
+        self.assertIn('REV', content)
+
+    def test_viewer_reverse_map_has_all_16_letters(self):
+        import re
+        content = viewer_path().read_text(encoding='utf-8')
+        m = re.search(r'var REV = \{([^}]+)\}', content)
+        self.assertIsNotNone(m, "REV map not found")
+        pairs = re.findall(r'"[^"]*":\s*"[^"]*"', m.group(1))
+        self.assertGreaterEqual(len(pairs), 15)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

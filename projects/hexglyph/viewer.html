@@ -713,6 +713,31 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
   });
 })();
 </script>
+
+<br>
+<p class="meta" style="margin-top:10px">Обратная транслитерация: вставьте символы Solan → получите русский текст</p>
+<textarea id="solan-inp" rows="2" cols="40"
+  placeholder="Вставьте символы Solan..."
+  style="background:#111;color:#4fc3f7;border:1px solid #333;padding:8px;font-size:14px;
+         width:100%;max-width:440px;font-family:Solan4,sans-serif"></textarea>
+<br><br>
+<div id="solan-out"
+     style="font-size:32px;color:#e0c080;min-height:48px;padding:8px;
+            background:#111;border:1px solid #222;max-width:90vw;letter-spacing:4px"></div>
+<p class="meta" style="margin-top:6px">Примечание: A → Р/Л (омоним в текущем наборе)</p>
+<script>
+(function() {
+  var REV = {"E":"А","A":"Р/Л","L":"Т","7":"Н","w":"О","Z":"Б","G":"М","F":"В","d":"Д","D":"Г","U":"У","B":"И","C":"З","V":"Ж","J":"Ч"};
+  document.getElementById("solan-inp").addEventListener("input", function() {
+    var t = this.value;
+    var out = "";
+    for (var i = 0; i < t.length; i++) {
+      out += REV[t[i]] !== undefined ? REV[t[i]] : (t[i]===" " ? " " : "·");
+    }
+    document.getElementById("solan-out").textContent = out;
+  });
+})();
+</script>
 </div>
 <div class="section">
 <h2>Q6-Эксплорер — Интерактивный подбор символа</h2>
@@ -775,6 +800,9 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
          style="width:200px;accent-color:#4fc3f7">
   <span id="q6-rval" style="font-family:monospace;font-size:12px;color:#555">0 / 63</span>
 </div>
+<!-- Hamming neighbours (d=1) -->
+<p class="meta" style="margin:14px 0 6px">Соседи по Q6 (расстояние Хэмминга d=1) — нажмите для перехода:</p>
+<div id="q6-nbrs" style="display:flex;gap:6px;flex-wrap:wrap"></div>
 <style>
 .q6btn {
   background:#111; border:1px solid #2a2a2a; color:#555;
@@ -819,6 +847,33 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
       if(vis) vis.setAttribute("stroke", st[s] ? SEG_COL : SEG_OFF);
       var btn = document.querySelector(".q6btn[data-s='"+s+"']");
       if(btn) { if(st[s]) btn.classList.add("on"); else btn.classList.remove("on"); }
+    }
+    // Hamming neighbours
+    var nbrsEl = document.getElementById("q6-nbrs");
+    if (nbrsEl) {
+      nbrsEl.innerHTML = "";
+      Object.keys(BITS).forEach(function(s) {
+        var nh = hv ^ BITS[s];
+        var nc = H2C[nh] || "?";
+        var nr = H2RU[nh] || "";
+        var ok = H2OK[nh];
+        var cell = document.createElement("div");
+        cell.title = "h="+nh+" (±"+s+")";
+        cell.style.cssText = "background:#0d0d0d;border:1px solid #1c1c1c;border-radius:3px;"+
+          "padding:5px 7px;text-align:center;cursor:pointer;min-width:46px;"+
+          "transition:border-color .1s";
+        cell.innerHTML =
+          "<div style='color:#3a3a3a;font-size:9px;font-family:monospace;margin-bottom:2px'>±"+s+"</div>"+
+          "<div style='font-family:Solan4,sans-serif;font-size:26px;line-height:1;color:"+(ok?"#4fc3f7":"#446677")+"'>"+nc+"</div>"+
+          "<div style='font-size:13px;color:"+(nr?"#e0c080":"#2a2a2a")+"'>"+( nr||"—" )+"</div>"+
+          "<div style='font-size:9px;color:#333;font-family:monospace'>"+nh+"</div>";
+        cell.addEventListener("mouseenter", function() { this.style.borderColor="#333"; });
+        cell.addEventListener("mouseleave", function() { this.style.borderColor="#1c1c1c"; });
+        (function(nhv) {
+          cell.addEventListener("click", function() { q6setH(nhv); });
+        })(nh);
+        nbrsEl.appendChild(cell);
+      });
     }
   }
   window.q6toggle = function(s) { st[s]=st[s]?0:1; update(); };
