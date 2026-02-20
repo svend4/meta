@@ -21,6 +21,7 @@
 """
 from __future__ import annotations
 import sys
+import json
 import argparse
 
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[2]))
@@ -227,6 +228,113 @@ def render_periods(max_n: int = 64) -> list[str]:
     return lines
 
 
+# ─── JSON-экспорт ──────────────────────────────────────────────────────────────
+
+def json_ring() -> dict:
+    """ring → JSON: {ring: [n0..n63], P: 64, packable: true, exceptional_start: 32}"""
+    ring = Q6_RING.as_list()
+    return {
+        'command': 'ring',
+        'P': 64,
+        'packable': Q6_RING.packable,
+        'exceptional_start': Q6_RING.exceptional_start(),
+        'ring': ring,
+        'antipodal_sum': 65,
+        'verify': Q6_RING.verify_antipodal(),
+    }
+
+
+def json_antipode() -> dict:
+    """antipodal pairs → JSON"""
+    pairs = Q6_RING.antipodal_pairs()
+    return {
+        'command': 'antipode',
+        'P': 64,
+        'antipodal_sum': 65,
+        'verify': Q6_RING.verify_antipodal(),
+        'pairs': [{'h': k, 'h_xor': k2, 'v1': v1, 'v2': v2, 'sum': s}
+                  for k, k2, v1, v2, s in pairs],
+    }
+
+
+def json_fixpoint(start: int = 0) -> dict:
+    """fixed points → JSON"""
+    fps = Q6_RING.fixed_points(start)
+    exc = Q6_RING.exceptional_start()
+    return {
+        'command': 'fixpoint',
+        'start': start,
+        'exceptional_start': exc,
+        'is_exceptional': start == exc,
+        'fixed_points': fps,
+        'count': len(fps),
+    }
+
+
+def json_packable(P: int) -> dict:
+    """packability test → JSON"""
+    from projects.hexpack.hexpack import _is_power_of_two
+    is_2k = _is_power_of_two(P)
+    result: dict = {'command': 'packable', 'P': P, 'packable': is_2k}
+    if is_2k:
+        r = PackedRing(P)
+        result['k'] = P.bit_length() - 1
+        result['exceptional_start'] = r.exceptional_start()
+        result['verify'] = r.packable
+    else:
+        k_lo = (P - 1).bit_length() - 1
+        result['nearest_lower'] = 2 ** k_lo
+        result['nearest_upper'] = 2 ** (k_lo + 1)
+    return result
+
+
+def json_magic(k: int) -> dict:
+    """magic square → JSON"""
+    ms = MagicSquare(k)
+    return {
+        'command': 'magic',
+        'k': k,
+        'P': 2 ** (2 * k),
+        'side': ms.side,
+        'magic_constant': ms.magic_constant,
+        'is_magic': ms.is_magic(),
+        'column_sums': ms.column_sums(),
+        'square': ms.square,
+    }
+
+
+def json_periods(max_n: int = 64) -> dict:
+    """periods table → JSON"""
+    from projects.hexpack.hexpack import _is_power_of_two
+    from math import gcd as _gcd
+    def is_prime(p):
+        if p < 2: return False
+        if p == 2: return True
+        if p % 2 == 0: return False
+        return all(p % i != 0 for i in range(3, int(p**0.5)+1, 2))
+
+    entries = []
+    for n in range(1, max_n + 1):
+        P = period(n)
+        entries.append({
+            'n': n, 'P': P,
+            'is_power_of_2': _is_power_of_two(P),
+            'is_prime': is_prime(P),
+            'k': (P.bit_length() - 1) if _is_power_of_two(P) else None,
+        })
+    return {'command': 'periods', 'max_n': max_n, 'entries': entries}
+
+
+_JSON_DISPATCH = {
+    'ring':     lambda args: json_ring(),
+    'antipode': lambda args: json_antipode(),
+    'fixpoint': lambda args: json_fixpoint(getattr(args, 'start', 0)),
+    'packable': lambda args: json_packable(args.P),
+    'magic':    lambda args: json_magic(args.k),
+    'periods':  lambda args: json_periods(getattr(args, 'max_n', 64)),
+}
+
+
 # ─── CLI ───────────────────────────────────────────────────────────────────────
 
 def main(argv: list[str] | None = None) -> int:
@@ -234,6 +342,8 @@ def main(argv: list[str] | None = None) -> int:
         prog='hexpack',
         description='Упаковки замкнутых клеточных полей (Герман) на Q6'
     )
+    p.add_argument('--json', action='store_true',
+                   help='Машиночитаемый JSON-вывод (для пайплайнов)')
     sub = p.add_subparsers(dest='cmd')
 
     sub.add_parser('ring',    help='Содержимое кольца P=64')
@@ -254,18 +364,26 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
 
+    if args.cmd not in ('ring', 'antipode', 'fixpoint', 'packable', 'magic', 'periods'):
+        p.print_help()
+        return 1
+
+    if args.json:
+        if args.cmd not in _JSON_DISPATCH:
+            print(json.dumps({'error': f'JSON не поддерживается для: {args.cmd}'}))
+            return 1
+        data = _JSON_DISPATCH[args.cmd](args)
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
+
     dispatch = {
         'ring':     lambda: render_ring(),
         'antipode': lambda: render_antipode(),
-        'fixpoint': lambda: render_fixpoint(args.start if hasattr(args, 'start') else 0),
+        'fixpoint': lambda: render_fixpoint(getattr(args, 'start', 0)),
         'packable': lambda: render_packable(args.P),
         'magic':    lambda: render_magic(args.k),
-        'periods':  lambda: render_periods(args.max_n if hasattr(args, 'max_n') else 64),
+        'periods':  lambda: render_periods(getattr(args, 'max_n', 64)),
     }
-
-    if args.cmd not in dispatch:
-        p.print_help()
-        return 1
 
     for line in dispatch[args.cmd]():
         print(line)

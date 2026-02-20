@@ -24,6 +24,7 @@
 """
 from __future__ import annotations
 import sys
+import json
 import argparse
 
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[2]))
@@ -303,6 +304,82 @@ def render_verify() -> list[str]:
     return lines
 
 
+# ─── JSON-экспорт ──────────────────────────────────────────────────────────────
+
+def json_triangle() -> dict:
+    tm = TRIMAT
+    rows = {}
+    for r in range(1, tm.num_rows + 1):
+        vals = tm.row_values(r)
+        rows[str(r)] = {'values': vals, 'sum': sum(vals)}
+    return {
+        'command': 'triangle',
+        'total_cells': len(tm.cells),
+        'num_rows': tm.num_rows,
+        'sum_total': tm.SUM_TOTAL,
+        'matrix_number': tm.MATRIX_NUMBER,
+        'rows': rows,
+    }
+
+
+def json_verify() -> dict:
+    tm = TRIMAT
+    facts = tm.verify_key_numbers()
+    prop = tm.proportion_345()
+    return {
+        'command': 'verify',
+        'facts': facts,
+        'proportion_345': prop,
+        'key_numbers': {
+            'bird_of_time': tm.BIRD_OF_TIME,
+            'flower_thoth': tm.FLOWER_THOTH,
+            'swastika': tm.SWASTIKA,
+            'swastika_ext': tm.SWASTIKA_EXT,
+            'background': tm.BACKGROUND,
+        },
+        'all_verified': all(v for v in facts.values() if isinstance(v, bool)),
+    }
+
+
+def json_twins() -> dict:
+    tm = TRIMAT
+    twins = tm.twin_pairs()
+    return {
+        'command': 'twins',
+        'count': len(twins),
+        'matrix_number': tm.MATRIX_NUMBER,
+        'pairs': [{'left': l, 'right': r, 'sum': s} for l, r, s in twins],
+    }
+
+
+def json_center() -> dict:
+    tm = TRIMAT
+    r_c, c_c, v_c = tm.center_cell()
+    refl = tm.reflect_vertical(r_c, c_c)
+    return {
+        'command': 'center',
+        'cell': {'row': r_c, 'col': c_c, 'value': v_c},
+        'yang': yang_count(v_c - 1),
+        'reflection': {'row': refl[0], 'col': refl[1]},
+        'name': 'Главная Инь',
+        'symmetry_group': 'D3',
+        'symmetry_order': 6,
+    }
+
+
+_TRIMAT_JSON_DISPATCH: dict = {
+    'triangle': lambda: json_triangle(),
+    'verify':   lambda: json_verify(),
+    'twins':    lambda: json_twins(),
+    'center':   lambda: json_center(),
+    'sums': lambda: {
+        'command': 'sums',
+        'row_sums': [{'row': r, 'sum': s} for r, s in TRIMAT.all_row_sums()],
+        'proportion': TRIMAT.proportion_345(),
+    },
+}
+
+
 # ─── CLI ───────────────────────────────────────────────────────────────────────
 
 def main(argv: list[str] | None = None) -> int:
@@ -310,6 +387,8 @@ def main(argv: list[str] | None = None) -> int:
         prog='hextrimat',
         description='Пирамидальная матрица И-Цзин Андреева на Q6'
     )
+    p.add_argument('--json', action='store_true',
+                   help='Машиночитаемый JSON-вывод (для пайплайнов)')
     sub = p.add_subparsers(dest='cmd')
 
     sub.add_parser('triangle', help='Треугольное расположение гексаграмм')
@@ -322,6 +401,21 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser('verify',   help='Верификация всех числовых фактов')
 
     args = p.parse_args(argv)
+
+    _cmds = {'triangle', 'sums', 'bird', 'thoth', 'swastika', 'twins', 'center', 'verify'}
+    if args.cmd not in _cmds:
+        p.print_help()
+        return 1
+
+    if args.json:
+        if args.cmd in _TRIMAT_JSON_DISPATCH:
+            data = _TRIMAT_JSON_DISPATCH[args.cmd]()
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+            return 0
+        else:
+            print(json.dumps({'error': f'JSON не поддерживается для: {args.cmd}'}))
+            return 1
+
     dispatch = {
         'triangle': render_triangle,
         'sums':     render_sums,
@@ -332,9 +426,6 @@ def main(argv: list[str] | None = None) -> int:
         'center':   render_center,
         'verify':   render_verify,
     }
-    if args.cmd not in dispatch:
-        p.print_help()
-        return 1
     for line in dispatch[args.cmd]():
         print(line)
     return 0
