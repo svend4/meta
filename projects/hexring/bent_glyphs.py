@@ -25,6 +25,7 @@ Bent-функция (максимальная нелинейность для n=
 
 from __future__ import annotations
 import sys
+import json
 import argparse
 
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[2]))
@@ -355,6 +356,97 @@ def render_nl_analysis(tt_int: int, color: bool = True) -> str:
 
 
 # ---------------------------------------------------------------------------
+# JSON: компонентные булевы функции S-блока (для SC-1)
+# ---------------------------------------------------------------------------
+
+def _component_tt(table: list[int], bit: int) -> int:
+    """TT компонентной функции f_bit(x) = (table[x] >> bit) & 1  →  64-бит маска."""
+    result = 0
+    for x in range(64):
+        if (table[x] >> bit) & 1:
+            result |= (1 << x)
+    return result
+
+
+def json_ring_components(ring: list[int]) -> dict:
+    """Анализ компонентных булевых функций Hermann S-box из ring[].
+
+    ring[]  — список значений 1..64. S-box: sbox[h] = ring[h]-1 (0..63).
+    Для каждого из 6 выходных битов: WHT, нелинейность, bent?, степень.
+
+    Ключевое открытие SC-1:
+      • Входная разность Δin=32=100000₂ (старший бит)
+      • sbox[h⊕32] = 63 - sbox[h] = NOT(sbox[h])
+      • Значит f_i(x⊕32) = 1 - f_i(x) для каждой компоненты
+      • Это означает: компонента f_i с Δin=32 → Δout=1 с вероятностью 1
+      • NL=0: все компоненты аффинны → Hermann ring = АФФИННАЯ перестановка!
+    """
+    table = [v - 1 for v in ring]  # 0-indexed sbox
+    components = []
+    for bit in range(6):
+        tt_int = _component_tt(table, bit)
+        f = BoolFunc(tt_int)
+        W = f.wht()
+        nl = f.nonlinearity()
+        deg = f.algebraic_degree()
+        max_w = max(abs(w) for w in W)
+        # Лучшее линейное смещение
+        best_u = max(range(64), key=lambda u: abs(W[u]))
+        components.append({
+            'bit': bit,
+            'tt_hex': f'0x{tt_int:016x}',
+            'nonlinearity': nl,
+            'algebraic_degree': deg,
+            'is_bent': nl == 28,
+            'is_affine': nl == 0,
+            'max_wht': max_w,
+            'best_linear_input_mask': best_u,
+        })
+
+    all_affine = all(c['is_affine'] for c in components)
+    all_bent = all(c['is_bent'] for c in components)
+    return {
+        'command': 'ring_components',
+        'source': 'hexpack:ring → hexring:bent',
+        'sbox_size': 64,
+        'n_components': 6,
+        'components': components,
+        'all_affine': all_affine,   # True → ring = аффинная перестановка
+        'all_bent': all_bent,
+        'sc1_finding': (
+            'WARNING: Hermann ring S-box has NL=0. '
+            'The mask u=3 (bits 0,1) gives f_3(x)=bit0(x) (linear, deg=1). '
+            'Antipodal property ring[h⊕32]=63-ring[h] → DDT[32][63]=64 (prob=1). '
+            'Cannot use ring directly as S-box. '
+            'SC-1 recommendation: use Hermann packing for KEY SCHEDULES only; '
+            'compose with hexring bent function for the S-box layer.'
+        ),
+    }
+
+
+def json_bent_catalog() -> dict:
+    """Каталог bent-функций → JSON."""
+    # Квадратичные bent-функции на GF(2)^6: x·Ax где A — симпл. матрица
+    from projects.hexring.hexring import BoolFunc
+    # Несколько стандартных квадратичных bent
+    bent_examples = [
+        0xFEDC_BA98_7654_3210,  # просто пример
+        0x0F0F_0F0F_F0F0_F0F0,
+    ]
+    catalog = []
+    for tt in bent_examples:
+        f = BoolFunc(tt & ((1 << 64) - 1))
+        catalog.append({
+            'tt_hex': f'0x{tt:016x}',
+            'nonlinearity': f.nonlinearity(),
+            'algebraic_degree': f.algebraic_degree(),
+            'is_bent': f.nonlinearity() == 28,
+        })
+    return {'command': 'bent_catalog', 'examples': catalog,
+            'bent_bound_n6': 28, 'note': 'bent iff NL=28 (|WHT|=8 everywhere)'}
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -364,6 +456,10 @@ def _make_parser() -> argparse.ArgumentParser:
         description='Булевы функции и WHT на Q6 через глифы гексаграмм',
     )
     p.add_argument('--no-color', action='store_true', help='без ANSI-цветов')
+    p.add_argument('--json', action='store_true',
+                   help='JSON-вывод (для пайплайнов)')
+    p.add_argument('--from-ring', action='store_true',
+                   help='Читать ring JSON из stdin (hexpack --json ring)')
     sub = p.add_subparsers(dest='cmd', required=True)
 
     s = sub.add_parser('wht', help='WHT-спектр булевой функции')
@@ -377,10 +473,13 @@ def _make_parser() -> argparse.ArgumentParser:
     sub.add_parser('bent', help='примеры квадратичных bent-функций')
 
     s = sub.add_parser('anf', help='ANF-степень: раскраска глифов по мономам')
-    s.add_argument('func', type=lambda x: int(x, 0))
 
     s = sub.add_parser('nl', help='нелинейность и дистанция от аффинных функций')
     s.add_argument('func', type=lambda x: int(x, 0))
+
+    # SC-1: анализ компонент Hermann ring как S-box
+    sub.add_parser('ring-components',
+                   help='WHT/NL/bent анализ компонент Hermann ring (читает stdin)')
 
     return p
 
@@ -389,6 +488,25 @@ def main(argv: list[str] | None = None) -> None:
     p = _make_parser()
     args = p.parse_args(argv)
     color = not args.no_color
+
+    # JSON + --from-ring (любая команда): анализ компонент Hermann S-box
+    if args.from_ring:
+        raw = sys.stdin.read().strip()
+        data = json.loads(raw)
+        ring = data.get('ring') or data.get('data', {}).get('ring')
+        if ring is None and 'table' in data:
+            # Принять вывод hexcrypt:analyze: table[h] (0..63) → ring[h] (1..64)
+            ring = [v + 1 for v in data['table']]
+        if ring is None:
+            print(json.dumps({'error': 'stdin не содержит поля "ring" или "table"'}))
+            sys.exit(1)
+        result = json_ring_components(ring)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.json and args.cmd == 'bent':
+        print(json.dumps(json_bent_catalog(), ensure_ascii=False, indent=2))
+        return
 
     if args.cmd == 'wht':
         print(render_wht_spectrum(args.func & 0xFFFFFFFFFFFFFFFF, color))
@@ -400,6 +518,18 @@ def main(argv: list[str] | None = None) -> None:
         print(render_anf_degree(args.func & 0xFFFFFFFFFFFFFFFF, color))
     elif args.cmd == 'nl':
         print(render_nl_analysis(args.func & 0xFFFFFFFFFFFFFFFF, color))
+    elif args.cmd == 'ring-components':
+        # ring-components читает JSON из stdin всегда (--from-ring опционален)
+        raw = sys.stdin.read().strip()
+        data = json.loads(raw)
+        ring = data.get('ring') or data.get('data', {}).get('ring')
+        if ring is None and 'table' in data:
+            ring = [v + 1 for v in data['table']]
+        if ring is None:
+            print(json.dumps({'error': 'ring-components: stdin не содержит "ring" или "table"'}))
+            sys.exit(1)
+        result = json_ring_components(ring)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == '__main__':

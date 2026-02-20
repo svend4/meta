@@ -29,6 +29,7 @@ S-блок: биекция f: Q6 → Q6.
 
 from __future__ import annotations
 import sys
+import json
 import argparse
 
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[2]))
@@ -37,6 +38,7 @@ from projects.hexcrypt.hexcrypt import (
     SBox,
     identity_sbox, bit_reversal_sbox, affine_sbox,
     complement_sbox, random_sbox, yang_sort_sbox,
+    evaluate_sbox, best_differential_characteristic, best_linear_bias,
 )
 from libs.hexcore.hexcore import yang_count
 from projects.hexvis.hexvis import (
@@ -325,6 +327,90 @@ def render_comparison(color: bool = True) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Hermann S-box: ring JSON → SBox
+# ---------------------------------------------------------------------------
+
+def _sbox_from_ring_json(ring_json: dict) -> SBox:
+    """Преобразовать ring Германа (из hexpack --json ring) в SBox.
+
+    ring[h] = n  (1..64)  →  sbox[h] = n-1  (0..63)
+    Теорема: для P=2^k кольцо является перестановкой → SBox корректен.
+    """
+    ring = ring_json['ring']          # list[int], len=64, значения 1..64
+    table = [v - 1 for v in ring]    # 0-indexed: значения 0..63
+    return SBox(table)
+
+
+def _read_ring_from_stdin() -> SBox:
+    """Читать ring JSON из stdin и вернуть SBox."""
+    raw = sys.stdin.read().strip()
+    data = json.loads(raw)
+    # Поддержать как прямой вывод hexpack:ring, так и обёртку контекста
+    if 'ring' in data:
+        return _sbox_from_ring_json(data)
+    if 'data' in data and 'ring' in data.get('data', {}):
+        return _sbox_from_ring_json(data['data'])
+    raise ValueError('stdin не содержит поля "ring" — ожидается вывод hexpack --json ring')
+
+
+# ---------------------------------------------------------------------------
+# JSON-экспорт
+# ---------------------------------------------------------------------------
+
+def _sbox_to_json(sb: SBox, name: str = 'unknown') -> dict:
+    """Полный JSON-анализ S-блока."""
+    ev = evaluate_sbox(sb)
+    best_diff = best_differential_characteristic(sb)
+    best_lin  = best_linear_bias(sb)
+    # Топ-5 строк DDT
+    ddt = sb.difference_distribution_table()
+    ddt_profile = {}
+    for a in range(1, 64):
+        row_max = max(ddt[a])
+        ddt_profile[str(a)] = row_max
+    return {
+        'name': name,
+        'table': sb.table(),
+        'metrics': ev,
+        'best_differential': {
+            'delta_in': best_diff[0], 'delta_out': best_diff[1],
+            'probability': round(best_diff[2], 6),
+        },
+        'best_linear_bias': {
+            'alpha': best_lin[0], 'beta': best_lin[1],
+            'bias': round(best_lin[2], 6),
+        },
+        'ddt_row_maxima': ddt_profile,
+        'yang_conservation': sum(
+            1 for x in range(64)
+            if yang_count(x) == yang_count(sb(x))
+        ),
+    }
+
+
+def json_analyze(sb: SBox, name: str = 'sbox') -> dict:
+    """Команда analyze → JSON."""
+    return _sbox_to_json(sb, name)
+
+
+def json_compare(extra_sb: SBox | None = None, extra_name: str = '') -> dict:
+    """Сравнение всех S-блоков + опционального Herman'а → JSON."""
+    names = ['identity', 'bit_reversal', 'affine', 'complement', 'yang_sort']
+    result = []
+    for name in names:
+        sb = _get_sbox(name)
+        ev = evaluate_sbox(sb)
+        result.append({'name': name, **ev})
+    if extra_sb is not None:
+        ev = evaluate_sbox(extra_sb)
+        result.append({'name': extra_name or 'custom', **ev})
+    # Сортировать по нелинейности ↓
+    result.sort(key=lambda r: r.get('nonlinearity', 0), reverse=True)
+    return {'command': 'cmp', 'sboxes': result,
+            'ideal_nl': 28, 'ideal_delta': 4, 'note': 'APN (δ=2) невозможен для биекции n=6'}
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -334,13 +420,18 @@ def _make_parser() -> argparse.ArgumentParser:
         description='Криптографический анализ S-блоков через глифы Q6',
     )
     p.add_argument('--no-color', action='store_true')
+    p.add_argument('--json', action='store_true',
+                   help='JSON-вывод (для пайплайнов)')
+    p.add_argument('--from-ring', action='store_true',
+                   help='Читать ring JSON из stdin (вывод hexpack --json ring)')
     p.add_argument('--sbox', default='affine',
                    choices=['identity', 'bit_reversal', 'affine',
                             'complement', 'yang_sort', 'random'],
-                   help='выбор S-блока')
+                   help='выбор S-блока (игнорируется при --from-ring)')
     sub = p.add_subparsers(dest='cmd', required=True)
 
-    sub.add_parser('map', help='карта x→f(x): глифы раскрашены по f(x)')
+    sub.add_parser('map',     help='карта x→f(x): глифы раскрашены по f(x)')
+    sub.add_parser('analyze', help='полный криптоанализ (nl, δ, deg, DDT, LAT) → JSON')
 
     s = sub.add_parser('ddt', help='строка DDT для входной разности a')
     s.add_argument('--row', type=int, default=1, metavar='a',
@@ -358,10 +449,34 @@ def main(argv: list[str] | None = None) -> None:
     p = _make_parser()
     args = p.parse_args(argv)
     color = not args.no_color
-    sb = _get_sbox(args.sbox)
+
+    # Получить S-блок: из ring (stdin) или по имени
+    if args.from_ring:
+        sb = _read_ring_from_stdin()
+        sbox_name = 'herman_ring'
+    else:
+        sb = _get_sbox(args.sbox)
+        sbox_name = args.sbox
+
+    if args.json:
+        if args.cmd in ('map', 'analyze', 'ddt', 'lat'):
+            data = json_analyze(sb, name=sbox_name)
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+        elif args.cmd == 'cmp':
+            extra = sb if args.from_ring else None
+            data = json_compare(extra_sb=extra, extra_name=sbox_name)
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+        else:
+            print(json.dumps({'error': f'JSON не поддерживается для: {args.cmd}'}))
+        return
 
     if args.cmd == 'map':
         print(render_map(sb, color))
+    elif args.cmd == 'analyze':
+        # Текстовый вывод analyze = map + cmp строчка
+        print(render_map(sb, color))
+        print()
+        print(render_comparison(color))
     elif args.cmd == 'ddt':
         print(render_ddt(sb, row_a=args.row, color=color))
     elif args.cmd == 'lat':

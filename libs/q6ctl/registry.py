@@ -49,16 +49,16 @@ class SuperClusterInfo:
 MODULES: dict[str, ModuleInfo] = {
     # K1 — Криптографический кластер
     'hexcrypt': ModuleInfo(
-        name='hexcrypt', path='projects.hexcrypt.hexcrypt',
-        commands=['sbox', 'avalanche', 'rounds'],
-        cluster='K1', json_ready=False,
-        description='S-блоки и лавинный эффект на Q6',
+        name='hexcrypt', path='projects.hexcrypt.sbox_glyphs',
+        commands=['map', 'analyze', 'ddt', 'lat', 'cmp'],
+        cluster='K1', json_ready=True,
+        description='S-блоки и криптоанализ Q6 (NL, DDT, LAT, deg)',
     ),
     'hexring': ModuleInfo(
-        name='hexring', path='projects.hexring.hexring',
-        commands=['ring', 'cosets', 'ideals'],
-        cluster='K1', json_ready=False,
-        description='Кольцевая алгебра Z/64Z и её подструктуры',
+        name='hexring', path='projects.hexring.bent_glyphs',
+        commands=['wht', 'tt', 'bent', 'anf', 'nl', 'ring-components'],
+        cluster='K1', json_ready=True,
+        description='Булевы функции WHT/bent/ANF на Q6',
     ),
     'hexgf': ModuleInfo(
         name='hexgf', path='projects.hexgf.hexgf',
@@ -387,9 +387,11 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'SC-1': SuperClusterInfo(
         id='SC-1', name='Шифр Германа',
         cluster_ids=['K5', 'K1'],
-        description='Алгебраически обоснованные ключевые расписания на упаковках',
-        pipeline=['hexpack:ring', 'hexcrypt:sbox', 'hexring:cosets'],
-        emergent='Ключевые расписания с доказуемой стойкостью через упаковки Германа',
+        description='Упаковки Германа: ring→S-box анализ (NL, δ, WHT компонент)',
+        pipeline=['hexpack:ring',
+                  'hexcrypt:analyze --from-ring',
+                  'hexring:ring-components'],
+        emergent='Ring→S-box: NL=0 (u=3 линейна), δ=64 (антипод). Ring=ключевые расписания, не S-блок.',
     ),
     'SC-2': SuperClusterInfo(
         id='SC-2', name='Платиновые S-блоки',

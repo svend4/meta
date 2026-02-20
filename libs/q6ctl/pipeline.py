@@ -59,19 +59,24 @@ class PipelineStep:
     def python_args(self, json_mode: bool = False) -> list[str]:
         """Полная команда Python для этого шага.
 
-        Порядок: python -m <path> [--json] <cmd> [extra_args]
-        Флаг --json должен идти ДО подкоманды (argparse-соглашение).
+        Порядок: python -m <path> [--json] [global_flags] <cmd> [positional_args]
+        Флаги --xxx идут ДО подкоманды (argparse-соглашение).
+        Позиционные аргументы идут ПОСЛЕ подкоманды.
         """
         mi = self.module_info()
         if mi is None:
             raise ValueError(f'Неизвестный модуль: {self.module_name}')
         args = [sys.executable, '-m', mi.path]
-        # --json идёт перед subcommand
+        # --json и другие --flags идут перед subcommand
         if json_mode and mi.json_ready:
             args.append('--json')
+        # extra_args, начинающиеся с '--', — глобальные флаги (до subcommand)
+        pre_flags  = [a for a in self.extra_args if a.startswith('--')]
+        post_args  = [a for a in self.extra_args if not a.startswith('--')]
+        args.extend(pre_flags)
         if self.cmd:
             args.append(self.cmd)
-        args.extend(self.extra_args)
+        args.extend(post_args)
         return args
 
     def __str__(self) -> str:
