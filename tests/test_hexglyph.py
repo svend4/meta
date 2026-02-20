@@ -1528,6 +1528,192 @@ class TestSolanLexicon(unittest.TestCase):
         self.assertIn('Сигнатура', content)
 
 
+class TestSolanDendrogram(unittest.TestCase):
+    """Tests for solan_dendrogram.py and the viewer Dendrogram section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dendrogram import (
+            build_dendrogram, leaf_order, flat_clusters, dendrogram_dict,
+        )
+        cls.build_dendrogram = staticmethod(build_dendrogram)
+        cls.leaf_order       = staticmethod(leaf_order)
+        cls.flat_clusters    = staticmethod(flat_clusters)
+        cls.dendrogram_dict  = staticmethod(dendrogram_dict)
+        cls._words = ['ГОРА', 'УДАР', 'РОТА', 'УТРО',
+                      'ВОДА', 'НОРА', 'ЛУНА', 'РАТОН', 'ЖУРНАЛ']
+
+    # ── build_dendrogram ──────────────────────────────────────────────────
+
+    def test_build_returns_tuple(self):
+        nodes, root = self.build_dendrogram(self._words)
+        self.assertIsInstance(nodes, dict)
+        self.assertIsInstance(root, int)
+
+    def test_node_count(self):
+        nodes, _ = self.build_dendrogram(self._words)
+        n = len(self._words)
+        # UPGMA produces n leaves + n-1 internals = 2n-1 nodes
+        self.assertEqual(len(nodes), 2 * n - 1)
+
+    def test_root_has_all_leaves(self):
+        nodes, root = self.build_dendrogram(self._words)
+        self.assertEqual(nodes[root]['size'], len(self._words))
+
+    def test_leaf_labels_present(self):
+        nodes, _ = self.build_dendrogram(self._words)
+        labels = {nd['label'] for nd in nodes.values() if nd['label'] is not None}
+        self.assertEqual(labels, set(self._words))
+
+    def test_internal_nodes_have_no_label(self):
+        nodes, _ = self.build_dendrogram(self._words)
+        for nd in nodes.values():
+            if nd['left'] is not None:
+                self.assertIsNone(nd['label'])
+
+    def test_heights_nonnegative(self):
+        nodes, _ = self.build_dendrogram(self._words)
+        for nd in nodes.values():
+            self.assertGreaterEqual(nd['height'], 0.0)
+
+    def test_heights_monotone(self):
+        """Parent height >= child heights (UPGMA monotonicity)."""
+        nodes, root = self.build_dendrogram(self._words)
+        for nd in nodes.values():
+            if nd['left'] is not None:
+                self.assertGreaterEqual(
+                    nd['height'], nodes[nd['left']]['height'])
+                self.assertGreaterEqual(
+                    nd['height'], nodes[nd['right']]['height'])
+
+    def test_identical_orbit_words_merge_at_zero(self):
+        nodes, _ = self.build_dendrogram(self._words)
+        # ГОРА, УДАР, РОТА, УТРО have d=0 between them
+        for nd in nodes.values():
+            if nd['label'] is None:
+                l, r = nodes[nd['left']], nodes[nd['right']]
+                if (l['label'] in {'ГОРА','УДАР','РОТА','УТРО'} and
+                        r['label'] in {'ГОРА','УДАР','РОТА','УТРО'}):
+                    self.assertAlmostEqual(nd['height'], 0.0)
+
+    # ── leaf_order ────────────────────────────────────────────────────────
+
+    def test_leaf_order_all_words(self):
+        nodes, root = self.build_dendrogram(self._words)
+        lo = self.leaf_order(nodes, root)
+        self.assertEqual(sorted(lo), sorted(self._words))
+
+    def test_leaf_order_no_duplicates(self):
+        nodes, root = self.build_dendrogram(self._words)
+        lo = self.leaf_order(nodes, root)
+        self.assertEqual(len(lo), len(set(lo)))
+
+    def test_leaf_order_length(self):
+        nodes, root = self.build_dendrogram(self._words)
+        lo = self.leaf_order(nodes, root)
+        self.assertEqual(len(lo), len(self._words))
+
+    # ── flat_clusters ─────────────────────────────────────────────────────
+
+    def test_flat_clusters_cover_all_words(self):
+        nodes, root = self.build_dendrogram(self._words)
+        clusters = self.flat_clusters(nodes, root, cut=0.01)
+        all_words = [w for c in clusters for w in c]
+        self.assertEqual(sorted(all_words), sorted(self._words))
+
+    def test_flat_clusters_no_overlap(self):
+        nodes, root = self.build_dendrogram(self._words)
+        clusters = self.flat_clusters(nodes, root, cut=0.1)
+        seen: set[str] = set()
+        for c in clusters:
+            for w in c:
+                self.assertNotIn(w, seen)
+                seen.add(w)
+
+    def test_flat_clusters_sorted_desc(self):
+        nodes, root = self.build_dendrogram(self._words)
+        clusters = self.flat_clusters(nodes, root, cut=0.1)
+        sizes = [len(c) for c in clusters]
+        self.assertEqual(sizes, sorted(sizes, reverse=True))
+
+    def test_flat_clusters_zero_cut_all_singletons(self):
+        nodes, root = self.build_dendrogram(self._words)
+        # Cut at -1 (below all heights) → each cluster may merge at 0
+        clusters_max = self.flat_clusters(nodes, root, cut=999.0)
+        self.assertEqual(len(clusters_max), 1)
+
+    def test_clique_merged_at_zero_cut(self):
+        nodes, root = self.build_dendrogram(self._words)
+        clusters = self.flat_clusters(nodes, root, cut=0.001)
+        clique = {'ГОРА', 'УДАР', 'РОТА', 'УТРО'}
+        for c in clusters:
+            if clique.issubset(set(c)):
+                break
+        else:
+            self.fail('Clique ГОРА/УДАР/РОТА/УТРО not merged at cut=0.001')
+
+    # ── dendrogram_dict ───────────────────────────────────────────────────
+
+    def test_dict_has_required_keys(self):
+        nodes, root = self.build_dendrogram(self._words)
+        d = self.dendrogram_dict(nodes, root)
+        for key in ('nodes', 'root', 'leaf_order', 'max_height'):
+            self.assertIn(key, d)
+
+    def test_dict_leaf_order_complete(self):
+        nodes, root = self.build_dendrogram(self._words)
+        d = self.dendrogram_dict(nodes, root)
+        self.assertEqual(sorted(d['leaf_order']), sorted(self._words))
+
+    def test_dict_max_height(self):
+        nodes, root = self.build_dendrogram(self._words)
+        d = self.dendrogram_dict(nodes, root)
+        self.assertAlmostEqual(d['max_height'], nodes[root]['height'], places=4)
+
+    def test_dict_node_keys_are_strings(self):
+        nodes, root = self.build_dendrogram(self._words)
+        d = self.dendrogram_dict(nodes, root)
+        for k in d['nodes']:
+            self.assertIsInstance(k, str)
+
+    # ── full lexicon ──────────────────────────────────────────────────────
+
+    def test_full_lexicon_build(self):
+        from projects.hexglyph.solan_lexicon import LEXICON
+        nodes, root = self.build_dendrogram()
+        self.assertEqual(nodes[root]['size'], len(LEXICON))
+
+    # ── viewer: Dendrogram section ────────────────────────────────────────
+
+    def test_viewer_has_dendrogram_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Дендрограмма Q6', content)
+        self.assertIn('dend-canvas', content)
+
+    def test_viewer_dendrogram_has_upgma(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('upgma', content)
+
+    def test_viewer_dendrogram_has_cut_slider(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dend-cut', content)
+        self.assertIn('dend-cut-val', content)
+
+    def test_viewer_dendrogram_has_flat_clusters(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('flatClusters', content)
+
+    def test_viewer_dendrogram_uses_mDist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        # mDist should appear in the dendrogram section
+        self.assertIn('mDist', content)
+
+    def test_viewer_dendrogram_has_hover(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dend-info', content)
+        self.assertIn('_hovLeaf', content)
+
+
 class TestSolanGraph(unittest.TestCase):
     """Tests for solan_graph.py and the viewer Graph section."""
 

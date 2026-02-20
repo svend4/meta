@@ -1628,6 +1628,211 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Дендрограмма Q6 (UPGMA)</h2>
+<p class="meta">Иерархическая кластеризация среднего расстояния · слайдер = высота отсечения · метки слева, корень справа</p>
+<div style="display:flex;gap:16px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+  <label style="color:#555;font-size:12px;font-family:monospace">Отсечение:&nbsp;
+    <input type="range" id="dend-cut" min="0" max="100" value="5" step="1"
+           style="vertical-align:middle;width:110px;accent-color:#4caf50">
+    <span id="dend-cut-val" style="font-family:monospace;color:#777;min-width:44px;display:inline-block">auto</span>
+  </label>
+  <span id="dend-stats" style="font-family:monospace;font-size:11px;color:#3a3a3a"></span>
+</div>
+<canvas id="dend-canvas" width="700"
+  style="display:block;border:1px solid #1a1a1a;cursor:crosshair"></canvas>
+<div id="dend-info"
+  style="font-family:monospace;font-size:11px;color:#444;min-height:16px;margin-top:4px"> </div>
+<script>
+(function(){
+  var LW=82, RM=18, STEP=13;
+  var PALETTE=['#2196f3','#4caf50','#ff9800','#e91e63','#9c27b0',
+               '#00bcd4','#8bc34a','#ff5722','#3f51b5','#009688'];
+  var _words=null, _dd=null, _nodeY={}, _nodeX={};
+  var _hovLeaf=-1, _leafIds=null;
+
+  function upgma(words,mat){
+    var n=words.length, nodes={}, dm={};
+    function key(a,b){return a<b?a+','+b:b+','+a;}
+    for(var i=0;i<n;i++) nodes[i]={label:words[i],height:0,left:null,right:null,size:1};
+    var active=new Set();
+    for(var i=0;i<n;i++) active.add(i);
+    for(var i=0;i<n;i++) for(var j=i+1;j<n;j++) dm[key(i,j)]=mat[i][j];
+    var nextId=n;
+    while(active.size>1){
+      var minD=Infinity,minI=-1,minJ=-1,arr=Array.from(active);
+      for(var a=0;a<arr.length;a++) for(var b=a+1;b<arr.length;b++){
+        var d=dm[key(arr[a],arr[b])];
+        if(d<minD){minD=d;minI=arr[a];minJ=arr[b];}
+      }
+      var si=nodes[minI].size,sj=nodes[minJ].size,nid=nextId++;
+      nodes[nid]={label:null,height:minD,left:minI,right:minJ,size:si+sj};
+      active.delete(minI);active.delete(minJ);
+      active.forEach(function(k){
+        var dki=dm[key(k,minI)]||0,dkj=dm[key(k,minJ)]||0;
+        dm[key(k,nid)]=(dki*si+dkj*sj)/(si+sj);
+      });
+      active.add(nid);
+    }
+    return{nodes:nodes,root:Array.from(active)[0]};
+  }
+
+  function leafOrder(nodes,root){
+    function dfs(nid){
+      var nd=nodes[nid];
+      if(nd.label!==null) return[nid];
+      var li=nd.left,ri=nd.right;
+      if(nodes[li].size>nodes[ri].size){var t=li;li=ri;ri=t;}
+      return dfs(li).concat(dfs(ri));
+    }
+    return dfs(root);
+  }
+
+  function flatClusters(nodes,root,cut){
+    var res=[];
+    function collect(nid){
+      var nd=nodes[nid];
+      if(nd.label!==null){res.push([nid]);return;}
+      if(nd.height<=cut){
+        var lv=[];
+        (function L(s){var sn=nodes[s];if(sn.label!==null){lv.push(s);return;}L(sn.left);L(sn.right);})(nid);
+        res.push(lv);
+      } else {collect(nd.left);collect(nd.right);}
+    }
+    collect(root);
+    res.sort(function(a,b){return b.length-a.length;});
+    return res;
+  }
+
+  function assignPositions(canvas){
+    if(!_dd||!_words) return;
+    var nd=_dd.nodes, root=_dd.root;
+    var maxH=nd[root].height||1, W=canvas.width, gw=W-LW-RM;
+    // leaf y
+    _leafIds=leafOrder(nd,root);
+    _leafIds.forEach(function(id,i){_nodeY[id]=i*STEP+STEP/2;});
+    // internal y (bottom-up)
+    (function dfsY(nid){
+      var n=nd[nid]; if(n.label!==null) return;
+      dfsY(n.left);dfsY(n.right);
+      _nodeY[nid]=(_nodeY[n.left]+_nodeY[n.right])/2;
+    })(root);
+    // node x
+    (function dfsX(nid){
+      var n=nd[nid];
+      _nodeX[nid]=LW+n.height/maxH*gw;
+      if(n.left!==null){dfsX(n.left);dfsX(n.right);}
+    })(root);
+    canvas.height=_words.length*STEP+STEP;
+  }
+
+  function draw(canvas,ctx){
+    if(!_dd||!_words) return;
+    var nd=_dd.nodes, root=_dd.root;
+    var maxH=nd[root].height||1;
+    var W=canvas.width, H=canvas.height, gw=W-LW-RM;
+    var cut=parseInt(document.getElementById('dend-cut').value)/100*maxH;
+    var clusters=flatClusters(nd,root,cut);
+    var leafCl={};
+    clusters.forEach(function(cl,ci){cl.forEach(function(lid){leafCl[lid]=ci;});});
+
+    ctx.fillStyle='#0d0d0d'; ctx.fillRect(0,0,W,H);
+
+    // Cut line
+    var cutX=LW+cut/maxH*gw;
+    ctx.save(); ctx.strokeStyle='rgba(70,120,70,0.4)';
+    ctx.lineWidth=1; ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.moveTo(cutX,0); ctx.lineTo(cutX,H); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+
+    // Edges (post-order)
+    (function drawE(nid){
+      var n=nd[nid]; if(n.label!==null) return;
+      drawE(n.left); drawE(n.right);
+      var xl=_nodeX[n.left],yl=_nodeY[n.left];
+      var xr=_nodeX[n.right],yr=_nodeY[n.right];
+      var xp=_nodeX[nid];
+      var ci=leafCl[n.left]!==undefined?leafCl[n.left]:clusters.length-1;
+      var col=PALETTE[ci%PALETTE.length]+'55';
+      ctx.strokeStyle=col; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(xl,yl); ctx.lineTo(xp,yl); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xr,yr); ctx.lineTo(xp,yr); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xp,yl); ctx.lineTo(xp,yr); ctx.stroke();
+    })(root);
+
+    // Leaf labels + dots
+    ctx.font='9px monospace';
+    _leafIds.forEach(function(lid,i){
+      var ci=leafCl[lid]!==undefined?leafCl[lid]:0;
+      var col=PALETTE[ci%PALETTE.length];
+      var hl=i===_hovLeaf;
+      var y=_nodeY[lid];
+      if(hl){ctx.fillStyle='rgba(255,255,255,0.08)';ctx.fillRect(0,y-STEP/2+1,LW-2,STEP-2);}
+      ctx.fillStyle=hl?'#eee':col+'aa';
+      ctx.fillText(_words[lid],2,y+3);
+      ctx.beginPath(); ctx.arc(LW,y,hl?3:1.5,0,Math.PI*2);
+      ctx.fillStyle=hl?'#fff':col; ctx.fill();
+    });
+
+    // Stats
+    var st=document.getElementById('dend-stats');
+    if(st) st.textContent='кластеров: '+clusters.length
+      +'  (отсечение '+cut.toFixed(4)+' / '+maxH.toFixed(4)+')';
+    var cv=document.getElementById('dend-cut-val');
+    if(cv) cv.textContent=cut.toFixed(4);
+  }
+
+  function build(canvas,ctx){
+    var sigs=window.lexAllSigs?window.lexAllSigs():null;
+    if(!sigs) return;
+    _words=Object.keys(sigs);
+    var n=_words.length, mat=[];
+    for(var i=0;i<n;i++){
+      mat.push([]);
+      for(var j=0;j<n;j++)
+        mat[i].push(i===j?0:(window.mDist?window.mDist(sigs[_words[i]],sigs[_words[j]]):NaN));
+    }
+    _dd=upgma(_words,mat);
+    assignPositions(canvas);
+    draw(canvas,ctx);
+  }
+
+  function initHover(canvas,ctx){
+    canvas.addEventListener('mousemove',function(e){
+      if(!_leafIds) return;
+      var r=canvas.getBoundingClientRect();
+      var my=(e.clientY-r.top)*(canvas.height/r.height);
+      var best=-1,bestD=Infinity;
+      _leafIds.forEach(function(lid,i){
+        var d=Math.abs(_nodeY[lid]-my);
+        if(d<bestD){bestD=d;best=i;}
+      });
+      var nh=bestD<STEP/2?best:-1;
+      if(nh!==_hovLeaf){
+        _hovLeaf=nh; draw(canvas,ctx);
+        var info=document.getElementById('dend-info');
+        if(info) info.textContent=nh!==-1?'▸ '+_words[_leafIds[nh]]:'  ';
+      }
+    });
+    canvas.addEventListener('mouseleave',function(){
+      _hovLeaf=-1; draw(canvas,ctx);
+      var info=document.getElementById('dend-info');
+      if(info) info.textContent=' ';
+    });
+  }
+
+  setTimeout(function(){
+    var canvas=document.getElementById('dend-canvas');
+    var ctx=canvas.getContext('2d');
+    initHover(canvas,ctx);
+    document.getElementById('dend-cut').addEventListener('input',function(){
+      draw(canvas,ctx);
+    });
+    build(canvas,ctx);
+  },500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Граф орбитального сходства Q6</h2>
 <p class="meta">Слова — узлы · ребро если орбитальное расстояние &lt; порог · раскладка: Fruchterman-Reingold</p>
 <div style="display:flex;gap:16px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
