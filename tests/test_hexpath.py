@@ -194,6 +194,40 @@ class TestCurrentPosTarget(unittest.TestCase):
         self.assertEqual(g.result(), GameResult.B_WINS)
         self.assertTrue(g.is_over())
 
+    def test_current_target_b(self):
+        """current_target() для B == target_b."""
+        g = new_game(pos_a=0, pos_b=63, target_a=63, target_b=0)
+        move = list(neighbors(0))[0]
+        g2 = g.make_move(move)  # теперь ход B
+        self.assertEqual(g2.current_target(), 0)
+
+    def test_player_symbol_nonempty(self):
+        """symbol() обоих игроков — непустая строка."""
+        for p in (Player.A, Player.B):
+            s = p.symbol()
+            self.assertIsInstance(s, str)
+            self.assertGreater(len(s), 0)
+
+    def test_new_game_default_capture_mode_initializes_captured(self):
+        """new_game() с capture_mode=True по умолчанию заполняет captured."""
+        g = new_game()
+        self.assertTrue(g.capture_mode)
+        self.assertIn(g.pos_a, g.captured)
+        self.assertIn(g.pos_b, g.captured)
+
+    def test_legal_moves_player_b(self):
+        """legal_moves(Player.B) возвращает список соседей позиции B."""
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        moves_b = g.legal_moves(Player.B)
+        self.assertEqual(set(moves_b), set(neighbors(63)))
+
+    def test_is_over_a_wins(self):
+        """is_over() == True когда A достиг цели."""
+        g = new_game(pos_a=63, pos_b=0, target_a=63, target_b=63,
+                     capture_mode=False)
+        self.assertEqual(g.result(), GameResult.A_WINS)
+        self.assertTrue(g.is_over())
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -184,5 +184,42 @@ class TestGenerateCurveDefault(unittest.TestCase):
             self.assertGreater(X, 1.0)
 
 
+class TestFindYExtra(unittest.TestCase):
+    def setUp(self):
+        self.pxy = PowerXY()
+
+    def test_find_y_non_trivial(self):
+        """find_y(1.5) возвращает не None и Y > 1."""
+        Y = self.pxy.find_y(1.5)
+        self.assertIsNotNone(Y)
+        self.assertGreater(Y, 1.0)
+
+    def test_verify_symmetric(self):
+        """verify(4, 2) == True (симметричное решение 2^4 = 4^2)."""
+        self.assertTrue(self.pxy.verify(4.0, 2.0))
+
+
+class TestGoldenEqExtra(unittest.TestCase):
+    def test_golden_eq1_nonzero_at_2(self):
+        """golden_eq1(2.0) ≠ 0 (2 не является φ)."""
+        pxy = PowerXY()
+        err = pxy.golden_eq1(2.0)
+        self.assertGreater(abs(err), 1e-6)
+
+    def test_golden_eq2_nonzero_at_2(self):
+        """golden_eq2(2.0) ≠ 0 (2 не является φ)."""
+        pxy = PowerXY()
+        err = pxy.golden_eq2(2.0)
+        self.assertGreater(abs(err), 1e-6)
+
+
+class TestGenerateCurveSteps(unittest.TestCase):
+    def test_exact_steps_count(self):
+        """generate_curve(steps=15) возвращает ровно 15 точек."""
+        pxy = PowerXY()
+        curve = pxy.generate_curve(steps=15)
+        self.assertEqual(len(curve), 15)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -172,5 +172,49 @@ class TestScrewGroupStructure(unittest.TestCase):
         self.assertEqual(len(phi), 2)
 
 
+class TestScrewGroupExtra(unittest.TestCase):
+    def setUp(self):
+        self.b3 = ScrewGroup(3)
+        self.b4 = ScrewGroup(4)
+
+    def test_right_spin_identity(self):
+        """right_spin тождественной = 1."""
+        self.assertEqual(self.b4.right_spin([1, 2, 3, 4]), 1)
+
+    def test_right_spin_transposition(self):
+        """right_spin транспозиции = -1."""
+        t = self.b4.transposition(2, 3)
+        self.assertEqual(self.b4.right_spin(t), -1)
+
+    def test_cycles_identity(self):
+        """cycles тождественной = 3 одноточечных цикла для B3."""
+        result = self.b3.cycles([1, 2, 3])
+        self.assertEqual(len(result), 3)
+        for c in result:
+            self.assertEqual(len(c), 1)
+
+    def test_transposition_swaps(self):
+        """transposition(2,3) меняет 2 и 3, фиксирует 1."""
+        t = self.b3.transposition(2, 3)
+        self.assertEqual(t, [1, 3, 2])
+
+    def test_print_cayley_table_is_str(self):
+        """print_cayley_table() возвращает непустую строку."""
+        s = self.b3.print_cayley_table()
+        self.assertIsInstance(s, str)
+        self.assertGreater(len(s), 0)
+
+    def test_print_lattice_is_str(self):
+        """print_lattice() возвращает непустую строку."""
+        s = self.b4.print_lattice()
+        self.assertIsInstance(s, str)
+        self.assertGreater(len(s), 0)
+
+    def test_repr_contains_n(self):
+        """__repr__ содержит 'B' и номер n."""
+        s = repr(self.b4)
+        self.assertIn("4", s)
+
+
 if __name__ == "__main__":
     unittest.main()

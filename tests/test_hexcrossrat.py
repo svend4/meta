@@ -192,6 +192,40 @@ class TestCrossRatioGroup(unittest.TestCase):
         w_plain = cross_ratio(0.0, 2.0, 1.0, 3.0)
         self.assertAlmostEqual(complex(w).real, complex(w_plain).real, places=9)
 
+    def test_elements_r3_r4_r5(self):
+        """r3=1/(1-w), r4=(w-1)/w, r5=w/(w-1) для w=3."""
+        r6 = self._make(3.0)
+        elems = r6.elements()
+        self.assertAlmostEqual(complex(elems[3]).real, -0.5, places=9)
+        self.assertAlmostEqual(complex(elems[4]).real, 2/3, places=9)
+        self.assertAlmostEqual(complex(elems[5]).real, 1.5, places=9)
+
+    def test_cayley_table_latin_square(self):
+        """Каждая строка таблицы Кэли содержит все индексы 0..5 (латинский квадрат)."""
+        r6 = self._make(3.0)
+        for row in r6.cayley_table():
+            self.assertEqual(set(row), set(range(6)))
+
+    def test_multiply_associative(self):
+        """(r_i ∘ r_j) ∘ r_k == r_i ∘ (r_j ∘ r_k)."""
+        r6 = self._make(3.0)
+        for i, j, k in [(0, 1, 2), (2, 3, 4), (1, 4, 5)]:
+            lhs = r6.multiply(r6.multiply(i, j), k)
+            rhs = r6.multiply(i, r6.multiply(j, k))
+            self.assertEqual(lhs, rhs,
+                             f"Нарушение ассоциативности для ({i},{j},{k})")
+
+    def test_cross_ratio_complex_inputs(self):
+        """cross_ratio принимает комплексные числа."""
+        w = cross_ratio(1+0j, 0+1j, -1+0j, 0-1j)
+        self.assertIsInstance(w, complex)
+        self.assertFalse(math.isinf(abs(w)))
+
+    def test_elements_internal_length(self):
+        """_elements атрибут содержит ровно 6 элементов."""
+        r6 = self._make(2.0)
+        self.assertEqual(len(r6._elements), 6)
+
 
 if __name__ == "__main__":
     unittest.main()
