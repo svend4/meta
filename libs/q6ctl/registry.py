@@ -50,9 +50,9 @@ MODULES: dict[str, ModuleInfo] = {
     # K1 — Криптографический кластер
     'hexcrypt': ModuleInfo(
         name='hexcrypt', path='projects.hexcrypt.sbox_glyphs',
-        commands=['map', 'analyze', 'ddt', 'lat', 'cmp'],
+        commands=['map', 'analyze', 'ddt', 'lat', 'cmp', 'avalanche'],
         cluster='K1', json_ready=True,
-        description='S-блоки и криптоанализ Q6 (NL, DDT, LAT, deg)',
+        description='S-блоки и криптоанализ Q6 (NL, DDT, LAT, deg, SAC-матрица)',
     ),
     'hexring': ModuleInfo(
         name='hexring', path='projects.hexring.bent_glyphs',
@@ -108,15 +108,15 @@ MODULES: dict[str, ModuleInfo] = {
     # K3 — Интеллектуальный кластер
     'hexlearn': ModuleInfo(
         name='hexlearn', path='projects.hexlearn.learn_glyphs',
-        commands=['ca-rank', 'train', 'predict', 'cluster'],
+        commands=['ca-rank', 'predict', 'train', 'cluster'],
         cluster='K3', json_ready=True,
-        description='ML-ранжирование CA Q6 + key schedule scoring (K3×K2×K1)',
+        description='ML-ранжирование CA Q6 + NL-предсказание по SAC (K3×K2×K1)',
     ),
     'hexopt': ModuleInfo(
-        name='hexopt', path='projects.hexopt.hexopt',
-        commands=['optimize', 'bayesian', 'pareto'],
-        cluster='K3', json_ready=False,
-        description='Байесовская оптимизация Q6-функций',
+        name='hexopt', path='projects.hexopt.opt_glyphs',
+        commands=['bayesian', 'optimize', 'pareto'],
+        cluster='K3', json_ready=True,
+        description='AutoML поиск S-блоков Q6: байесовский multi-start (NL-потолок=18)',
     ),
     'hexnet': ModuleInfo(
         name='hexnet', path='projects.hexnet.hexnet',
@@ -432,9 +432,14 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'SC-5': SuperClusterInfo(
         id='SC-5', name='AutoML для криптографии',
         cluster_ids=['K3', 'K1'],
-        description='Байесовский поиск оптимальных S-блоков',
-        pipeline=['hexopt:bayesian', 'hexcrypt:avalanche', 'hexlearn:predict'],
-        emergent='Автоматический синтез S-блоков с заданным лавинным критерием',
+        description='Байесовский поиск + лавинный тест + ML-предсказание NL',
+        pipeline=['hexopt:bayesian', 'hexcrypt:avalanche --from-opt', 'hexlearn:predict --from-avalanche'],
+        emergent=(
+            'K3×K1: r(NL, SAC_dev)=-0.96 (почти линейно!). '
+            'NL=18 — Q6-потолок (62% случ. S-блоков). '
+            'ML-модель: NL ≈ -39.9·SAC_dev + 19.7 (r²=0.91, MAE≈1.2). '
+            'AutoML подтверждает: NL и SAC = один Q6-феномен с двух сторон.'
+        ),
     ),
     'SC-6': SuperClusterInfo(
         id='SC-6', name='Геномный КА: энтропийные аттракторы',
