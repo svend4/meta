@@ -3888,6 +3888,274 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Взаимная информация CA Q6 — MI-матрица аттрактора</h2>
+<p class="meta">I(X_i; X_j) = H(X_i) + H(X_j) − H(X_i,X_j) [бит, лог₂] · распределение вычислено по точным состояниям периодического аттрактора · диагональ M[i][i] = H(X_i) (собственная энтропия клетки) · XOR P=1 → H=0 · XOR3 P=8 → H до 3 бит · яркость пикселя пропорциональна MI</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="mi-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="mi-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <button id="mi-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    MI-матрица</button>
+  <button id="mi-hmap-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Heatmap (лексикон)</button>
+</div>
+<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+  <canvas id="mi-mat" style="display:block"></canvas>
+  <canvas id="mi-dist" style="display:block"></canvas>
+</div>
+<div id="mi-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-top:8px"></div>
+<canvas id="mi-hmap" style="display:none;margin-top:8px"></canvas>
+<script>
+(function(){
+  var MI_COLS = {xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+  var MI_RGB  = {xor:[255,85,85],xor3:[68,221,221],and:[119,221,119],or:[255,170,0]};
+  var ALL_RULES=['xor','xor3','and','or'];
+  var RNAMES  = {xor:'XOR \u2295',xor3:'XOR3',and:'AND \u0026',or:'OR |'};
+
+  function miStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function miOrbit(cells0,rule){
+    var seen={},c=cells0.slice(),t=0;
+    for(;;){
+      var key=c.join(',');
+      if(key in seen) return {transient:seen[key],period:t-seen[key]};
+      seen[key]=t; c=miStep(c,rule); t++;
+    }
+  }
+
+  function miAttractorStates(word,rule){
+    var cells=window.padL(window.encL(word.toUpperCase()),16);
+    var orb=miOrbit(cells,rule);
+    var T=orb.transient,P=Math.max(orb.period,1);
+    var c=cells.slice();
+    for(var t=0;t<T;t++) c=miStep(c,rule);
+    var states=[];
+    for(var t=0;t<P;t++){states.push(c.slice());c=miStep(c,rule);}
+    return {states:states,period:P};
+  }
+
+  function miEntropy(vals){
+    var n=vals.length;
+    if(!n) return 0;
+    var cnt={};
+    vals.forEach(function(v){cnt[v]=(cnt[v]||0)+1;});
+    var H=0;
+    Object.keys(cnt).forEach(function(k){
+      var p=cnt[k]/n;
+      H-=p*Math.log2(p);
+    });
+    return H;
+  }
+
+  function miCellMI(states,i,j){
+    var n=states.length;
+    if(!n) return 0;
+    var vi=states.map(function(s){return s[i];});
+    var vj=states.map(function(s){return s[j];});
+    var vpairs=vi.map(function(v,k){return v+'_'+vj[k];});
+    var hi=miEntropy(vi),hj=miEntropy(vj),hij=miEntropy(vpairs);
+    return Math.max(0,hi+hj-hij);
+  }
+
+  function buildMIMatrix(states,W){
+    var M=[];
+    for(var i=0;i<W;i++){
+      M.push([]);
+      for(var j=0;j<W;j++) M[i].push(miCellMI(states,i,j));
+    }
+    return M;
+  }
+
+  function miByDist(M,W){
+    var dMax=Math.floor(W/2),totals=new Array(dMax+1).fill(0),counts=new Array(dMax+1).fill(0);
+    for(var i=0;i<W;i++) for(var j=0;j<W;j++){
+      var diff=Math.abs(i-j),d=Math.min(diff,W-diff);
+      if(d<=dMax){totals[d]+=M[i][j];counts[d]++;}
+    }
+    return totals.map(function(t,d){return counts[d]?t/counts[d]:0;});
+  }
+
+  function interpColor(v,maxV,rgb){
+    var a=maxV>0?v/maxV:0;
+    var r=Math.round(rgb[0]*a+0x1c*(1-a));
+    var g=Math.round(rgb[1]*a+0x1c*(1-a));
+    var b2=Math.round(rgb[2]*a+0x1c*(1-a));
+    return 'rgb('+r+','+g+','+b2+')';
+  }
+
+  function drawMIMatrix(canvas,M,W,rule){
+    var cellSz=26,leftPad=28,topPad=28;
+    canvas.width=leftPad+W*cellSz+50;
+    canvas.height=topPad+W*cellSz+4;
+    var ctx=canvas.getContext('2d');
+    var rgb=MI_RGB[rule]||[128,128,128];
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // find max off-diagonal
+    var maxV=0;
+    for(var i=0;i<W;i++) for(var j=0;j<W;j++) if(i!==j && M[i][j]>maxV) maxV=M[i][j];
+    if(maxV<1e-9) maxV=1;
+
+    // axis labels
+    ctx.font='9px monospace'; ctx.textAlign='center';
+    for(var k=0;k<W;k++){
+      ctx.fillStyle='#666';
+      ctx.fillText(k,leftPad+k*cellSz+cellSz/2,topPad-4);
+      ctx.fillText(k,leftPad-14,topPad+k*cellSz+cellSz/2+3);
+    }
+
+    // cells
+    for(var i=0;i<W;i++){
+      for(var j=0;j<W;j++){
+        var x=leftPad+j*cellSz, y=topPad+i*cellSz;
+        if(i===j) ctx.fillStyle='#555';
+        else      ctx.fillStyle=interpColor(M[i][j],maxV,rgb);
+        ctx.fillRect(x,y,cellSz-1,cellSz-1);
+      }
+      // entropy bar to the right
+      var entH=M[i][i];
+      var barW=Math.round(entH/Math.max(maxV,1)*44);
+      ctx.fillStyle=interpColor(entH,maxV,rgb);
+      ctx.fillRect(leftPad+W*cellSz+2,topPad+i*cellSz+2,barW,cellSz-4);
+    }
+  }
+
+  function drawMIDist(canvas,dist,rule){
+    var W=dist.length,barW=28,barMaxH=80,padL=12,padB=18;
+    canvas.width=padL+W*barW+4;
+    canvas.height=barMaxH+padB+20;
+    var ctx=canvas.getContext('2d');
+    var rgb=MI_RGB[rule]||[128,128,128];
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    var maxV=Math.max.apply(null,dist)||1;
+    ctx.font='9px monospace'; ctx.textAlign='center';
+    ctx.fillStyle='#666';
+    ctx.fillText('MI(d)',padL+(W*barW)/2,10);
+    for(var d=0;d<W;d++){
+      var h=Math.round(dist[d]/maxV*barMaxH);
+      ctx.fillStyle=interpColor(dist[d],maxV,rgb);
+      ctx.fillRect(padL+d*barW+2,barMaxH+padB-h,barW-4,h);
+      ctx.fillStyle='#666';
+      ctx.fillText(d,padL+d*barW+barW/2,barMaxH+padB+10);
+    }
+  }
+
+  function miRun(){
+    if(!window.encL||!window.padL) return;
+    var word=(document.getElementById('mi-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('mi-rule').value||'xor3';
+    var matCv=document.getElementById('mi-mat');
+    var distCv=document.getElementById('mi-dist');
+    var statsDiv=document.getElementById('mi-stats');
+    var W=16;
+
+    var res=miAttractorStates(word,rule);
+    var M=buildMIMatrix(res.states,W);
+    var dist=miByDist(M,W);
+
+    drawMIMatrix(matCv,M,W,rule);
+    drawMIDist(distCv,dist,rule);
+
+    // stats
+    var ent=M.map(function(row,i){return row[i];});
+    var meanH=ent.reduce(function(a,b){return a+b;},0)/W;
+    var maxMI=0,maxPair=[0,0];
+    for(var i=0;i<W;i++) for(var j=0;j<W;j++){
+      if(i!==j && M[i][j]>maxMI){maxMI=M[i][j];maxPair=[i,j];}
+    }
+    var distStr=dist.map(function(v,d){return 'd'+d+'='+v.toFixed(2);}).join('  ');
+    statsDiv.innerHTML='<span style="color:'+MI_COLS[rule]+'">'+RNAMES[rule]+'</span>'
+      +'  P='+res.period+'  H\u0304='+meanH.toFixed(3)+' бит'
+      +'  max MI='+maxMI.toFixed(3)+' b ('+maxPair[0]+','+maxPair[1]+')<br>'
+      +'<span style="color:#888">'+distStr+'</span>';
+  }
+
+  function miHmapRun(){
+    if(!window.encL||!window.padL||!window.LEXICON_ARR) return;
+    var words=window.LEXICON_ARR.slice().sort();
+    var cellW=13,cellH=18,leftPad=54,topPad=75;
+    var hmCv=document.getElementById('mi-hmap');
+    hmCv.width=leftPad+words.length*cellW+4;
+    hmCv.height=topPad+ALL_RULES.length*cellH+4;
+    var ctx=hmCv.getContext('2d');
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,hmCv.width,hmCv.height);
+
+    ctx.save(); ctx.font='9px monospace'; ctx.fillStyle='#999';
+    for(var wi=0;wi<words.length;wi++){
+      ctx.save();
+      ctx.translate(leftPad+wi*cellW+cellW/2,topPad-4);
+      ctx.rotate(-Math.PI/2);
+      ctx.textAlign='left'; ctx.fillText(words[wi],0,0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    ctx.textAlign='right'; ctx.font='11px monospace';
+    for(var ri2=0;ri2<ALL_RULES.length;ri2++){
+      ctx.fillStyle=MI_COLS[ALL_RULES[ri2]];
+      ctx.fillText(RNAMES[ALL_RULES[ri2]],leftPad-4,topPad+ri2*cellH+cellH-3);
+    }
+
+    for(var ri3=0;ri3<ALL_RULES.length;ri3++){
+      var rule3=ALL_RULES[ri3];
+      var rgb3=MI_RGB[rule3]||[128,128,128];
+      for(var wi2=0;wi2<words.length;wi2++){
+        var res2=miAttractorStates(words[wi2],rule3);
+        var ent2=0;
+        for(var ci=0;ci<16;ci++) ent2+=miCellMI(res2.states,ci,ci);
+        ent2/=16;
+        var a=Math.min(ent2/3,1);
+        var cr2=Math.round(rgb3[0]*a+0x1c*(1-a));
+        var cg2=Math.round(rgb3[1]*a+0x1c*(1-a));
+        var cb2=Math.round(rgb3[2]*a+0x1c*(1-a));
+        ctx.fillStyle='rgb('+cr2+','+cg2+','+cb2+')';
+        ctx.fillRect(leftPad+wi2*cellW,topPad+ri3*cellH,cellW-1,cellH-1);
+      }
+    }
+    hmCv.style.display='block';
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('mi-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.text=w; if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('mi-btn');
+    var hmBtn=document.getElementById('mi-hmap-btn');
+    var ruleEl=document.getElementById('mi-rule');
+    var wordEl=document.getElementById('mi-word');
+    if(btn)    btn.addEventListener('click',miRun);
+    if(hmBtn)  hmBtn.addEventListener('click',miHmapRun);
+    if(ruleEl) ruleEl.addEventListener('change',miRun);
+    if(wordEl) wordEl.addEventListener('change',miRun);
+    setTimeout(function(){if(window.encL) miRun();},1150);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Ляпунов CA Q6 — расходимость траекторий</h2>
 <p class="meta">Однобитовые возмущения начального состояния (96 вариантов) → среднее Хэмминг-расстояние d(t) между оригинальной и возмущённой траекториями · пик = «максимальная чувствительность» · ↓ = сходится к 0</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
