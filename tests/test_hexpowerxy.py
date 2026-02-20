@@ -221,5 +221,35 @@ class TestGenerateCurveSteps(unittest.TestCase):
         self.assertEqual(len(curve), 15)
 
 
+class TestPowerXYExtra(unittest.TestCase):
+    def setUp(self):
+        self.pxy = PowerXY()
+
+    def test_generate_curve_returns_tuples(self):
+        """Каждая точка кривой — кортеж длины 2."""
+        for pt in self.pxy.generate_curve(steps=5):
+            self.assertIsInstance(pt, tuple)
+            self.assertEqual(len(pt), 2)
+
+    def test_xy_from_t_3_x_is_sqrt3(self):
+        """xy_from_t(3)[0] = 3^(1/2) = √3."""
+        X, _ = self.pxy.xy_from_t(3.0)
+        self.assertAlmostEqual(X, math.sqrt(3), places=8)
+
+    def test_find_golden_root_greater_1(self):
+        """find_golden_root() > 1."""
+        self.assertGreater(self.pxy.find_golden_root(), 1.0)
+
+    def test_notable_pairs_nontrivial_x_ne_y(self):
+        """Нетривиальные пары имеют X ≠ Y."""
+        for x, y in self.pxy.notable_pairs():
+            if abs(x - y) > 0.01:
+                self.assertNotAlmostEqual(x, y, places=3)
+
+    def test_verify_negative_x_false(self):
+        """verify(-1, 2) = False (отрицательное основание)."""
+        self.assertFalse(self.pxy.verify(-1.0, 2.0))
+
+
 if __name__ == "__main__":
     unittest.main()

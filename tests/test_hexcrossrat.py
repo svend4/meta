@@ -227,5 +227,37 @@ class TestCrossRatioGroup(unittest.TestCase):
         self.assertEqual(len(r6._elements), 6)
 
 
+class TestCrossRatioGroupExtra(unittest.TestCase):
+    def test_non_commutativity(self):
+        """R6 не абелева: существуют i,j: r_i∘r_j ≠ r_j∘r_i."""
+        r6 = CrossRatioGroup(3.0)
+        self.assertNotEqual(r6.multiply(1, 2), r6.multiply(2, 1))
+
+    def test_all_elements_distinct(self):
+        """Все 6 элементов различны для w=3."""
+        r6 = CrossRatioGroup(3.0)
+        reals = [round(complex(e).real, 6) for e in r6.elements()]
+        self.assertEqual(len(set(reals)), 6)
+
+    def test_negative_w_valid(self):
+        """CrossRatioGroup(-2.0) корректно создаётся и имеет 6 элементов."""
+        r6 = CrossRatioGroup(-2.0)
+        self.assertEqual(len(r6.elements()), 6)
+
+    def test_compose_all_pairs_finite(self):
+        """compose(i,j) конечен для всех пар."""
+        r6 = CrossRatioGroup(3.0)
+        for i in range(6):
+            for j in range(6):
+                val = complex(r6.compose(i, j))
+                self.assertFalse(math.isinf(abs(val)),
+                                 f"compose({i},{j}) не конечен: {val}")
+
+    def test_w_half_six_elements(self):
+        """CrossRatioGroup(0.5) имеет 6 элементов."""
+        r6 = CrossRatioGroup(0.5)
+        self.assertEqual(len(r6.elements()), 6)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,9 @@ from projects.hexuniqgrp.hexuniqgrp import (
     FiniteGroup,
     classify_uvw,
     uvw_product,
+    _prime_factors,
+    _is_squarefree,
+    _is_prime,
 )
 
 
@@ -189,6 +192,44 @@ class TestKnownUniqueOrders300(unittest.TestCase):
         self.assertIsInstance(lst, list)
         self.assertGreater(len(lst), 0)
         self.assertIn(15, lst)
+
+
+class TestPrivateHelpers(unittest.TestCase):
+    def test_prime_factors_12(self):
+        """_prime_factors(12) == [2, 2, 3]."""
+        self.assertEqual(_prime_factors(12), [2, 2, 3])
+
+    def test_is_squarefree_6(self):
+        """6 = 2·3 — бесквадратное."""
+        self.assertTrue(_is_squarefree(6))
+
+    def test_is_squarefree_4(self):
+        """4 = 2² — не бесквадратное."""
+        self.assertFalse(_is_squarefree(4))
+
+    def test_is_prime_7(self):
+        """7 — простое."""
+        self.assertTrue(_is_prime(7))
+
+    def test_is_prime_9(self):
+        """9 = 3² — не простое."""
+        self.assertFalse(_is_prime(9))
+
+
+class TestVerifyKnownList(unittest.TestCase):
+    def test_verify_known_list_has_match_key(self):
+        """verify_known_list() содержит ключ 'match'."""
+        vkl = UniqueGroups().verify_known_list()
+        self.assertIn("match", vkl)
+
+    def test_unique_orders_up_to_30(self):
+        """Единственный уникальный порядок ≤ 30 — это 15."""
+        self.assertEqual(UniqueGroups().unique_orders_up_to(30), [15])
+
+    def test_element_orders_has_order_1(self):
+        """element_orders() для G(15) содержит порядок 1 (единица)."""
+        eo = FiniteGroup(15).element_orders()
+        self.assertIn(1, eo)
 
 
 if __name__ == "__main__":

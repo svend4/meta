@@ -229,5 +229,35 @@ class TestCurrentPosTarget(unittest.TestCase):
         self.assertTrue(g.is_over())
 
 
+class TestGameStateExtra(unittest.TestCase):
+    def test_gameresult_draw_exists(self):
+        """GameResult.DRAW существует."""
+        self.assertIsNotNone(GameResult.DRAW)
+
+    def test_current_player_b_after_a_move(self):
+        """После хода A текущий игрок — B."""
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        move = list(neighbors(0))[0]
+        g2 = g.make_move(move)
+        self.assertEqual(g2.current_player, Player.B)
+
+    def test_history_b_unchanged_after_a_move(self):
+        """История B не изменяется после хода A."""
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        move = list(neighbors(0))[0]
+        g2 = g.make_move(move)
+        self.assertEqual(len(g2.history_b), 1)
+
+    def test_legal_moves_default_equals_current_player(self):
+        """legal_moves() == legal_moves(Player.A) в начале игры."""
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        self.assertEqual(set(g.legal_moves()), set(g.legal_moves(Player.A)))
+
+    def test_new_game_capture_false_empty_captured(self):
+        """new_game(capture_mode=False).captured == {}."""
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        self.assertEqual(g.captured, {})
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
