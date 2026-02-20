@@ -10,7 +10,7 @@ from projects.hexpack.hexpack import (
     _triangular, _is_power_of_two,
 )
 from projects.hexpack.pack_glyphs import (
-    json_ring, json_antipode, json_fixpoint, json_packable, json_periods,
+    json_ring, json_antipode, json_fixpoint, json_packable, json_periods, json_magic,
 )
 
 
@@ -313,6 +313,61 @@ class TestJsonPeriods(unittest.TestCase):
             if e['is_power_of_2']:
                 self.assertIsNotNone(e['k'])
                 self.assertEqual(2 ** e['k'], e['P'])
+
+
+class TestJsonMagic(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.r1 = json_magic(1)
+        cls.r2 = json_magic(2)
+
+    def test_command(self):
+        self.assertEqual(self.r1['command'], 'magic')
+
+    def test_k1_side(self):
+        self.assertEqual(self.r1['side'], 2)
+
+    def test_k1_P(self):
+        self.assertEqual(self.r1['P'], 4)
+
+    def test_k1_magic_constant(self):
+        self.assertEqual(self.r1['magic_constant'], 5)
+
+    def test_k1_is_magic(self):
+        self.assertTrue(self.r1['is_magic'])
+
+    def test_k1_column_sums(self):
+        for s in self.r1['column_sums']:
+            self.assertEqual(s, self.r1['magic_constant'])
+
+    def test_k1_square_shape(self):
+        sq = self.r1['square']
+        self.assertEqual(len(sq), 2)
+        for row in sq:
+            self.assertEqual(len(row), 2)
+
+    def test_k2_side(self):
+        self.assertEqual(self.r2['side'], 4)
+
+    def test_k2_is_magic(self):
+        self.assertTrue(self.r2['is_magic'])
+
+    def test_k2_square_shape(self):
+        sq = self.r2['square']
+        self.assertEqual(len(sq), 4)
+        for row in sq:
+            self.assertEqual(len(row), 4)
+
+    def test_k2_column_sums(self):
+        for s in self.r2['column_sums']:
+            self.assertEqual(s, self.r2['magic_constant'])
+
+    def test_square_is_permutation(self):
+        """Все числа 1..P встречаются ровно по одному разу."""
+        sq = self.r2['square']
+        P = self.r2['P']
+        flat = [v for row in sq for v in row]
+        self.assertEqual(set(flat), set(range(1, P + 1)))
 
 
 if __name__ == '__main__':

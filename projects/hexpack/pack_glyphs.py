@@ -299,7 +299,7 @@ def json_magic(k: int) -> dict:
         'magic_constant': ms.magic_constant,
         'is_magic': ms.is_magic(),
         'column_sums': ms.column_sums(),
-        'square': ms.square,
+        'square': ms.matrix,
     }
 
 
