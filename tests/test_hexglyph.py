@@ -2978,6 +2978,276 @@ class TestSolanMatrix(unittest.TestCase):
         self.assertIn('setTimeout', content)
 
 
+class TestSolanPhonemeAnalysis(unittest.TestCase):
+    """Tests for solan_phoneme.py and the viewer Phoneme Analysis section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import (
+            phoneme_table, substitution_matrix, sensitivity_profile,
+            critical_positions, neutral_positions, pair_stats,
+            build_phoneme_data, phoneme_dict, SOLAN_ALPHABET,
+        )
+        cls.phoneme_table        = staticmethod(phoneme_table)
+        cls.substitution_matrix  = staticmethod(substitution_matrix)
+        cls.sensitivity_profile  = staticmethod(sensitivity_profile)
+        cls.critical_positions   = staticmethod(critical_positions)
+        cls.neutral_positions    = staticmethod(neutral_positions)
+        cls.pair_stats           = staticmethod(pair_stats)
+        cls.build_phoneme_data   = staticmethod(build_phoneme_data)
+        cls.phoneme_dict         = staticmethod(phoneme_dict)
+        cls.SOLAN_ALPHABET       = list(SOLAN_ALPHABET)
+
+    # ── phoneme_table() ───────────────────────────────────────────────────────
+
+    def test_phoneme_table_size(self):
+        pt = self.phoneme_table()
+        self.assertEqual(len(pt), 16)
+
+    def test_phoneme_table_keys(self):
+        pt = self.phoneme_table()
+        for letter in ['А', 'Г', 'О', 'Р', 'Н', 'Т', 'М']:
+            self.assertIn(letter, pt)
+
+    def test_phoneme_table_fields(self):
+        pt = self.phoneme_table()
+        for letter, d in pt.items():
+            for k in ('q6', 'binary', 'hw', 'segs'):
+                self.assertIn(k, d)
+
+    def test_phoneme_table_a_q6_63(self):
+        # А = all-ones = Q6 value 63
+        self.assertEqual(self.phoneme_table()['А']['q6'], 63)
+
+    def test_phoneme_table_n_q6_3(self):
+        # Н = lowest Q6 = 3
+        self.assertEqual(self.phoneme_table()['Н']['q6'], 3)
+
+    def test_phoneme_table_binary_6_bits(self):
+        pt = self.phoneme_table()
+        for letter, d in pt.items():
+            self.assertEqual(len(d['binary']), 6)
+            self.assertRegex(d['binary'], r'^[01]{6}$')
+
+    def test_phoneme_table_hw_matches_binary(self):
+        pt = self.phoneme_table()
+        for letter, d in pt.items():
+            expected_hw = d['binary'].count('1')
+            self.assertEqual(d['hw'], expected_hw)
+
+    def test_solan_alphabet_sorted_by_q6(self):
+        pt = self.phoneme_table()
+        q6_values = [pt[letter]['q6'] for letter in self.SOLAN_ALPHABET]
+        self.assertEqual(q6_values, sorted(q6_values))
+
+    def test_solan_alphabet_length(self):
+        self.assertEqual(len(self.SOLAN_ALPHABET), 16)
+
+    # ── substitution_matrix() ─────────────────────────────────────────────────
+
+    def test_sub_matrix_returns_list(self):
+        m = self.substitution_matrix('ГОРА')
+        self.assertIsInstance(m, list)
+
+    def test_sub_matrix_length_equals_letters(self):
+        self.assertEqual(len(self.substitution_matrix('ГОРА')), 4)
+        self.assertEqual(len(self.substitution_matrix('ТУМАН')), 5)
+
+    def test_sub_matrix_position_keys(self):
+        m = self.substitution_matrix('ГОРА')
+        for pd in m:
+            for k in ('pos', 'letter', 'q6', 'orig_key', 'orig_class',
+                      'subs', 'n_changed', 'sensitivity'):
+                self.assertIn(k, pd)
+
+    def test_sub_matrix_subs_count(self):
+        # Each position has subs for all 16 phonemes minus 1 (the original)
+        m = self.substitution_matrix('ГОРА')
+        for pd in m:
+            self.assertEqual(len(pd['subs']), 15)
+
+    def test_sub_matrix_gora_o_neutral(self):
+        # О at position 1 of ГОРА: zero substitutions change class
+        m = self.substitution_matrix('ГОРА')
+        o_pos = next(pd for pd in m if pd['letter'] == 'О')
+        self.assertEqual(o_pos['n_changed'], 0)
+        self.assertAlmostEqual(o_pos['sensitivity'], 0.0)
+
+    def test_sub_matrix_gora_r_critical(self):
+        # Р at position 2 of ГОРА: 12 substitutions change class
+        m = self.substitution_matrix('ГОРА')
+        r_pos = next(pd for pd in m if pd['letter'] == 'Р')
+        self.assertEqual(r_pos['n_changed'], 12)
+
+    def test_sub_matrix_sensitivity_in_range(self):
+        m = self.substitution_matrix('ТУМАН')
+        for pd in m:
+            self.assertGreaterEqual(pd['sensitivity'], 0.0)
+            self.assertLessEqual(pd['sensitivity'], 1.0)
+
+    def test_sub_matrix_orig_class_consistent(self):
+        from projects.hexglyph.solan_transient import full_key, transient_classes
+        m = self.substitution_matrix('ГОРА')
+        # orig_class should be consistent across all positions
+        classes = {pd['orig_class'] for pd in m}
+        self.assertEqual(len(classes), 1)
+
+    # ── sensitivity_profile() ─────────────────────────────────────────────────
+
+    def test_sensitivity_profile_length(self):
+        p = self.sensitivity_profile('ГОРА')
+        self.assertEqual(len(p), 4)
+
+    def test_sensitivity_profile_gora(self):
+        p = self.sensitivity_profile('ГОРА')
+        # [0.73, 0.00, 0.80, 0.47]
+        self.assertAlmostEqual(p[1], 0.0, places=5)    # О: neutral
+        self.assertGreater(p[2], 0.7)                  # Р: very critical
+
+    def test_sensitivity_profile_luna_mostly_stable(self):
+        p = self.sensitivity_profile('ЛУНА')
+        mean_sens = sum(p) / len(p)
+        # ЛУНА is in the largest class (20 words), so most subs stay in it
+        self.assertLess(mean_sens, 0.2)
+
+    # ── critical_positions() and neutral_positions() ──────────────────────────
+
+    def test_critical_positions_gora(self):
+        crits = self.critical_positions('ГОРА', threshold=0.5)
+        self.assertIn(0, crits)  # Г: critical
+        self.assertIn(2, crits)  # Р: critical
+        self.assertNotIn(1, crits)  # О: not critical
+
+    def test_neutral_positions_gora(self):
+        neuts = self.neutral_positions('ГОРА')
+        self.assertIn(1, neuts)   # О: neutral
+        self.assertNotIn(2, neuts)  # Р: not neutral
+
+    def test_critical_and_neutral_disjoint(self):
+        crits = set(self.critical_positions('ГОРА'))
+        neuts = set(self.neutral_positions('ГОРА'))
+        self.assertEqual(crits & neuts, set())
+
+    # ── pair_stats() ──────────────────────────────────────────────────────────
+
+    def test_pair_stats_returns_dict(self):
+        ps = self.pair_stats(['ГОРА', 'ЛУНА'])
+        self.assertIsInstance(ps, dict)
+
+    def test_pair_stats_keys_are_tuples(self):
+        ps = self.pair_stats(['ГОРА'])
+        for pair in ps:
+            self.assertIsInstance(pair, tuple)
+            self.assertEqual(len(pair), 2)
+
+    def test_pair_stats_fields(self):
+        ps = self.pair_stats(['ГОРА'])
+        for d in ps.values():
+            self.assertIn('count', d)
+            self.assertIn('changed', d)
+            self.assertIn('rate', d)
+
+    def test_pair_stats_rate_range(self):
+        ps = self.pair_stats(['ГОРА', 'ЛУНА', 'ЖУРНАЛ'])
+        for d in ps.values():
+            self.assertGreaterEqual(d['rate'], 0.0)
+            self.assertLessEqual(d['rate'], 1.0)
+
+    def test_pair_stats_g_to_t_neutral(self):
+        # Г→Т: rate=0 across full lexicon
+        ps = self.pair_stats()
+        gt = ps.get(('Г', 'Т'))
+        if gt and gt['count'] >= 3:
+            self.assertAlmostEqual(gt['rate'], 0.0, places=5)
+
+    def test_pair_stats_z_to_a_destabilising(self):
+        # З→А: rate=1.0 across full lexicon
+        ps = self.pair_stats()
+        za = ps.get(('З', 'А'))
+        if za and za['count'] >= 3:
+            self.assertAlmostEqual(za['rate'], 1.0, places=5)
+
+    # ── build_phoneme_data() ──────────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        data = self.build_phoneme_data(['ГОРА', 'ЛУНА'])
+        for k in ('phoneme_table', 'words', 'profiles', 'critical',
+                  'neutral', 'pairs', 'most_stable', 'most_sensitive'):
+            self.assertIn(k, data)
+
+    def test_build_data_most_stable_is_word(self):
+        words = ['ГОРА', 'ЛУНА', 'ТУМАН']
+        data = self.build_phoneme_data(words)
+        self.assertIn(data['most_stable'], words)
+
+    def test_build_data_profiles_all_words(self):
+        words = ['ГОРА', 'ЛУНА']
+        data = self.build_phoneme_data(words)
+        self.assertEqual(set(data['profiles'].keys()), set(words))
+
+    # ── phoneme_dict() ────────────────────────────────────────────────────────
+
+    def test_phoneme_dict_serialisable(self):
+        import json
+        d = self.phoneme_dict('ГОРА')
+        dumped = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(dumped, str)
+
+    def test_phoneme_dict_keys(self):
+        d = self.phoneme_dict('ГОРА')
+        for k in ('word', 'width', 'profile', 'positions'):
+            self.assertIn(k, d)
+
+    def test_phoneme_dict_positions_length(self):
+        d = self.phoneme_dict('ГОРА')
+        self.assertEqual(len(d['positions']), 4)
+
+    def test_phoneme_dict_position_keys(self):
+        d = self.phoneme_dict('ГОРА')
+        for pd in d['positions']:
+            for k in ('pos', 'letter', 'q6', 'orig_class', 'n_changed',
+                      'sensitivity', 'subs'):
+                self.assertIn(k, pd)
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_phon_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('phon-canvas', content)
+
+    def test_viewer_has_phon_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('phon-info', content)
+
+    def test_viewer_has_solan_alpha(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('SOLAN_ALPHA', content)
+
+    def test_viewer_has_phon_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('phonRun', content)
+
+    def test_viewer_has_compute_sub_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('computeSubMatrix', content)
+
+    def test_viewer_has_pred_classes_export(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.PRED_CLASSES', content)
+
+    def test_viewer_has_pred_full_key_export(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('window.predFullKey', content)
+
+    def test_viewer_phoneme_section_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Фонемный анализ Q6', content)
+
+    def test_viewer_has_phon_word_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('phon-word', content)
+
+
 class TestSolanTraj(unittest.TestCase):
     """Tests for solan_traj.py and the viewer Trajectory section."""
 

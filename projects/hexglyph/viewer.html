@@ -2888,6 +2888,306 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Фонемный анализ Q6 — карта замен</h2>
+<p class="meta">Для каждой позиции слова: какие фонемные замены меняют орбитальный класс?
+  · цвет ячейки = новый класс · серый = класс сохранён · × = исходная буква</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="phon-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <span style="color:#333;font-size:13px">или</span>
+  <input id="phon-custom" type="text" placeholder="своё слово…"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;
+           font-size:13px;width:120px;text-transform:uppercase"/>
+  <button id="phon-btn"
+    style="background:#1a2e1a;color:#a5d6a7;border:1px solid #2a5a2a;
+           padding:5px 14px;cursor:pointer;font-size:13px">Анализ</button>
+</div>
+<canvas id="phon-canvas" width="700" height="200"
+  style="display:block;border:1px solid #1a1a1a;cursor:crosshair"></canvas>
+<div id="phon-info"
+  style="font-family:monospace;font-size:11px;color:#555;min-height:16px;margin-top:5px"> </div>
+<script>
+(function(){
+  // ── Phoneme alphabet (sorted by Q6 value) ─────────────────────────────────
+  var SOLAN_ALPHA = ['Н','Л','Б','Р','З','В','М','Ж','Ч','И','О','Т','Г','Д','У','А'];
+  var PHONEME_Q6  = {Н:3,Л:9,Б:14,Р:15,З:19,В:20,М:24,Ж:28,Ч:35,И:44,О:47,Т:48,Г:49,Д:50,У:51,А:63};
+  // Transliteration for encoding in viewer (same as encL uses)
+  var PHON_H = {Н:3,Л:9,Б:14,Р:15,З:19,В:20,М:24,Ж:28,Ч:35,И:44,О:47,Т:48,Г:49,Д:50,У:51,А:63};
+  var N_ALPHA = SOLAN_ALPHA.length; // 16
+
+  function encWord(word) {
+    // Encode a Cyrillic word using PHON_H lookup
+    var result = [];
+    for (var i = 0; i < word.length; i++) {
+      var h = PHON_H[word[i]];
+      if (h !== undefined) result.push(h);
+    }
+    return result;
+  }
+  function padW(cells, w) {
+    if (!cells.length) return new Array(w).fill(0);
+    var out = [];
+    for (var i = 0; i < w; i++) out.push(cells[i % cells.length]);
+    return out;
+  }
+
+  // ── Full-key & class lookup ────────────────────────────────────────────────
+  function fullKeyFor(word) {
+    var cells = padW(encWord(word), window.LEXW || 16);
+    var sig = {};
+    var orbitFn = window.findOrbitJS, nexFn = window.caNextRow;
+    var ls = window.LEXSTEPS || 800;
+    if (!orbitFn) return null;
+    ['xor','xor3','and','or'].forEach(function(r){
+      sig[r] = orbitFn(cells, r, ls);
+    });
+    return window.predFullKey ? window.predFullKey(sig) : null;
+  }
+  function classIdFor(fk) {
+    var cls = window.PRED_CLASSES;
+    if (!cls || !fk) return -1;
+    for (var ci = 0; ci < cls.length; ci++) {
+      if (fk.every(function(v,i){ return v === cls[ci].key[i]; })) return ci;
+    }
+    return -1;
+  }
+  function keysEq(a, b) {
+    if (!a || !b) return false;
+    return a.length === b.length && a.every(function(v,i){ return v === b[i]; });
+  }
+
+  // ── Compute substitution matrix ────────────────────────────────────────────
+  function computeSubMatrix(word) {
+    var letters = encWord(word).map(function(h) {
+      for (var k in PHON_H) { if (PHON_H[k] === h) return k; }
+      return null;
+    }).filter(Boolean);
+    if (!letters.length) return null;
+
+    var origFk = fullKeyFor(word);
+    var origCl = classIdFor(origFk);
+
+    var result = { letters: letters, orig_key: origFk, orig_class: origCl, positions: [] };
+
+    letters.forEach(function(origLetter, pos) {
+      var subs = {};
+      SOLAN_ALPHA.forEach(function(subLetter) {
+        if (subLetter === origLetter) { subs[subLetter] = null; return; }
+        var newLetters = letters.slice();
+        newLetters[pos] = subLetter;
+        var newFk = fullKeyFor(newLetters.join(''));
+        var newCl = classIdFor(newFk);
+        subs[subLetter] = { fk: newFk, cl: newCl, changed: !keysEq(newFk, origFk) };
+      });
+      var n_ch = Object.values(subs).filter(function(v){ return v && v.changed; }).length;
+      result.positions.push({
+        pos: pos, letter: origLetter, subs: subs,
+        n_changed: n_ch, sensitivity: n_ch / 15
+      });
+    });
+    return result;
+  }
+
+  // ── Draw ──────────────────────────────────────────────────────────────────
+  var LM=78, TM=44, RM=12, BM=22;
+  var _hovCell = null;
+
+  function drawMatrix(matrix, canvas, ctx) {
+    if (!matrix) return;
+    var W = canvas.width, n_pos = matrix.positions.length;
+    var CW = Math.floor((W - LM - RM) / N_ALPHA);
+    var CH = Math.max(22, Math.min(40, Math.floor(240 / n_pos)));
+    canvas.height = TM + n_pos * CH + BM;
+
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, W, canvas.height);
+
+    var PAL = window.CLASS_PALETTE || ['#4fc3f7'];
+
+    // Column headers (phoneme letters)
+    ctx.font = 'bold 10px monospace';
+    SOLAN_ALPHA.forEach(function(letter, ci) {
+      ctx.fillStyle = '#333';
+      ctx.fillText(letter, LM + ci * CW + CW * 0.3, TM - 6);
+    });
+    // Q6 value below header
+    ctx.font = '8px monospace';
+    SOLAN_ALPHA.forEach(function(letter, ci) {
+      ctx.fillStyle = '#1e1e1e';
+      ctx.fillText(PHONEME_Q6[letter], LM + ci * CW + 1, TM - 16);
+    });
+
+    matrix.positions.forEach(function(pd, ri) {
+      var y = TM + ri * CH;
+
+      // Sensitivity bar (left)
+      var barW = Math.round(pd.sensitivity * 42);
+      ctx.fillStyle = pd.sensitivity > 0.67 ? '#6a1a1a' :
+                      pd.sensitivity > 0.33 ? '#4a3010' : '#1a3010';
+      ctx.fillRect(2, y + 2, barW, CH - 4);
+
+      // Letter label
+      ctx.font = 'bold 12px monospace';
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(pd.letter, LM - 55, y + CH * 0.65);
+      ctx.font = '9px monospace';
+      ctx.fillStyle = '#333';
+      ctx.fillText(pd.n_changed + '/15', LM - 30, y + CH * 0.65);
+
+      // Cells
+      SOLAN_ALPHA.forEach(function(subLetter, ci) {
+        var x = LM + ci * CW;
+        var info = pd.subs[subLetter];
+        var isHov = _hovCell && _hovCell[0]===ri && _hovCell[1]===ci;
+
+        if (info === null) {
+          // Original letter: hatched
+          ctx.fillStyle = '#1a1a1a';
+          ctx.fillRect(x, y, CW-1, CH-1);
+          ctx.fillStyle = '#333';
+          ctx.font = 'bold 10px monospace';
+          ctx.fillText('×', x + CW*0.28, y + CH*0.67);
+        } else if (info.changed) {
+          var col = PAL[info.cl % PAL.length] || '#888';
+          // Parse hex to rgba
+          ctx.fillStyle = isHov ? col : col + '99';
+          ctx.fillRect(x, y, CW-1, CH-1);
+          ctx.fillStyle = isHov ? '#fff' : '#000a';
+          ctx.font = '9px monospace';
+          ctx.fillText(subLetter, x + CW*0.2, y + CH*0.67);
+        } else {
+          ctx.fillStyle = isHov ? '#222' : '#141414';
+          ctx.fillRect(x, y, CW-1, CH-1);
+          ctx.fillStyle = '#2a2a2a';
+          ctx.font = '8px monospace';
+          ctx.fillText(subLetter, x + CW*0.2, y + CH*0.67);
+        }
+      });
+
+      // Row separator
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(LM, y); ctx.lineTo(W - RM, y);
+      ctx.stroke();
+    });
+
+    // Class legend below
+    var PAL2 = window.CLASS_PALETTE || [];
+    var CLS  = window.PRED_CLASSES  || [];
+    var lx = LM, ly = canvas.height - BM + 6;
+    ctx.font = '8px monospace';
+    CLS.forEach(function(cls, ci) {
+      var col = PAL2[ci % PAL2.length] || '#888';
+      ctx.fillStyle = col;
+      ctx.fillRect(lx, ly, 8, 8);
+      ctx.fillStyle = '#333';
+      ctx.fillText(ci+1, lx+10, ly+8);
+      lx += 22;
+    });
+    ctx.fillStyle = '#222';
+    ctx.fillText('= класс', lx+2, ly+8);
+  }
+
+  // ── Hover ─────────────────────────────────────────────────────────────────
+  var _lastMatrix = null;
+
+  function initHover(canvas) {
+    canvas.addEventListener('mousemove', function(e) {
+      var rect = canvas.getBoundingClientRect();
+      var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      var CW2 = Math.floor((canvas.width - LM - RM) / N_ALPHA);
+      var CH2 = _lastMatrix ? Math.max(22, Math.min(40, Math.floor(240/_lastMatrix.positions.length))) : 30;
+      var ci = Math.floor((mx - LM) / CW2);
+      var ri = Math.floor((my - TM) / CH2);
+      var valid = _lastMatrix && ci >= 0 && ci < N_ALPHA && ri >= 0 && ri < _lastMatrix.positions.length;
+      _hovCell = valid ? [ri, ci] : null;
+      if (_lastMatrix) {
+        var ctx2 = canvas.getContext('2d');
+        drawMatrix(_lastMatrix, canvas, ctx2);
+      }
+      var info = '';
+      if (valid) {
+        var pd = _lastMatrix.positions[ri];
+        var subLetter = SOLAN_ALPHA[ci];
+        var entry = pd.subs[subLetter];
+        if (entry === null) {
+          info = pd.letter + '[' + ri + '] — исходная буква';
+        } else if (entry.changed) {
+          var CLS = window.PRED_CLASSES || [];
+          var clsInfo = CLS[entry.cl] || {};
+          info = pd.letter + '[' + ri + '] → ' + subLetter
+               + '  новый класс ' + (entry.cl+1) + '/13'
+               + '  ключ=(' + (entry.fk||[]).join(',') + ')'
+               + '  (' + (clsInfo.words||[]).slice(0,4).join(' ') + '…)';
+        } else {
+          info = pd.letter + '[' + ri + '] → ' + subLetter + '  класс сохранён';
+        }
+      }
+      document.getElementById('phon-info').textContent = info;
+    });
+    canvas.addEventListener('mouseleave', function() {
+      _hovCell = null;
+      if (_lastMatrix) drawMatrix(_lastMatrix, canvas, canvas.getContext('2d'));
+      document.getElementById('phon-info').textContent = '';
+    });
+  }
+
+  // ── Run ───────────────────────────────────────────────────────────────────
+  function run() {
+    var custom = (document.getElementById('phon-custom').value||'').toUpperCase()
+                   .replace(/[^А-ЯЁ]/g,'');
+    var word = custom || document.getElementById('phon-word').value || 'ГОРА';
+    var canvas = document.getElementById('phon-canvas');
+    var ctx = canvas.getContext('2d');
+    var matrix = computeSubMatrix(word);
+    _lastMatrix = matrix;
+    if (!matrix) {
+      document.getElementById('phon-info').textContent = '(нет распознанных фонем)';
+      return;
+    }
+    drawMatrix(matrix, canvas, ctx);
+    var total_ch = matrix.positions.reduce(function(s,p){return s+p.n_changed;},0);
+    var total_sub = matrix.positions.length * 15;
+    document.getElementById('phon-info').textContent =
+      word + '  класс=' + (matrix.orig_class+1) + '/13'
+      + '  ключ=(' + (matrix.orig_key||[]).join(',') + ')'
+      + '  чувствительность=' + total_ch + '/' + total_sub
+      + ' (' + (total_ch/total_sub*100).toFixed(1) + '%)';
+  }
+  window.phonRun = run;
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  function populateDropdown() {
+    var sel = document.getElementById('phon-word');
+    var lex = window.LEXICON_ARR || [];
+    lex.forEach(function(w) {
+      var opt = document.createElement('option');
+      opt.value = w; opt.textContent = w;
+      sel.appendChild(opt);
+    });
+    sel.value = 'ГОРА';
+  }
+
+  document.getElementById('phon-btn').addEventListener('click', run);
+  document.getElementById('phon-word').addEventListener('change', function(){
+    document.getElementById('phon-custom').value='';
+    run();
+  });
+  document.getElementById('phon-custom').addEventListener('keydown', function(e){
+    if(e.key==='Enter') run();
+  });
+
+  initHover(document.getElementById('phon-canvas'));
+
+  setTimeout(function(){
+    populateDropdown();
+    if(window.encL && window.predFullKey) run();
+  }, 1400);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
@@ -3112,6 +3412,11 @@ window.predRun = function(){
   }).join('  ');
   document.getElementById('pred-result').innerHTML = html;
 };
+
+// Export for sibling sections
+window.PRED_CLASSES   = PRED_CLASSES;
+window.CLASS_PALETTE  = CLASS_PALETTE;
+window.predFullKey    = predFullKey;
 
 // Run on Enter in input
 document.getElementById('pred-inp').addEventListener('keydown', function(e){
