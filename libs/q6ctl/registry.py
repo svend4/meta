@@ -107,10 +107,10 @@ MODULES: dict[str, ModuleInfo] = {
 
     # K3 — Интеллектуальный кластер
     'hexlearn': ModuleInfo(
-        name='hexlearn', path='projects.hexlearn.hexlearn',
-        commands=['train', 'predict', 'cluster'],
-        cluster='K3', json_ready=False,
-        description='Машинное обучение на Q6-признаках',
+        name='hexlearn', path='projects.hexlearn.learn_glyphs',
+        commands=['ca-rank', 'train', 'predict', 'cluster'],
+        cluster='K3', json_ready=True,
+        description='ML-ранжирование CA Q6 + key schedule scoring (K3×K2×K1)',
     ),
     'hexopt': ModuleInfo(
         name='hexopt', path='projects.hexopt.hexopt',
@@ -480,9 +480,9 @@ SUPERCLUSTERS: dict[str, SuperClusterInfo] = {
     'TSC-2': SuperClusterInfo(
         id='TSC-2', name='AutoML-крипто',
         cluster_ids=['K3', 'K2', 'K1'],
-        description='ML + КА-динамика + крипто = самообучающийся шифр',
-        pipeline=['hexlearn:train', 'hexca:attractor', 'hexcrypt:rounds'],
-        emergent='КА-аттракторы как источник непредсказуемости для шифра',
+        description='ML-ранжирование CA-правил Q6 как компонентов key schedule',
+        pipeline=['hexca:all-rules', 'hexlearn:ca-rank --from-rules'],
+        emergent='K3 ML-оценка выявляет: xor_rule лучший KS (диффузия); cyclic худший (аттрактор)',
     ),
     'TSC-3': SuperClusterInfo(
         id='TSC-3', name='Геномный оракул',
