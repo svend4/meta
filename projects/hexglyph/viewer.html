@@ -105,6 +105,21 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 .tri-label { font-family: monospace; font-size: 10px; color: #444;
              align-self: center; margin-left: 10px; white-space: nowrap; }
 
+/* Phonetic table */
+.phon-grid {
+  display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0;
+}
+.phon-cell {
+  background: #111; border: 1px solid #222; border-radius: 4px;
+  padding: 8px 10px; min-width: 88px; text-align: center; cursor: default;
+}
+.phon-cell:hover { border-color: #444; }
+.phon-ru    { font-size: 20px; color: #e0e0e0; font-weight: bold; margin-bottom: 4px; }
+.phon-solan { font-family: 'Solan4', sans-serif; font-size: 38px; line-height: 1.1; margin-bottom: 2px; }
+.phon-info  { font-family: monospace; font-size: 11px; }
+.phon-conf  { font-size: 11px; margin: 2px 0; }
+.phon-segs  { font-family: monospace; font-size: 9px; color: #555; }
+
 .compare { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
 .compare-block { }
 .compare-label { font-size: 10px; color: #888; margin-bottom: 4px; }
@@ -652,6 +667,46 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 <div class="tri-row"><div class="tri-cell w5 pixel" title="h=31  011111  T+B+L+R+D1  ●">K</div><div class="tri-cell w5 seq" title="h=47  101111  T+B+L+R+D2  ○ · О [medium]">w</div><div class="tri-cell w5 pixel" title="h=55  110111  T+B+L+D1+D2  ●">P</div><div class="tri-cell w5 seq" title="h=59  111011  T+B+R+D1+D2  ○">y</div><div class="tri-cell w5 pixel" title="h=61  111101  T+L+R+D1+D2  ●">f</div><div class="tri-cell w5 pixel" title="h=62  111110  B+L+R+D1+D2  ●">Q</div><span class="tri-label">w=5&thinsp;(6)</span></div>
 <div class="tri-row"><div class="tri-cell w6 pixel" title="h=63  111111  T+B+L+R+D1+D2  ● · А [high]">E</div><span class="tri-label">w=6&thinsp;(1)</span></div>
 </div>
+</div>
+<div class="section">
+<h2>Русская фонетика — «Алфавит 16 букв / 36 звуков»</h2>
+<p class="meta">Авторская система Энгеля ~2000-е гг.  Каждой русской букве соответствует Q6-символ Solan.<br>● пиксельно подтверждено · ○ последовательное назначение · цвет = уверенность</p>
+<div class="phon-grid">
+<div class="phon-cell" title="А · h=63 111111 · T+B+L+R+D1+D2 · ●●● ● · все 6 отрезков ⊠"><div class="phon-ru">А</div><div class="phon-solan" style="color:#81c784">E</div><div class="phon-info" style="color:#81c784">h=63</div><div class="phon-conf" style="color:#81c784">●●● ●</div><div class="phon-segs">T+B+L+R+D1+D2</div></div>
+<div class="phon-cell" title="Р · h=15 001111 · T+B+L+R · ●●● ● · рамка □"><div class="phon-ru">Р</div><div class="phon-solan" style="color:#81c784">A</div><div class="phon-info" style="color:#81c784">h=15</div><div class="phon-conf" style="color:#81c784">●●● ●</div><div class="phon-segs">T+B+L+R</div></div>
+<div class="phon-cell" title="Т · h=48 110000 · D1+D2 · ●●● ● · только диагонали ╳"><div class="phon-ru">Т</div><div class="phon-solan" style="color:#81c784">L</div><div class="phon-info" style="color:#81c784">h=48</div><div class="phon-conf" style="color:#81c784">●●● ●</div><div class="phon-segs">D1+D2</div></div>
+<div class="phon-cell" title="Л · h=9 001001 · T+R · ●●○ ○ · угол ⌐ (верх+право)"><div class="phon-ru">Л</div><div class="phon-solan" style="color:#fff176">A</div><div class="phon-info" style="color:#fff176">h=9</div><div class="phon-conf" style="color:#fff176">●●○ ○</div><div class="phon-segs">T+R</div></div>
+<div class="phon-cell" title="Н · h=3 000011 · T+B · ●●○ ○ · горизонтали = (верх+низ)"><div class="phon-ru">Н</div><div class="phon-solan" style="color:#fff176">7</div><div class="phon-info" style="color:#fff176">h=3</div><div class="phon-conf" style="color:#fff176">●●○ ○</div><div class="phon-segs">T+B</div></div>
+<div class="phon-cell" title="О · h=47 101111 · T+L+R+D1+D2 · ●●○ ○ · рамка без низа + диаг."><div class="phon-ru">О</div><div class="phon-solan" style="color:#fff176">w</div><div class="phon-info" style="color:#fff176">h=47</div><div class="phon-conf" style="color:#fff176">●●○ ○</div><div class="phon-segs">T+L+R+D1+D2</div></div>
+<div class="phon-cell" title="Б · h=14 001110 · B+L+R · ●●○ ● · U-образный"><div class="phon-ru">Б</div><div class="phon-solan" style="color:#fff176">Z</div><div class="phon-info" style="color:#fff176">h=14</div><div class="phon-conf" style="color:#fff176">●●○ ●</div><div class="phon-segs">B+L+R</div></div>
+<div class="phon-cell" title="М · h=24 011000 · R+D1 · ●○○ ○ · правая сторона + диаг.╲"><div class="phon-ru">М</div><div class="phon-solan" style="color:#ffb74d">G</div><div class="phon-info" style="color:#ffb74d">h=24</div><div class="phon-conf" style="color:#ffb74d">●○○ ○</div><div class="phon-segs">R+D1</div></div>
+<div class="phon-cell" title="В · h=20 010100 · L+D1 · ●○○ ○ · левая сторона + диаг.╲"><div class="phon-ru">В</div><div class="phon-solan" style="color:#ffb74d">F</div><div class="phon-info" style="color:#ffb74d">h=20</div><div class="phon-conf" style="color:#ffb74d">●○○ ○</div><div class="phon-segs">L+D1</div></div>
+<div class="phon-cell" title="Д · h=50 110010 · B+D1+D2 · ●○○ ○ · треугольник △"><div class="phon-ru">Д</div><div class="phon-solan" style="color:#ffb74d">d</div><div class="phon-info" style="color:#ffb74d">h=50</div><div class="phon-conf" style="color:#ffb74d">●○○ ○</div><div class="phon-segs">B+D1+D2</div></div>
+</div>
+
+<br>
+<p class="meta" style="margin-top:12px">Транслитерация: введите русский текст → символы Solan</p>
+<textarea id="ru-inp" rows="2" cols="40"
+  placeholder="Введите русский текст..."
+  style="background:#111;color:#ccc;border:1px solid #333;padding:8px;font-size:14px;width:100%;max-width:440px"></textarea>
+<br><br>
+<div id="ru-out" style="font-family:Solan4,sans-serif;font-size:48px;color:#81c784;
+  min-height:60px;padding:8px;background:#111;border:1px solid #222;
+  letter-spacing:8px;max-width:90vw;word-break:break-all"></div>
+<p class="meta" style="margin-top:6px">Распознаются: А Б В Д Л М Н О Р Т (10/16 букв)</p>
+<script>
+(function() {
+  var MAP = {"А":"E","Р":"A","Т":"L","Л":"A","Н":"7","О":"w","Б":"Z","М":"G","В":"F","Д":"d"};
+  document.getElementById("ru-inp").addEventListener("input", function() {
+    var t = this.value.toUpperCase();
+    var out = "";
+    for (var i = 0; i < t.length; i++) {
+      out += MAP[t[i]] !== undefined ? MAP[t[i]] : t[i];
+    }
+    document.getElementById("ru-out").textContent = out;
+  });
+})();
+</script>
 </div>
 <div class="section">
 <h2>Набрать текст в алфавите Solan</h2>

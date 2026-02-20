@@ -538,5 +538,134 @@ class TestSolanTriangle(unittest.TestCase):
         self.assertGreaterEqual(st['by_rank'][6]['detected'], 1)
 
 
+class TestSolanPhonetic(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phonetic import (
+            phonetic_h, transliterate, encode_phonetic,
+            render_phonetic_table, _solan_char, _glyph4,
+        )
+        cls.phonetic_h      = staticmethod(phonetic_h)
+        cls.transliterate   = staticmethod(transliterate)
+        cls.encode_phonetic = staticmethod(encode_phonetic)
+        cls.render_table    = staticmethod(render_phonetic_table)
+        cls._solan_char     = staticmethod(_solan_char)
+        cls._glyph4         = staticmethod(_glyph4)
+
+    # --- phonetic_h ---
+
+    def test_phonetic_h_A_is_63(self):
+        self.assertEqual(self.phonetic_h('А'), 63)
+
+    def test_phonetic_h_R_is_15(self):
+        self.assertEqual(self.phonetic_h('Р'), 15)
+
+    def test_phonetic_h_T_is_48(self):
+        self.assertEqual(self.phonetic_h('Т'), 48)
+
+    def test_phonetic_h_unknown_returns_none(self):
+        self.assertIsNone(self.phonetic_h('Я'))
+        self.assertIsNone(self.phonetic_h('Z'))
+
+    def test_phonetic_h_all_known_in_range(self):
+        for h in [self.phonetic_h(ru) for ru in
+                  ('А', 'Р', 'Т', 'Л', 'Н', 'О', 'Б', 'М', 'В', 'Д')]:
+            self.assertGreaterEqual(h, 0)
+            self.assertLessEqual(h, 63)
+
+    # --- transliterate ---
+
+    def test_transliterate_A_gives_E(self):
+        self.assertEqual(self.transliterate('А'), 'E')
+
+    def test_transliterate_R_gives_A(self):
+        self.assertEqual(self.transliterate('Р'), 'A')
+
+    def test_transliterate_T_gives_L(self):
+        self.assertEqual(self.transliterate('Т'), 'L')
+
+    def test_transliterate_art_length(self):
+        self.assertEqual(len(self.transliterate('АРТ')), 3)
+
+    def test_transliterate_unknown_kept(self):
+        self.assertIn('Я', self.transliterate('Я'))
+
+    def test_transliterate_case_insensitive(self):
+        self.assertEqual(self.transliterate('а'), self.transliterate('А'))
+
+    def test_transliterate_empty(self):
+        self.assertEqual(self.transliterate(''), '')
+
+    # --- encode_phonetic ---
+
+    def test_encode_returns_list_of_triples(self):
+        result = self.encode_phonetic('АРТ')
+        self.assertIsInstance(result, list)
+        for item in result:
+            self.assertEqual(len(item), 3)
+
+    def test_encode_known_letter_has_h(self):
+        orig, h, sc = self.encode_phonetic('А')[0]
+        self.assertEqual(orig, 'А')
+        self.assertEqual(h, 63)
+
+    def test_encode_unknown_letter_has_none_h(self):
+        _, h, _ = self.encode_phonetic('Я')[0]
+        self.assertIsNone(h)
+
+    def test_encode_length_matches_input(self):
+        text = 'АРТМИР'
+        self.assertEqual(len(self.encode_phonetic(text)), len(text))
+
+    # --- render_phonetic_table ---
+
+    def test_render_table_returns_str(self):
+        self.assertIsInstance(self.render_table(), str)
+
+    def test_render_table_contains_known_letters(self):
+        table = self.render_table(color=False)
+        for ru in ('А', 'Р', 'Т', 'Л', 'Н', 'О', 'Б', 'М', 'В', 'Д'):
+            self.assertIn(ru, table)
+
+    def test_render_table_has_h_values(self):
+        table = self.render_table(color=False)
+        for h_str in ('h=63', 'h=15', 'h=48'):
+            self.assertIn(h_str, table)
+
+    def test_render_table_no_color_no_ansi(self):
+        import re
+        self.assertEqual(re.findall(r'\x1b\[', self.render_table(color=False)), [])
+
+    def test_render_table_color_has_ansi(self):
+        self.assertIn('\033[', self.render_table(color=True))
+
+    # --- _glyph4 ---
+
+    def test_glyph4_returns_4_lines(self):
+        self.assertEqual(len(self._glyph4(63)), 4)
+
+    def test_glyph4_only_block_chars(self):
+        for h in (63, 15, 48):
+            for line in self._glyph4(h):
+                self.assertTrue(all(c in '█·' for c in line))
+
+    # --- viewer phonetic section ---
+
+    def test_viewer_has_phon_grid(self):
+        self.assertIn('phon-grid', viewer_path().read_text(encoding='utf-8'))
+
+    def test_viewer_phonetic_10_cells(self):
+        import re
+        cells = re.findall(r'class="phon-cell"',
+                           viewer_path().read_text(encoding='utf-8'))
+        self.assertEqual(len(cells), 10)
+
+    def test_viewer_phonetic_transliterate_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ru-inp', content)
+        self.assertIn('ru-out', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
