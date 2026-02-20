@@ -30,7 +30,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 from libs.hexcore.hexcore import yang_count
 from projects.hexvis.hexvis import render_glyph as hv_render_glyph
 from projects.hexglyph.hexglyph import (
-    glyph_bitmap, detect_segments, font_data, _CHARSET_64, char_to_h,
+    glyph_bitmap, detect_segments, font_data, _CHARSET_64, char_to_h, h_to_char,
 )
 
 # ── ANSI цвета ─────────────────────────────────────────────────────────────
@@ -39,7 +39,11 @@ _RST = '\033[0m'
 _YANG_ANSI = ['\033[38;5;240m', '\033[38;5;30m',  '\033[38;5;34m',
               '\033[38;5;220m', '\033[38;5;208m', '\033[38;5;160m',
               '\033[38;5;129m']
-_YANG_DIM  = ['\033[38;5;236m'] * 7   # dim fallback
+# Полутоновые версии тех же цветов (для последовательно назначенных вершин)
+_YANG_MID  = ['\033[38;5;238m', '\033[38;5;23m',  '\033[38;5;22m',
+              '\033[38;5;214m', '\033[38;5;202m', '\033[38;5;124m',
+              '\033[38;5;93m']
+_YANG_DIM  = ['\033[38;5;236m'] * 7   # dim fallback (hexvis)
 
 # ── Построение таблицы h → Solan-символ ────────────────────────────────────
 
@@ -59,6 +63,19 @@ def _build_solan_map() -> dict[int, str]:
 
 
 _SOLAN_MAP: dict[int, str] = _build_solan_map()
+
+
+def _build_full_map() -> dict[int, str]:
+    """Полный маппинг h → Solan-символ для всех 64 вершин Q6.
+
+    Использует последовательное назначение char_to_h/h_to_char
+    (упорядочивание по весу Хэмминга).  Все 64 вершины покрыты.
+    """
+    return {h: h_to_char(h) for h in range(64) if h_to_char(h) is not None}
+
+
+# Полный маппинг: все 64 вершины (последовательное назначение)
+_FULL_MAP: dict[int, str] = _build_full_map()
 
 
 # ── Компактный 4×4 растр из 8×8 глифа ─────────────────────────────────────
@@ -147,15 +164,20 @@ def render_triangle(
                 cells.append(_hexvis_cell(h, ansi))
             elif mode == 'solan':
                 if h in _SOLAN_MAP:
+                    # Пиксельно подтверждённый — полная яркость
                     cells.append(_solan_cell(_SOLAN_MAP[h], ansi))
+                elif h in _FULL_MAP:
+                    # Последовательное назначение — полутон
+                    mid = _YANG_MID[k] if color else ''
+                    cells.append(_solan_cell(_FULL_MAP[h], mid))
                 else:
-                    # Запасной вариант — hexvis в тусклом виде
                     dim = _YANG_DIM[k] if color else ''
                     cells.append(_hexvis_cell(h, dim))
             else:  # side
                 hv = _hexvis_cell(h, ansi)
-                sl = (_solan_cell(_SOLAN_MAP[h], ansi)
-                      if h in _SOLAN_MAP
+                ch = _SOLAN_MAP.get(h) or _FULL_MAP.get(h)
+                sl = (_solan_cell(ch, ansi)
+                      if ch is not None
                       else [ansi + '····' + _RST] * 4)
                 # side-by-side: "hv|sl" — 3+1+4 = 8 chars
                 cells.append([hv[i][:3] + '│' + sl[i][:4]
@@ -186,21 +208,31 @@ def print_triangle(mode: str = 'solan', color: bool = True) -> None:
 # ── Статистика детектирования ──────────────────────────────────────────────
 
 def detection_stats() -> dict:
-    """Сводка: сколько вершин Q6 детектировано из шрифта."""
+    """Сводка: сколько вершин Q6 детектировано / назначено из шрифта.
+
+    'detected' — пиксельно подтверждённые (из _SOLAN_MAP, 24/64).
+    'assigned'  — последовательно назначенные (из _FULL_MAP, 64/64).
+    """
     ranks = _rank_elements()
     detected = set(_SOLAN_MAP.keys())
+    assigned = set(_FULL_MAP.keys())
     stats = {
         'total':          64,
         'detected':       len(detected),
+        'assigned':       len(assigned),
         'missing':        64 - len(detected),
         'detected_list':  sorted(detected),
         'by_rank':        {},
     }
     for k, elems in enumerate(ranks):
         d = [h for h in elems if h in detected]
+        a = [h for h in elems if h in assigned and h not in detected]
         stats['by_rank'][k] = {
-            'total': len(elems), 'detected': len(d),
-            'chars': [_SOLAN_MAP[h] for h in d],
+            'total':    len(elems),
+            'detected': len(d),
+            'assigned': len(a),
+            'chars':    [_SOLAN_MAP[h] for h in d],
+            'chars_seq': [_FULL_MAP[h] for h in a],
         }
     return stats
 
@@ -224,14 +256,19 @@ if __name__ == '__main__':
 
     if args.stats:
         st = detection_stats()
-        print(f"Детектировано вершин Q6: {st['detected']}/{st['total']}")
-        print(f"Не детектировано:        {st['missing']}")
+        print(f"Пиксельно подтверждено:  {st['detected']}/{st['total']}")
+        print(f"Последовательно назначено: {st['assigned']}/{st['total']}")
         print()
         for k, info in st['by_rank'].items():
-            bar = '█' * info['detected'] + '·' * (info['total'] - info['detected'])
-            chars = ''.join(info['chars']) or '—'
-            print(f"  Вес {k} ({info['total']:2d}): [{bar}] "
-                  f"{info['detected']:2d}/{info['total']}  '{chars}'")
+            bar = ('█' * info['detected'] +
+                   '▒' * info['assigned'] +
+                   '·' * (info['total'] - info['detected'] - info['assigned']))
+            chars_conf = ''.join(info['chars']) or '—'
+            chars_seq  = ''.join(info['chars_seq'])
+            line = f"  Вес {k} ({info['total']:2d}): [{bar}]  ██={chars_conf}"
+            if chars_seq:
+                line += f"  ▒▒={chars_seq}"
+            print(line)
     else:
         if args.hexvis:
             mode = 'hexvis'

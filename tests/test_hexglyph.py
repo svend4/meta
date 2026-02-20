@@ -293,6 +293,7 @@ class TestSolanTriangle(unittest.TestCase):
     def setUpClass(cls):
         from projects.hexglyph.solan_triangle import (
             _build_solan_map,
+            _build_full_map,
             _compact4,
             _solan_cell,
             _hexvis_cell,
@@ -300,8 +301,10 @@ class TestSolanTriangle(unittest.TestCase):
             render_triangle,
             detection_stats,
             _SOLAN_MAP,
+            _FULL_MAP,
         )
         cls._build_solan_map = staticmethod(_build_solan_map)
+        cls._build_full_map  = staticmethod(_build_full_map)
         cls._compact4 = staticmethod(_compact4)
         cls._solan_cell = staticmethod(_solan_cell)
         cls._hexvis_cell = staticmethod(_hexvis_cell)
@@ -309,6 +312,7 @@ class TestSolanTriangle(unittest.TestCase):
         cls.render_triangle = staticmethod(render_triangle)
         cls.detection_stats = staticmethod(detection_stats)
         cls._SOLAN_MAP = _SOLAN_MAP
+        cls._FULL_MAP  = _FULL_MAP
 
     # --- _build_solan_map ---
 
@@ -334,6 +338,56 @@ class TestSolanTriangle(unittest.TestCase):
         self.assertIn(15, self._SOLAN_MAP)
         self.assertIn(48, self._SOLAN_MAP)
         self.assertIn(63, self._SOLAN_MAP)
+
+    # --- _build_full_map / _FULL_MAP ---
+
+    def test_full_map_is_dict(self):
+        m = self._build_full_map()
+        self.assertIsInstance(m, dict)
+
+    def test_full_map_covers_all_64(self):
+        self.assertEqual(len(self._FULL_MAP), 64)
+
+    def test_full_map_keys_are_all_vertices(self):
+        self.assertEqual(sorted(self._FULL_MAP.keys()), list(range(64)))
+
+    def test_full_map_values_are_single_chars(self):
+        for ch in self._FULL_MAP.values():
+            self.assertEqual(len(ch), 1)
+
+    def test_full_map_values_unique(self):
+        # Each vertex gets its own character
+        self.assertEqual(len(set(self._FULL_MAP.values())), 64)
+
+    def test_full_map_contains_solan_map(self):
+        # Every pixel-confirmed mapping appears in the full map
+        for h in self._SOLAN_MAP:
+            self.assertIn(h, self._FULL_MAP)
+
+    def test_full_map_h0_is_zero_char(self):
+        # h=0 (no segments) → char '0' (first char in sequential order)
+        self.assertEqual(self._FULL_MAP[0], '0')
+
+    def test_full_map_matches_h_to_char(self):
+        # _FULL_MAP must agree with h_to_char for every vertex
+        for h in range(64):
+            self.assertEqual(self._FULL_MAP[h], h_to_char(h))
+
+    # --- detection_stats (extended) ---
+
+    def test_detection_stats_assigned_64(self):
+        self.assertEqual(self.detection_stats()['assigned'], 64)
+
+    def test_detection_stats_by_rank_has_assigned(self):
+        st = self.detection_stats()
+        for k, info in st['by_rank'].items():
+            self.assertIn('assigned', info)
+            self.assertIn('chars_seq', info)
+
+    def test_detection_stats_by_rank_confirmed_plus_sequential_equals_total(self):
+        st = self.detection_stats()
+        for k, info in st['by_rank'].items():
+            self.assertEqual(info['detected'] + info['assigned'], info['total'])
 
     # --- _compact4 ---
 
