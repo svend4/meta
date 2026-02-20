@@ -174,5 +174,40 @@ class TestEnvelopes(unittest.TestCase):
         self.assertAlmostEqual(NumberDerivative.lower_envelope(9), 4.0)
 
 
+class TestSuperNumbers(unittest.TestCase):
+    def test_super_numbers_has_138(self):
+        nd = NumberDerivative()
+        supers = nd.super_numbers(200)
+        self.assertIn(138, supers)
+
+    def test_super_numbers_positive_count(self):
+        nd = NumberDerivative()
+        supers = nd.super_numbers(200)
+        self.assertGreater(len(supers), 0)
+
+
+class TestPlotUniverse(unittest.TestCase):
+    def test_plot_returns_nonempty_string(self):
+        nd = NumberDerivative()
+        s = nd.plot_universe(30)
+        self.assertIsInstance(s, str)
+        self.assertGreater(len(s), 0)
+
+
+class TestSpectrum(unittest.TestCase):
+    def test_spectrum_returns_string(self):
+        nd = NumberDerivative()
+        s = nd.spectrum(20)
+        self.assertIsInstance(s, str)
+        self.assertGreater(len(s), 10)
+
+    def test_spectrum_contains_perfect(self):
+        """Спектр должен упоминать совершенные числа (2, 4, 8...)."""
+        nd = NumberDerivative()
+        s = nd.spectrum(20)
+        # 2 and 4 are perfect (∂2=2, ∂4=4)
+        self.assertIn('2', s)
+
+
 if __name__ == "__main__":
     unittest.main()

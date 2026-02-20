@@ -15,6 +15,10 @@ from projects.hexmatroot.hexmatroot import (
     _inv,
     _eye,
     _scale,
+    _add,
+    _sub,
+    _mat_str,
+    _parse_matrix,
 )
 
 
@@ -178,6 +182,90 @@ class TestSolveQuadratic(unittest.TestCase):
             # X² - E = 0 → X² = E
             self.assertTrue(_mat_eq(X2, _eye(), tol=1e-5),
                             f"X² ≠ E: {X2}")
+
+
+class TestAddSub(unittest.TestCase):
+    def test_add_elementwise(self):
+        A = [[1.0, 2.0], [3.0, 4.0]]
+        B = [[5.0, 6.0], [7.0, 8.0]]
+        C = _add(A, B)
+        self.assertAlmostEqual(C[0][0], 6.0)
+        self.assertAlmostEqual(C[0][1], 8.0)
+        self.assertAlmostEqual(C[1][0], 10.0)
+        self.assertAlmostEqual(C[1][1], 12.0)
+
+    def test_sub_elementwise(self):
+        A = [[5.0, 6.0], [7.0, 8.0]]
+        B = [[1.0, 2.0], [3.0, 4.0]]
+        C = _sub(A, B)
+        self.assertAlmostEqual(C[0][0], 4.0)
+        self.assertAlmostEqual(C[1][1], 4.0)
+
+
+class TestMatStr(unittest.TestCase):
+    def test_contains_name(self):
+        A = [[3.0, 2.0], [4.0, 3.0]]
+        s = _mat_str(A, "MyMatrix")
+        self.assertIn("MyMatrix", s)
+
+    def test_contains_values(self):
+        A = [[3.0, 2.0], [4.0, 3.0]]
+        s = _mat_str(A)
+        self.assertIn("3.000000", s)
+        self.assertIn("2.000000", s)
+
+
+class TestParseMatrix(unittest.TestCase):
+    def test_parse_valid(self):
+        A = _parse_matrix("[[3,2],[4,3]]")
+        self.assertAlmostEqual(A[0][0], 3.0)
+        self.assertAlmostEqual(A[0][1], 2.0)
+        self.assertAlmostEqual(A[1][0], 4.0)
+        self.assertAlmostEqual(A[1][1], 3.0)
+
+    def test_parse_invalid_raises(self):
+        with self.assertRaises(ValueError):
+            _parse_matrix("[1,2,3]")
+
+
+class TestCyclicGroup(unittest.TestCase):
+    def setUp(self):
+        self.ma = MatrixAlgebra()
+        self.S = [[3.0, 2.0], [4.0, 3.0]]  # det=1
+
+    def test_cyclic_group_keys(self):
+        g = self.ma.cyclic_group_of_4(self.S)
+        for key in ("E", "sqrt_S", "S", "S3"):
+            self.assertIn(key, g)
+
+    def test_sqrt_squared_is_S(self):
+        g = self.ma.cyclic_group_of_4(self.S)
+        r2 = _mul_mat(g["sqrt_S"], g["sqrt_S"])
+        self.assertTrue(_mat_eq(r2, self.S, tol=1e-5))
+
+
+class TestIdentitySqrtFamily(unittest.TestCase):
+    def test_k0_gives_eye(self):
+        ma = MatrixAlgebra()
+        family = ma.identity_sqrt_family([0])
+        self.assertTrue(_mat_eq(family[0], _eye(), tol=1e-10))
+
+    def test_each_squared_is_eye(self):
+        ma = MatrixAlgebra()
+        family = ma.identity_sqrt_family([0, 1, 2])
+        for Xk in family:
+            Xk2 = _mul_mat(Xk, Xk)
+            self.assertTrue(_mat_eq(Xk2, _eye(), tol=1e-9),
+                            f"X_k² ≠ E: {Xk2}")
+
+
+class TestDecomposeByRoots(unittest.TestCase):
+    def test_returns_two_coefficients(self):
+        ma = MatrixAlgebra()
+        A = [[3.0, 2.0], [4.0, 3.0]]
+        k1, k2 = ma.decompose_by_roots(A)
+        self.assertIsInstance(k1, float)
+        self.assertIsInstance(k2, float)
 
 
 if __name__ == "__main__":

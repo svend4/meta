@@ -2,6 +2,7 @@
 import sys
 import os
 import math
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -167,6 +168,59 @@ class TestExDodecahedron(unittest.TestCase):
         self.assertIn("32", s)
         self.assertIn("54", s)
         self.assertIn("χ", s)
+
+    def test_to_obj_creates_file(self):
+        with tempfile.NamedTemporaryFile(suffix=".obj", delete=False) as f:
+            fname = f.name
+        try:
+            self.ed.to_obj(fname)
+            with open(fname) as fh:
+                content = fh.read()
+            self.assertIn("ExDodecahedron", content)
+        finally:
+            os.unlink(fname)
+
+
+class TestFromDegreesExtra(unittest.TestCase):
+    def setUp(self):
+        self.pe = PolyhedronEnumerator()
+
+    def test_icosahedron(self):
+        """face_degree=3, vertex_degree=5 → Icosahedron: 12V, 20F, 30E."""
+        rec = self.pe.from_degrees(face_degree=3, vertex_degree=5)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec.vertices, 12)
+        self.assertEqual(rec.faces, 20)
+        self.assertEqual(rec.edges, 30)
+
+    def test_octahedron(self):
+        """face_degree=3, vertex_degree=4 → Octahedron: 6V, 8F, 12E."""
+        rec = self.pe.from_degrees(face_degree=3, vertex_degree=4)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec.vertices, 6)
+        self.assertEqual(rec.faces, 8)
+        self.assertEqual(rec.edges, 12)
+
+    def test_from_degrees_unknown_returns_none(self):
+        rec = self.pe.from_degrees(face_degree=7, vertex_degree=7)
+        self.assertIsNone(rec)
+
+
+class TestCheckEulerVariants(unittest.TestCase):
+    def test_toroidal_torus(self):
+        """Тор: B=0, Gamma=0, P=0 → chi=0 (toroidal)."""
+        pe = PolyhedronEnumerator()
+        e = pe.check_euler(4, 4, 8)  # 4+4-8=0 → torus
+        self.assertEqual(e["chi"], 0)
+        self.assertTrue(e["toroidal"])
+        self.assertFalse(e["spherical"])
+
+    def test_rp2_case(self):
+        """RP²: chi=1."""
+        pe = PolyhedronEnumerator()
+        e = pe.check_euler(4, 4, 7)  # 4+4-7=1 → RP²
+        self.assertEqual(e["chi"], 1)
+        self.assertTrue(e["rp2"])
 
 
 if __name__ == "__main__":

@@ -150,6 +150,46 @@ class TestFiniteGroup(unittest.TestCase):
         self.assertIn(1, ords)
         self.assertIn(15, ords)
 
+    def test_cayley_table_nonempty(self):
+        g = FiniteGroup(15)
+        table = g.cayley_table()
+        self.assertIsInstance(table, list)
+        self.assertGreater(len(table), 0)
+
+
+class TestClassifyOdd(unittest.TestCase):
+    def test_classify_odd_u_class(self):
+        ug = UniqueGroups()
+        for n in [1, 7, 13, 19]:
+            self.assertEqual(ug.classify_odd(n), "U", f"Failed for n={n}")
+
+    def test_classify_odd_v_class(self):
+        ug = UniqueGroups()
+        for n in [3, 9, 15, 21]:
+            self.assertEqual(ug.classify_odd(n), "V", f"Failed for n={n}")
+
+
+class TestBuildGroup(unittest.TestCase):
+    def test_build_group_15(self):
+        ug = UniqueGroups()
+        g = ug.build_group(15)
+        self.assertIsInstance(g, FiniteGroup)
+        self.assertEqual(g.order(), 15)
+
+    def test_build_group_non_unique_raises(self):
+        ug = UniqueGroups()
+        with self.assertRaises(ValueError):
+            ug.build_group(6)  # 6 = 2×3, even → not unique
+
+
+class TestKnownUniqueOrders300(unittest.TestCase):
+    def test_known_list_nonempty(self):
+        ug = UniqueGroups()
+        lst = ug.known_unique_orders_300()
+        self.assertIsInstance(lst, list)
+        self.assertGreater(len(lst), 0)
+        self.assertIn(15, lst)
+
 
 if __name__ == "__main__":
     unittest.main()
