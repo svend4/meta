@@ -4530,6 +4530,243 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Символьная динамика Q6 — бинарная грамматика аттрактора</h2>
+<p class="meta">Каждое Q6-значение → бинарный символ: 1 если v ≥ порог, иначе 0 · Анализ: блочная энтропия H_n n-грамм, переходная матрица, запрещённые слова · topol.h = max(H_n/n) · закрашенный=1, точка=0</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="sym-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="sym-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <label style="color:#aaa;font-size:12px">порог =
+    <select id="sym-thr"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="16">16 (¼)</option>
+      <option value="32" selected>32 (½)</option>
+      <option value="48">48 (¾)</option>
+    </select>
+  </label>
+  <button id="sym-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Символы</button>
+</div>
+<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+  <canvas id="sym-grid"  style="display:block"></canvas>
+  <canvas id="sym-bep"   style="display:block"></canvas>
+  <canvas id="sym-tm"    style="display:block"></canvas>
+</div>
+<div id="sym-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"></div>
+<script>
+(function(){
+  var SYM_COLS={xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+
+  function symStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function symOrbit(cells0,rule){
+    var seen={},c=cells0.slice(),t=0;
+    for(;;){var key=c.join(',');if(key in seen) return {T:seen[key],P:t-seen[key]};seen[key]=t;c=symStep(c,rule);t++;}
+  }
+
+  function symGetGrid(cells,rule,thr){
+    var info=symOrbit(cells.slice(),rule);
+    var T=info.T, P=Math.max(info.P,1);
+    var c=cells.slice();
+    for(var i=0;i<T;i++) c=symStep(c,rule);
+    var grid=[];
+    for(var i=0;i<P;i++){grid.push(c.map(function(v){return v>=thr?1:0;}));c=symStep(c,rule);}
+    return {grid:grid,T:T,P:P};
+  }
+
+  function symNgrams(seq,n){
+    var L=seq.length,res=[];
+    for(var i=0;i<L;i++){var g='';for(var j=0;j<n;j++) g+=seq[(i+j)%L];res.push(g);}
+    return res;
+  }
+
+  function symCounts(seqs,n){
+    var C={};
+    seqs.forEach(function(s){symNgrams(s,n).forEach(function(g){C[g]=(C[g]||0)+1;});});
+    return C;
+  }
+
+  function symH(C){
+    var total=0;
+    Object.values(C).forEach(function(v){total+=v;});
+    if(!total) return 0;
+    var h=0;
+    Object.values(C).forEach(function(v){var p=v/total;if(p>0) h-=p*Math.log2(p);});
+    return Math.max(0,h);
+  }
+
+  function symBlockH(seqs,maxN){
+    var bep=[];
+    for(var n=1;n<=maxN;n++) bep.push(symH(symCounts(seqs,n)));
+    return bep;
+  }
+
+  function symForbidden(seqs,n){
+    var C=symCounts(seqs,n),cnt=0;
+    for(var k=0;k<(1<<n);k++){
+      var g='';for(var b=n-1;b>=0;b--) g+=((k>>b)&1);
+      if(!C[g]) cnt++;
+    }
+    return cnt;
+  }
+
+  function symTM(seqs){
+    var ct=[[0,0],[0,0]];
+    seqs.forEach(function(seq){
+      var L=seq.length;
+      for(var i=0;i<L;i++) ct[seq[i]][seq[(i+1)%L]]++;
+    });
+    var mat=[[0,0],[0,0]];
+    for(var a=0;a<2;a++){var s=ct[a][0]+ct[a][1];if(s){mat[a][0]=ct[a][0]/s;mat[a][1]=ct[a][1]/s;}}
+    return mat;
+  }
+
+  function symRun(){
+    if(!window.encL||!window.padL) return;
+    var word=(document.getElementById('sym-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('sym-rule').value||'xor3';
+    var thr =parseInt(document.getElementById('sym-thr').value||'32',10);
+    var N=16, maxN=6;
+
+    var cells=window.padL(window.encL(word),N);
+    var res=symGetGrid(cells,rule,thr);
+    var grid=res.grid, P=res.P;
+
+    // temporal sequences: N cells × P steps
+    var tempSeqs=[];
+    for(var i=0;i<N;i++){var s=[];for(var t2=0;t2<P;t2++) s.push(grid[t2][i]);tempSeqs.push(s);}
+
+    var col=SYM_COLS[rule]||'#ccc';
+    var sc=14;  // cell size px
+
+    // ── binary grid canvas ──────────────────────────────────────────────────
+    var gc=document.getElementById('sym-grid');
+    var padL=30, padT=2;
+    gc.width=padL+N*sc+4; gc.height=padT+P*sc+4;
+    var gx=gc.getContext('2d');
+    gx.fillStyle='#0e0e0e'; gx.fillRect(0,0,gc.width,gc.height);
+    for(var t3=0;t3<P;t3++){
+      var y=padT+t3*sc;
+      gx.fillStyle='#333'; gx.font='9px monospace'; gx.textAlign='right';
+      gx.fillText(t3,padL-3,y+sc-2);
+      for(var i2=0;i2<N;i2++){
+        gx.fillStyle=grid[t3][i2]?col:'#111';
+        gx.fillRect(padL+i2*sc,y,sc-1,sc-1);
+      }
+    }
+
+    // ── block entropy bar chart ─────────────────────────────────────────────
+    var bep=symBlockH(tempSeqs,maxN);
+    var topo=0;
+    for(var n2=2;n2<=maxN;n2++) topo=Math.max(topo,bep[n2-1]/n2);
+
+    var bW=120,bH=padT+P*sc+4,barH=Math.floor((bH-20)/maxN);
+    var bc=document.getElementById('sym-bep');
+    bc.width=bW; bc.height=bH;
+    var bctx=bc.getContext('2d');
+    bctx.fillStyle='#0e0e0e'; bctx.fillRect(0,0,bW,bH);
+    for(var ni=0;ni<maxN;ni++){
+      var n3=ni+1;
+      var maxH=n3, ratio=bep[ni]/maxH;
+      var yw=padT+ni*barH;
+      bctx.fillStyle='#1a1a1a'; bctx.fillRect(0,yw,bW-2,barH-2);
+      bctx.fillStyle=col;
+      bctx.fillRect(0,yw,Math.round(ratio*(bW-2)),barH-2);
+      bctx.fillStyle='#ccc'; bctx.font='9px monospace'; bctx.textAlign='left';
+      bctx.fillText('H'+n3+'='+bep[ni].toFixed(2),2,yw+barH-4);
+    }
+
+    // ── transition matrix ────────────────────────────────────────────────────
+    var tm=symTM(tempSeqs);
+    var tc=document.getElementById('sym-tm');
+    var ts=50;
+    tc.width=ts*2+40; tc.height=ts*2+40;
+    var tx=tc.getContext('2d');
+    tx.fillStyle='#0e0e0e'; tx.fillRect(0,0,tc.width,tc.height);
+    var ox=30,oy=20;
+    var lbl=['0','1'];
+    tx.fillStyle='#666'; tx.font='9px monospace'; tx.textAlign='center';
+    tx.fillText('→',ox+ts,'8'); tx.fillText('0',ox,oy-4); tx.fillText('1',ox+ts,oy-4);
+    for(var a=0;a<2;a++){
+      tx.fillStyle='#666'; tx.textAlign='right';
+      tx.fillText(lbl[a],ox-4,oy+a*ts+ts/2+4);
+      for(var b=0;b<2;b++){
+        var v=tm[a][b];
+        tx.fillStyle='rgba('+[SYM_COLS[rule].replace('#','').match(/../g).map(function(h){return parseInt(h,16);}),Math.round(v*200)].flat().join(',')+')';
+        // simpler: brightness by value
+        var br=Math.round(v*200);
+        tx.fillStyle='rgba('+br+','+br+','+br+',0.9)';
+        if(a===b) tx.fillStyle=col.replace(')',','+v.toFixed(2)+')').replace('rgb','rgba').replace('#','');
+        // even simpler
+        tx.fillStyle='#'+Math.round(v*255).toString(16).padStart(2,'0').repeat(3);
+        if(a===0&&b===0) tx.fillStyle='rgba(80,80,255,'+v.toFixed(2)+')';
+        if(a===0&&b===1) tx.fillStyle='rgba(255,100,80,'+v.toFixed(2)+')';
+        if(a===1&&b===0) tx.fillStyle='rgba(255,100,80,'+v.toFixed(2)+')';
+        if(a===1&&b===1) tx.fillStyle='rgba(80,255,80,'+v.toFixed(2)+')';
+        tx.fillRect(ox+b*ts,oy+a*ts,ts-2,ts-2);
+        tx.fillStyle='#fff'; tx.font='11px monospace'; tx.textAlign='center';
+        tx.fillText(v.toFixed(2),ox+b*ts+ts/2,oy+a*ts+ts/2+4);
+      }
+    }
+
+    // ── stats ────────────────────────────────────────────────────────────────
+    var ones=0,total=P*N;
+    for(var t4=0;t4<P;t4++) for(var i3=0;i3<N;i3++) ones+=grid[t4][i3];
+    var bias=(ones/total).toFixed(3);
+    var tempPats=tempSeqs.map(function(s){return s.join('');});
+    var uT=new Set(tempPats).size;
+    var spatPats=grid.map(function(row){return row.join('');});
+    var uS=new Set(spatPats).size;
+    var f2=symForbidden(tempSeqs,2), f3=symForbidden(tempSeqs,3);
+
+    document.getElementById('sym-stats').innerHTML=
+      '<span style="color:'+col+'">'+rule.toUpperCase()+'</span>'
+      +' P='+P+' bias='+bias
+      +' unique_temp='+uT+'/'+N+' unique_spat='+uS+'/'+P
+      +' forb_2='+f2+' forb_3='+f3
+      +' <b>topol.h='+topo.toFixed(4)+'</b>';
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('sym-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');o.value=o.text=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn   =document.getElementById('sym-btn');
+    var wordEl=document.getElementById('sym-word');
+    var ruleEl=document.getElementById('sym-rule');
+    var thrEl =document.getElementById('sym-thr');
+    if(btn)    btn.addEventListener('click',symRun);
+    if(wordEl) wordEl.addEventListener('change',symRun);
+    if(ruleEl) ruleEl.addEventListener('change',symRun);
+    if(thrEl)  thrEl.addEventListener('change',symRun);
+    setTimeout(function(){if(window.encL) symRun();},1150);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Transfer Entropy CA Q6 — направленный поток информации</h2>
 <p class="meta">T(X→Y) = H(Y_t | Y_{t-1}) − H(Y_t | Y_{t-1}, X_{t-1}) · суммируется по 6 бит-плоскостям Q6 · ненулевые значения указывают на причинные связи между клетками · для XOR/AND/OR с периодом 1 (ноль/все-единицы) TE=0 повсюду · максимум при XOR3 ТУМАН (период 8)</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">

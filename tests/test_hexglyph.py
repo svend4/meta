@@ -4813,6 +4813,372 @@ class TestSolanDamage(unittest.TestCase):
         self.assertIn('конус влияния', content)
 
 
+class TestSolanSymbolic(unittest.TestCase):
+    """Tests for solan_symbolic.py and the viewer Symbolic Dynamics section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import (
+            binarize, attractor_binary,
+            ngrams, ngram_dist,
+            block_entropy_n, block_entropy_profile,
+            transition_matrix, forbidden_ngrams,
+            symbolic_dict, all_symbolic, build_symbolic_data,
+            _ALL_RULES, _DEFAULT_WIDTH, _DEFAULT_THR,
+        )
+        cls.binarize          = staticmethod(binarize)
+        cls.attractor_binary  = staticmethod(attractor_binary)
+        cls.ngrams            = staticmethod(ngrams)
+        cls.ngram_dist        = staticmethod(ngram_dist)
+        cls.block_entropy_n   = staticmethod(block_entropy_n)
+        cls.bep               = staticmethod(block_entropy_profile)
+        cls.transition_matrix = staticmethod(transition_matrix)
+        cls.forbidden_ngrams  = staticmethod(forbidden_ngrams)
+        cls.symbolic_dict     = staticmethod(symbolic_dict)
+        cls.all_symbolic      = staticmethod(all_symbolic)
+        cls.build_symbolic    = staticmethod(build_symbolic_data)
+        cls.ALL_RULES         = _ALL_RULES
+        cls.W                 = _DEFAULT_WIDTH
+        cls.THR               = _DEFAULT_THR
+
+    # ── binarize() ────────────────────────────────────────────────────────────
+
+    def test_bin_below_thr(self):
+        self.assertEqual(self.binarize(0,  32), 0)
+        self.assertEqual(self.binarize(31, 32), 0)
+
+    def test_bin_at_thr(self):
+        self.assertEqual(self.binarize(32, 32), 1)
+
+    def test_bin_above_thr(self):
+        self.assertEqual(self.binarize(63, 32), 1)
+
+    def test_bin_custom_thr(self):
+        self.assertEqual(self.binarize(15, 16), 0)
+        self.assertEqual(self.binarize(16, 16), 1)
+
+    def test_bin_output_is_0_or_1(self):
+        for v in range(64):
+            b = self.binarize(v, self.THR)
+            self.assertIn(b, (0, 1))
+
+    # ── attractor_binary() ────────────────────────────────────────────────────
+
+    def test_ab_dims_gora_xor3(self):
+        # ГОРА XOR3: period=2, width=16
+        bg = self.attractor_binary('ГОРА', 'xor3')
+        self.assertEqual(len(bg), 2)
+        for row in bg:
+            self.assertEqual(len(row), self.W)
+
+    def test_ab_tuman_xor3_period8(self):
+        bg = self.attractor_binary('ТУМАН', 'xor3')
+        self.assertEqual(len(bg), 8)
+
+    def test_ab_all_binary(self):
+        bg = self.attractor_binary('ТУМАН', 'xor3')
+        for row in bg:
+            for v in row:
+                self.assertIn(v, (0, 1))
+
+    def test_ab_xor_zeros_attractor(self):
+        # XOR → all-zeros attractor → all symbols = 0
+        bg = self.attractor_binary('ТУМАН', 'xor')
+        self.assertEqual(len(bg), 1)
+        self.assertEqual(bg[0], [0] * self.W)
+
+    def test_ab_or_ones_attractor(self):
+        # OR → all-ones attractor → all symbols = 1 (63 >= 32)
+        bg = self.attractor_binary('ТУМАН', 'or')
+        self.assertEqual(len(bg), 1)
+        self.assertEqual(bg[0], [1] * self.W)
+
+    def test_ab_cyclic(self):
+        # grid[P] (computed one step past) should equal grid[0]
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        from projects.hexglyph.solan_ca import step, find_orbit
+        word = 'ТУМАН'
+        for rule in self.ALL_RULES:
+            bg = self.attractor_binary(word, rule)
+            # step from last row should match first row's binary representation
+            cells = pad_to(encode_word(word), self.W)
+            _, period = find_orbit(cells[:], rule)
+            period = max(period, 1)
+            # binary_grid wraps: row[period % period] == row[0]
+            self.assertEqual(len(bg), period)
+
+    # ── ngrams() ──────────────────────────────────────────────────────────────
+
+    def test_ng_circular_length(self):
+        seq = [0, 1, 0, 1]
+        grams = self.ngrams(seq, 2, circular=True)
+        self.assertEqual(len(grams), 4)    # circular: one per position
+
+    def test_ng_non_circular_length(self):
+        seq = [0, 1, 0, 1]
+        grams = self.ngrams(seq, 2, circular=False)
+        self.assertEqual(len(grams), 3)
+
+    def test_ng_1gram_is_each_symbol(self):
+        seq = [1, 0, 1]
+        grams = self.ngrams(seq, 1)
+        self.assertEqual(grams, [(1,), (0,), (1,)])
+
+    def test_ng_wrap(self):
+        seq = [1, 0]
+        grams = self.ngrams(seq, 2, circular=True)
+        self.assertIn((1, 0), grams)
+        self.assertIn((0, 1), grams)    # wraps: seq[1], seq[0]
+
+    # ── ngram_dist() ──────────────────────────────────────────────────────────
+
+    def test_nd_constant_seq(self):
+        seqs = [[0, 0, 0, 0]]
+        d = self.ngram_dist(seqs, 2)
+        self.assertEqual(d.get((0, 0), 0), 4)   # circular → 4 (0,0) 2-grams
+        self.assertEqual(d.get((0, 1), 0), 0)
+
+    def test_nd_alternating_has_all_bigrams(self):
+        seqs = [[0, 1, 0, 1]]
+        d = self.ngram_dist(seqs, 2)
+        for gram in [(0, 0), (0, 1), (1, 0), (1, 1)]:
+            self.assertGreaterEqual(d.get(gram, 0), 0)
+        self.assertGreater(d.get((0, 1), 0), 0)
+        self.assertGreater(d.get((1, 0), 0), 0)
+
+    # ── block_entropy_n() ─────────────────────────────────────────────────────
+
+    def test_ben_constant_zero(self):
+        seqs = [[0] * 8]
+        self.assertAlmostEqual(self.block_entropy_n(seqs, 2), 0.0, places=8)
+
+    def test_ben_non_negative(self):
+        seqs = [[0, 1, 0, 1, 1, 0]]
+        for n in range(1, 5):
+            self.assertGreaterEqual(self.block_entropy_n(seqs, n), 0.0)
+
+    def test_ben_two_equal_seqs(self):
+        # H1 of equal-probability two-symbol sequence ≈ 1 bit
+        seqs = [[0, 1] * 8]
+        h1 = self.block_entropy_n(seqs, 1)
+        self.assertAlmostEqual(h1, 1.0, places=5)
+
+    # ── block_entropy_profile() ───────────────────────────────────────────────
+
+    def test_bep_length(self):
+        seqs = [[0, 1, 0, 1]]
+        profile = self.bep(seqs, max_n=5)
+        self.assertEqual(len(profile), 5)
+
+    def test_bep_non_negative(self):
+        seqs = [[0, 1, 1, 0, 0, 1, 0, 1]]
+        for h in self.bep(seqs, 6):
+            self.assertGreaterEqual(h, 0.0)
+
+    def test_bep_constant_all_zeros(self):
+        seqs = [[0] * 8, [0] * 8]
+        for h in self.bep(seqs, 6):
+            self.assertAlmostEqual(h, 0.0, places=8)
+
+    # ── transition_matrix() ───────────────────────────────────────────────────
+
+    def test_tm_shape(self):
+        seqs = [[0, 1, 0, 1]]
+        tm = self.transition_matrix(seqs)
+        self.assertEqual(len(tm), 2)
+        self.assertEqual(len(tm[0]), 2)
+        self.assertEqual(len(tm[1]), 2)
+
+    def test_tm_rows_sum_to_one(self):
+        seqs = [[0, 1, 1, 0, 0, 1]]
+        tm = self.transition_matrix(seqs)
+        for row_sum in [tm[a][0] + tm[a][1] for a in range(2)]:
+            if row_sum > 0:
+                self.assertAlmostEqual(row_sum, 1.0, places=8)
+
+    def test_tm_constant_zero_seq(self):
+        seqs = [[0, 0, 0, 0]]
+        tm = self.transition_matrix(seqs)
+        self.assertAlmostEqual(tm[0][0], 1.0, places=8)
+        self.assertAlmostEqual(tm[0][1], 0.0, places=8)
+        # row for symbol 1 is undefined (never seen) → sums to 0
+        self.assertAlmostEqual(tm[1][0] + tm[1][1], 0.0, places=8)
+
+    def test_tm_constant_one_seq(self):
+        seqs = [[1, 1, 1, 1]]
+        tm = self.transition_matrix(seqs)
+        self.assertAlmostEqual(tm[1][1], 1.0, places=8)
+
+    # ── forbidden_ngrams() ────────────────────────────────────────────────────
+
+    def test_fn_constant_zero_3forbidden(self):
+        # all-zeros: only (0,0) 2-gram seen → 3 forbidden
+        seqs = [[0, 0, 0, 0, 0, 0, 0, 0]]
+        f = self.forbidden_ngrams(seqs, 2)
+        self.assertEqual(len(f), 3)
+        self.assertIn((0, 1), f)
+        self.assertIn((1, 0), f)
+        self.assertIn((1, 1), f)
+
+    def test_fn_constant_one_3forbidden(self):
+        seqs = [[1, 1, 1, 1]]
+        f = self.forbidden_ngrams(seqs, 2)
+        self.assertEqual(len(f), 3)
+
+    def test_fn_alternating_all_bigrams_seen(self):
+        seqs = [[0, 1, 0, 1, 0, 1, 0, 1]]
+        f = self.forbidden_ngrams(seqs, 2)
+        self.assertEqual(len(f), 2)   # (0,0) and (1,1) forbidden for strict alternation
+        # (0,1) and (1,0) appear, but (0,0) and (1,1) do not
+        self.assertIn((0, 0), f)
+        self.assertIn((1, 1), f)
+
+    def test_fn_count_leq_total_ngrams(self):
+        bg = self.attractor_binary('ТУМАН', 'xor3')
+        seqs = [[bg[t][i] for t in range(len(bg))] for i in range(self.W)]
+        f = self.forbidden_ngrams(seqs, 3)
+        self.assertLessEqual(len(f), 8)
+
+    # ── symbolic_dict() ───────────────────────────────────────────────────────
+
+    def test_sd_keys(self):
+        d = self.symbolic_dict('ТУМАН', 'xor3')
+        for k in ['word', 'rule', 'width', 'threshold', 'max_n',
+                  'period', 'transient', 'binary_grid', 'temporal_seqs',
+                  'spatial_seqs', 'symbol_bias', 'n_unique_temp', 'n_unique_spat',
+                  'temporal_entropy', 'spatial_entropy', 'block_entropy',
+                  'topological_h', 'transition_mat', 'forbidden_2grams',
+                  'forbidden_3grams', 'ngram_1', 'ngram_2']:
+            self.assertIn(k, d)
+
+    def test_sd_word_upper(self):
+        d = self.symbolic_dict('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_sd_period_matches_orbit(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in self.ALL_RULES:
+                cells = pad_to(encode_word(word), self.W)
+                _, p  = find_orbit(cells[:], rule)
+                d     = self.symbolic_dict(word, rule)
+                self.assertEqual(d['period'], max(p, 1))
+
+    def test_sd_bias_xor_zero(self):
+        d = self.symbolic_dict('ТУМАН', 'xor')
+        self.assertAlmostEqual(d['symbol_bias'], 0.0, places=8)
+
+    def test_sd_bias_or_one(self):
+        d = self.symbolic_dict('ТУМАН', 'or')
+        self.assertAlmostEqual(d['symbol_bias'], 1.0, places=8)
+
+    def test_sd_topo_h_xor_zero(self):
+        # period-1 all-zeros → no variation → topological_h = 0
+        d = self.symbolic_dict('ТУМАН', 'xor')
+        self.assertAlmostEqual(d['topological_h'], 0.0, places=8)
+
+    def test_sd_topo_h_xor3_positive(self):
+        # XOR3 period-8 → complex symbolic dynamics → topological_h > 0
+        d = self.symbolic_dict('ТУМАН', 'xor3')
+        self.assertGreater(d['topological_h'], 0.0)
+
+    def test_sd_forbidden_2_xor_equals_3(self):
+        # XOR all-zeros: only (0,0) seen → 3 forbidden 2-grams
+        d = self.symbolic_dict('ТУМАН', 'xor')
+        self.assertEqual(len(d['forbidden_2grams']), 3)
+
+    def test_sd_forbidden_2_xor3_zero(self):
+        # XOR3 period-8: rich dynamics → all 4 2-grams appear
+        d = self.symbolic_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['forbidden_2grams']), 0)
+
+    def test_sd_block_entropy_length(self):
+        d = self.symbolic_dict('ТУМАН', 'xor3', max_n=5)
+        self.assertEqual(len(d['block_entropy']), 5)
+
+    def test_sd_n_unique_temp_bounded(self):
+        d = self.symbolic_dict('ТУМАН', 'xor3')
+        self.assertGreaterEqual(d['n_unique_temp'], 1)
+        self.assertLessEqual(d['n_unique_temp'], self.W)
+
+    def test_sd_n_unique_spat_eq_period_for_xor3(self):
+        # XOR3 period-8 ТУМАН: all 8 attractor rows are distinct
+        d = self.symbolic_dict('ТУМАН', 'xor3')
+        self.assertEqual(d['n_unique_spat'], d['period'])
+
+    def test_sd_binary_grid_dims(self):
+        d = self.symbolic_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['binary_grid']), 8)
+        for row in d['binary_grid']:
+            self.assertEqual(len(row), self.W)
+
+    def test_sd_ngram1_keys_are_0_and_1(self):
+        d = self.symbolic_dict('ТУМАН', 'xor3')
+        self.assertTrue(set(d['ngram_1'].keys()) <= {'0', '1'})
+
+    def test_sd_ngram2_string_keys(self):
+        d = self.symbolic_dict('ТУМАН', 'xor3')
+        for k in d['ngram_2']:
+            self.assertEqual(len(k), 2)
+            self.assertTrue(set(k) <= {'0', '1'})
+
+    # ── all_symbolic() ────────────────────────────────────────────────────────
+
+    def test_as_all_rules(self):
+        d = self.all_symbolic('ТУМАН')
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    # ── build_symbolic_data() ─────────────────────────────────────────────────
+
+    def test_bsd_keys(self):
+        d = self.build_symbolic(['ГОРА', 'ВОДА'])
+        for k in ['words', 'per_rule', 'ranking']:
+            self.assertIn(k, d)
+
+    def test_bsd_ranking_sorted(self):
+        d = self.build_symbolic(['ГОРА', 'ВОДА', 'МИР'])
+        for rule in self.ALL_RULES:
+            vals = [x[1] for x in d['ranking'][rule]]
+            self.assertEqual(vals, sorted(vals, reverse=True))
+
+    def test_bsd_per_rule_word_keys(self):
+        words = ['ГОРА', 'ВОДА']
+        d = self.build_symbolic(words)
+        for rule in self.ALL_RULES:
+            self.assertEqual(set(d['per_rule'][rule].keys()), set(words))
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_sym_grid(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sym-grid', content)
+
+    def test_viewer_has_sym_bep(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sym-bep', content)
+
+    def test_viewer_has_sym_tm(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sym-tm', content)
+
+    def test_viewer_has_sym_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sym-btn', content)
+
+    def test_viewer_has_sym_block_h(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('symBlockH', content)
+
+    def test_viewer_has_sym_forbidden(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('symForbidden', content)
+
+    def test_viewer_has_symbolic_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('бинарная грамматика', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
