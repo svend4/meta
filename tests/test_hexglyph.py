@@ -8853,6 +8853,269 @@ class TestSolanLZ(unittest.TestCase):
         self.assertIn('LZ76 Q6', content)
 
 
+class TestSolanBitflip(unittest.TestCase):
+    """Tests for solan_bitflip.py and the viewer Bit-Flip section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import (
+            flip_masks, bit_flip_freqs, flip_entropy,
+            flip_cooccurrence, cell_flip_stats,
+            all_cell_flip_stats, aggregate_flip_freqs,
+            flip_summary, all_flips, build_flip_data,
+        )
+        cls.flip_masks           = staticmethod(flip_masks)
+        cls.bit_flip_freqs       = staticmethod(bit_flip_freqs)
+        cls.flip_entropy         = staticmethod(flip_entropy)
+        cls.flip_cooccurrence    = staticmethod(flip_cooccurrence)
+        cls.cell_flip_stats      = staticmethod(cell_flip_stats)
+        cls.all_cell_flip_stats  = staticmethod(all_cell_flip_stats)
+        cls.aggregate_flip_freqs = staticmethod(aggregate_flip_freqs)
+        cls.flip_summary         = staticmethod(flip_summary)
+        cls.all_flips            = staticmethod(all_flips)
+        cls.build_flip_data      = staticmethod(build_flip_data)
+
+    # ── flip_masks() ──────────────────────────────────────────────────
+
+    def test_flip_masks_empty(self):
+        self.assertEqual(self.flip_masks([]), [])
+
+    def test_flip_masks_single_self_loop(self):
+        self.assertEqual(self.flip_masks([5]), [0])    # 5 XOR 5 = 0
+
+    def test_flip_masks_two_elements(self):
+        # 47 XOR 1 = 46, 1 XOR 47 = 46
+        self.assertEqual(self.flip_masks([47, 1]), [46, 46])
+
+    def test_flip_masks_constant_series_all_zero(self):
+        self.assertEqual(self.flip_masks([3, 3, 3]), [0, 0, 0])
+
+    def test_flip_masks_xor_identity(self):
+        # flip mask = x XOR y
+        series = [10, 20, 30]
+        masks = self.flip_masks(series)
+        self.assertEqual(masks[0], 10 ^ 20)
+        self.assertEqual(masks[1], 20 ^ 30)
+        self.assertEqual(masks[2], 30 ^ 10)   # circular
+
+    def test_flip_masks_length(self):
+        series = [1, 2, 3, 4, 5]
+        self.assertEqual(len(self.flip_masks(series)), 5)
+
+    # ── bit_flip_freqs() ──────────────────────────────────────────────
+
+    def test_bit_flip_freqs_empty(self):
+        freqs = self.bit_flip_freqs([])
+        self.assertEqual(len(freqs), 6)
+        self.assertTrue(all(f == 0.0 for f in freqs))
+
+    def test_bit_flip_freqs_constant(self):
+        freqs = self.bit_flip_freqs([7, 7, 7])
+        self.assertTrue(all(f == 0.0 for f in freqs))
+
+    def test_bit_flip_freqs_gora_and_signature(self):
+        # 47 = 0b101111, 1 = 0b000001; XOR = 0b101110
+        # bits 1,2,3,5 always flip; bits 0,4 never
+        freqs = self.bit_flip_freqs([47, 1])
+        self.assertAlmostEqual(freqs[0], 0.0, places=6)   # bit 0 stable
+        self.assertAlmostEqual(freqs[1], 1.0, places=6)   # bit 1 always flips
+        self.assertAlmostEqual(freqs[2], 1.0, places=6)   # bit 2 always flips
+        self.assertAlmostEqual(freqs[3], 1.0, places=6)   # bit 3 always flips
+        self.assertAlmostEqual(freqs[4], 0.0, places=6)   # bit 4 stable
+        self.assertAlmostEqual(freqs[5], 1.0, places=6)   # bit 5 always flips
+
+    def test_bit_flip_freqs_range(self):
+        series = [48, 51, 43, 43, 43, 43, 40, 48]
+        freqs = self.bit_flip_freqs(series)
+        self.assertTrue(all(0.0 <= f <= 1.0 for f in freqs))
+
+    def test_bit_flip_freqs_length(self):
+        freqs = self.bit_flip_freqs([1, 2, 3, 4])
+        self.assertEqual(len(freqs), 6)
+
+    # ── flip_entropy() ────────────────────────────────────────────────
+
+    def test_flip_entropy_constant_zero(self):
+        # Constant series: all masks = 0 → H = 0
+        self.assertAlmostEqual(self.flip_entropy([5, 5, 5, 5]), 0.0, places=6)
+
+    def test_flip_entropy_gora_and_zero(self):
+        # ГОРА AND: always same mask 46 → H = 0
+        self.assertAlmostEqual(self.flip_entropy([47, 1]), 0.0, places=6)
+
+    def test_flip_entropy_nonneg(self):
+        for series in [[1, 2, 3, 4], [0, 63, 0, 63], [48, 51, 43, 43]]:
+            self.assertGreaterEqual(self.flip_entropy(series), 0.0)
+
+    def test_flip_entropy_two_distinct_masks(self):
+        # [0, 1, 0, 1]: masks = [1, 1, 1, 1] (same) → H = 0
+        self.assertAlmostEqual(self.flip_entropy([0, 1, 0, 1]), 0.0, places=6)
+
+    def test_flip_entropy_diverse_masks(self):
+        # Different masks → H > 0
+        self.assertGreater(self.flip_entropy([48, 51, 43, 43, 43, 43, 40, 48]), 0.0)
+
+    # ── flip_cooccurrence() ───────────────────────────────────────────
+
+    def test_flip_cooccurrence_shape(self):
+        mat = self.flip_cooccurrence([47, 1])
+        self.assertEqual(len(mat), 6)
+        for row in mat:
+            self.assertEqual(len(row), 6)
+
+    def test_flip_cooccurrence_diagonal_equals_freqs(self):
+        series = [47, 1]
+        freqs = self.bit_flip_freqs(series)
+        mat = self.flip_cooccurrence(series)
+        for b in range(6):
+            self.assertAlmostEqual(mat[b][b], freqs[b], places=6)
+
+    def test_flip_cooccurrence_symmetric(self):
+        series = [48, 51, 43, 43, 43, 43, 40, 48]
+        mat = self.flip_cooccurrence(series)
+        for b in range(6):
+            for b2 in range(6):
+                self.assertAlmostEqual(mat[b][b2], mat[b2][b], places=8)
+
+    def test_flip_cooccurrence_gora_and_block(self):
+        # Bits 1,2,3,5 always flip together → co-occurrence = 1
+        mat = self.flip_cooccurrence([47, 1])
+        for b in [1, 2, 3, 5]:
+            for b2 in [1, 2, 3, 5]:
+                self.assertAlmostEqual(mat[b][b2], 1.0, places=6)
+        # Bits 0,4 never flip → all co-occurrences = 0
+        for b in [0, 4]:
+            for b2 in range(6):
+                self.assertAlmostEqual(mat[b][b2], 0.0, places=6)
+
+    def test_flip_cooccurrence_nonneg(self):
+        mat = self.flip_cooccurrence([1, 2, 3, 4, 5])
+        for row in mat:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+
+    # ── Fixed-point / zero-flip attractors ────────────────────────────
+
+    def test_tuman_xor_all_freqs_zero(self):
+        freqs = self.aggregate_flip_freqs('ТУМАН', 'xor', 16)
+        self.assertTrue(all(abs(f) < 1e-9 for f in freqs))
+
+    def test_tuman_xor_entropy_zero(self):
+        d = self.flip_summary('ТУМАН', 'xor', 16)
+        self.assertAlmostEqual(d['entropy_mean'], 0.0, places=6)
+
+    # ── ГОРА AND (P=2, 47↔1) ─────────────────────────────────────────
+
+    def test_gora_and_freqs_signature(self):
+        freqs = self.aggregate_flip_freqs('ГОРА', 'and', 16)
+        self.assertAlmostEqual(freqs[0], 0.0, places=6)
+        self.assertAlmostEqual(freqs[1], 1.0, places=6)
+        self.assertAlmostEqual(freqs[2], 1.0, places=6)
+        self.assertAlmostEqual(freqs[3], 1.0, places=6)
+        self.assertAlmostEqual(freqs[4], 0.0, places=6)
+        self.assertAlmostEqual(freqs[5], 1.0, places=6)
+
+    def test_gora_and_entropy_zero(self):
+        d = self.flip_summary('ГОРА', 'and', 16)
+        self.assertAlmostEqual(d['entropy_mean'], 0.0, places=6)
+
+    def test_gora_and_dominant_mask_46(self):
+        d = self.flip_summary('ГОРА', 'and', 16)
+        for cs in d['cell_stats']:
+            self.assertEqual(cs['dominant_mask'], 46)   # 0b101110
+
+    def test_gora_and_n_distinct_masks_one(self):
+        d = self.flip_summary('ГОРА', 'and', 16)
+        for cs in d['cell_stats']:
+            self.assertEqual(cs['n_distinct_masks'], 1)
+
+    # ── ТУМАН XOR3 (P=8) ──────────────────────────────────────────────
+
+    def test_tuman_xor3_entropy_positive(self):
+        d = self.flip_summary('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['entropy_mean'], 0.0)
+
+    def test_tuman_xor3_n_distinct_masks_gt_1(self):
+        d = self.flip_summary('ТУМАН', 'xor3', 16)
+        self.assertTrue(any(cs['n_distinct_masks'] > 1 for cs in d['cell_stats']))
+
+    def test_tuman_xor3_freqs_in_range(self):
+        freqs = self.aggregate_flip_freqs('ТУМАН', 'xor3', 16)
+        for f in freqs:
+            self.assertGreaterEqual(f, 0.0)
+            self.assertLessEqual(f, 1.0)
+
+    def test_tuman_xor3_bit3_most_active(self):
+        freqs = self.aggregate_flip_freqs('ТУМАН', 'xor3', 16)
+        # bit 3 is most active (freq=0.500)
+        self.assertEqual(freqs.index(max(freqs)), 3)
+
+    # ── flip_summary structure ────────────────────────────────────────
+
+    def test_flip_summary_keys(self):
+        d = self.flip_summary('ТУМАН', 'xor3', 16)
+        for k in ('word', 'rule', 'period', 'cell_stats', 'agg_freqs',
+                  'agg_coocc', 'entropy_mean', 'entropy_std', 'entropy_max',
+                  'most_active_bit', 'least_active_bit'):
+            self.assertIn(k, d)
+
+    def test_flip_summary_agg_freqs_length(self):
+        d = self.flip_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['agg_freqs']), 6)
+
+    def test_flip_summary_agg_coocc_shape(self):
+        d = self.flip_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['agg_coocc']), 6)
+        for row in d['agg_coocc']:
+            self.assertEqual(len(row), 6)
+
+    def test_flip_summary_word_uppercase(self):
+        d = self.flip_summary('туман', 'xor3', 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    # ── all_flips ─────────────────────────────────────────────────────
+
+    def test_all_flips_four_rules(self):
+        result = self.all_flips('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_flip_data ───────────────────────────────────────────────
+
+    def test_build_flip_data_structure(self):
+        data = self.build_flip_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+
+    def test_build_flip_data_entry_keys(self):
+        data = self.build_flip_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'agg_freqs', 'entropy_mean', 'entropy_std',
+                  'entropy_max', 'most_active_bit', 'least_active_bit'):
+            self.assertIn(k, entry)
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_bf_bar(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bf-bar', content)
+
+    def test_viewer_has_bf_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bf-heat', content)
+
+    def test_viewer_has_bf_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bf-stats', content)
+
+    def test_viewer_has_bf_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bfRun', content)
+
+    def test_viewer_has_bitflip_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Bit-Flip Dynamics Q6', content)
+
+
 class TestSolanRuns(unittest.TestCase):
     """Tests for solan_runs.py and the viewer Run-Length section."""
 
