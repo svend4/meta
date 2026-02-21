@@ -13321,6 +13321,205 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Spatial Domain Segmentation (solan_segment)</h2>
+<p style="color:#888;font-size:13px">
+  Maximal circular arcs of cells with the same Q6 value (spatial dual of solan_runs).
+  Heatmap: each cell coloured by its segment length — dark=length-1 (maximally fragmented),
+  bright=length-N (uniform ring).  ★ ТУМАН XOR3 step 7: wrap-around segment of length 4.
+</p>
+<label style="color:#aaa">Слово:
+  <select id="sg-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="sg-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="sg-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="seg-map" width="530" height="220"
+  style="background:#0a0a0a;display:block;border:1px solid #222"></canvas>
+<canvas id="seg-nsegs" width="530" height="50"
+  style="background:#0a0a0a;display:block;border:1px solid #222;margin-top:4px"></canvas>
+<div id="seg-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+
+  function sgStep(cells,rule){
+    var N=cells.length, out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function sgOrbit(ic,rule){
+    var seen={}, t=0, cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key], period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=sgStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.slice()); cur=sgStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=sgStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  /* Return (value, length) pairs for a periodic ring */
+  function sgSegments(state){
+    var N=state.length;
+    var walls=[];
+    for(var i=0;i<N;i++) if(state[i]!==state[(i+1)%N]) walls.push(i);
+    if(walls.length===0) return [[state[0],N]];
+    var segs=[], nw=walls.length;
+    for(var k=0;k<nw;k++){
+      var start=(walls[k]+1)%N;
+      var end=walls[(k+1)%nw];
+      var length=(end>=start)?(end-start+1):(N-start+end+1);
+      segs.push([state[start],length]);
+    }
+    return segs;
+  }
+
+  /* Per-cell segment length array */
+  function sgLenPerCell(state){
+    var N=state.length;
+    var walls=[];
+    for(var i=0;i<N;i++) if(state[i]!==state[(i+1)%N]) walls.push(i);
+    if(walls.length===0) return new Array(N).fill(N);
+    var out=new Array(N).fill(0), nw=walls.length;
+    var segs=sgSegments(state);
+    for(var k=0;k<nw;k++){
+      var start=(walls[k]+1)%N;
+      var len=segs[k][1];
+      for(var j=0;j<len;j++) out[(start+j)%N]=len;
+    }
+    return out;
+  }
+
+  /* Colour cell by segment length: length=1 → dark, length=N → bright */
+  function sgColor(len, N){
+    var frac=len/N; // 0..1
+    var h=Math.round(200-(frac*140)); // 200 (short) → 60 (long)
+    var l=Math.round(18+frac*52);     // 18% (short) → 70% (long)
+    return 'hsl('+h+',80%,'+l+'%)';
+  }
+
+  function sgRun(){
+    var wEl=document.getElementById('sg-word');
+    var rEl=document.getElementById('sg-rule');
+    var info=document.getElementById('seg-info');
+    if(!window.encL){if(info) info.textContent='Ожидание…'; return;}
+    var word=(wEl?wEl.value:'ТУМАН').toUpperCase();
+    var rule=rEl?rEl.value:'xor3';
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=sgOrbit(ic,rule);
+    var P=grid.length;
+
+    /* Per-step segment stats */
+    var nSegs=[], maxLens=[], globalMax=0;
+    var lenGrids=[];
+    for(var t=0;t<P;t++){
+      var segs=sgSegments(grid[t]);
+      nSegs.push(segs.length);
+      var ml=Math.max.apply(null,segs.map(function(s){return s[1];}));
+      maxLens.push(ml);
+      if(ml>globalMax) globalMax=ml;
+      lenGrids.push(sgLenPerCell(grid[t]));
+    }
+    var meanNS=nSegs.reduce(function(a,b){return a+b;},0)/P;
+    var ff=nSegs.every(function(v){return v===N;});
+    var uni=nSegs.every(function(v){return v===1;});
+
+    /* ── Segment-length heatmap ─────────────────────── */
+    var mc=document.getElementById('seg-map');
+    var mx=mc.getContext('2d');
+    var MW=mc.width, MH=mc.height;
+    mx.fillStyle='#0a0a0a'; mx.fillRect(0,0,MW,MH);
+    var cellW=Math.floor(MW/N);
+    var rowH=Math.max(1,Math.floor(MH/Math.min(P,MH)));
+    var visRows=Math.floor(MH/rowH);
+    for(var t=0;t<Math.min(P,visRows);t++){
+      var lenRow=lenGrids[t];
+      for(var i=0;i<N;i++){
+        mx.fillStyle=sgColor(lenRow[i],N);
+        mx.fillRect(i*cellW, t*rowH, cellW-1, rowH-1);
+      }
+    }
+    mx.fillStyle='#555'; mx.font='10px monospace';
+    mx.fillText('t=0',2,10);
+    if(P>1) mx.fillText('t='+(Math.min(P,visRows)-1),2,Math.min(P,visRows)*rowH-3);
+
+    /* ── n_segs bar chart ────────────────────────────── */
+    var nc=document.getElementById('seg-nsegs');
+    var nx=nc.getContext('2d');
+    var NW=nc.width, NH=nc.height;
+    nx.fillStyle='#0a0a0a'; nx.fillRect(0,0,NW,NH);
+    var col=BCOL[rule]||'#80deea';
+    var barW=Math.max(1,Math.floor((NW-4)/P));
+    for(var t=0;t<P;t++){
+      var bh=N>0?Math.round((nSegs[t]/N)*(NH-8)):0;
+      nx.fillStyle=col;
+      nx.fillRect(2+t*barW, NH-4-bh, barW-1, bh);
+    }
+    nx.fillStyle='#555'; nx.font='10px monospace';
+    nx.fillText('n_segments',2,10);
+    nx.fillText('max='+N,NW-50,10);
+
+    /* ── Info text ─────────────────────────────────── */
+    var lines=[
+      'Слово: '+word+'  Правило: '+rule.toUpperCase()+'  P='+P+'  N='+N,
+      'n_segments='+JSON.stringify(nSegs),
+      'mean_n_segs='+meanNS.toFixed(2)+'  global_max_len='+globalMax,
+      (ff?'★ fully_fragmented (every cell its own domain)':
+       uni?'★ always_uniform (one ring-wide domain)':
+       'mixed segmentation'),
+      'max_seg_length per step='+JSON.stringify(maxLens),
+    ];
+    if(info) info.textContent=lines.join('\n');
+  }
+
+  /* Populate word selector */
+  var sel=document.getElementById('sg-word');
+  if(sel && window.LEXICON_ARR){
+    window.LEXICON_ARR.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='ТУМАН') o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+  var btn=document.getElementById('sg-btn');
+  var wEl=document.getElementById('sg-word');
+  var rEl=document.getElementById('sg-rule');
+  if(btn) btn.addEventListener('click',sgRun);
+  if(wEl) wEl.addEventListener('change',sgRun);
+  if(rEl) rEl.addEventListener('change',sgRun);
+  setTimeout(function(){if(window.encL) sgRun();},7000);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

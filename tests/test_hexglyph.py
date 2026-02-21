@@ -15225,6 +15225,376 @@ class TestSolanConfig(unittest.TestCase):
 
 
 
+class TestSolanSegment(unittest.TestCase):
+    """Tests for solan_segment.py — Spatial Domain Segmentation."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_segment import (
+            spatial_segments, seg_lengths_per_cell,
+            n_segments_step, n_segments, max_seg_length,
+            min_seg_length, mean_seg_length, seg_lengths,
+            global_max_seg_length, segment_summary,
+            all_segment, build_segment_data,
+        )
+        cls.spatial_segments      = staticmethod(spatial_segments)
+        cls.seg_lengths_per_cell  = staticmethod(seg_lengths_per_cell)
+        cls.n_segments_step       = staticmethod(n_segments_step)
+        cls.n_segments            = staticmethod(n_segments)
+        cls.max_seg_length        = staticmethod(max_seg_length)
+        cls.min_seg_length        = staticmethod(min_seg_length)
+        cls.mean_seg_length       = staticmethod(mean_seg_length)
+        cls.seg_lengths           = staticmethod(seg_lengths)
+        cls.global_max_seg_length = staticmethod(global_max_seg_length)
+        cls.segment_summary       = staticmethod(segment_summary)
+        cls.all_segment           = staticmethod(all_segment)
+        cls.build_segment_data    = staticmethod(build_segment_data)
+
+    # ── spatial_segments ──────────────────────────────────────────────────────
+
+    def test_spatial_segments_returns_list(self):
+        self.assertIsInstance(self.spatial_segments((0, 0, 0, 0)), list)
+
+    def test_spatial_segments_uniform_zero(self):
+        self.assertEqual(self.spatial_segments((0, 0, 0, 0)), [(0, 4)])
+
+    def test_spatial_segments_uniform_63(self):
+        self.assertEqual(self.spatial_segments((63, 63, 63, 63)), [(63, 4)])
+
+    def test_spatial_segments_alternating(self):
+        segs = self.spatial_segments((47, 1, 47, 1))
+        self.assertEqual(len(segs), 4)
+        self.assertTrue(all(l == 1 for _, l in segs))
+
+    def test_spatial_segments_lengths_sum_to_n(self):
+        state = (49, 47, 15, 63, 49, 47, 15, 63)
+        segs = self.spatial_segments(state)
+        self.assertEqual(sum(l for _, l in segs), len(state))
+
+    def test_spatial_segments_elements_are_tuples(self):
+        segs = self.spatial_segments((0, 0, 1, 1))
+        self.assertIsInstance(segs[0], tuple)
+        self.assertEqual(len(segs[0]), 2)
+
+    def test_spatial_segments_two_segment_state(self):
+        # (0,0,1,1): two segments of length 2
+        segs = self.spatial_segments((0, 0, 1, 1))
+        self.assertEqual(len(segs), 2)
+        self.assertTrue(all(l == 2 for _, l in segs))
+
+    def test_spatial_segments_ring_wrap(self):
+        # (1,0,0,1) on ring: cells 3,0 share value 1 → one segment of length 2
+        segs = self.spatial_segments((1, 0, 0, 1))
+        lens = sorted([l for _, l in segs])
+        self.assertEqual(lens, [2, 2])
+
+    def test_spatial_segments_single_length_1(self):
+        # (0,1,1,1): cell 0 differs from its neighbours → one segment of length 1
+        segs = self.spatial_segments((0, 1, 1, 1))
+        lens = sorted([l for _, l in segs])
+        self.assertEqual(sorted(lens), sorted([1, 3]))
+
+    # ── seg_lengths_per_cell ─────────────────────────────────────────────────
+
+    def test_seg_lengths_per_cell_returns_list(self):
+        self.assertIsInstance(self.seg_lengths_per_cell((0, 0, 1, 1)), list)
+
+    def test_seg_lengths_per_cell_length_n(self):
+        result = self.seg_lengths_per_cell((0, 0, 1, 1))
+        self.assertEqual(len(result), 4)
+
+    def test_seg_lengths_per_cell_uniform(self):
+        result = self.seg_lengths_per_cell((7, 7, 7, 7))
+        self.assertEqual(result, [4, 4, 4, 4])
+
+    def test_seg_lengths_per_cell_alternating(self):
+        result = self.seg_lengths_per_cell((47, 1, 47, 1))
+        self.assertEqual(result, [1, 1, 1, 1])
+
+    def test_seg_lengths_per_cell_two_segments(self):
+        result = self.seg_lengths_per_cell((0, 0, 1, 1))
+        self.assertEqual(result, [2, 2, 2, 2])
+
+    def test_seg_lengths_per_cell_values_positive(self):
+        result = self.seg_lengths_per_cell((3, 5, 5, 5, 1, 1))
+        self.assertTrue(all(v > 0 for v in result))
+
+    # ── n_segments ───────────────────────────────────────────────────────────
+
+    def test_n_segments_returns_list(self):
+        self.assertIsInstance(self.n_segments('ГОРА', 'and'), list)
+
+    def test_n_segments_length_equals_period(self):
+        result = self.n_segments('ГОРА', 'and')
+        self.assertEqual(len(result), 2)
+
+    def test_n_segments_tuman_xor_uniform(self):
+        self.assertEqual(self.n_segments('ТУМАН', 'xor'), [1])
+
+    def test_n_segments_gora_or_uniform(self):
+        self.assertEqual(self.n_segments('ГОРА', 'or'), [1])
+
+    def test_n_segments_gora_and_max_fragmented(self):
+        self.assertEqual(self.n_segments('ГОРА', 'and'), [16, 16])
+
+    def test_n_segments_gora_xor3_max_fragmented(self):
+        self.assertEqual(self.n_segments('ГОРА', 'xor3'), [16, 16])
+
+    def test_n_segments_tuman_xor3(self):
+        self.assertEqual(self.n_segments('ТУМАН', 'xor3'),
+                         [15, 16, 16, 16, 16, 16, 16, 13])
+
+    def test_n_segments_positive(self):
+        result = self.n_segments('ТУМАН', 'xor3')
+        self.assertTrue(all(v > 0 for v in result))
+
+    def test_n_segments_le_width(self):
+        result = self.n_segments('ТУМАН', 'xor3')
+        self.assertTrue(all(v <= 16 for v in result))
+
+    def test_n_segments_step_consistent(self):
+        # n_segments_step must match n_segments list
+        ns = self.n_segments('ТУМАН', 'xor3')
+        for t, expected in enumerate(ns):
+            self.assertEqual(self.n_segments_step('ТУМАН', 'xor3', t), expected)
+
+    def test_n_segments_case_insensitive(self):
+        self.assertEqual(
+            self.n_segments('гора', 'and'),
+            self.n_segments('ГОРА', 'and'),
+        )
+
+    # ── max_seg_length ────────────────────────────────────────────────────────
+
+    def test_max_seg_length_returns_list(self):
+        self.assertIsInstance(self.max_seg_length('ГОРА', 'and'), list)
+
+    def test_max_seg_length_tuman_xor_full_ring(self):
+        self.assertEqual(self.max_seg_length('ТУМАН', 'xor'), [16])
+
+    def test_max_seg_length_gora_or_full_ring(self):
+        self.assertEqual(self.max_seg_length('ГОРА', 'or'), [16])
+
+    def test_max_seg_length_gora_and_one(self):
+        self.assertEqual(self.max_seg_length('ГОРА', 'and'), [1, 1])
+
+    def test_max_seg_length_tuman_xor3(self):
+        self.assertEqual(self.max_seg_length('ТУМАН', 'xor3'), [2, 1, 1, 1, 1, 1, 1, 4])
+
+    def test_max_seg_length_ge_min_seg_length(self):
+        mx = self.max_seg_length('ТУМАН', 'xor3')
+        mn = self.min_seg_length('ТУМАН', 'xor3')
+        for a, b in zip(mx, mn):
+            self.assertGreaterEqual(a, b)
+
+    # ── min_seg_length ────────────────────────────────────────────────────────
+
+    def test_min_seg_length_returns_list(self):
+        self.assertIsInstance(self.min_seg_length('ГОРА', 'and'), list)
+
+    def test_min_seg_length_tuman_xor(self):
+        self.assertEqual(self.min_seg_length('ТУМАН', 'xor'), [16])
+
+    def test_min_seg_length_gora_and(self):
+        self.assertEqual(self.min_seg_length('ГОРА', 'and'), [1, 1])
+
+    def test_min_seg_length_positive(self):
+        result = self.min_seg_length('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 1 for v in result))
+
+    # ── mean_seg_length ───────────────────────────────────────────────────────
+
+    def test_mean_seg_length_returns_list(self):
+        self.assertIsInstance(self.mean_seg_length('ГОРА', 'and'), list)
+
+    def test_mean_seg_length_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_seg_length('ТУМАН', 'xor')[0], 16.0)
+
+    def test_mean_seg_length_gora_and(self):
+        result = self.mean_seg_length('ГОРА', 'and')
+        self.assertTrue(all(abs(v - 1.0) < 1e-6 for v in result))
+
+    def test_mean_seg_length_equals_n_over_n_segs(self):
+        ns = self.n_segments('ТУМАН', 'xor3')
+        ml = self.mean_seg_length('ТУМАН', 'xor3')
+        for n, m in zip(ns, ml):
+            self.assertAlmostEqual(m, 16 / n, places=4)
+
+    # ── global_max_seg_length ─────────────────────────────────────────────────
+
+    def test_global_max_seg_length_returns_int(self):
+        self.assertIsInstance(self.global_max_seg_length('ГОРА', 'and'), int)
+
+    def test_global_max_seg_length_tuman_xor(self):
+        self.assertEqual(self.global_max_seg_length('ТУМАН', 'xor'), 16)
+
+    def test_global_max_seg_length_gora_and(self):
+        self.assertEqual(self.global_max_seg_length('ГОРА', 'and'), 1)
+
+    def test_global_max_seg_length_tuman_xor3(self):
+        self.assertEqual(self.global_max_seg_length('ТУМАН', 'xor3'), 4)
+
+    def test_global_max_ge_all_step_max(self):
+        gm = self.global_max_seg_length('ТУМАН', 'xor3')
+        step_max = self.max_seg_length('ТУМАН', 'xor3')
+        self.assertEqual(gm, max(step_max))
+
+    # ── seg_lengths ───────────────────────────────────────────────────────────
+
+    def test_seg_lengths_returns_list_of_lists(self):
+        result = self.seg_lengths('ГОРА', 'and')
+        self.assertIsInstance(result, list)
+        self.assertIsInstance(result[0], list)
+
+    def test_seg_lengths_sum_to_n(self):
+        result = self.seg_lengths('ТУМАН', 'xor3')
+        for step_lens in result:
+            self.assertEqual(sum(step_lens), 16)
+
+    def test_seg_lengths_sorted_descending(self):
+        result = self.seg_lengths('ТУМАН', 'xor3')
+        for step_lens in result:
+            self.assertEqual(step_lens, sorted(step_lens, reverse=True))
+
+    # ── segment_summary ───────────────────────────────────────────────────────
+
+    def test_segment_summary_returns_dict(self):
+        self.assertIsInstance(self.segment_summary('ГОРА', 'and'), dict)
+
+    def test_segment_summary_required_keys(self):
+        d = self.segment_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'n_cells',
+                    'n_segments', 'mean_n_segments',
+                    'max_n_segments', 'min_n_segments',
+                    'max_seg_length', 'min_seg_length',
+                    'global_max_len', 'global_min_len',
+                    'seg_lengths', 'fully_fragmented', 'always_uniform'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_segment_summary_tuman_xor_always_uniform(self):
+        d = self.segment_summary('ТУМАН', 'xor')
+        self.assertTrue(d['always_uniform'])
+        self.assertFalse(d['fully_fragmented'])
+        self.assertEqual(d['global_max_len'], 16)
+
+    def test_segment_summary_gora_and_fully_fragmented(self):
+        d = self.segment_summary('ГОРА', 'and')
+        self.assertTrue(d['fully_fragmented'])
+        self.assertFalse(d['always_uniform'])
+        self.assertEqual(d['global_max_len'], 1)
+
+    def test_segment_summary_gora_or_always_uniform(self):
+        d = self.segment_summary('ГОРА', 'or')
+        self.assertTrue(d['always_uniform'])
+
+    def test_segment_summary_gora_xor3_fully_fragmented(self):
+        d = self.segment_summary('ГОРА', 'xor3')
+        self.assertTrue(d['fully_fragmented'])
+
+    def test_segment_summary_tuman_xor3_neither(self):
+        d = self.segment_summary('ТУМАН', 'xor3')
+        self.assertFalse(d['fully_fragmented'])
+        self.assertFalse(d['always_uniform'])
+
+    def test_segment_summary_tuman_xor3_mean(self):
+        d = self.segment_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_n_segments'], 15.5)
+
+    def test_segment_summary_tuman_xor3_global_max(self):
+        d = self.segment_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['global_max_len'], 4)
+
+    def test_segment_summary_n_segs_list(self):
+        d = self.segment_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['n_segments'], [15, 16, 16, 16, 16, 16, 16, 13])
+
+    def test_segment_summary_word_upper(self):
+        d = self.segment_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_segment_summary_n_cells(self):
+        d = self.segment_summary('ГОРА', 'and')
+        self.assertEqual(d['n_cells'], 16)
+
+    # ── all_segment ───────────────────────────────────────────────────────────
+
+    def test_all_segment_returns_dict(self):
+        self.assertIsInstance(self.all_segment('ГОРА'), dict)
+
+    def test_all_segment_four_rules(self):
+        d = self.all_segment('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_segment_data ────────────────────────────────────────────────────
+
+    def test_build_segment_data_returns_dict(self):
+        self.assertIsInstance(self.build_segment_data(['ГОРА']), dict)
+
+    def test_build_segment_data_top_keys(self):
+        d = self.build_segment_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_segment_data_rule_keys(self):
+        d = self.build_segment_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_segment_data_word_uppercase(self):
+        d = self.build_segment_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_segment_data_gora_and_fully_fragmented(self):
+        d = self.build_segment_data(['ГОРА'])
+        self.assertTrue(d['per_rule']['and']['ГОРА']['fully_fragmented'])
+
+    def test_build_segment_data_known_fields(self):
+        d   = self.build_segment_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'n_segments', 'mean_n_segments',
+                    'max_n_segments', 'min_n_segments',
+                    'max_seg_length', 'global_max_len', 'global_min_len',
+                    'seg_lengths', 'fully_fragmented', 'always_uniform'):
+            self.assertIn(key, rec)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_seg_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('seg-map', content)
+
+    def test_viewer_has_seg_nsegs(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('seg-nsegs', content)
+
+    def test_viewer_has_seg_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('seg-info', content)
+
+    def test_viewer_has_sg_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sg-word', content)
+
+    def test_viewer_has_sg_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sg-btn', content)
+
+    def test_viewer_has_sg_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sgRun', content)
+
+    def test_viewer_has_sg_segments_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sgSegments', content)
+
+    def test_viewer_has_sg_len_per_cell_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sgLenPerCell', content)
+
+    def test_viewer_has_sg_color_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sgColor', content)
+
+
 class TestSolanBoundary(unittest.TestCase):
     """Tests for solan_boundary.py — Spatial XOR-Boundary Analysis."""
 
