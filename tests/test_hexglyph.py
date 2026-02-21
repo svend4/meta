@@ -12973,5 +12973,290 @@ class TestSolanTraj(unittest.TestCase):
         self.assertIn('trajRun', content)
 
 
+class TestSolanSpatent(unittest.TestCase):
+    """Tests for solan_spatent.py and the viewer Spatial Entropy section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spatent import (
+            spatial_entropy,
+            orbit_spatial_entropy,
+            spatial_entropy_stats,
+            spatent_summary,
+            all_spatent,
+            build_spatent_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.spatial_entropy        = staticmethod(spatial_entropy)
+        cls.orbit_spatial_entropy  = staticmethod(orbit_spatial_entropy)
+        cls.spatial_entropy_stats  = staticmethod(spatial_entropy_stats)
+        cls.spatent_summary        = staticmethod(spatent_summary)
+        cls.all_spatent            = staticmethod(all_spatent)
+        cls.build_spatent_data     = staticmethod(build_spatent_data)
+        cls.LEXICON                = list(LEXICON)
+
+    # ── spatial_entropy() ─────────────────────────────────────────────────────
+
+    def test_spatent_all_same_is_zero(self):
+        # All cells same value → H = 0
+        self.assertAlmostEqual(self.spatial_entropy([5] * 16), 0.0, places=10)
+
+    def test_spatent_all_zeros_is_zero(self):
+        self.assertAlmostEqual(self.spatial_entropy([0] * 16), 0.0, places=10)
+
+    def test_spatent_binary_is_one_bit(self):
+        # 8 cells = 0, 8 cells = 63 → H = 1.0
+        self.assertAlmostEqual(self.spatial_entropy([0, 63] * 8), 1.0, places=10)
+
+    def test_spatent_four_equal_groups_is_two_bits(self):
+        # 4 distinct values, 4 cells each → H = 2.0
+        self.assertAlmostEqual(self.spatial_entropy([0,1,2,3]*4), 2.0, places=10)
+
+    def test_spatent_all_distinct_is_log2_n(self):
+        import math
+        state = list(range(16))
+        self.assertAlmostEqual(self.spatial_entropy(state), math.log2(16), places=10)
+
+    def test_spatent_empty_is_zero(self):
+        self.assertEqual(self.spatial_entropy([]), 0.0)
+
+    def test_spatent_single_cell_is_zero(self):
+        self.assertAlmostEqual(self.spatial_entropy([42]), 0.0, places=10)
+
+    def test_spatent_nonnegative(self):
+        import random
+        state = [random.randint(0, 63) for _ in range(16)]
+        self.assertGreaterEqual(self.spatial_entropy(state), 0.0)
+
+    # ── orbit_spatial_entropy() ───────────────────────────────────────────────
+
+    def test_orbit_spatent_tuman_xor_is_zero(self):
+        # ТУМАН XOR: P=1, all-zero state → H_0 = 0
+        profile = self.orbit_spatial_entropy('ТУМАН', 'xor')
+        self.assertEqual(len(profile), 1)
+        self.assertAlmostEqual(profile[0], 0.0, places=10)
+
+    def test_orbit_spatent_gora_and_is_one_bit(self):
+        # ГОРА AND: both steps have 8 cells=47, 8 cells=1 → H_t = 1.0
+        profile = self.orbit_spatial_entropy('ГОРА', 'and')
+        self.assertEqual(len(profile), 2)
+        for h in profile:
+            self.assertAlmostEqual(h, 1.0, places=5)
+
+    def test_orbit_spatent_gora_xor3_is_two_bits(self):
+        # ГОРА XOR3: 4 clusters of 4 cells → H_t = 2.0 for all steps
+        profile = self.orbit_spatial_entropy('ГОРА', 'xor3')
+        self.assertEqual(len(profile), 2)
+        for h in profile:
+            self.assertAlmostEqual(h, 2.0, places=5)
+
+    def test_orbit_spatent_tuman_xor3_len_8(self):
+        profile = self.orbit_spatial_entropy('ТУМАН', 'xor3')
+        self.assertEqual(len(profile), 8)
+
+    def test_orbit_spatent_tuman_xor3_max_is_3375(self):
+        profile = self.orbit_spatial_entropy('ТУМАН', 'xor3')
+        self.assertAlmostEqual(max(profile), 3.375, places=4)
+
+    def test_orbit_spatent_tuman_xor3_min_above_2(self):
+        profile = self.orbit_spatial_entropy('ТУМАН', 'xor3')
+        self.assertGreater(min(profile), 2.0)
+
+    def test_orbit_spatent_all_values_nonneg(self):
+        for word in ['ТУМАН', 'ГОРА', 'ЛУНА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                profile = self.orbit_spatial_entropy(word, rule)
+                for h in profile:
+                    self.assertGreaterEqual(h, 0.0)
+
+    def test_orbit_spatent_all_values_leq_max_h(self):
+        import math
+        max_h = math.log2(16)
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and', 'or']:
+                profile = self.orbit_spatial_entropy(word, rule)
+                for h in profile:
+                    self.assertLessEqual(h, max_h + 1e-9)
+
+    # ── spatial_entropy_stats() ────────────────────────────────────────────────
+
+    def test_stats_keys(self):
+        st = self.spatial_entropy_stats('ГОРА', 'xor3')
+        for k in ('mean', 'std', 'min', 'max', 'delta', 'profile'):
+            self.assertIn(k, st)
+
+    def test_stats_tuman_xor_all_zero(self):
+        st = self.spatial_entropy_stats('ТУМАН', 'xor')
+        self.assertAlmostEqual(st['mean'],  0.0, places=10)
+        self.assertAlmostEqual(st['delta'], 0.0, places=10)
+
+    def test_stats_gora_and_mean_one(self):
+        st = self.spatial_entropy_stats('ГОРА', 'and')
+        self.assertAlmostEqual(st['mean'], 1.0, places=5)
+
+    def test_stats_gora_and_delta_zero(self):
+        st = self.spatial_entropy_stats('ГОРА', 'and')
+        self.assertAlmostEqual(st['delta'], 0.0, places=10)
+
+    def test_stats_gora_xor3_mean_two(self):
+        st = self.spatial_entropy_stats('ГОРА', 'xor3')
+        self.assertAlmostEqual(st['mean'], 2.0, places=5)
+
+    def test_stats_tuman_xor3_delta_approx(self):
+        # delta_H = max_H - min_H = 3.375 - 2.1738 ≈ 1.2012
+        st = self.spatial_entropy_stats('ТУМАН', 'xor3')
+        self.assertAlmostEqual(st['delta'], 3.375 - 2.1738, places=3)
+
+    def test_stats_tuman_xor3_mean_above_2(self):
+        st = self.spatial_entropy_stats('ТУМАН', 'xor3')
+        self.assertGreater(st['mean'], 2.5)
+
+    def test_stats_min_leq_mean_leq_max(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                st = self.spatial_entropy_stats(word, rule)
+                self.assertLessEqual(st['min'],  st['mean'] + 1e-9)
+                self.assertLessEqual(st['mean'], st['max']  + 1e-9)
+
+    def test_stats_delta_is_max_minus_min(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                st = self.spatial_entropy_stats(word, rule)
+                self.assertAlmostEqual(st['delta'], st['max'] - st['min'], places=9)
+
+    # ── spatent_summary() ─────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.spatent_summary('ГОРА', 'and')
+        for k in ('word', 'rule', 'period', 'profile', 'mean_H', 'std_H',
+                  'min_H', 'max_H', 'delta_H', 'max_possible_H',
+                  'norm_mean_H', 'variability'):
+            self.assertIn(k, d)
+
+    def test_summary_word_preserved(self):
+        d = self.spatent_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_summary_gora_and_variability_constant(self):
+        d = self.spatent_summary('ГОРА', 'and')
+        self.assertEqual(d['variability'], 'constant')
+
+    def test_summary_tuman_xor3_variability_high(self):
+        d = self.spatent_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['variability'], 'high')
+
+    def test_summary_norm_mean_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.spatent_summary(word, rule)
+                self.assertGreaterEqual(d['norm_mean_H'], 0.0)
+                self.assertLessEqual(d['norm_mean_H'],    1.0 + 1e-9)
+
+    def test_summary_max_possible_h_is_4(self):
+        d = self.spatent_summary('ГОРА', 'xor3', width=16)
+        self.assertAlmostEqual(d['max_possible_H'], 4.0, places=5)
+
+    def test_summary_period_matches_profile_len(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                d = self.spatent_summary(word, rule)
+                self.assertEqual(d['period'], len(d['profile']))
+
+    # ── all_spatent() ─────────────────────────────────────────────────────────
+
+    def test_all_spatent_keys(self):
+        r = self.all_spatent('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_spatent_consistent_word(self):
+        r = self.all_spatent('ТУМАН')
+        for rule, d in r.items():
+            self.assertEqual(d['word'], 'ТУМАН')
+            self.assertEqual(d['rule'], rule)
+
+    # ── build_spatent_data() ───────────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        data = self.build_spatent_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'max_possible_H', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_data_per_rule_has_4_rules(self):
+        data = self.build_spatent_data(['ГОРА'])
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_data_per_rule_word_keys(self):
+        words = ['ГОРА', 'ТУМАН', 'ЛУНА']
+        data = self.build_spatent_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    def test_build_data_max_possible_h(self):
+        import math
+        data = self.build_spatent_data(['ГОРА'], width=16)
+        self.assertAlmostEqual(data['max_possible_H'], math.log2(16), places=5)
+
+    def test_build_data_per_word_keys(self):
+        data = self.build_spatent_data(['ГОРА'])
+        entry = data['per_rule']['and']['ГОРА']
+        for k in ('period', 'profile', 'mean_H', 'std_H', 'min_H',
+                  'max_H', 'delta_H', 'norm_mean_H', 'variability'):
+            self.assertIn(k, entry)
+
+    # ── Scientific properties ─────────────────────────────────────────────────
+
+    def test_xor_zero_attractor_gives_zero_h(self):
+        # XOR always converges to all-zeros → H=0 for all lexicon words
+        for word in self.LEXICON[:10]:
+            st = self.spatial_entropy_stats(word, 'xor')
+            self.assertAlmostEqual(st['mean'], 0.0, places=10,
+                                   msg=f'{word} XOR should have H=0')
+
+    def test_constant_profile_has_zero_std(self):
+        # Constant profile → std_H = 0
+        for word in ['ГОРА', 'ВОДА', 'НОРА']:
+            st = self.spatial_entropy_stats(word, 'and')
+            self.assertAlmostEqual(st['std'], 0.0, places=10)
+
+    def test_tuman_xor3_is_most_variable(self):
+        # ТУМАН XOR3 has large delta_H > 1.0
+        st = self.spatial_entropy_stats('ТУМАН', 'xor3')
+        self.assertGreater(st['delta'], 1.0)
+
+    # ── Viewer section tests ───────────────────────────────────────────────────
+
+    def test_viewer_has_spatent_profile_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatent-profile', content)
+
+    def test_viewer_has_spatent_bars_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatent-bars', content)
+
+    def test_viewer_has_spatent_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatent-info', content)
+
+    def test_viewer_has_spatent_word_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('se-word', content)
+
+    def test_viewer_has_spatent_rule_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('se-rule', content)
+
+    def test_viewer_has_spatent_run_button(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('se-btn', content)
+
+    def test_viewer_has_spatial_h_function(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatialH', content)
+
+    def test_viewer_has_se_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('seRun', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
