@@ -9661,6 +9661,271 @@ class TestSolanBalance(unittest.TestCase):
         self.assertIn('FROZEN_ON', content)
 
 
+class TestSolanHamming(unittest.TestCase):
+    """Tests for solan_hamming.py and the viewer Hamming Weight section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_hamming import (
+            hamming_weight, state_mean_weight, state_weight_std,
+            orbit_weight_grid, orbit_weight_profile, weight_histogram,
+            parity_even_fraction, cell_weight_stats, all_cell_weight_stats,
+            weight_summary, all_weights, build_weight_data,
+        )
+        cls.hamming_weight         = staticmethod(hamming_weight)
+        cls.state_mean_weight      = staticmethod(state_mean_weight)
+        cls.state_weight_std       = staticmethod(state_weight_std)
+        cls.orbit_weight_grid      = staticmethod(orbit_weight_grid)
+        cls.orbit_weight_profile   = staticmethod(orbit_weight_profile)
+        cls.weight_histogram       = staticmethod(weight_histogram)
+        cls.parity_even_fraction   = staticmethod(parity_even_fraction)
+        cls.cell_weight_stats      = staticmethod(cell_weight_stats)
+        cls.all_cell_weight_stats  = staticmethod(all_cell_weight_stats)
+        cls.weight_summary         = staticmethod(weight_summary)
+        cls.all_weights            = staticmethod(all_weights)
+        cls.build_weight_data      = staticmethod(build_weight_data)
+
+    # ── hamming_weight() ──────────────────────────────────────────────
+
+    def test_hamming_weight_zero(self):
+        self.assertEqual(self.hamming_weight(0), 0)
+
+    def test_hamming_weight_one(self):
+        self.assertEqual(self.hamming_weight(1), 1)
+
+    def test_hamming_weight_63_full(self):
+        self.assertEqual(self.hamming_weight(63), 6)
+
+    def test_hamming_weight_47(self):
+        # 47 = 0b101111 → 5 ones
+        self.assertEqual(self.hamming_weight(47), 5)
+
+    def test_hamming_weight_48(self):
+        # 48 = 0b110000 → 2 ones
+        self.assertEqual(self.hamming_weight(48), 2)
+
+    def test_hamming_weight_mask_to_6bits(self):
+        # Bits above 6 should be masked
+        self.assertEqual(self.hamming_weight(64), 0)
+        self.assertEqual(self.hamming_weight(65), 1)
+
+    # ── state_mean_weight() & state_weight_std() ─────────────────────
+
+    def test_state_mean_weight_empty(self):
+        self.assertAlmostEqual(self.state_mean_weight([]), 0.0)
+
+    def test_state_mean_weight_constant(self):
+        self.assertAlmostEqual(self.state_mean_weight([3, 3, 3]), 3.0)
+
+    def test_state_mean_weight_mixed(self):
+        self.assertAlmostEqual(self.state_mean_weight([0, 6]), 3.0)
+
+    def test_state_weight_std_uniform(self):
+        self.assertAlmostEqual(self.state_weight_std([4, 4, 4]), 0.0)
+
+    def test_state_weight_std_binary(self):
+        self.assertAlmostEqual(self.state_weight_std([0, 6]), 3.0)
+
+    # ── ТУМАН XOR (P=1, all=0) ────────────────────────────────────────
+
+    def test_tuman_xor_density_zero(self):
+        d = self.weight_summary('ТУМАН', 'xor', 16)
+        self.assertAlmostEqual(d['density'], 0.0, places=6)
+
+    def test_tuman_xor_histogram_only_zero(self):
+        h = self.weight_histogram('ТУМАН', 'xor', 16)
+        self.assertEqual(set(h.keys()), {0})
+        self.assertAlmostEqual(h[0], 1.0, places=6)
+
+    def test_tuman_xor_osc_std_zero(self):
+        d = self.weight_summary('ТУМАН', 'xor', 16)
+        self.assertAlmostEqual(d['osc_std'], 0.0, places=6)
+
+    def test_tuman_xor_spatial_std_zero(self):
+        d = self.weight_summary('ТУМАН', 'xor', 16)
+        self.assertAlmostEqual(d['spatial_mean_std'], 0.0, places=6)
+
+    # ── ГОРА AND (P=2, bimodal) ───────────────────────────────────────
+
+    def test_gora_and_density_half(self):
+        d = self.weight_summary('ГОРА', 'and', 16)
+        self.assertAlmostEqual(d['density'], 0.5, places=6)
+
+    def test_gora_and_osc_std_zero(self):
+        # Mean is CONSTANT at 3.0 — anti-phase keeps it fixed!
+        d = self.weight_summary('ГОРА', 'and', 16)
+        self.assertAlmostEqual(d['osc_std'], 0.0, places=6)
+
+    def test_gora_and_spatial_std_2(self):
+        d = self.weight_summary('ГОРА', 'and', 16)
+        self.assertAlmostEqual(d['spatial_mean_std'], 2.0, places=6)
+
+    def test_gora_and_bimodal(self):
+        d = self.weight_summary('ГОРА', 'and', 16)
+        self.assertTrue(d['is_bimodal'])
+
+    def test_gora_and_histogram_1_and_5(self):
+        h = self.weight_histogram('ГОРА', 'and', 16)
+        self.assertEqual(set(h.keys()), {1, 5})
+        self.assertAlmostEqual(h[1], 0.5, places=6)
+        self.assertAlmostEqual(h[5], 0.5, places=6)
+
+    def test_gora_and_all_odd_weights(self):
+        d = self.weight_summary('ГОРА', 'and', 16)
+        self.assertTrue(d['all_odd_weights'])
+        self.assertFalse(d['all_even_weights'])
+
+    def test_gora_and_parity_even_zero(self):
+        pef = self.parity_even_fraction('ГОРА', 'and', 16)
+        self.assertAlmostEqual(pef, 0.0, places=6)
+
+    def test_gora_and_profile_constant_mean(self):
+        profile = self.orbit_weight_profile('ГОРА', 'and', 16)
+        for p in profile:
+            self.assertAlmostEqual(p['mean'], 3.0, places=6)
+
+    def test_gora_and_profile_std_2(self):
+        profile = self.orbit_weight_profile('ГОРА', 'and', 16)
+        for p in profile:
+            self.assertAlmostEqual(p['std'], 2.0, places=6)
+
+    # ── ТУМАН XOR3 (P=8, even-weight parity conservation) ────────────
+
+    def test_tuman_xor3_all_even_weights(self):
+        d = self.weight_summary('ТУМАН', 'xor3', 16)
+        self.assertTrue(d['all_even_weights'])
+        self.assertFalse(d['all_odd_weights'])
+
+    def test_tuman_xor3_parity_even_one(self):
+        pef = self.parity_even_fraction('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(pef, 1.0, places=6)
+
+    def test_tuman_xor3_histogram_even_only(self):
+        h = self.weight_histogram('ТУМАН', 'xor3', 16)
+        for k in h.keys():
+            self.assertEqual(k % 2, 0)
+
+    def test_tuman_xor3_osc_std_positive(self):
+        d = self.weight_summary('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['osc_std'], 0.0)
+
+    def test_tuman_xor3_density_near_half(self):
+        d = self.weight_summary('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['density'], 0.3)
+        self.assertLess(d['density'], 0.8)
+
+    # ── ГОРА XOR3 (P=2, genuine oscillation) ─────────────────────────
+
+    def test_gora_xor3_osc_std_one(self):
+        d = self.weight_summary('ГОРА', 'xor3', 16)
+        self.assertAlmostEqual(d['osc_std'], 1.0, places=6)
+
+    def test_gora_xor3_profile_means(self):
+        profile = self.orbit_weight_profile('ГОРА', 'xor3', 16)
+        self.assertEqual(len(profile), 2)
+        means = sorted(p['mean'] for p in profile)
+        self.assertAlmostEqual(means[0], 2.5, places=6)
+        self.assertAlmostEqual(means[1], 4.5, places=6)
+
+    # ── orbit_weight_grid() ───────────────────────────────────────────
+
+    def test_orbit_weight_grid_cell_count(self):
+        grid = self.orbit_weight_grid('ТУМАН', 'xor3', 16)
+        for row in grid:
+            self.assertEqual(len(row), 16)
+
+    def test_orbit_weight_grid_weight_range(self):
+        grid = self.orbit_weight_grid('ТУМАН', 'xor3', 16)
+        for row in grid:
+            for w in row:
+                self.assertGreaterEqual(w, 0)
+                self.assertLessEqual(w, 6)
+
+    # ── cell_weight_stats() ───────────────────────────────────────────
+
+    def test_cell_weight_stats_empty(self):
+        s = self.cell_weight_stats([])
+        self.assertAlmostEqual(s['mean'], 0.0)
+        self.assertAlmostEqual(s['density'], 0.0)
+
+    def test_cell_weight_stats_constant(self):
+        s = self.cell_weight_stats([3, 3, 3])
+        self.assertAlmostEqual(s['mean'], 3.0)
+        self.assertAlmostEqual(s['std'], 0.0)
+        self.assertAlmostEqual(s['density'], 0.5)
+        self.assertEqual(s['n_distinct'], 1)
+
+    def test_cell_weight_stats_has_keys(self):
+        s = self.cell_weight_stats([2, 4, 2, 4])
+        for k in ('mean', 'std', 'min', 'max', 'range', 'density', 'n_distinct'):
+            self.assertIn(k, s)
+
+    # ── weight_summary() structure ────────────────────────────────────
+
+    def test_weight_summary_has_keys(self):
+        d = self.weight_summary('ГОРА', 'and', 16)
+        for k in ('word', 'rule', 'period', 'global_mean', 'density',
+                  'osc_std', 'spatial_mean_std', 'step_profile',
+                  'histogram', 'parity_even_frac', 'is_bimodal',
+                  'all_even_weights', 'all_odd_weights',
+                  'min_weight', 'max_weight', 'cell_stats'):
+            self.assertIn(k, d)
+
+    def test_weight_summary_word_uppercase(self):
+        d = self.weight_summary('гора', 'and', 16)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_weight_summary_density_range(self):
+        for word, rule in [('ТУМАН','xor'), ('ГОРА','and'), ('ТУМАН','xor3')]:
+            d = self.weight_summary(word, rule, 16)
+            self.assertGreaterEqual(d['density'], 0.0)
+            self.assertLessEqual(d['density'], 1.0)
+
+    # ── all_weights() ─────────────────────────────────────────────────
+
+    def test_all_weights_four_rules(self):
+        result = self.all_weights('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_weight_data() ───────────────────────────────────────────
+
+    def test_build_weight_data_no_cell_stats(self):
+        data = self.build_weight_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        self.assertNotIn('cell_stats', entry)
+        self.assertNotIn('step_profile', entry)
+
+    def test_build_weight_data_has_histogram(self):
+        data = self.build_weight_data(['ГОРА'], 16)
+        self.assertIn('histogram', data['per_rule']['and']['ГОРА'])
+
+    # ── Viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_hw_profile(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hw-profile', content)
+
+    def test_viewer_has_hw_hist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hw-hist', content)
+
+    def test_viewer_has_hw_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hw-stats', content)
+
+    def test_viewer_has_hw_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hwRun', content)
+
+    def test_viewer_has_hamming_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Hamming Weight Dynamics', content)
+
+    def test_viewer_has_bimodal_text(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('BIMODAL', content)
+
+
 class TestSolanRuns(unittest.TestCase):
     """Tests for solan_runs.py and the viewer Run-Length section."""
 
