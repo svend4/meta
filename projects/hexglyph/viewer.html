@@ -12389,6 +12389,194 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Orbit Distance Map — попарные расстояния между шагами аттрактора</h2>
+<p class="meta">M_Q6[t][s] = число ячеек, различных между шагами t и s · ТУМАН XOR3: near-return t=3 (dist=6) · ГОРА AND: все пары на расстоянии 16 (max) · packing_eff = mean/diam</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="dt-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="dt-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="dt-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="dist-matrix" width="530" height="200"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="dist-series" width="530" height="70"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="dist-info"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  function dtStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function dtOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=dtStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=dtStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=dtStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function dq6(a,b){var s=0; for(var i=0;i<a.length;i++) if(a[i]!==b[i]) s++; return s;}
+  function dbits(a,b){var s=0; for(var i=0;i<a.length;i++){var x=a[i]^b[i]; while(x){s+=x&1;x>>=1;}} return s;}
+
+  function dtRun(){
+    var word=(document.getElementById('dt-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('dt-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=dtOrbit(ic,rule), P=grid.length;
+    var col={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'}[rule]||'#80deea';
+    var r1=parseInt(col.slice(1,3),16)||0x80;
+    var g1=parseInt(col.slice(3,5),16)||0xde;
+    var b1=parseInt(col.slice(5,7),16)||0xea;
+
+    /* Build distance matrices */
+    var matQ6=[],serQ6=[],serBit=[];
+    for(var t=0;t<P;t++){
+      matQ6.push([]);
+      for(var s=0;s<P;s++) matQ6[t].push(dq6(grid[t],grid[s]));
+      serQ6.push(dq6(grid[0],grid[t]));
+      serBit.push(dbits(grid[0],grid[t]));
+    }
+    var diam=P>1?Math.max.apply(null,matQ6.map(function(r){return Math.max.apply(null,r);})):0;
+    var allOff=[];
+    for(var t=0;t<P;t++) for(var s=0;s<P;s++) if(t!==s) allOff.push(matQ6[t][s]);
+    var meanD=allOff.length?allOff.reduce(function(a,b){return a+b;},0)/allOff.length:0;
+    var pack=diam>0?meanD/diam:0;
+    var thr=Math.floor(N/2);
+    var nr=serQ6.map(function(d,t){return t>0&&d<thr?t:null;}).filter(function(x){return x!==null;});
+
+    /* ── Distance matrix heatmap ────────────────────────────────── */
+    var mc=document.getElementById('dist-matrix');
+    var mx=mc.getContext('2d');
+    var MW=mc.width, MH=mc.height;
+    mx.fillStyle='#0a0a0a'; mx.fillRect(0,0,MW,MH);
+    var PAD=32;
+    var cellSz=P>0?Math.min(Math.floor((MW-PAD*2)/P), Math.floor((MH-PAD*2)/P)):1;
+    var gridW=P*cellSz, gridH=P*cellSz;
+    var ox=Math.floor((MW-gridW)/2), oy=Math.floor((MH-gridH)/2);
+    /* Axis labels */
+    mx.fillStyle='#666'; mx.font='9px monospace'; mx.textAlign='center';
+    mx.fillText('step s →', ox+gridW/2, oy-14);
+    mx.save(); mx.translate(ox-18, oy+gridH/2); mx.rotate(-Math.PI/2);
+    mx.fillText('step t ↓', 0, 0); mx.restore();
+    /* Cells */
+    for(var t=0;t<P;t++){
+      for(var s=0;s<P;s++){
+        var d=matQ6[t][s];
+        var frac=diam>0?d/diam:0;
+        var alpha=frac;
+        mx.fillStyle='rgba('+r1+','+g1+','+b1+','+alpha.toFixed(3)+')';
+        mx.fillRect(ox+s*cellSz, oy+t*cellSz, cellSz-1, cellSz-1);
+        if(cellSz>=20){
+          mx.fillStyle=d>diam*0.6?'#111':'#888';
+          mx.font='9px monospace'; mx.textAlign='center';
+          mx.fillText(d, ox+s*cellSz+cellSz/2, oy+t*cellSz+cellSz/2+4);
+        }
+      }
+    }
+    /* Step labels */
+    if(cellSz>=12){
+      mx.fillStyle='#555'; mx.font='8px monospace';
+      for(var t=0;t<P;t++){
+        mx.textAlign='right';
+        mx.fillText(t, ox-4, oy+t*cellSz+cellSz/2+3);
+        mx.textAlign='center';
+        mx.fillText(t, ox+t*cellSz+cellSz/2, oy-4);
+      }
+    }
+    /* Title */
+    mx.fillStyle='#888'; mx.font='10px monospace'; mx.textAlign='left';
+    mx.fillText(word+' '+rule.toUpperCase()+' P='+P+'  diam='+diam+'/'+N+
+      '  pack='+pack.toFixed(3),PAD,14);
+
+    /* ── Distance series bars ────────────────────────────────────── */
+    var sc=document.getElementById('dist-series');
+    var sx=sc.getContext('2d');
+    var SW=sc.width, SH=sc.height;
+    sx.fillStyle='#0a0a0a'; sx.fillRect(0,0,SW,SH);
+    var sPad=28,sBot=16;
+    var sCW=SW-sPad*2, sCH=SH-sPad-sBot;
+    sx.strokeStyle='#333'; sx.lineWidth=1;
+    sx.beginPath(); sx.moveTo(sPad,sPad); sx.lineTo(sPad,sPad+sCH);
+    sx.lineTo(sPad+sCW,sPad+sCH); sx.stroke();
+    sx.fillStyle='#555'; sx.font='9px monospace'; sx.textAlign='left';
+    sx.fillText('Q6 distance from step 0  (near-return = bar < '+thr+')',sPad,sPad-10);
+    if(P>0){
+      var bW=Math.max(2,Math.floor(sCW/P)-2);
+      for(var t=0;t<P;t++){
+        var bh=diam>0?Math.round(sCH*serQ6[t]/diam):0;
+        var bx0=sPad+t*(bW+2);
+        var isNR=(t>0&&serQ6[t]<thr);
+        sx.fillStyle=isNR?'#ef9a9a':'rgba('+r1+','+g1+','+b1+',0.8)';
+        sx.fillRect(bx0, sPad+sCH-bh, bW, bh);
+        sx.fillStyle='#888'; sx.font='8px monospace'; sx.textAlign='center';
+        sx.fillText(t, bx0+bW/2, sPad+sCH+sBot-4);
+        if(bW>=12) sx.fillText(serQ6[t], bx0+bW/2, sPad+sCH-bh-3);
+      }
+      /* threshold line */
+      if(thr>0&&diam>0){
+        var thrY=sPad+sCH-Math.round(sCH*thr/diam);
+        sx.strokeStyle='rgba(255,80,80,0.3)'; sx.setLineDash([3,4]);
+        sx.beginPath(); sx.moveTo(sPad,thrY); sx.lineTo(sPad+sCW,thrY); sx.stroke();
+        sx.setLineDash([]);
+      }
+    }
+
+    /* ── Info ───────────────────────────────────────────────────── */
+    document.getElementById('dist-info').innerHTML=
+      '<b>'+word+' '+rule.toUpperCase()+'</b>  P='+P+'  diam_Q6='+diam+'/'+N+
+      '  mean='+meanD.toFixed(2)+'/'+N+'='+((meanD/N).toFixed(3))+
+      '  pack_eff='+pack.toFixed(3)+'<br>'+
+      'Q6_series=['+serQ6.join(',')+']  near_returns=['+nr.join(',')+']  '+
+      'closest_pair='+JSON.stringify(
+        P>1?[serQ6.reduce(function(best,d,t){return t>0&&d<best.d?{t:t,d:d}:best;},{t:-1,d:N}).t]:[]);
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var lexArr=window.LEXICON_ARR||['ТУМАН','ГОРА'];
+    var sel=document.getElementById('dt-word');
+    if(sel){
+      lexArr.forEach(function(w){var o=document.createElement('option');o.value=w;o.textContent=w;sel.appendChild(o);});
+      sel.value='ТУМАН';
+    }
+    var btn=document.getElementById('dt-btn');
+    var wEl=document.getElementById('dt-word');
+    var rEl=document.getElementById('dt-rule');
+    if(btn) btn.addEventListener('click',dtRun);
+    if(wEl) wEl.addEventListener('change',dtRun);
+    if(rEl) rEl.addEventListener('change',dtRun);
+    setTimeout(function(){if(window.encL) dtRun();},5000);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

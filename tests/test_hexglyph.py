@@ -14543,5 +14543,344 @@ class TestSolanLayer(unittest.TestCase):
         self.assertIn('BIT_COLS', content)
 
 
+class TestSolanDist(unittest.TestCase):
+    """Tests for solan_dist.py and the viewer Orbit Distance Map section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dist import (
+            step_distance_q6,
+            step_distance_bits,
+            distance_series_q6,
+            distance_series_bits,
+            distance_matrix_q6,
+            distance_matrix_bits,
+            orbit_diameter_q6,
+            orbit_diameter_bits,
+            mean_distance_q6,
+            packing_efficiency,
+            near_returns,
+            dist_summary,
+            all_dist,
+            build_dist_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.step_distance_q6    = staticmethod(step_distance_q6)
+        cls.step_distance_bits  = staticmethod(step_distance_bits)
+        cls.distance_series_q6  = staticmethod(distance_series_q6)
+        cls.distance_series_bits = staticmethod(distance_series_bits)
+        cls.distance_matrix_q6  = staticmethod(distance_matrix_q6)
+        cls.distance_matrix_bits = staticmethod(distance_matrix_bits)
+        cls.orbit_diameter_q6   = staticmethod(orbit_diameter_q6)
+        cls.orbit_diameter_bits  = staticmethod(orbit_diameter_bits)
+        cls.mean_distance_q6    = staticmethod(mean_distance_q6)
+        cls.packing_efficiency  = staticmethod(packing_efficiency)
+        cls.near_returns        = staticmethod(near_returns)
+        cls.dist_summary        = staticmethod(dist_summary)
+        cls.all_dist            = staticmethod(all_dist)
+        cls.build_dist_data     = staticmethod(build_dist_data)
+        cls.LEXICON             = list(LEXICON)
+
+    # ── step_distance_q6() / step_distance_bits() ────────────────────────────
+
+    def test_step_distance_q6_identical(self):
+        self.assertEqual(self.step_distance_q6([1, 2, 3], [1, 2, 3]), 0)
+
+    def test_step_distance_q6_all_different(self):
+        self.assertEqual(self.step_distance_q6([0, 0, 0], [1, 2, 3]), 3)
+
+    def test_step_distance_q6_range(self):
+        a, b = [47] * 16, [1] * 16
+        self.assertEqual(self.step_distance_q6(a, b), 16)
+
+    def test_step_distance_bits_zero(self):
+        self.assertEqual(self.step_distance_bits([5, 5, 5], [5, 5, 5]), 0)
+
+    def test_step_distance_bits_known(self):
+        # 47 XOR 1 = 46 = 0b101110 → popcount = 4; 16 cells → 64 bits
+        a = [47] * 16
+        b = [1] * 16
+        self.assertEqual(self.step_distance_bits(a, b), 64)
+
+    def test_step_distance_bits_gora_xor3(self):
+        # Verify ГОРА XOR3 bit distance between orbit steps = 48
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'xor3', 16)
+        self.assertEqual(self.step_distance_bits(orbit[0], orbit[1]), 48)
+
+    # ── distance_series_q6() / distance_series_bits() ─────────────────────────
+
+    def test_series_q6_starts_at_zero(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                ds = self.distance_series_q6(word, rule)
+                self.assertEqual(ds[0], 0)
+
+    def test_series_bits_starts_at_zero(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                ds = self.distance_series_bits(word, rule)
+                self.assertEqual(ds[0], 0)
+
+    def test_series_q6_tuman_xor3(self):
+        ds = self.distance_series_q6('ТУМАН', 'xor3')
+        self.assertEqual(ds, [0, 16, 16, 6, 16, 16, 12, 14])
+
+    def test_series_q6_gora_and(self):
+        ds = self.distance_series_q6('ГОРА', 'and')
+        self.assertEqual(ds, [0, 16])
+
+    def test_series_bits_gora_and(self):
+        ds = self.distance_series_bits('ГОРА', 'and')
+        self.assertEqual(ds, [0, 64])
+
+    def test_series_q6_gora_xor3(self):
+        ds = self.distance_series_q6('ГОРА', 'xor3')
+        self.assertEqual(ds, [0, 16])
+
+    def test_series_bits_gora_xor3(self):
+        ds = self.distance_series_bits('ГОРА', 'xor3')
+        self.assertEqual(ds, [0, 48])
+
+    def test_series_q6_length_equals_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                P  = word_trajectory(word, rule)['period']
+                ds = self.distance_series_q6(word, rule)
+                self.assertEqual(len(ds), P)
+
+    def test_series_q6_values_in_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for d in self.distance_series_q6(word, rule):
+                    self.assertGreaterEqual(d, 0)
+                    self.assertLessEqual(d, 16)
+
+    # ── distance_matrix_q6() / distance_matrix_bits() ─────────────────────────
+
+    def test_matrix_q6_diagonal_zero(self):
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        for t in range(len(mat)):
+            self.assertEqual(mat[t][t], 0)
+
+    def test_matrix_q6_symmetric(self):
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        P = len(mat)
+        for t in range(P):
+            for s in range(P):
+                self.assertEqual(mat[t][s], mat[s][t])
+
+    def test_matrix_bits_diagonal_zero(self):
+        mat = self.distance_matrix_bits('ГОРА', 'and')
+        for t in range(len(mat)):
+            self.assertEqual(mat[t][t], 0)
+
+    def test_matrix_bits_symmetric(self):
+        mat = self.distance_matrix_bits('ГОРА', 'and')
+        P = len(mat)
+        for t in range(P):
+            for s in range(P):
+                self.assertEqual(mat[t][s], mat[s][t])
+
+    def test_matrix_q6_gora_and(self):
+        mat = self.distance_matrix_q6('ГОРА', 'and')
+        self.assertEqual(mat, [[0, 16], [16, 0]])
+
+    def test_matrix_bits_gora_and(self):
+        mat = self.distance_matrix_bits('ГОРА', 'and')
+        self.assertEqual(mat, [[0, 64], [64, 0]])
+
+    def test_matrix_q6_tuman_xor3_row0(self):
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        self.assertEqual(mat[0], [0, 16, 16, 6, 16, 16, 12, 14])
+
+    def test_matrix_q6_tuman_xor3_closest_entry(self):
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        # Closest non-diagonal: (0,3) and (3,0) with distance 6
+        off_diag = [mat[t][s] for t in range(8) for s in range(8) if t != s]
+        self.assertEqual(min(off_diag), 6)
+
+    # ── orbit_diameter_q6() / orbit_diameter_bits() ────────────────────────────
+
+    def test_diameter_q6_tuman_xor(self):
+        self.assertEqual(self.orbit_diameter_q6('ТУМАН', 'xor'), 0)
+
+    def test_diameter_q6_gora_and(self):
+        self.assertEqual(self.orbit_diameter_q6('ГОРА', 'and'), 16)
+
+    def test_diameter_q6_gora_xor3(self):
+        self.assertEqual(self.orbit_diameter_q6('ГОРА', 'xor3'), 16)
+
+    def test_diameter_q6_tuman_xor3(self):
+        self.assertEqual(self.orbit_diameter_q6('ТУМАН', 'xor3'), 16)
+
+    def test_diameter_bits_gora_and(self):
+        self.assertEqual(self.orbit_diameter_bits('ГОРА', 'and'), 64)
+
+    def test_diameter_bits_gora_xor3(self):
+        self.assertEqual(self.orbit_diameter_bits('ГОРА', 'xor3'), 48)
+
+    def test_diameter_q6_at_most_N(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.orbit_diameter_q6(word, rule)
+                self.assertLessEqual(d, 16)
+                self.assertGreaterEqual(d, 0)
+
+    # ── mean_distance_q6() / packing_efficiency() ─────────────────────────────
+
+    def test_mean_distance_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_distance_q6('ТУМАН', 'xor'), 0.0, places=5)
+
+    def test_mean_distance_gora_and(self):
+        self.assertAlmostEqual(self.mean_distance_q6('ГОРА', 'and'), 16.0, places=5)
+
+    def test_mean_distance_tuman_xor3(self):
+        md = self.mean_distance_q6('ТУМАН', 'xor3')
+        # From computed matrix: mean of 8*8-8=56 off-diag entries
+        self.assertAlmostEqual(md, 13.928571, places=4)
+
+    def test_packing_efficiency_tuman_xor(self):
+        self.assertAlmostEqual(self.packing_efficiency('ТУМАН', 'xor'), 0.0, places=9)
+
+    def test_packing_efficiency_gora_and(self):
+        self.assertAlmostEqual(self.packing_efficiency('ГОРА', 'and'), 1.0, places=9)
+
+    def test_packing_efficiency_gora_xor3(self):
+        self.assertAlmostEqual(self.packing_efficiency('ГОРА', 'xor3'), 1.0, places=9)
+
+    def test_packing_efficiency_tuman_xor3(self):
+        pe = self.packing_efficiency('ТУМАН', 'xor3')
+        self.assertAlmostEqual(pe, 13.928571 / 16, places=4)
+
+    def test_packing_efficiency_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                pe = self.packing_efficiency(word, rule)
+                self.assertGreaterEqual(pe, 0.0)
+                self.assertLessEqual(pe, 1.0)
+
+    # ── near_returns() ────────────────────────────────────────────────────────
+
+    def test_near_returns_tuman_xor(self):
+        nr = self.near_returns('ТУМАН', 'xor')
+        self.assertEqual(nr, [])
+
+    def test_near_returns_gora_and(self):
+        # All pairs at dist=16, no near-returns under N/2=8
+        nr = self.near_returns('ГОРА', 'and')
+        self.assertEqual(nr, [])
+
+    def test_near_returns_tuman_xor3(self):
+        # t=3 is the near-return with dist=6 < 8
+        nr = self.near_returns('ТУМАН', 'xor3')
+        self.assertIn(3, nr)
+
+    def test_near_returns_tuman_xor3_dist_at_t3(self):
+        ds = self.distance_series_q6('ТУМАН', 'xor3')
+        self.assertEqual(ds[3], 6)
+
+    def test_near_returns_custom_threshold(self):
+        # With threshold=7, t=3 (dist=6) should be a near-return
+        nr = self.near_returns('ТУМАН', 'xor3', threshold=7)
+        self.assertIn(3, nr)
+
+    def test_near_returns_strict_threshold(self):
+        # With threshold=5, t=3 (dist=6) should NOT be a near-return
+        nr = self.near_returns('ТУМАН', 'xor3', threshold=5)
+        self.assertNotIn(3, nr)
+
+    # ── dist_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.dist_summary('ТУМАН', 'xor3')
+        for k in ('word', 'rule', 'period', 'N',
+                  'distance_series_q6', 'distance_series_bits',
+                  'diameter_q6', 'diameter_bits',
+                  'mean_dist_q6', 'packing_efficiency', 'near_returns',
+                  'closest_dist_q6', 'closest_pair'):
+            self.assertIn(k, d)
+
+    def test_summary_word_normalised(self):
+        self.assertEqual(self.dist_summary('туман', 'xor3')['word'], 'ТУМАН')
+
+    def test_summary_tuman_xor3_near_return(self):
+        d = self.dist_summary('ТУМАН', 'xor3')
+        self.assertIn(3, d['near_returns'])
+
+    def test_summary_gora_and_closest_dist(self):
+        d = self.dist_summary('ГОРА', 'and')
+        self.assertEqual(d['closest_dist_q6'], 16)
+
+    def test_summary_tuman_xor3_closest_dist(self):
+        d = self.dist_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['closest_dist_q6'], 6)
+
+    def test_summary_tuman_xor3_closest_pair(self):
+        d = self.dist_summary('ТУМАН', 'xor3')
+        t, s = d['closest_pair']
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        self.assertEqual(mat[t][s], 6)
+
+    def test_summary_diam_norm_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.dist_summary(word, rule)
+                self.assertGreaterEqual(d['diam_q6_norm'], 0.0)
+                self.assertLessEqual(d['diam_q6_norm'], 1.0)
+
+    # ── all_dist() / build_dist_data() ────────────────────────────────────────
+
+    def test_all_dist_four_rules(self):
+        r = self.all_dist('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_dist_data_keys(self):
+        data = self.build_dist_data(['ГОРА', 'ТУМАН'])
+        for k in ('words', 'width', 'N_max_q6', 'N_max_bits', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_dist_data_word_coverage(self):
+        words = ['ГОРА', 'ТУМАН']
+        data = self.build_dist_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_dist_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dist-matrix', content)
+
+    def test_viewer_has_dist_series(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dist-series', content)
+
+    def test_viewer_has_dist_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dist-info', content)
+
+    def test_viewer_has_dt_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dt-word', content)
+
+    def test_viewer_has_dt_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dt-rule', content)
+
+    def test_viewer_has_dt_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dt-btn', content)
+
+    def test_viewer_has_dt_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dtRun', content)
+
+    def test_viewer_has_dq6_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dq6', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
