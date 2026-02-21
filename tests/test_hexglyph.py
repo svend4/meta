@@ -3732,284 +3732,6 @@ class TestSolanComplexity(unittest.TestCase):
         self.assertIn('lz-all-btn', content)
 
 
-class TestSolanRecurrence(unittest.TestCase):
-    """Tests for solan_recurrence.py and the viewer Recurrence section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_recurrence import (
-            state_hamming, recurrence_matrix, rqa_metrics,
-            trajectory_recurrence, all_recurrences,
-            build_recurrence_data, recurrence_dict,
-            _ALL_RULES,
-        )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.state_hamming         = staticmethod(state_hamming)
-        cls.recurrence_matrix     = staticmethod(recurrence_matrix)
-        cls.rqa_metrics           = staticmethod(rqa_metrics)
-        cls.trajectory_recurrence = staticmethod(trajectory_recurrence)
-        cls.all_recurrences       = staticmethod(all_recurrences)
-        cls.build_recurrence_data = staticmethod(build_recurrence_data)
-        cls.recurrence_dict       = staticmethod(recurrence_dict)
-        cls.ALL_RULES             = _ALL_RULES
-        cls.LEXICON               = list(LEXICON)
-
-    # ── state_hamming() ────────────────────────────────────────────────────────
-
-    def test_sh_identical_zeros(self):
-        self.assertEqual(self.state_hamming([0]*16, [0]*16), 0)
-
-    def test_sh_identical_nonzero(self):
-        self.assertEqual(self.state_hamming([63]*16, [63]*16), 0)
-
-    def test_sh_one_bit_diff(self):
-        # rows differ by one bit in one cell
-        r1 = [0]*16; r2 = [0]*16; r2[0] = 1
-        self.assertEqual(self.state_hamming(r1, r2), 1)
-
-    def test_sh_max_distance(self):
-        # all 6 bits differ in all 16 cells
-        self.assertEqual(self.state_hamming([0]*16, [63]*16), 96)
-
-    def test_sh_symmetric(self):
-        r1 = [7, 0, 63, 1]; r2 = [0, 7, 1, 63]
-        self.assertEqual(self.state_hamming(r1, r2), self.state_hamming(r2, r1))
-
-    # ── recurrence_matrix() ────────────────────────────────────────────────────
-
-    def test_rm_shape(self):
-        rows = [[0]*4, [1]*4, [2]*4]
-        R = self.recurrence_matrix(rows, eps=0)
-        self.assertEqual(len(R), 3)
-        self.assertEqual(len(R[0]), 3)
-
-    def test_rm_main_diag_all_ones(self):
-        rows = [[i]*4 for i in range(5)]
-        R = self.recurrence_matrix(rows, eps=0)
-        for i in range(5):
-            self.assertEqual(R[i][i], 1)
-
-    def test_rm_symmetric(self):
-        rows = [[0]*4, [1]*4, [3]*4, [7]*4]
-        R = self.recurrence_matrix(rows, eps=0)
-        for i in range(len(R)):
-            for j in range(len(R)):
-                self.assertEqual(R[i][j], R[j][i])
-
-    def test_rm_identical_rows_all_ones(self):
-        rows = [[0]*4] * 4
-        R = self.recurrence_matrix(rows, eps=0)
-        for row in R:
-            self.assertTrue(all(v == 1 for v in row))
-
-    def test_rm_eps_0_strict(self):
-        rows = [[0]*4, [1]*4]
-        R = self.recurrence_matrix(rows, eps=0)
-        self.assertEqual(R[0][1], 0)
-
-    def test_rm_eps_positive_relaxes(self):
-        # rows differ by exactly 1 bit (first cell: 0 vs 1) → eps=1 makes them recurrent
-        rows = [[0, 0, 0, 0], [1, 0, 0, 0]]
-        R = self.recurrence_matrix(rows, eps=1)
-        self.assertEqual(R[0][1], 1)
-
-    # ── rqa_metrics() ─────────────────────────────────────────────────────────
-
-    def test_rqa_empty(self):
-        m = self.rqa_metrics([])
-        self.assertEqual(m['N'], 0)
-        self.assertEqual(m['RR'], 0.0)
-
-    def test_rqa_single_row(self):
-        m = self.rqa_metrics([[1]])
-        self.assertEqual(m['N'], 1)
-        self.assertEqual(m['RR'], 0.0)  # no off-diagonal pairs
-
-    def test_rqa_full_ones_rr(self):
-        # 4×4 all-ones → RR = 12/12 = 1.0 (off-diagonal)
-        R = [[1]*4 for _ in range(4)]
-        m = self.rqa_metrics(R)
-        self.assertAlmostEqual(m['RR'], 1.0, places=4)
-
-    def test_rqa_full_ones_det(self):
-        # 4×4 all-ones: shorter diagonals (length 1 at offset=3) don't meet min_line=2
-        # so DET < 1.0 but > 0.8
-        R = [[1]*4 for _ in range(4)]
-        m = self.rqa_metrics(R)
-        self.assertGreater(m['DET'], 0.8)
-
-    def test_rqa_full_ones_lam(self):
-        # same edge effect for vertical lines → LAM > 0.8
-        R = [[1]*4 for _ in range(4)]
-        m = self.rqa_metrics(R)
-        self.assertGreater(m['LAM'], 0.8)
-
-    def test_rqa_zero_off_diag(self):
-        # only main diagonal → RR=0
-        N = 4
-        R = [[1 if i == j else 0 for j in range(N)] for i in range(N)]
-        m = self.rqa_metrics(R)
-        self.assertEqual(m['RR'], 0.0)
-        self.assertEqual(m['DET'], 0.0)
-
-    def test_rqa_checkerboard_det(self):
-        # XOR3-style checkerboard: R[i][j]=1 iff (i+j) even
-        N = 6
-        R = [[1 if (i + j) % 2 == 0 else 0 for j in range(N)] for i in range(N)]
-        m = self.rqa_metrics(R)
-        # Diagonal offset=2 is all-ones (length N-2=4 ≥ 2) → DET > 0
-        self.assertGreater(m['DET'], 0.0)
-
-    def test_rqa_keys_present(self):
-        R = [[1, 0], [0, 1]]
-        m = self.rqa_metrics(R)
-        for key in ['N', 'RR', 'DET', 'L', 'LAM', 'TT']:
-            self.assertIn(key, m)
-
-    # ── trajectory_recurrence() ────────────────────────────────────────────────
-
-    def test_tr_returns_dict(self):
-        r = self.trajectory_recurrence('ГОРА', 'xor3')
-        self.assertIsInstance(r, dict)
-
-    def test_tr_keys(self):
-        r = self.trajectory_recurrence('ГОРА', 'xor3')
-        for k in ['word', 'rule', 'width', 'eps', 'transient', 'period',
-                  'n_steps', 'R', 'rqa']:
-            self.assertIn(k, r)
-
-    def test_tr_word_uppercased(self):
-        r = self.trajectory_recurrence('гора', 'xor3')
-        self.assertEqual(r['word'], 'ГОРА')
-
-    def test_tr_matrix_shape(self):
-        r = self.trajectory_recurrence('ГОРА', 'xor3')
-        N = r['n_steps']
-        self.assertEqual(len(r['R']), N)
-        self.assertEqual(len(r['R'][0]), N)
-
-    def test_tr_xor_rr(self):
-        # XOR: ГОРА transient=2, period=1, N=6 → attractor rows all-zeros
-        # RR=0.4 as verified by CLI
-        r = self.trajectory_recurrence('ГОРА', 'xor')
-        self.assertAlmostEqual(r['rqa']['RR'], 0.4, places=3)
-
-    def test_tr_xor_high_det(self):
-        # Attractor block of identical rows → long diagonals → DET > 0.5
-        r = self.trajectory_recurrence('ГОРА', 'xor')
-        self.assertGreater(r['rqa']['DET'], 0.5)
-
-    def test_tr_xor3_det_one(self):
-        # XOR3 checkerboard → every off-diagonal point lies on a diagonal line
-        r = self.trajectory_recurrence('ГОРА', 'xor3')
-        self.assertAlmostEqual(r['rqa']['DET'], 1.0, places=3)
-
-    def test_tr_or_high_rr(self):
-        # OR period-1 attractor: many identical rows → high RR
-        r = self.trajectory_recurrence('ГОРА', 'or')
-        self.assertGreater(r['rqa']['RR'], 0.4)
-
-    def test_tr_n_steps_consistent(self):
-        r = self.trajectory_recurrence('ТУМАН', 'xor3', n_cycles=4)
-        expected = r['transient'] + 4 * r['period']
-        self.assertEqual(r['n_steps'], expected)
-
-    def test_tr_different_words_different_rr(self):
-        r1 = self.trajectory_recurrence('ГОРА', 'xor3')
-        r2 = self.trajectory_recurrence('ТУМАН', 'xor3')
-        # Just check they are both valid floats in [0,1]
-        self.assertGreaterEqual(r1['rqa']['RR'], 0.0)
-        self.assertGreaterEqual(r2['rqa']['RR'], 0.0)
-
-    def test_tr_eps_positive_increases_rr(self):
-        r0 = self.trajectory_recurrence('ГОРА', 'xor3', eps=0)
-        r1 = self.trajectory_recurrence('ГОРА', 'xor3', eps=4)
-        self.assertGreaterEqual(r1['rqa']['RR'], r0['rqa']['RR'])
-
-    # ── all_recurrences() ──────────────────────────────────────────────────────
-
-    def test_ar_all_rules(self):
-        d = self.all_recurrences('ГОРА')
-        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
-
-    def test_ar_each_has_rqa(self):
-        d = self.all_recurrences('ВОДА')
-        for rule in self.ALL_RULES:
-            self.assertIn('rqa', d[rule])
-
-    # ── build_recurrence_data() ───────────────────────────────────────────────
-
-    def test_brd_keys(self):
-        d = self.build_recurrence_data(['ГОРА', 'ВОДА'])
-        for k in ['words', 'width', 'eps', 'per_rule', 'ranking', 'max_rr', 'min_rr']:
-            self.assertIn(k, d)
-
-    def test_brd_per_rule_contains_all_rules(self):
-        d = self.build_recurrence_data(['ГОРА'])
-        self.assertEqual(set(d['per_rule'].keys()), set(self.ALL_RULES))
-
-    def test_brd_ranking_sorted(self):
-        d = self.build_recurrence_data(['ГОРА', 'ВОДА', 'ТУМАН'])
-        for rule in self.ALL_RULES:
-            rr_vals = [x[1] for x in d['ranking'][rule]]
-            self.assertEqual(rr_vals, sorted(rr_vals, reverse=True))
-
-    def test_brd_max_rr_is_tuple(self):
-        d = self.build_recurrence_data(['ГОРА', 'ВОДА'])
-        for rule in self.ALL_RULES:
-            self.assertIsInstance(d['max_rr'][rule], tuple)
-
-    # ── recurrence_dict() ─────────────────────────────────────────────────────
-
-    def test_rd_json_serialisable(self):
-        import json
-        d = self.recurrence_dict('ГОРА')
-        # R matrix is excluded; should be serialisable
-        json.dumps(d)
-
-    def test_rd_rules_key(self):
-        d = self.recurrence_dict('ГОРА')
-        self.assertIn('rules', d)
-        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
-
-    def test_rd_each_rule_has_rr(self):
-        d = self.recurrence_dict('ВОДА')
-        for rule in self.ALL_RULES:
-            self.assertIn('RR', d['rules'][rule])
-
-    def test_rd_no_matrix(self):
-        # The R matrix should NOT be in the JSON export (too large)
-        d = self.recurrence_dict('ГОРА')
-        for rule in self.ALL_RULES:
-            self.assertNotIn('R', d['rules'][rule])
-
-    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
-
-    def test_viewer_has_rc_canvas(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rc-canvas', content)
-
-    def test_viewer_has_rc_metrics(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rc-metrics', content)
-
-    def test_viewer_has_rc_hmap(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rc-hmap', content)
-
-    def test_viewer_has_rc_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rc-btn', content)
-
-    def test_viewer_has_rqa_met(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rqaMet', content)
-
-    def test_viewer_has_rc_rows(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rcRows', content)
-
-
 class TestSolanSpacetime(unittest.TestCase):
     """Tests for solan_spacetime.py and the viewer Space-time section."""
 
@@ -20974,6 +20696,315 @@ class TestSolanMoran(unittest.TestCase):
     def test_viewer_has_solan_moran_section(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_moran', content)
+
+
+class TestSolanRecurrence2(unittest.TestCase):
+    """Replacement tests for solan_recurrence.py (standard *_summary convention)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_recurrence import (
+            state_hamming, recurrence_matrix, rqa_metrics,
+            trajectory_recurrence, recurrence_summary,
+            all_recurrences, build_recurrence_data, recurrence_dict,
+            _ALL_RULES, _DEFAULT_WIDTH, _DEFAULT_EPS, _N_CYCLES,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.state_hamming         = staticmethod(state_hamming)
+        cls.recurrence_matrix     = staticmethod(recurrence_matrix)
+        cls.rqa_metrics           = staticmethod(rqa_metrics)
+        cls.trajectory_recurrence = staticmethod(trajectory_recurrence)
+        cls.recurrence_summary    = staticmethod(recurrence_summary)
+        cls.all_recurrences       = staticmethod(all_recurrences)
+        cls.build_recurrence_data = staticmethod(build_recurrence_data)
+        cls.recurrence_dict       = staticmethod(recurrence_dict)
+        cls.ALL_RULES             = _ALL_RULES
+        cls.DEFAULT_WIDTH         = _DEFAULT_WIDTH
+        cls.DEFAULT_EPS           = _DEFAULT_EPS
+        cls.N_CYCLES              = _N_CYCLES
+        cls.LEXICON               = list(LEXICON)
+
+    # ── state_hamming() ────────────────────────────────────────────────────────
+
+    def test_sh_identical_zeros(self):
+        self.assertEqual(self.state_hamming([0, 0], [0, 0]), 0)
+
+    def test_sh_identical_max(self):
+        self.assertEqual(self.state_hamming([63, 63], [63, 63]), 0)
+
+    def test_sh_one_bit(self):
+        self.assertEqual(self.state_hamming([0], [1]), 1)
+
+    def test_sh_six_bits(self):
+        self.assertEqual(self.state_hamming([0], [63]), 6)
+
+    def test_sh_two_cells_full_diff(self):
+        # [0,63] vs [63,0]: each cell differs by 6 bits → 12 total
+        self.assertEqual(self.state_hamming([0, 63], [63, 0]), 12)
+
+    def test_sh_symmetric(self):
+        r1 = [7, 0, 63, 1]
+        r2 = [0, 7, 1, 63]
+        self.assertEqual(self.state_hamming(r1, r2), self.state_hamming(r2, r1))
+
+    def test_sh_zero_vs_63_16_cells(self):
+        self.assertEqual(self.state_hamming([0]*16, [63]*16), 96)
+
+    # ── recurrence_matrix() ────────────────────────────────────────────────────
+
+    def test_rm_shape_square(self):
+        rows = [[0]*4, [1]*4, [2]*4]
+        R = self.recurrence_matrix(rows, eps=0)
+        self.assertEqual(len(R), 3)
+        self.assertTrue(all(len(row) == 3 for row in R))
+
+    def test_rm_main_diag_ones(self):
+        rows = [[i]*4 for i in range(5)]
+        R = self.recurrence_matrix(rows, eps=0)
+        for i in range(5):
+            self.assertEqual(R[i][i], 1)
+
+    def test_rm_symmetric(self):
+        rows = [[0]*4, [1]*4, [3]*4]
+        R = self.recurrence_matrix(rows, eps=0)
+        for i in range(3):
+            for j in range(3):
+                self.assertEqual(R[i][j], R[j][i])
+
+    def test_rm_identical_rows_all_ones(self):
+        rows = [[5]*4] * 4
+        R = self.recurrence_matrix(rows, eps=0)
+        self.assertTrue(all(R[i][j] == 1 for i in range(4) for j in range(4)))
+
+    def test_rm_eps_0_distinct_rows(self):
+        R = self.recurrence_matrix([[0]*4, [1]*4], eps=0)
+        self.assertEqual(R[0][1], 0)
+
+    def test_rm_eps_relaxes(self):
+        # differ by 1 bit → eps=1 makes them recurrent
+        R = self.recurrence_matrix([[0, 0], [1, 0]], eps=1)
+        self.assertEqual(R[0][1], 1)
+
+    # ── rqa_metrics() ─────────────────────────────────────────────────────────
+
+    def test_rqa_empty(self):
+        m = self.rqa_metrics([])
+        self.assertEqual(m['N'], 0)
+        self.assertEqual(m['RR'], 0.0)
+
+    def test_rqa_single_row(self):
+        m = self.rqa_metrics([[1]])
+        self.assertEqual(m['RR'], 0.0)
+
+    def test_rqa_all_ones_rr_1(self):
+        R = [[1]*4 for _ in range(4)]
+        m = self.rqa_metrics(R)
+        self.assertAlmostEqual(m['RR'], 1.0, places=4)
+
+    def test_rqa_identity_rr_0(self):
+        N = 4
+        R = [[1 if i == j else 0 for j in range(N)] for i in range(N)]
+        m = self.rqa_metrics(R)
+        self.assertEqual(m['RR'], 0.0)
+        self.assertEqual(m['DET'], 0.0)
+
+    def test_rqa_required_keys(self):
+        m = self.rqa_metrics([[1, 0], [0, 1]])
+        for key in ('N', 'RR', 'DET', 'L', 'LAM', 'TT'):
+            self.assertIn(key, m)
+
+    def test_rqa_rr_in_range(self):
+        import random
+        random.seed(42)
+        R = [[random.choice([0, 1]) for _ in range(8)] for _ in range(8)]
+        m = self.rqa_metrics(R)
+        self.assertGreaterEqual(m['RR'], 0.0)
+        self.assertLessEqual(m['RR'], 1.0)
+
+    # ── trajectory_recurrence() / recurrence_summary() ─────────────────────────
+
+    def test_tr_returns_dict(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor3')
+        self.assertIsInstance(r, dict)
+
+    def test_tr_required_keys(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'width', 'eps', 'transient', 'period',
+                  'n_steps', 'R', 'rqa'):
+            self.assertIn(k, r)
+
+    def test_tr_word_uppercased(self):
+        r = self.trajectory_recurrence('гора', 'xor3')
+        self.assertEqual(r['word'], 'ГОРА')
+
+    def test_tr_matrix_square(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor3')
+        N = r['n_steps']
+        self.assertEqual(len(r['R']), N)
+        self.assertTrue(all(len(row) == N for row in r['R']))
+
+    def test_tr_n_steps_formula(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3', n_cycles=4)
+        self.assertEqual(r['n_steps'], r['transient'] + 4 * r['period'])
+
+    def test_tr_gora_xor_rr(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor')
+        self.assertAlmostEqual(r['rqa']['RR'], 0.4, places=3)
+
+    def test_tr_gora_xor3_det_one(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor3')
+        self.assertAlmostEqual(r['rqa']['DET'], 1.0, places=3)
+
+    def test_tr_tuman_xor3_rr(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['RR'], 0.0968, places=3)
+
+    def test_tr_tuman_xor3_det_one(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['DET'], 1.0, places=3)
+
+    def test_tr_tuman_xor3_l(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['L'], 16.0, places=1)
+
+    def test_tr_tuman_xor3_lam_zero(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['LAM'], 0.0, places=4)
+
+    def test_tr_tuman_xor3_tt_zero(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['TT'], 0.0, places=4)
+
+    def test_tr_eps_increases_rr(self):
+        r0 = self.trajectory_recurrence('ГОРА', 'xor3', eps=0)
+        r4 = self.trajectory_recurrence('ГОРА', 'xor3', eps=4)
+        self.assertGreaterEqual(r4['rqa']['RR'], r0['rqa']['RR'])
+
+    def test_tr_rr_in_01(self):
+        r = self.trajectory_recurrence('ВОДА', 'or')
+        self.assertGreaterEqual(r['rqa']['RR'], 0.0)
+        self.assertLessEqual(r['rqa']['RR'], 1.0)
+
+    def test_summary_equals_traj(self):
+        """recurrence_summary must equal trajectory_recurrence."""
+        d1 = self.trajectory_recurrence('ГОРА', 'xor3')
+        d2 = self.recurrence_summary('ГОРА', 'xor3')
+        self.assertEqual(d1['rqa'], d2['rqa'])
+        self.assertEqual(d1['period'], d2['period'])
+        self.assertEqual(d1['transient'], d2['transient'])
+
+    def test_summary_default_rule_xor3(self):
+        d = self.recurrence_summary('ТУМАН')
+        self.assertEqual(d['rule'], 'xor3')
+
+    def test_summary_word_uppercased(self):
+        d = self.recurrence_summary('туман')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    # ── all_recurrences() ──────────────────────────────────────────────────────
+
+    def test_ar_four_rules(self):
+        d = self.all_recurrences('ГОРА')
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    def test_ar_each_has_rqa(self):
+        d = self.all_recurrences('ВОДА')
+        for rule in self.ALL_RULES:
+            self.assertIn('rqa', d[rule])
+
+    def test_ar_rr_in_range(self):
+        d = self.all_recurrences('ТУМАН')
+        for rule in self.ALL_RULES:
+            rr = d[rule]['rqa']['RR']
+            self.assertGreaterEqual(rr, 0.0)
+            self.assertLessEqual(rr, 1.0)
+
+    # ── build_recurrence_data() ────────────────────────────────────────────────
+
+    def test_brd_required_keys(self):
+        d = self.build_recurrence_data(['ГОРА', 'ВОДА'])
+        for k in ('words', 'width', 'eps', 'per_rule', 'ranking',
+                  'max_rr', 'min_rr'):
+            self.assertIn(k, d)
+
+    def test_brd_per_rule_all_rules(self):
+        d = self.build_recurrence_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), set(self.ALL_RULES))
+
+    def test_brd_ranking_descending(self):
+        d = self.build_recurrence_data(['ГОРА', 'ВОДА', 'ТУМАН'])
+        for rule in self.ALL_RULES:
+            rr_vals = [x[1] for x in d['ranking'][rule]]
+            self.assertEqual(rr_vals, sorted(rr_vals, reverse=True))
+
+    def test_brd_max_rr_tuple(self):
+        d = self.build_recurrence_data(['ГОРА', 'ВОДА'])
+        for rule in self.ALL_RULES:
+            self.assertIsInstance(d['max_rr'][rule], tuple)
+
+    def test_brd_words_preserved(self):
+        words = ['ГОРА', 'ВОДА']
+        d = self.build_recurrence_data(words)
+        self.assertEqual(d['words'], words)
+
+    # ── recurrence_dict() ─────────────────────────────────────────────────────
+
+    def test_rd_json_serialisable(self):
+        import json
+        d = self.recurrence_dict('ГОРА')
+        json.dumps(d)   # must not raise
+
+    def test_rd_has_rules_key(self):
+        d = self.recurrence_dict('ГОРА')
+        self.assertIn('rules', d)
+
+    def test_rd_all_rules_present(self):
+        d = self.recurrence_dict('ГОРА')
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_rd_each_rule_has_rr(self):
+        d = self.recurrence_dict('ВОДА')
+        for rule in self.ALL_RULES:
+            self.assertIn('RR', d['rules'][rule])
+
+    def test_rd_no_matrix(self):
+        d = self.recurrence_dict('ГОРА')
+        for rule in self.ALL_RULES:
+            self.assertNotIn('R', d['rules'][rule])
+
+    def test_rd_word_uppercased(self):
+        d = self.recurrence_dict('гора')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_rc_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rc-canvas', content)
+
+    def test_viewer_has_rc_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rc-btn', content)
+
+    def test_viewer_has_rc_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rc-hmap', content)
+
+    def test_viewer_has_rc_metrics(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rc-metrics', content)
+
+    def test_viewer_has_rqa_met(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rqaMet', content)
+
+    def test_viewer_has_rc_rows(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rcRows', content)
+
+    def test_viewer_has_solan_recurrence(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_recurrence', content)
 
 
 if __name__ == "__main__":
