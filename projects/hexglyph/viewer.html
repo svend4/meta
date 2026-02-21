@@ -4339,6 +4339,197 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Разброс повреждений Q6 — конус влияния</h2>
+<p class="meta">Оригинальный НУ и НУ с одним перевёрнутым битом запускаются параллельно · d(t,i) = |orig(t,i)−pert(t,i)| / 63 · цвет: чёрный=0 → красный → жёлтый=max · правый мини-график = суммарное D(t) · фаза: ordered=затухание / chaotic=рост / critical=persist</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="dm-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="dm-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <label style="color:#aaa;font-size:12px">ячейка =
+    <select id="dm-cell"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="0" selected>0</option><option value="1">1</option>
+      <option value="2">2</option><option value="3">3</option>
+      <option value="4">4</option><option value="5">5</option>
+      <option value="6">6</option><option value="7">7</option>
+      <option value="8">8</option>
+    </select>
+  </label>
+  <label style="color:#aaa;font-size:12px">бит =
+    <select id="dm-bit"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="0" selected>0 (±1)</option>
+      <option value="1">1 (±2)</option>
+      <option value="2">2 (±4)</option>
+      <option value="3">3 (±8)</option>
+      <option value="4">4 (±16)</option>
+      <option value="5">5 (±32)</option>
+    </select>
+  </label>
+  <label style="color:#aaa;font-size:12px">шагов =
+    <select id="dm-steps"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="16">16</option>
+      <option value="24" selected>24</option>
+      <option value="32">32</option>
+      <option value="48">48</option>
+    </select>
+  </label>
+  <button id="dm-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Повреждение</button>
+</div>
+<div style="display:flex;gap:16px;align-items:flex-start">
+  <canvas id="dm-canvas" style="display:block"></canvas>
+  <canvas id="dm-chart"  style="display:block;margin-top:2px"></canvas>
+</div>
+<div id="dm-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"></div>
+<script>
+(function(){
+  var DM_COLS={xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+
+  function dmStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function dmHot(v){
+    // v ∈ [0,1]: 0→black, 0.5→red, 1.0→yellow
+    var r=Math.min(255,Math.round(v*2*255));
+    var g=v>0.5?Math.round((v-0.5)*2*255):0;
+    return [r,g,0];
+  }
+
+  function dmRun(){
+    if(!window.encL||!window.padL) return;
+    var word =(document.getElementById('dm-word').value||'ТУМАН').toUpperCase();
+    var rule =document.getElementById('dm-rule').value||'xor3';
+    var cell =parseInt(document.getElementById('dm-cell').value||'0',10);
+    var bit  =parseInt(document.getElementById('dm-bit').value||'0',10);
+    var steps=parseInt(document.getElementById('dm-steps').value||'24',10);
+    var canvas=document.getElementById('dm-canvas');
+    var chart =document.getElementById('dm-chart');
+    var statsDiv=document.getElementById('dm-stats');
+    var scale=14, N=16;
+
+    var cells=window.padL(window.encL(word),N);
+    // perturb
+    var pert=cells.slice();
+    pert[cell%N]=(pert[cell%N]^(1<<(bit%6)))&63;
+
+    // run both
+    var co=cells.slice(), cp=pert.slice();
+    var dgrid=[], totals=[];
+    for(var t=0;t<steps;t++){
+      var row=[];
+      var tot=0;
+      for(var i=0;i<N;i++){var d=Math.abs(co[i]-cp[i])/63;row.push(d);tot+=d;}
+      dgrid.push(row);
+      totals.push(tot/N);
+      co=dmStep(co,rule); cp=dmStep(cp,rule);
+    }
+
+    // normalise by max damage
+    var maxD=0;
+    for(var t2=0;t2<dgrid.length;t2++) for(var i2=0;i2<N;i2++) maxD=Math.max(maxD,dgrid[t2][i2]);
+    maxD=Math.max(maxD,1e-9);
+
+    // draw spacetime
+    var padL=32, padT=2;
+    canvas.width=padL+N*scale+4; canvas.height=padT+steps*scale+4;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    for(var t3=0;t3<steps;t3++){
+      var y=padT+t3*scale;
+      ctx.fillStyle='#333'; ctx.font='9px monospace'; ctx.textAlign='right';
+      ctx.fillText(t3,padL-3,y+scale-2);
+      for(var i3=0;i3<N;i3++){
+        var v=dgrid[t3][i3]/maxD;
+        var rgb=dmHot(v);
+        ctx.fillStyle='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')';
+        ctx.fillRect(padL+i3*scale,y,scale-1,scale-1);
+      }
+      // mark perturbed cell at t=0
+      if(t3===0){
+        ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;
+        ctx.strokeRect(padL+cell*scale,y,scale-1,scale-1);
+      }
+    }
+
+    // draw D(t) chart
+    var cW=100, cH=padT+steps*scale+4;
+    chart.width=cW; chart.height=cH;
+    var cx=chart.getContext('2d');
+    cx.fillStyle='#0a0a0a'; cx.fillRect(0,0,cW,cH);
+    var maxT=Math.max.apply(null,totals)||1e-9;
+    var col=DM_COLS[rule]||'#ccc';
+    cx.strokeStyle=col; cx.lineWidth=1.5;
+    cx.beginPath();
+    for(var t4=0;t4<steps;t4++){
+      var y4=padT+t4*scale+scale/2;
+      var x4=Math.round(totals[t4]/maxT*(cW-4))+2;
+      if(t4===0) cx.moveTo(x4,y4); else cx.lineTo(x4,y4);
+    }
+    cx.stroke();
+    // axis
+    cx.strokeStyle='#333'; cx.lineWidth=1;
+    cx.beginPath(); cx.moveTo(2,padT); cx.lineTo(2,cH-2); cx.stroke();
+
+    // stats
+    var maxDam=Math.max.apply(null,totals);
+    var ext=-1;
+    for(var t5=0;t5<totals.length;t5++){if(totals[t5]<1e-9){ext=t5;break;}}
+    var fin=totals[totals.length-1];
+    var phase=ext>=0?'ordered':fin>0.05?'chaotic':'critical';
+
+    statsDiv.innerHTML='<span style="color:'+col+'">'+rule.toUpperCase()+'</span>'
+      +'  ячейка='+cell+'  бит='+bit+'(Δ'+(1<<bit)+')'
+      +'  max D='+maxDam.toFixed(4)
+      +'  ext='+ext
+      +'  фаза=<b>'+phase+'</b>';
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('dm-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.text=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn    =document.getElementById('dm-btn');
+    var wordEl =document.getElementById('dm-word');
+    var ruleEl =document.getElementById('dm-rule');
+    var cellEl =document.getElementById('dm-cell');
+    var bitEl  =document.getElementById('dm-bit');
+    var stepsEl=document.getElementById('dm-steps');
+    if(btn)     btn.addEventListener('click',dmRun);
+    if(wordEl)  wordEl.addEventListener('change',dmRun);
+    if(ruleEl)  ruleEl.addEventListener('change',dmRun);
+    if(cellEl)  cellEl.addEventListener('change',dmRun);
+    if(bitEl)   bitEl.addEventListener('change',dmRun);
+    if(stepsEl) stepsEl.addEventListener('change',dmRun);
+    setTimeout(function(){if(window.encL) dmRun();},1100);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Transfer Entropy CA Q6 — направленный поток информации</h2>
 <p class="meta">T(X→Y) = H(Y_t | Y_{t-1}) − H(Y_t | Y_{t-1}, X_{t-1}) · суммируется по 6 бит-плоскостям Q6 · ненулевые значения указывают на причинные связи между клетками · для XOR/AND/OR с периодом 1 (ноль/все-единицы) TE=0 повсюду · максимум при XOR3 ТУМАН (период 8)</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">

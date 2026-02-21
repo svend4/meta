@@ -4537,6 +4537,282 @@ class TestSolanSpacetime(unittest.TestCase):
         self.assertIn('drawSpacetime', content)
 
 
+class TestSolanDamage(unittest.TestCase):
+    """Tests for solan_damage.py and the viewer Damage Spreading section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import (
+            perturb, run_pair,
+            single_damage, mean_damage,
+            damage_dict, all_damage, build_damage_data,
+            _ALL_RULES, _DEFAULT_WIDTH, _BITS,
+        )
+        from projects.hexglyph.solan_ca import step
+        cls.perturb        = staticmethod(perturb)
+        cls.run_pair       = staticmethod(run_pair)
+        cls.single_damage  = staticmethod(single_damage)
+        cls.mean_damage    = staticmethod(mean_damage)
+        cls.damage_dict    = staticmethod(damage_dict)
+        cls.all_damage     = staticmethod(all_damage)
+        cls.build_damage   = staticmethod(build_damage_data)
+        cls.ca_step        = staticmethod(step)
+        cls.ALL_RULES      = _ALL_RULES
+        cls.W              = _DEFAULT_WIDTH
+        cls.BITS           = _BITS
+
+    # ── perturb() ─────────────────────────────────────────────────────────────
+
+    def test_perturb_flips_bit0(self):
+        cells = [0] * self.W
+        p = self.perturb(cells, 0, 0)
+        self.assertEqual(p[0], 1)
+        self.assertEqual(p[1:], [0] * (self.W - 1))
+
+    def test_perturb_flips_bit5(self):
+        cells = [0] * self.W
+        p = self.perturb(cells, 3, 5)
+        self.assertEqual(p[3], 32)
+
+    def test_perturb_flips_back(self):
+        # flipping same bit twice returns original
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ТУМАН'), self.W)
+        p  = self.perturb(cells, 2, 3)
+        pp = self.perturb(p,     2, 3)
+        self.assertEqual(pp, cells)
+
+    def test_perturb_q6_range(self):
+        # perturb must keep values in [0, 63]
+        cells = [63] * self.W
+        for bit in range(self.BITS):
+            p = self.perturb(cells, 0, bit)
+            for v in p:
+                self.assertGreaterEqual(v, 0)
+                self.assertLessEqual(v, 63)
+
+    def test_perturb_only_one_cell_changes(self):
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ГОРА'), self.W)
+        p = self.perturb(cells, 5, 2)
+        for i in range(self.W):
+            if i != 5:
+                self.assertEqual(p[i], cells[i])
+
+    # ── run_pair() ────────────────────────────────────────────────────────────
+
+    def test_rp_grid_dims(self):
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ТУМАН'), self.W)
+        pert  = self.perturb(cells, 0, 0)
+        og, pg, dg = self.run_pair(cells, pert, 'xor3', 10)
+        self.assertEqual(len(og), 10)
+        self.assertEqual(len(pg), 10)
+        self.assertEqual(len(dg), 10)
+        for t in range(10):
+            self.assertEqual(len(og[t]), self.W)
+            self.assertEqual(len(dg[t]), self.W)
+
+    def test_rp_damage_range(self):
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ТУМАН'), self.W)
+        pert  = self.perturb(cells, 0, 5)
+        _, _, dg = self.run_pair(cells, pert, 'xor3', 12)
+        for row in dg:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+                self.assertLessEqual(v, 1.0)
+
+    def test_rp_initial_damage_at_perturbed_cell(self):
+        # At t=0, only the perturbed cell should have non-zero damage
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ГОРА'), self.W)
+        pert  = self.perturb(cells, 7, 5)   # flip bit 5 → Δv=32
+        _, _, dg = self.run_pair(cells, pert, 'xor3', 4)
+        self.assertGreater(dg[0][7], 0.0)
+        for i in range(self.W):
+            if i != 7:
+                self.assertAlmostEqual(dg[0][i], 0.0, places=10)
+
+    def test_rp_orig_matches_step(self):
+        # orig_grid transitions must equal step(prev, rule)
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ТУМАН'), self.W)
+        pert  = self.perturb(cells, 0, 1)
+        og, _, _ = self.run_pair(cells, pert, 'xor', 8)
+        for t in range(len(og) - 1):
+            self.assertEqual(og[t + 1], self.ca_step(og[t][:], 'xor'))
+
+    # ── single_damage() ───────────────────────────────────────────────────────
+
+    def test_sd_keys(self):
+        d = self.single_damage('ТУМАН', 'xor3')
+        for k in ['word', 'rule', 'cell', 'bit', 'n_steps', 'width',
+                  'orig_grid', 'pert_grid', 'damage_grid',
+                  'total_damage', 'damage_width',
+                  'max_damage', 'final_damage', 'extinction_step',
+                  'velocity', 'phase']:
+            self.assertIn(k, d)
+
+    def test_sd_word_upper(self):
+        d = self.single_damage('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_sd_total_length(self):
+        d = self.single_damage('ТУМАН', 'xor', n_steps=20)
+        self.assertEqual(len(d['total_damage']), 20)
+
+    def test_sd_and_ordered(self):
+        # AND contracts — must reach extinction
+        d = self.single_damage('ТУМАН', 'and', bit=5, n_steps=32)
+        self.assertEqual(d['phase'], 'ordered')
+        self.assertGreaterEqual(d['extinction_step'], 0)
+
+    def test_sd_or_ordered(self):
+        d = self.single_damage('ТУМАН', 'or', bit=5, n_steps=32)
+        self.assertEqual(d['phase'], 'ordered')
+
+    def test_sd_max_damage_non_negative(self):
+        for rule in self.ALL_RULES:
+            d = self.single_damage('ГОРА', rule, bit=5)
+            self.assertGreaterEqual(d['max_damage'], 0.0)
+
+    def test_sd_max_damage_geq_final(self):
+        d = self.single_damage('ТУМАН', 'xor3', bit=5)
+        self.assertGreaterEqual(d['max_damage'], d['final_damage'])
+
+    def test_sd_initial_damage_positive_for_bit5(self):
+        # bit 5 flips → Δv=32 in one cell → total_damage[0]>0
+        d = self.single_damage('ТУМАН', 'xor3', cell=0, bit=5, n_steps=8)
+        self.assertGreater(d['total_damage'][0], 0.0)
+
+    def test_sd_xor_extinction_at_period(self):
+        # XOR with ТУМАН: period=1, damage vanishes at step 8 (ring of 16)
+        d = self.single_damage('ТУМАН', 'xor', bit=5, n_steps=24)
+        # Damage should eventually go to 0
+        self.assertEqual(d['phase'], 'ordered')
+
+    # ── mean_damage() ─────────────────────────────────────────────────────────
+
+    def test_md_keys(self):
+        d = self.mean_damage('ТУМАН', 'xor3', n_steps=8)
+        for k in ['word', 'rule', 'n_steps', 'width', 'n_perturb',
+                  'mean_damage_grid', 'mean_total', 'mean_width',
+                  'max_mean_damage', 'final_mean_damage',
+                  'extinction_step', 'velocity', 'phase', 'kernel']:
+            self.assertIn(k, d)
+
+    def test_md_n_perturb(self):
+        d = self.mean_damage('ТУМАН', 'xor3', n_steps=4)
+        self.assertEqual(d['n_perturb'], self.W * self.BITS)
+
+    def test_md_mean_grid_dims(self):
+        n = 8
+        d = self.mean_damage('ГОРА', 'xor3', n_steps=n)
+        self.assertEqual(len(d['mean_damage_grid']), n)
+        for row in d['mean_damage_grid']:
+            self.assertEqual(len(row), self.W)
+
+    def test_md_kernel_dims(self):
+        n = 8
+        d = self.mean_damage('ГОРА', 'xor3', n_steps=n)
+        self.assertEqual(len(d['kernel']), n)
+        for row in d['kernel']:
+            self.assertEqual(len(row), self.W)
+
+    def test_md_kernel_t0_only_di0(self):
+        # At t=0, only the source cell (Δi=0) has damage
+        d = self.mean_damage('ТУМАН', 'xor3', n_steps=4)
+        for di in range(1, self.W):
+            self.assertAlmostEqual(d['kernel'][0][di], 0.0, places=10)
+        self.assertGreater(d['kernel'][0][0], 0.0)
+
+    def test_md_and_final_damage_below_chaotic(self):
+        # AND contracts strongly — mean final damage must stay below 'chaotic' threshold (0.05)
+        # Some rare (cell, bit) pairs may converge to a different fixed point,
+        # so phase can be 'critical', but not dominated by large damage.
+        d = self.mean_damage('ТУМАН', 'and', n_steps=32)
+        self.assertLess(d['final_mean_damage'], 0.05)
+
+    def test_md_max_damage_non_negative(self):
+        for rule in self.ALL_RULES:
+            d = self.mean_damage('ГОРА', rule, n_steps=8)
+            self.assertGreaterEqual(d['max_mean_damage'], 0.0)
+
+    def test_md_kernel_xor_spreads_at_t1(self):
+        # XOR at t=1: damage from cell 0 reaches cells ±1 (Δi=1 and Δi=N-1)
+        d = self.mean_damage('ТУМАН', 'xor', n_steps=4)
+        # kernel[1][1] and kernel[1][N-1] should be > 0
+        self.assertGreater(d['kernel'][1][1], 0.0)
+        self.assertGreater(d['kernel'][1][self.W - 1], 0.0)
+        # kernel[1][0] should be 0 for XOR (XOR: new[i] = left ^ right, no self)
+        self.assertAlmostEqual(d['kernel'][1][0], 0.0, places=10)
+
+    # ── damage_dict() ─────────────────────────────────────────────────────────
+
+    def test_dd_keys(self):
+        d = self.damage_dict('ТУМАН', 'xor3', n_steps=8)
+        for k in ['word', 'rule', 'total_damage', 'mean_total',
+                  'max_damage', 'max_mean_damage', 'phase', 'mean_phase',
+                  'kernel']:
+            self.assertIn(k, d)
+
+    # ── all_damage() ──────────────────────────────────────────────────────────
+
+    def test_ad_all_rules(self):
+        d = self.all_damage('ГОРА', n_steps=8)
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    # ── build_damage_data() ───────────────────────────────────────────────────
+
+    def test_bdd_keys(self):
+        d = self.build_damage(['ГОРА', 'ВОДА'], n_steps=8)
+        for k in ['words', 'per_rule', 'phase_counts']:
+            self.assertIn(k, d)
+
+    def test_bdd_phase_counts_sum(self):
+        words = ['ГОРА', 'ВОДА', 'МИР']
+        d = self.build_damage(words, n_steps=12)
+        for rule in self.ALL_RULES:
+            pc = d['phase_counts'][rule]
+            total = pc['ordered'] + pc['critical'] + pc['chaotic']
+            self.assertEqual(total, len(words))
+
+    def test_bdd_and_fewer_chaotic_than_xor3(self):
+        # AND contracts strongly → fewer 'chaotic' words than XOR3
+        words = ['ГОРА', 'ВОДА', 'МИР', 'ТУМАН']
+        d = self.build_damage(words, n_steps=32)
+        chaotic_and  = d['phase_counts']['and']['chaotic']
+        chaotic_xor3 = d['phase_counts']['xor3']['chaotic']
+        self.assertLessEqual(chaotic_and, chaotic_xor3)
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_dm_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dm-canvas', content)
+
+    def test_viewer_has_dm_chart(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dm-chart', content)
+
+    def test_viewer_has_dm_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dm-btn', content)
+
+    def test_viewer_has_dm_hot(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dmHot', content)
+
+    def test_viewer_has_dm_step(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dmStep', content)
+
+    def test_viewer_has_damage_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('конус влияния', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
