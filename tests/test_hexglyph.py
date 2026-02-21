@@ -13851,5 +13851,340 @@ class TestSolanSymm(unittest.TestCase):
         self.assertIn('syRun', content)
 
 
+class TestSolanVocab(unittest.TestCase):
+    """Tests for solan_vocab.py and the viewer Orbit Vocabulary section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_vocab import (
+            orbit_vocabulary,
+            vocab_size,
+            vocab_coverage,
+            value_hist,
+            uniform_distribution,
+            vocab_bit_profile,
+            common_bits,
+            vocab_hamming_hist,
+            vocab_summary,
+            all_vocab,
+            build_vocab_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.orbit_vocabulary    = staticmethod(orbit_vocabulary)
+        cls.vocab_size          = staticmethod(vocab_size)
+        cls.vocab_coverage      = staticmethod(vocab_coverage)
+        cls.value_hist          = staticmethod(value_hist)
+        cls.uniform_distribution = staticmethod(uniform_distribution)
+        cls.vocab_bit_profile   = staticmethod(vocab_bit_profile)
+        cls.common_bits         = staticmethod(common_bits)
+        cls.vocab_hamming_hist  = staticmethod(vocab_hamming_hist)
+        cls.vocab_summary       = staticmethod(vocab_summary)
+        cls.all_vocab           = staticmethod(all_vocab)
+        cls.build_vocab_data    = staticmethod(build_vocab_data)
+        cls.LEXICON             = list(LEXICON)
+
+    # ── orbit_vocabulary() ────────────────────────────────────────────────────
+
+    def test_vocab_tuman_xor_is_zero(self):
+        v = self.orbit_vocabulary('ТУМАН', 'xor')
+        self.assertEqual(v, [0])
+
+    def test_vocab_gora_and(self):
+        v = self.orbit_vocabulary('ГОРА', 'and')
+        self.assertEqual(sorted(v), [1, 47])
+
+    def test_vocab_gora_xor3_size_8(self):
+        v = self.orbit_vocabulary('ГОРА', 'xor3')
+        self.assertEqual(len(v), 8)
+
+    def test_vocab_gora_xor3_values(self):
+        v = self.orbit_vocabulary('ГОРА', 'xor3')
+        self.assertEqual(sorted(v), sorted([1, 15, 17, 31, 33, 47, 49, 63]))
+
+    def test_vocab_gora_or_is_63(self):
+        v = self.orbit_vocabulary('ГОРА', 'or')
+        self.assertEqual(v, [63])
+
+    def test_vocab_tuman_xor3_size_15(self):
+        v = self.orbit_vocabulary('ТУМАН', 'xor3')
+        self.assertEqual(len(v), 15)
+
+    def test_vocab_is_sorted(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                v = self.orbit_vocabulary(word, rule)
+                self.assertEqual(v, sorted(v))
+
+    def test_vocab_values_in_q6_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for val in self.orbit_vocabulary(word, rule):
+                    self.assertGreaterEqual(val, 0)
+                    self.assertLessEqual(val, 63)
+
+    def test_vocab_nonempty(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                self.assertGreater(len(self.orbit_vocabulary(word, rule)), 0)
+
+    # ── vocab_size() / vocab_coverage() ──────────────────────────────────────
+
+    def test_vocab_size_tuman_xor(self):
+        self.assertEqual(self.vocab_size('ТУМАН', 'xor'), 1)
+
+    def test_vocab_size_gora_and(self):
+        self.assertEqual(self.vocab_size('ГОРА', 'and'), 2)
+
+    def test_vocab_size_gora_xor3(self):
+        self.assertEqual(self.vocab_size('ГОРА', 'xor3'), 8)
+
+    def test_vocab_coverage_tuman_xor(self):
+        self.assertAlmostEqual(self.vocab_coverage('ТУМАН', 'xor'), 1 / 64, places=5)
+
+    def test_vocab_coverage_gora_and(self):
+        self.assertAlmostEqual(self.vocab_coverage('ГОРА', 'and'), 2 / 64, places=5)
+
+    def test_vocab_coverage_gora_xor3(self):
+        self.assertAlmostEqual(self.vocab_coverage('ГОРА', 'xor3'), 8 / 64, places=5)
+
+    def test_vocab_coverage_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                c = self.vocab_coverage(word, rule)
+                self.assertGreater(c, 0.0)
+                self.assertLessEqual(c, 1.0)
+
+    # ── value_hist() / uniform_distribution() ─────────────────────────────────
+
+    def test_hist_tuman_xor(self):
+        h = self.value_hist('ТУМАН', 'xor')
+        self.assertEqual(h, {0: 16})
+
+    def test_hist_gora_and_uniform(self):
+        h = self.value_hist('ГОРА', 'and')
+        self.assertEqual(h.get(47, 0), 16)
+        self.assertEqual(h.get(1, 0), 16)
+
+    def test_hist_counts_sum_to_period_times_width(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                h = self.value_hist(word, rule)
+                from projects.hexglyph.solan_traj import word_trajectory
+                traj = word_trajectory(word, rule)
+                self.assertEqual(sum(h.values()), traj['period'] * 16)
+
+    def test_uniform_gora_and(self):
+        self.assertTrue(self.uniform_distribution('ГОРА', 'and'))
+
+    def test_uniform_gora_xor3(self):
+        self.assertTrue(self.uniform_distribution('ГОРА', 'xor3'))
+
+    def test_uniform_tuman_xor(self):
+        self.assertTrue(self.uniform_distribution('ТУМАН', 'xor'))
+
+    def test_nonuniform_tuman_xor3(self):
+        # ТУМАН XOR3 has non-uniform distribution (43 and 60 appear 13× each)
+        self.assertFalse(self.uniform_distribution('ТУМАН', 'xor3'))
+
+    # ── vocab_bit_profile() ───────────────────────────────────────────────────
+
+    def test_bit_profile_length_6(self):
+        bp = self.vocab_bit_profile('ГОРА', 'and')
+        self.assertEqual(len(bp), 6)
+
+    def test_bit_profile_tuman_xor_all_zero(self):
+        bp = self.vocab_bit_profile('ТУМАН', 'xor')
+        self.assertTrue(all(v == 0.0 for v in bp))
+
+    def test_bit_profile_gora_or_all_one(self):
+        # OR vocab = {63 = 0b111111}: all bits always 1
+        bp = self.vocab_bit_profile('ГОРА', 'or')
+        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in bp))
+
+    def test_bit_profile_gora_xor3_bit0_is_one(self):
+        # All 8 vocab values have bit 0 = 1
+        bp = self.vocab_bit_profile('ГОРА', 'xor3')
+        self.assertAlmostEqual(bp[0], 1.0, places=9)
+
+    def test_bit_profile_gora_and_bit0_is_one(self):
+        # Both 1 and 47 have bit 0 = 1
+        bp = self.vocab_bit_profile('ГОРА', 'and')
+        self.assertAlmostEqual(bp[0], 1.0, places=9)
+
+    def test_bit_profile_gora_and_bit4_is_zero(self):
+        # Both 1=0b000001 and 47=0b101111 have bit 4 = 0
+        bp = self.vocab_bit_profile('ГОРА', 'and')
+        self.assertAlmostEqual(bp[4], 0.0, places=9)
+
+    def test_bit_profile_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for v in self.vocab_bit_profile(word, rule):
+                    self.assertGreaterEqual(v, 0.0)
+                    self.assertLessEqual(v, 1.0)
+
+    # ── common_bits() ─────────────────────────────────────────────────────────
+
+    def test_common_bits_tuman_xor(self):
+        al1, al0 = self.common_bits('ТУМАН', 'xor')
+        self.assertEqual(al1, set())
+        self.assertEqual(al0, {0, 1, 2, 3, 4, 5})
+
+    def test_common_bits_gora_or(self):
+        al1, al0 = self.common_bits('ГОРА', 'or')
+        self.assertEqual(al1, {0, 1, 2, 3, 4, 5})
+        self.assertEqual(al0, set())
+
+    def test_common_bits_gora_and_always1(self):
+        al1, _ = self.common_bits('ГОРА', 'and')
+        self.assertIn(0, al1)
+
+    def test_common_bits_gora_and_always0(self):
+        _, al0 = self.common_bits('ГОРА', 'and')
+        self.assertIn(4, al0)
+
+    def test_common_bits_gora_xor3_bit0_always1(self):
+        al1, _ = self.common_bits('ГОРА', 'xor3')
+        self.assertIn(0, al1)
+
+    def test_common_bits_are_disjoint(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                al1, al0 = self.common_bits(word, rule)
+                self.assertEqual(al1 & al0, set(),
+                    msg=f'{word}/{rule}: always-1 and always-0 overlap')
+
+    # ── vocab_hamming_hist() ──────────────────────────────────────────────────
+
+    def test_hamming_hist_tuman_xor(self):
+        h = self.vocab_hamming_hist('ТУМАН', 'xor')
+        self.assertEqual(h, {0: 1})
+
+    def test_hamming_hist_gora_or(self):
+        h = self.vocab_hamming_hist('ГОРА', 'or')
+        self.assertEqual(h, {6: 1})
+
+    def test_hamming_hist_gora_and(self):
+        h = self.vocab_hamming_hist('ГОРА', 'and')
+        self.assertEqual(h.get(1, 0), 1)   # value 1
+        self.assertEqual(h.get(5, 0), 1)   # value 47
+
+    def test_hamming_hist_keys_in_0_6(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for hw in self.vocab_hamming_hist(word, rule):
+                    self.assertGreaterEqual(hw, 0)
+                    self.assertLessEqual(hw, 6)
+
+    # ── vocab_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.vocab_summary('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'period', 'total_cell_steps',
+                  'vocab', 'vocab_size', 'vocab_coverage', 'hist',
+                  'uniform_dist', 'hist_entropy', 'bit_profile',
+                  'always_1_bits', 'always_0_bits', 'hamming_hist',
+                  'dominant_value', 'dominant_frac'):
+            self.assertIn(k, d)
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.vocab_summary('гора', 'xor3')['word'], 'ГОРА')
+
+    def test_summary_hist_entropy_uniform(self):
+        # ГОРА XOR3 uniform over 8 values → H = log2(8) = 3.0
+        d = self.vocab_summary('ГОРА', 'xor3')
+        self.assertAlmostEqual(d['hist_entropy'], 3.0, places=5)
+
+    def test_summary_hist_entropy_and(self):
+        # ГОРА AND uniform over 2 values → H = 1.0
+        d = self.vocab_summary('ГОРА', 'and')
+        self.assertAlmostEqual(d['hist_entropy'], 1.0, places=5)
+
+    def test_summary_hist_entropy_xor(self):
+        # ТУМАН XOR single value → H = 0
+        d = self.vocab_summary('ТУМАН', 'xor')
+        self.assertAlmostEqual(d['hist_entropy'], 0.0, places=5)
+
+    def test_summary_total_cell_steps(self):
+        d = self.vocab_summary('ГОРА', 'and', width=16)
+        self.assertEqual(d['total_cell_steps'], 2 * 16)   # P=2, N=16
+
+    # ── all_vocab() / build_vocab_data() ──────────────────────────────────────
+
+    def test_all_vocab_four_rules(self):
+        r = self.all_vocab('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_vocab_data_keys(self):
+        data = self.build_vocab_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'q6_total', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_vocab_data_q6_total(self):
+        data = self.build_vocab_data(['ГОРА'])
+        self.assertEqual(data['q6_total'], 64)
+
+    def test_build_vocab_data_word_coverage(self):
+        words = ['ГОРА', 'ТУМАН']
+        data = self.build_vocab_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Scientific properties ─────────────────────────────────────────────────
+
+    def test_xor_vocab_always_contains_zero(self):
+        # XOR always converges to all-zeros for all lexicon words
+        for word in self.LEXICON[:12]:
+            v = self.orbit_vocabulary(word, 'xor')
+            self.assertIn(0, v, msg=f'{word} XOR vocab should contain 0')
+            self.assertEqual(len(v), 1, msg=f'{word} XOR vocab should have size 1')
+
+    def test_gora_xor3_all_vocab_bits0_set(self):
+        # All 8 vocab values in ГОРА XOR3 have bit 0 = 1
+        vocab = self.orbit_vocabulary('ГОРА', 'xor3')
+        for v in vocab:
+            self.assertEqual((v >> 0) & 1, 1,
+                msg=f'ГОРА XOR3 vocab value {v} should have bit 0=1')
+
+    def test_or_attractor_vocab_max_value(self):
+        # OR typically saturates to 63 (all bits 1) for many words
+        v = self.orbit_vocabulary('ГОРА', 'or')
+        self.assertEqual(v, [63])
+
+    # ── Viewer section tests ───────────────────────────────────────────────────
+
+    def test_viewer_has_vocab_bars(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vocab-bars', content)
+
+    def test_viewer_has_vocab_bits(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vocab-bits', content)
+
+    def test_viewer_has_vocab_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vocab-info', content)
+
+    def test_viewer_has_vo_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vo-word', content)
+
+    def test_viewer_has_vo_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vo-rule', content)
+
+    def test_viewer_has_vo_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vo-btn', content)
+
+    def test_viewer_has_vo_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('voRun', content)
+
+    def test_viewer_has_hw_bits_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hwBits', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
