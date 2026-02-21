@@ -8789,6 +8789,200 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Запрещённые паттерны Q6 — детерминизм в ординальном пространстве</h2>
+<p class="meta">F = M − |{наблюдаемые}| — число запрещённых паттернов · f = F/M! ∈ [0,1] · фиксированная точка → f=0.833 (1/6); период-2 → f=0.667 (2/6); ТУМАН XOR3 → f=0 (все 6 паттернов); ячейки: 3–6 паттернов</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="for-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="for-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="for-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="for-cell"  width="530" height="120"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="for-pat"   width="530" height="70"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="for-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA helpers ─────────────────────────────────────────────────── */
+  function forStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function forOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=forStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=forStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++;
+      cur=forStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  /* ── Ordinal pattern ─────────────────────────────────────────────────── */
+  var M3=3;
+  function forOrdPat(win){
+    var m=win.length,idx=[];
+    for(var i=0;i<m;i++) idx.push(i);
+    idx.sort(function(a,b){return win[a]!==win[b]?win[a]-win[b]:a-b;});
+    var r=new Array(m);
+    for(var i=0;i<m;i++) r[idx[i]]=i;
+    return r.join(',');
+  }
+  /* All m! patterns for m=3 */
+  var ALL_PATS3=['0,1,2','0,2,1','1,0,2','1,2,0','2,0,1','2,1,0'];
+  /* ── Main render ────────────────────────────────────────────────────── */
+  function forRun(){
+    var word=(document.getElementById('for-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('for-rule').value||'xor3';
+    var M=M3,MIN_REPS=8;
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var grid=forOrbit(ic,rule);
+    var P=grid.length,N=grid[0].length;
+    var repeat=Math.max(MIN_REPS,Math.ceil(24/Math.max(P,1)));
+    var n=P*repeat;
+    /* Per-cell observed sets */
+    var cellObs=[],pooledObs={};
+    for(var i=0;i<N;i++){
+      var s=[];
+      for(var t=0;t<P;t++) s.push(grid[t][i]);
+      var obs={};
+      for(var j=0;j<=n-M;j++){
+        var win=[]; for(var k=0;k<M;k++) win.push(s[(j+k)%P]);
+        var pat=forOrdPat(win);
+        obs[pat]=true; pooledObs[pat]=true;
+      }
+      cellObs.push(obs);
+    }
+    var nPooled=Object.keys(pooledObs).length;
+    var Fpooled=ALL_PATS3.length-nPooled;
+    var fpooled=Fpooled/ALL_PATS3.length;
+    var meanObs=cellObs.map(function(o){return Object.keys(o).length;})
+                       .reduce(function(a,b){return a+b;},0)/N;
+    var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    var col=RCOL[rule]||'#4fc3f7';
+    /* ── Per-cell observed fraction bars ──────────────────────────────── */
+    var cc=document.getElementById('for-cell');
+    var cx=cc.getContext('2d');
+    var CW=cc.width,CH=cc.height;
+    cx.fillStyle='#0d0d0d'; cx.fillRect(0,0,CW,CH);
+    var barW=Math.floor((CW-30)/N)-2,maxH=CH-40;
+    for(var i=0;i<N;i++){
+      var nObs=Object.keys(cellObs[i]).length;
+      var bh=Math.round(nObs/ALL_PATS3.length*maxH);
+      var bx=20+i*(barW+2);
+      cx.fillStyle=col; cx.globalAlpha=0.85;
+      cx.fillRect(bx,CH-28-bh,barW,bh);
+      cx.globalAlpha=1;
+      /* forbidden fill (grey overlay) */
+      var fh=maxH-bh;
+      cx.fillStyle='#333'; cx.globalAlpha=0.5;
+      cx.fillRect(bx,CH-28-maxH,barW,fh);
+      cx.globalAlpha=1;
+    }
+    /* Y labels */
+    cx.fillStyle='#666'; cx.font='9px monospace'; cx.textAlign='left';
+    cx.fillText('6',2,CH-28-maxH+8); cx.fillText('0',2,CH-24);
+    cx.fillText('obs',2,CH-28-maxH/2);
+    cx.fillStyle='#555'; cx.textAlign='center';
+    for(var i=0;i<N;i+=4) cx.fillText(i,20+i*(barW+2)+barW/2,CH-14);
+    cx.fillText('\u044f\u0447\u0435\u0439\u043a\u0430',CW/2,CH-4);
+    /* ── Pattern display ─────────────────────────────────────────────── */
+    var pc=document.getElementById('for-pat');
+    var px=pc.getContext('2d');
+    var PW=pc.width,PH=pc.height;
+    px.fillStyle='#0d0d0d'; px.fillRect(0,0,PW,PH);
+    var np=ALL_PATS3.length;
+    var pw=Math.floor((PW-20)/np)-4,ph=PH-28;
+    for(var ki=0;ki<np;ki++){
+      var pat=ALL_PATS3[ki];
+      var isObs=!!pooledObs[pat];
+      var bx=10+ki*(pw+4);
+      px.fillStyle=isObs?col:'#333'; px.globalAlpha=isObs?0.85:0.4;
+      px.fillRect(bx,8,pw,ph);
+      px.globalAlpha=1;
+      px.fillStyle=isObs?'#fff':'#555';
+      px.font='9px monospace'; px.textAlign='center';
+      /* Draw mini diagram for the pattern */
+      var ranks=pat.split(',').map(Number);
+      var stepW=pw/(M+1);
+      for(var ri=0;ri<M;ri++){
+        var px0=bx+stepW*(ri+0.5),py0=8+ph-(ranks[ri]+0.5)*ph/(M);
+        px.fillStyle=isObs?'#0d0d0d':'#555'; px.fillStyle=isObs?col:'#555';
+        px.fillRect(px0-2,py0-2,4,4);
+      }
+      /* connect dots */
+      px.strokeStyle=isObs?col:'#555'; px.lineWidth=1; px.globalAlpha=0.7;
+      px.beginPath();
+      for(var ri=0;ri<M;ri++){
+        var px0=bx+stepW*(ri+0.5),py0=8+ph-(ranks[ri]+0.5)*ph/(M);
+        if(ri===0) px.moveTo(px0,py0); else px.lineTo(px0,py0);
+      }
+      px.stroke(); px.globalAlpha=1;
+      px.fillStyle=isObs?'#fff':'#555';
+      px.font='8px monospace'; px.textAlign='center';
+      px.fillText('('+pat+')',bx+pw/2,PH-6);
+    }
+    /* Labels */
+    px.fillStyle='#666'; px.font='9px monospace'; px.textAlign='left';
+    px.fillText('\u043d\u0430\u0431\u043b. ',2,PH/2);
+    /* Stats */
+    document.getElementById('for-stats').innerHTML=
+      'P='+P+
+      '  M='+ALL_PATS3.length+
+      '  \u043f\u0443\u043b\u043b: obs='+nPooled+'/'+ALL_PATS3.length+
+      '  F='+Fpooled+
+      '  f='+fpooled.toFixed(4)+
+      '  mean_cell_obs='+meanObs.toFixed(2);
+  }
+  window.forRun=forRun;
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('for-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('for-btn');
+    var wordEl=document.getElementById('for-word');
+    var ruleEl=document.getElementById('for-rule');
+    if(btn)    btn.addEventListener('click',forRun);
+    if(wordEl) wordEl.addEventListener('change',forRun);
+    if(ruleEl) ruleEl.addEventListener('change',forRun);
+    setTimeout(function(){if(window.encL) forRun();},2300);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">

@@ -8005,6 +8005,209 @@ class TestSolanFourier(unittest.TestCase):
         self.assertIn('Фурье / PSD Q6', content)
 
 
+class TestSolanForbidden(unittest.TestCase):
+    """Tests for solan_forbidden.py and the viewer Forbidden Patterns section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import (
+            ordinal_pattern, all_patterns, observed_cell,
+            observed_pooled, forbidden_cell_profile,
+            forbidden_dict, all_forbidden, build_forbidden_data,
+        )
+        cls.ordinal_pattern       = staticmethod(ordinal_pattern)
+        cls.all_patterns          = staticmethod(all_patterns)
+        cls.observed_cell         = staticmethod(observed_cell)
+        cls.observed_pooled       = staticmethod(observed_pooled)
+        cls.forbidden_cell_profile = staticmethod(forbidden_cell_profile)
+        cls.forbidden_dict        = staticmethod(forbidden_dict)
+        cls.all_forbidden         = staticmethod(all_forbidden)
+        cls.build_forbidden_data  = staticmethod(build_forbidden_data)
+
+    # ── ordinal_pattern ────────────────────────────────────────────────
+
+    def test_ordinal_pattern_ascending(self):
+        self.assertEqual(self.ordinal_pattern([1, 2, 3]), (0, 1, 2))
+
+    def test_ordinal_pattern_descending(self):
+        self.assertEqual(self.ordinal_pattern([3, 2, 1]), (2, 1, 0))
+
+    def test_ordinal_pattern_ties_stable(self):
+        self.assertEqual(self.ordinal_pattern([2, 2, 1]), (1, 2, 0))
+
+    # ── all_patterns ───────────────────────────────────────────────────
+
+    def test_all_patterns_m3_count(self):
+        self.assertEqual(len(self.all_patterns(3)), 6)
+
+    def test_all_patterns_m2_count(self):
+        self.assertEqual(len(self.all_patterns(2)), 2)
+
+    def test_all_patterns_m4_count(self):
+        self.assertEqual(len(self.all_patterns(4)), 24)
+
+    def test_all_patterns_is_frozenset(self):
+        self.assertIsInstance(self.all_patterns(3), frozenset)
+
+    # ── observed_cell ──────────────────────────────────────────────────
+
+    def test_observed_cell_constant_one_pattern(self):
+        # Constant series → only one ordinal pattern (all tied → (0,1,2))
+        obs = self.observed_cell([5, 5, 5, 5, 5], 3)
+        self.assertEqual(len(obs), 1)
+
+    def test_observed_cell_is_frozenset(self):
+        self.assertIsInstance(self.observed_cell([1, 2, 3, 1, 2], 3), frozenset)
+
+    def test_observed_cell_subset_of_all(self):
+        obs = self.observed_cell([10, 5, 30, 20, 15, 8], 3)
+        self.assertTrue(obs <= self.all_patterns(3))
+
+    def test_observed_cell_empty_series(self):
+        obs = self.observed_cell([], 3)
+        self.assertEqual(len(obs), 0)
+
+    # ── observed_pooled ────────────────────────────────────────────────
+
+    def test_observed_pooled_fixed_point_one(self):
+        # Fixed point (P=1): only one pattern pooled
+        obs = self.observed_pooled('ТУМАН', 'xor', 16, 3)
+        self.assertEqual(len(obs), 1)
+
+    def test_observed_pooled_period2_two(self):
+        # P=2 alternating: exactly 2 patterns
+        obs = self.observed_pooled('ГОРА', 'and', 16, 3)
+        self.assertEqual(len(obs), 2)
+
+    def test_observed_pooled_tuman_xor3_all(self):
+        # ТУМАН XOR3 (P=8): all 6 patterns observed
+        obs = self.observed_pooled('ТУМАН', 'xor3', 16, 3)
+        self.assertEqual(len(obs), 6)
+
+    def test_observed_pooled_subset_of_all(self):
+        obs = self.observed_pooled('ГОРА', 'xor3', 16, 3)
+        self.assertTrue(obs <= self.all_patterns(3))
+
+    # ── forbidden fractions ────────────────────────────────────────────
+
+    def test_fixed_point_f_m(self):
+        d = self.forbidden_dict('ТУМАН', 'xor', 16, 3)
+        self.assertAlmostEqual(d['f_m'], 5 / 6, places=6)
+
+    def test_period2_f_m(self):
+        d = self.forbidden_dict('ГОРА', 'and', 16, 3)
+        self.assertAlmostEqual(d['f_m'], 4 / 6, places=6)
+
+    def test_tuman_xor3_f_m_zero(self):
+        d = self.forbidden_dict('ТУМАН', 'xor3', 16, 3)
+        self.assertEqual(d['f_m'], 0.0)
+        self.assertEqual(d['n_forbidden'], 0)
+
+    def test_f_m_range(self):
+        d = self.forbidden_dict('ГОРА', 'xor3', 16, 3)
+        self.assertGreaterEqual(d['f_m'], 0.0)
+        self.assertLessEqual(d['f_m'], 1.0)
+
+    def test_o_m_plus_f_m_equals_one(self):
+        d = self.forbidden_dict('ТУМАН', 'xor3', 16, 3)
+        self.assertAlmostEqual(d['o_m'] + d['f_m'], 1.0, places=8)
+
+    # ── forbidden_dict structure ───────────────────────────────────────
+
+    def test_forbidden_dict_keys(self):
+        d = self.forbidden_dict('ТУМАН', 'xor3', 16, 3)
+        for k in ('word', 'rule', 'period', 'm', 'M',
+                  'n_observed', 'n_forbidden', 'f_m', 'o_m',
+                  'observed_set', 'forbidden_set', 'cell_profile',
+                  'mean_cell_obs', 'mean_cell_f', 'std_cell_f'):
+            self.assertIn(k, d)
+
+    def test_forbidden_dict_M_is_m_factorial(self):
+        d = self.forbidden_dict('ТУМАН', 'xor3', 16, 3)
+        import math
+        self.assertEqual(d['M'], math.factorial(3))
+
+    def test_forbidden_dict_cell_profile_length(self):
+        d = self.forbidden_dict('ТУМАН', 'xor3', 16, 3)
+        self.assertEqual(len(d['cell_profile']), 16)
+
+    def test_forbidden_dict_observed_plus_forbidden_is_M(self):
+        d = self.forbidden_dict('ГОРА', 'and', 16, 3)
+        self.assertEqual(d['n_observed'] + d['n_forbidden'], d['M'])
+
+    def test_forbidden_dict_observed_set_valid(self):
+        d = self.forbidden_dict('ГОРА', 'and', 16, 3)
+        for pat in d['observed_set']:
+            self.assertIn(tuple(pat), self.all_patterns(3))
+
+    def test_forbidden_dict_word_uppercase(self):
+        d = self.forbidden_dict('туман', 'xor3', 16, 3)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_forbidden_dict_std_nonneg(self):
+        d = self.forbidden_dict('ТУМАН', 'xor3', 16, 3)
+        self.assertGreaterEqual(d['std_cell_f'], 0.0)
+
+    def test_forbidden_dict_tuman_xor3_per_cell_heterogeneous(self):
+        # ТУМАН XOR3: cells see 3–6 patterns (heterogeneous)
+        d = self.forbidden_dict('ТУМАН', 'xor3', 16, 3)
+        obs_counts = [c['n_observed'] for c in d['cell_profile']]
+        self.assertGreater(max(obs_counts), min(obs_counts))
+
+    # ── all_forbidden ──────────────────────────────────────────────────
+
+    def test_all_forbidden_has_four_rules(self):
+        result = self.all_forbidden('ТУМАН', 16, 3)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_forbidden_values_are_dicts(self):
+        result = self.all_forbidden('ГОРА', 16, 3)
+        for rule, d in result.items():
+            self.assertIsInstance(d, dict)
+            self.assertIn('f_m', d)
+
+    # ── build_forbidden_data ───────────────────────────────────────────
+
+    def test_build_forbidden_data_structure(self):
+        data = self.build_forbidden_data(['ТУМАН', 'ГОРА'], 16, 3)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_forbidden_data_entry_keys(self):
+        data = self.build_forbidden_data(['ТУМАН'], 16, 3)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'M', 'n_observed', 'n_forbidden',
+                  'f_m', 'o_m', 'mean_cell_obs', 'mean_cell_f', 'std_cell_f'):
+            self.assertIn(k, entry)
+
+    def test_build_forbidden_data_words_uppercase(self):
+        data = self.build_forbidden_data(['туман'], 16, 3)
+        self.assertIn('ТУМАН', data['words'])
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_for_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('for-cell', content)
+
+    def test_viewer_has_for_pat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('for-pat', content)
+
+    def test_viewer_has_for_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('for-stats', content)
+
+    def test_viewer_has_for_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('forRun', content)
+
+    def test_viewer_has_for_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Запрещённые паттерны Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
