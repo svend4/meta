@@ -8619,6 +8619,240 @@ class TestSolanMoran(unittest.TestCase):
         self.assertIn("Moran's I Q6", content)
 
 
+class TestSolanLZ(unittest.TestCase):
+    """Tests for solan_lz.py and the viewer LZ76 section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import (
+            lz76, to_binary, lz_of_series, lz_of_spatial,
+            lz_dict, all_lz, build_lz_data,
+        )
+        cls.lz76          = staticmethod(lz76)
+        cls.to_binary     = staticmethod(to_binary)
+        cls.lz_of_series  = staticmethod(lz_of_series)
+        cls.lz_of_spatial = staticmethod(lz_of_spatial)
+        cls.lz_dict       = staticmethod(lz_dict)
+        cls.all_lz        = staticmethod(all_lz)
+        cls.build_lz_data = staticmethod(build_lz_data)
+
+    # ── lz76() ─────────────────────────────────────────────────────────
+
+    def test_lz76_empty(self):
+        self.assertEqual(self.lz76(''), 0)
+
+    def test_lz76_single_char(self):
+        self.assertEqual(self.lz76('0'), 1)
+
+    def test_lz76_two_same(self):
+        # '00': phrase 1='0', phrase 2='0' (but '0' already in s[:1])
+        # so '0' IS in s[:0]='' → No → phrase='0', then '0' IS in '0' → try '00'
+        # not in '0' → phrase 2='00'. So c=2.
+        self.assertEqual(self.lz76('00'), 2)
+
+    def test_lz76_two_different(self):
+        self.assertEqual(self.lz76('01'), 2)
+
+    def test_lz76_all_zeros_low(self):
+        # Constant string → low LZ (grows as log₂n)
+        c = self.lz76('0' * 96)
+        self.assertLessEqual(c, 12)   # log₂(96) ≈ 6.6; empirically ~7
+
+    def test_lz76_periodic_lower_than_random(self):
+        import random
+        random.seed(1)
+        periodic = '01' * 48   # 96 bits periodic
+        rnd = ''.join(random.choice('01') for _ in range(96))
+        self.assertLess(self.lz76(periodic), self.lz76(rnd))
+
+    def test_lz76_nonneg(self):
+        self.assertGreaterEqual(self.lz76('10110'), 1)
+
+    def test_lz76_known_value(self):
+        # 96 zeros → empirically 7
+        self.assertEqual(self.lz76('0' * 96), 7)
+
+    # ── to_binary ──────────────────────────────────────────────────────
+
+    def test_to_binary_zero(self):
+        self.assertEqual(self.to_binary(0), '000000')
+
+    def test_to_binary_63(self):
+        self.assertEqual(self.to_binary(63), '111111')
+
+    def test_to_binary_length(self):
+        for v in [0, 1, 31, 32, 63]:
+            self.assertEqual(len(self.to_binary(v)), 6)
+
+    def test_to_binary_custom_bits(self):
+        self.assertEqual(self.to_binary(5, 4), '0101')
+
+    def test_to_binary_overflow_masked(self):
+        self.assertEqual(self.to_binary(64), self.to_binary(0))
+
+    # ── lz_of_series ──────────────────────────────────────────────────
+
+    def test_lz_of_series_keys(self):
+        d = self.lz_of_series([47, 1, 47, 1])
+        self.assertIn('bits', d)
+        self.assertIn('lz', d)
+        self.assertIn('norm', d)
+
+    def test_lz_of_series_bits(self):
+        d = self.lz_of_series([0, 63])
+        self.assertEqual(d['bits'], 12)  # 2 values × 6 bits
+
+    def test_lz_of_series_nonneg(self):
+        d = self.lz_of_series([1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertGreater(d['lz'], 0)
+        self.assertGreater(d['norm'], 0)
+
+    def test_lz_of_series_constant_low(self):
+        # Constant temporal series → constant binary string → low LZ
+        d = self.lz_of_series([0] * 8)
+        self.assertLess(d['norm'], 1.5)
+
+    # ── lz_of_spatial ─────────────────────────────────────────────────
+
+    def test_lz_of_spatial_bits(self):
+        d = self.lz_of_spatial([0] * 16)
+        self.assertEqual(d['bits'], 96)   # 16 cells × 6 bits
+
+    def test_lz_of_spatial_all_zero_low(self):
+        d = self.lz_of_spatial([0] * 16)
+        self.assertLess(d['norm'], 0.6)
+
+    def test_lz_of_spatial_nonneg(self):
+        d = self.lz_of_spatial([i for i in range(16)])
+        self.assertGreater(d['lz'], 0)
+
+    # ── Fixed-point attractors ─────────────────────────────────────────
+
+    def test_tuman_xor_full_bits(self):
+        d = self.lz_dict('ТУМАН', 'xor', 16)
+        self.assertEqual(d['full_lz']['bits'], 96)  # P=1 × 16 cells × 6 bits
+
+    def test_tuman_xor_full_norm_low(self):
+        d = self.lz_dict('ТУМАН', 'xor', 16)
+        self.assertLess(d['full_lz']['norm'], 0.7)
+
+    def test_gora_or_full_norm_low(self):
+        d = self.lz_dict('ГОРА', 'or', 16)
+        self.assertLess(d['full_lz']['norm'], 0.7)
+
+    # ── ГОРА AND (P=2, alternating → structured → low LZ) ─────────────
+
+    def test_gora_and_full_norm_low(self):
+        d = self.lz_dict('ГОРА', 'and', 16)
+        self.assertLess(d['full_lz']['norm'], 0.6)
+
+    def test_gora_and_full_bits(self):
+        d = self.lz_dict('ГОРА', 'and', 16)
+        self.assertEqual(d['full_lz']['bits'], 192)  # P=2 × 16 × 6
+
+    # ── ТУМАН XOR3 (P=8) ──────────────────────────────────────────────
+
+    def test_tuman_xor3_full_bits(self):
+        d = self.lz_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['full_lz']['bits'], 768)  # P=8 × 16 × 6
+
+    def test_tuman_xor3_full_norm_gt_and(self):
+        d_xor3 = self.lz_dict('ТУМАН', 'xor3', 16)
+        d_and  = self.lz_dict('ГОРА',  'and',  16)
+        self.assertGreater(d_xor3['full_lz']['norm'], d_and['full_lz']['norm'])
+
+    def test_tuman_xor3_cell_lz_length(self):
+        d = self.lz_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['cell_lz']), 16)
+
+    def test_tuman_xor3_cell_bits(self):
+        d = self.lz_dict('ТУМАН', 'xor3', 16)
+        for c in d['cell_lz']:
+            self.assertEqual(c['bits'], 48)   # P=8 × 6 bits
+
+    def test_tuman_xor3_spatial_length(self):
+        d = self.lz_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['spatial_lz']), 8)  # P=8 steps
+
+    # ── lz_dict structure ──────────────────────────────────────────────
+
+    def test_lz_dict_keys(self):
+        d = self.lz_dict('ТУМАН', 'xor3', 16)
+        for k in ('word', 'rule', 'period', 'cell_lz', 'mean_cell_norm',
+                  'spatial_lz', 'mean_sp_norm', 'full_lz'):
+            self.assertIn(k, d)
+
+    def test_lz_dict_full_lz_keys(self):
+        d = self.lz_dict('ТУМАН', 'xor3', 16)
+        for k in ('bits', 'lz', 'norm'):
+            self.assertIn(k, d['full_lz'])
+
+    def test_lz_dict_word_uppercase(self):
+        d = self.lz_dict('туман', 'xor3', 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_lz_dict_mean_cell_norm_nonneg(self):
+        d = self.lz_dict('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['mean_cell_norm'], 0)
+
+    def test_lz_dict_full_norm_in_range(self):
+        d = self.lz_dict('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['full_lz']['norm'], 0)
+        self.assertLess(d['full_lz']['norm'], 3.0)
+
+    # ── all_lz ────────────────────────────────────────────────────────
+
+    def test_all_lz_has_four_rules(self):
+        result = self.all_lz('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_lz_values_are_dicts(self):
+        result = self.all_lz('ГОРА', 16)
+        for rule, d in result.items():
+            self.assertIsInstance(d, dict)
+            self.assertIn('full_lz', d)
+
+    # ── build_lz_data ──────────────────────────────────────────────────
+
+    def test_build_lz_data_structure(self):
+        data = self.build_lz_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_lz_data_entry_keys(self):
+        data = self.build_lz_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'mean_cell_norm', 'mean_sp_norm', 'full_lz'):
+            self.assertIn(k, entry)
+
+    def test_build_lz_data_words_uppercase(self):
+        data = self.build_lz_data(['туман'], 16)
+        self.assertIn('ТУМАН', data['words'])
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_lz_cells(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-cells', content)
+
+    def test_viewer_has_lz_rules(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-rules', content)
+
+    def test_viewer_has_lz_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-stats', content)
+
+    def test_viewer_has_lz_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lzRun', content)
+
+    def test_viewer_has_lz_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('LZ76 Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

@@ -9397,6 +9397,182 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>LZ76 Q6 — алгоритмическая сложность аттрактора</h2>
+<p class="meta">LZ76 (copy-parsing): число уникальных фраз при разборе бинарной строки · C_norm = C / (n/log₂n) · C_norm→1 случайная строка · C_norm≪1 периодическая · ГОРА AND: min (структурированный) · ТУМАН XOR3: max</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="lz-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="lz-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="lz-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="lz-cells" width="530" height="90"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="lz-rules" width="530" height="72"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="lz-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  function lzStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function lzOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=lzStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=lzStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=lzStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function toBin(v){
+    var s=((v&63)|64).toString(2); return s.slice(1);  /* 6 bits */
+  }
+  /* LZ76 copy-parsing on binary string */
+  function lz76(s){
+    var n=s.length; if(!n) return 0;
+    var i=0,c=0;
+    while(i<n){
+      var j=i+1;
+      while(j<=n && s.slice(0,i).indexOf(s.slice(i,j))>=0) j++;
+      c++; i=j;
+    }
+    return c;
+  }
+  function normLZ(c,n){
+    if(n<=1) return 1;
+    return c/(n/Math.log2(n));
+  }
+  function seriesBin(grid,cell){
+    return grid.map(function(row){return toBin(row[cell]);}).join('');
+  }
+  function fullBin(grid){
+    var s='';
+    grid.forEach(function(row){row.forEach(function(v){s+=toBin(v);});});
+    return s;
+  }
+  var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  var RLBL={xor:'XOR',xor3:'XOR3',and:'AND',or:'OR'};
+  function lzRun(){
+    var word=(document.getElementById('lz-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('lz-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=lzOrbit(ic,rule);
+    var P=grid.length;
+    var col=RCOL[rule]||'#4fc3f7';
+    /* Per-cell normalized LZ */
+    var cellNorm=[];
+    for(var i=0;i<N;i++){
+      var s=seriesBin(grid,i);
+      var c=lz76(s);
+      cellNorm.push(normLZ(c,s.length));
+    }
+    var meanCN=cellNorm.reduce(function(a,b){return a+b;},0)/N;
+    /* Full attractor LZ */
+    var fs=fullBin(grid);
+    var fc=lz76(fs);
+    var fn=normLZ(fc,fs.length);
+    /* ── Cell bars canvas ───────────────────────────────────────────── */
+    var cc=document.getElementById('lz-cells');
+    var cx=cc.getContext('2d');
+    var CW=cc.width,CH=cc.height;
+    cx.fillStyle='#0d0d0d'; cx.fillRect(0,0,CW,CH);
+    var barW=Math.max(Math.floor((CW-60)/N)-2,4);
+    var maxBar=CH-24;
+    /* reference line at norm=1 */
+    var ref1Y=Math.round(CH-16-maxBar*0.5);
+    cx.strokeStyle='#333'; cx.beginPath(); cx.moveTo(40,ref1Y); cx.lineTo(CW-10,ref1Y); cx.stroke();
+    cx.fillStyle='#444'; cx.font='8px monospace'; cx.textAlign='left';
+    cx.fillText('1.0',2,ref1Y+3);
+    for(var i=0;i<N;i++){
+      var v=cellNorm[i];
+      var bh=Math.round(Math.min(v,2.0)*maxBar/2);
+      var bx=40+i*(barW+2);
+      cx.fillStyle=col; cx.globalAlpha=0.82;
+      cx.fillRect(bx,CH-16-bh,barW,bh);
+      cx.globalAlpha=1;
+      cx.fillStyle='#555'; cx.font='8px monospace'; cx.textAlign='center';
+      cx.fillText(i,bx+barW/2,CH-4);
+    }
+    cx.fillStyle='#666'; cx.font='9px monospace'; cx.textAlign='left';
+    cx.fillText('C_norm',2,CH-16);
+    /* ── Rules comparison canvas ────────────────────────────────────── */
+    var rc=document.getElementById('lz-rules');
+    var rx=rc.getContext('2d');
+    var RW=rc.width,RH=rc.height;
+    rx.fillStyle='#0d0d0d'; rx.fillRect(0,0,RW,RH);
+    var rules=['xor','xor3','and','or'];
+    var rowH=Math.floor(RH/rules.length);
+    rules.forEach(function(r,ri){
+      var rcol=RCOL[r]||'#4fc3f7';
+      var rGrid=lzOrbit(ic,r);
+      var rFull=fullBin(rGrid);
+      var rC=lz76(rFull);
+      var rN=normLZ(rC,rFull.length);
+      var bw=Math.round(rN*(RW-120)/2);  /* scale: 0..2 → 0..(RW-120) */
+      var y0=ri*rowH+4, bh=rowH-8;
+      rx.fillStyle=rcol; rx.globalAlpha=0.8;
+      rx.fillRect(70,y0,bw,bh);
+      rx.globalAlpha=1;
+      rx.fillStyle='#777'; rx.font='9px monospace'; rx.textAlign='right';
+      rx.fillText(RLBL[r],66,y0+bh/2+3);
+      rx.fillStyle=rcol; rx.textAlign='left';
+      rx.fillText('C='+rFull.length+'b lz='+rC+' norm='+rN.toFixed(3),72+bw+4,y0+bh/2+3);
+    });
+    /* Stats */
+    document.getElementById('lz-stats').innerHTML=
+      'P='+P+
+      '  full: '+fs.length+'b lz='+fc+' norm='+fn.toFixed(4)+
+      '  mean_cell_norm='+meanCN.toFixed(4);
+  }
+  window.lzRun=lzRun;
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('lz-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('lz-btn');
+    var wordEl=document.getElementById('lz-word');
+    var ruleEl=document.getElementById('lz-rule');
+    if(btn)    btn.addEventListener('click',lzRun);
+    if(wordEl) wordEl.addEventListener('change',lzRun);
+    if(ruleEl) ruleEl.addEventListener('change',lzRun);
+    setTimeout(function(){if(window.encL) lzRun();},2700);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
