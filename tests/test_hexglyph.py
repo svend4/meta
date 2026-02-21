@@ -13258,5 +13258,334 @@ class TestSolanSpatent(unittest.TestCase):
         self.assertIn('seRun', content)
 
 
+class TestSolanEdge(unittest.TestCase):
+    """Tests for solan_edge.py and the viewer Spatial Edge section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_edge import (
+            edge_density,
+            bit_edge_density,
+            bit_edge_vector,
+            orbit_edge_profile,
+            orbit_bit_edge_profile,
+            edge_stats,
+            mean_bit_edge,
+            classify_bit_edge,
+            edge_summary,
+            all_edges,
+            build_edge_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.edge_density           = staticmethod(edge_density)
+        cls.bit_edge_density       = staticmethod(bit_edge_density)
+        cls.bit_edge_vector        = staticmethod(bit_edge_vector)
+        cls.orbit_edge_profile     = staticmethod(orbit_edge_profile)
+        cls.orbit_bit_edge_profile = staticmethod(orbit_bit_edge_profile)
+        cls.edge_stats             = staticmethod(edge_stats)
+        cls.mean_bit_edge          = staticmethod(mean_bit_edge)
+        cls.classify_bit_edge      = staticmethod(classify_bit_edge)
+        cls.edge_summary           = staticmethod(edge_summary)
+        cls.all_edges              = staticmethod(all_edges)
+        cls.build_edge_data        = staticmethod(build_edge_data)
+        cls.LEXICON                = list(LEXICON)
+
+    # ── edge_density() ───────────────────────────────────────────────────────
+
+    def test_edge_density_all_same_is_zero(self):
+        self.assertAlmostEqual(self.edge_density([5] * 16), 0.0, places=10)
+
+    def test_edge_density_alternating_is_one(self):
+        self.assertAlmostEqual(self.edge_density([0, 63] * 8), 1.0, places=10)
+
+    def test_edge_density_empty_is_zero(self):
+        self.assertEqual(self.edge_density([]), 0.0)
+
+    def test_edge_density_single_is_zero(self):
+        self.assertAlmostEqual(self.edge_density([42]), 0.0, places=10)
+
+    def test_edge_density_range_0_1(self):
+        import random; random.seed(0)
+        for _ in range(10):
+            state = [random.randint(0, 63) for _ in range(16)]
+            e = self.edge_density(state)
+            self.assertGreaterEqual(e, 0.0)
+            self.assertLessEqual(e, 1.0)
+
+    def test_edge_density_one_pair_differs(self):
+        # 15 cells same, 1 differs → 2 boundaries on ring of 16
+        state = [0] * 16
+        state[0] = 1
+        self.assertAlmostEqual(self.edge_density(state), 2 / 16, places=10)
+
+    # ── bit_edge_density() ────────────────────────────────────────────────────
+
+    def test_bit_edge_density_all_same_bit(self):
+        self.assertAlmostEqual(self.bit_edge_density([0] * 16, 0), 0.0, places=10)
+
+    def test_bit_edge_density_alternating_bit(self):
+        state = [0, 1] * 8   # bit 0 alternates 0/1
+        self.assertAlmostEqual(self.bit_edge_density(state, 0), 1.0, places=10)
+
+    def test_bit_edge_density_range(self):
+        for b in range(6):
+            v = self.bit_edge_density([47, 1] * 8, b)
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    # ── bit_edge_vector() ─────────────────────────────────────────────────────
+
+    def test_bit_edge_vector_length_6(self):
+        self.assertEqual(len(self.bit_edge_vector([0] * 16)), 6)
+
+    def test_bit_edge_vector_all_zeros_state(self):
+        bev = self.bit_edge_vector([0] * 16)
+        self.assertTrue(all(v == 0.0 for v in bev))
+
+    def test_bit_edge_vector_gora_and_state(self):
+        # 47=0b101111, 1=0b000001: bits 0 and 4 same; bits 1,2,3,5 differ
+        state = [47, 1] * 8
+        bev = self.bit_edge_vector(state)
+        self.assertAlmostEqual(bev[0], 0.0, places=10)
+        self.assertAlmostEqual(bev[4], 0.0, places=10)
+        for b in [1, 2, 3, 5]:
+            self.assertAlmostEqual(bev[b], 1.0, places=10)
+
+    # ── orbit_edge_profile() ──────────────────────────────────────────────────
+
+    def test_orbit_edge_profile_tuman_xor(self):
+        profile = self.orbit_edge_profile('ТУМАН', 'xor')
+        self.assertEqual(len(profile), 1)
+        self.assertAlmostEqual(profile[0], 0.0, places=10)
+
+    def test_orbit_edge_profile_gora_and(self):
+        profile = self.orbit_edge_profile('ГОРА', 'and')
+        self.assertEqual(len(profile), 2)
+        for e in profile:
+            self.assertAlmostEqual(e, 1.0, places=5)
+
+    def test_orbit_edge_profile_tuman_xor3_len_8(self):
+        self.assertEqual(len(self.orbit_edge_profile('ТУМАН', 'xor3')), 8)
+
+    def test_orbit_edge_profile_tuman_xor3_max(self):
+        self.assertAlmostEqual(max(self.orbit_edge_profile('ТУМАН', 'xor3')), 1.0, places=5)
+
+    def test_orbit_edge_profile_tuman_xor3_min(self):
+        # min = 13/16 = 0.8125
+        self.assertAlmostEqual(min(self.orbit_edge_profile('ТУМАН', 'xor3')), 13 / 16, places=5)
+
+    def test_orbit_edge_profile_all_nonneg(self):
+        for word in ['ТУМАН', 'ГОРА', 'ЛУНА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for e in self.orbit_edge_profile(word, rule):
+                    self.assertGreaterEqual(e, 0.0)
+
+    # ── orbit_bit_edge_profile() ──────────────────────────────────────────────
+
+    def test_bit_edge_profile_shape_gora_and(self):
+        bep = self.orbit_bit_edge_profile('ГОРА', 'and')
+        self.assertEqual(len(bep), 2)
+        for row in bep:
+            self.assertEqual(len(row), 6)
+
+    def test_bit_edge_profile_gora_xor3_bit0_zero(self):
+        # ГОРА XOR3: bit 0 = 1 everywhere → no spatial boundary for bit 0
+        bep = self.orbit_bit_edge_profile('ГОРА', 'xor3')
+        for row in bep:
+            self.assertAlmostEqual(row[0], 0.0, places=10)
+
+    def test_bit_edge_profile_gora_and_bits_1235_full(self):
+        bep = self.orbit_bit_edge_profile('ГОРА', 'and')
+        for row in bep:
+            for b in [1, 2, 3, 5]:
+                self.assertAlmostEqual(row[b], 1.0, places=5)
+
+    # ── edge_stats() ──────────────────────────────────────────────────────────
+
+    def test_edge_stats_keys(self):
+        st = self.edge_stats('ГОРА', 'and')
+        for k in ('mean', 'std', 'min', 'max', 'delta', 'profile'):
+            self.assertIn(k, st)
+
+    def test_edge_stats_tuman_xor_mean_zero(self):
+        self.assertAlmostEqual(self.edge_stats('ТУМАН', 'xor')['mean'], 0.0, places=10)
+
+    def test_edge_stats_gora_and_mean_one(self):
+        self.assertAlmostEqual(self.edge_stats('ГОРА', 'and')['mean'], 1.0, places=5)
+
+    def test_edge_stats_gora_and_delta_zero(self):
+        self.assertAlmostEqual(self.edge_stats('ГОРА', 'and')['delta'], 0.0, places=10)
+
+    def test_edge_stats_tuman_xor3_delta(self):
+        # delta = 1.0 - 13/16 = 3/16 = 0.1875
+        self.assertAlmostEqual(self.edge_stats('ТУМАН', 'xor3')['delta'], 3 / 16, places=5)
+
+    # ── mean_bit_edge() ────────────────────────────────────────────────────────
+
+    def test_mean_bit_edge_length_6(self):
+        self.assertEqual(len(self.mean_bit_edge('ГОРА', 'and')), 6)
+
+    def test_mean_bit_edge_gora_and_zero_bits(self):
+        mbe = self.mean_bit_edge('ГОРА', 'and')
+        self.assertAlmostEqual(mbe[0], 0.0, places=5)
+        self.assertAlmostEqual(mbe[4], 0.0, places=5)
+
+    def test_mean_bit_edge_gora_and_full_bits(self):
+        mbe = self.mean_bit_edge('ГОРА', 'and')
+        for b in [1, 2, 3, 5]:
+            self.assertAlmostEqual(mbe[b], 1.0, places=5)
+
+    def test_mean_bit_edge_gora_xor3_bit0_zero(self):
+        self.assertAlmostEqual(self.mean_bit_edge('ГОРА', 'xor3')[0], 0.0, places=5)
+
+    def test_mean_bit_edge_gora_xor3_others_half(self):
+        mbe = self.mean_bit_edge('ГОРА', 'xor3')
+        for b in range(1, 6):
+            self.assertAlmostEqual(mbe[b], 0.5, places=5)
+
+    def test_mean_bit_edge_range_all(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for v in self.mean_bit_edge(word, rule):
+                    self.assertGreaterEqual(v, 0.0)
+                    self.assertLessEqual(v, 1.0)
+
+    # ── classify_bit_edge() ───────────────────────────────────────────────────
+
+    def test_classify_zero(self):
+        self.assertEqual(self.classify_bit_edge(0.0), 'ZERO')
+
+    def test_classify_full(self):
+        self.assertEqual(self.classify_bit_edge(1.0), 'FULL')
+
+    def test_classify_half(self):
+        self.assertEqual(self.classify_bit_edge(0.5), 'HALF')
+
+    def test_classify_intermediate(self):
+        self.assertEqual(self.classify_bit_edge(0.3), 'INTERMEDIATE')
+
+    def test_classify_near_zero(self):
+        self.assertEqual(self.classify_bit_edge(0.01), 'ZERO')
+
+    def test_classify_near_full(self):
+        self.assertEqual(self.classify_bit_edge(0.99), 'FULL')
+
+    # ── edge_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.edge_summary('ГОРА', 'and')
+        for k in ('word', 'rule', 'period', 'profile', 'mean_E', 'std_E',
+                  'min_E', 'max_E', 'delta_E', 'variability',
+                  'mean_bit_edge', 'bit_edge_classes', 'class_counts'):
+            self.assertIn(k, d)
+
+    def test_summary_word_uppercase(self):
+        self.assertEqual(self.edge_summary('гора', 'and')['word'], 'ГОРА')
+
+    def test_summary_gora_and_variability_constant(self):
+        self.assertEqual(self.edge_summary('ГОРА', 'and')['variability'], 'constant')
+
+    def test_summary_gora_and_class_counts(self):
+        d = self.edge_summary('ГОРА', 'and')
+        self.assertEqual(d['class_counts']['ZERO'], 2)
+        self.assertEqual(d['class_counts']['FULL'], 4)
+
+    def test_summary_gora_xor3_bit0_is_zero_class(self):
+        d = self.edge_summary('ГОРА', 'xor3')
+        self.assertEqual(d['bit_edge_classes'][0], 'ZERO')
+
+    def test_summary_period_matches_profile(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                d = self.edge_summary(word, rule)
+                self.assertEqual(d['period'], len(d['profile']))
+
+    # ── all_edges() ───────────────────────────────────────────────────────────
+
+    def test_all_edges_four_rules(self):
+        self.assertEqual(set(self.all_edges('ГОРА').keys()), {'xor','xor3','and','or'})
+
+    def test_all_edges_consistent_word(self):
+        r = self.all_edges('ТУМАН')
+        for rule, d in r.items():
+            self.assertEqual(d['word'], 'ТУМАН')
+
+    # ── build_edge_data() ─────────────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        data = self.build_edge_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_data_four_rules(self):
+        data = self.build_edge_data(['ГОРА'])
+        self.assertEqual(set(data['per_rule'].keys()), {'xor','xor3','and','or'})
+
+    def test_build_data_word_keys(self):
+        words = ['ГОРА', 'ТУМАН', 'ЛУНА']
+        data = self.build_edge_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Scientific invariants ──────────────────────────────────────────────────
+
+    def test_xor_zero_attractor_edge_zero(self):
+        for word in self.LEXICON[:10]:
+            st = self.edge_stats(word, 'xor')
+            self.assertAlmostEqual(st['mean'], 0.0, places=10,
+                                   msg=f'{word} XOR edge should be 0')
+
+    def test_gora_and_bit_edge_matches_bitflip(self):
+        mbe = self.mean_bit_edge('ГОРА', 'and')
+        for b in [0, 4]:
+            self.assertEqual(self.classify_bit_edge(mbe[b]), 'ZERO')
+        for b in [1, 2, 3, 5]:
+            self.assertEqual(self.classify_bit_edge(mbe[b]), 'FULL')
+
+    def test_gora_xor3_only_bit0_zero_boundary(self):
+        mbe = self.mean_bit_edge('ГОРА', 'xor3')
+        self.assertEqual(self.classify_bit_edge(mbe[0]), 'ZERO')
+        for b in range(1, 6):
+            self.assertEqual(self.classify_bit_edge(mbe[b]), 'HALF')
+
+    # ── Viewer section tests ───────────────────────────────────────────────────
+
+    def test_viewer_has_edge_profile_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edge-profile', content)
+
+    def test_viewer_has_edge_bitheat_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edge-bitheat', content)
+
+    def test_viewer_has_edge_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edge-info', content)
+
+    def test_viewer_has_ed_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ed-word', content)
+
+    def test_viewer_has_ed_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ed-rule', content)
+
+    def test_viewer_has_ed_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ed-btn', content)
+
+    def test_viewer_has_edge_density_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edgeDensity', content)
+
+    def test_viewer_has_bit_edge_vector_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bitEdgeVector', content)
+
+    def test_viewer_has_ed_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edRun', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -11549,6 +11549,240 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Spatial Edge Density Q6 — границы между соседними ячейками</h2>
+<p class="meta">E_t = доля пар соседних ячеек с различными Q6-значениями · ТУМАН XOR=0, ГОРА AND=1.0 бит[0,4]=ZERO бит[1,2,3,5]=FULL · ГОРА XOR3 бит0=ZERO (везде=1) остальные=HALF · сетка 6-битовых границ</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="ed-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="ed-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="and" selected>AND</option>
+    <option value="xor3">XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="ed-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="edge-profile" width="530" height="150"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="edge-bitheat" width="530" height="90"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="edge-info"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  function edStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function edOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=edStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=edStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=edStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function edgeDensity(state){
+    var N=state.length; if(N<2) return 0;
+    var cnt=0;
+    for(var i=0;i<N;i++) if(state[i]!==state[(i+1)%N]) cnt++;
+    return cnt/N;
+  }
+  function bitEdgeVector(state){
+    var N=state.length, out=[];
+    for(var b=0;b<6;b++){
+      var cnt=0;
+      for(var i=0;i<N;i++)
+        if(((state[i]>>b)&1)!==((state[(i+1)%N]>>b)&1)) cnt++;
+      out.push(N>0?cnt/N:0);
+    }
+    return out;
+  }
+  function classifyEdge(v){
+    if(v<=0.02) return 'ZERO';
+    if(v>=0.98) return 'FULL';
+    if(Math.abs(v-0.5)<=0.02) return 'HALF';
+    return 'MID';
+  }
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+
+  function edRun(){
+    var word=(document.getElementById('ed-word').value||'ГОРА').toUpperCase();
+    var rule=document.getElementById('ed-rule').value||'and';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=edOrbit(ic,rule), P=grid.length;
+    var col=BCOL[rule]||'#ef5350';
+
+    /* Compute edge profile and bit-edge matrix */
+    var edProf=[], bitMat=[];
+    for(var t=0;t<P;t++){
+      edProf.push(edgeDensity(grid[t]));
+      bitMat.push(bitEdgeVector(grid[t]));
+    }
+    var meanE=edProf.reduce(function(a,b){return a+b;},0)/P;
+    var minE=Math.min.apply(null,edProf), maxE=Math.max.apply(null,edProf);
+    var deltaE=maxE-minE;
+    /* mean bit edge */
+    var meanBit=[];
+    for(var b=0;b<6;b++){
+      var s=0; for(var t=0;t<P;t++) s+=bitMat[t][b];
+      meanBit.push(s/P);
+    }
+
+    /* ── Edge density line chart ────────────────────────────────── */
+    var pc=document.getElementById('edge-profile');
+    var px=pc.getContext('2d');
+    var PW=pc.width, PH=pc.height;
+    px.fillStyle='#0a0a0a'; px.fillRect(0,0,PW,PH);
+    var PAD=30, botPad=18;
+    var cW=PW-PAD*2, cH=PH-PAD-botPad;
+    var r1=parseInt(col.slice(1,3),16)||0xef, g1=parseInt(col.slice(3,5),16)||0x53, b1=parseInt(col.slice(5,7),16)||0x50;
+
+    /* axes */
+    px.strokeStyle='#333'; px.lineWidth=1;
+    px.beginPath(); px.moveTo(PAD,PAD); px.lineTo(PAD,PAD+cH); px.lineTo(PAD+cW,PAD+cH); px.stroke();
+    /* y labels */
+    px.fillStyle='#666'; px.font='9px monospace'; px.textAlign='right';
+    for(var i=0;i<=4;i++){
+      var yv=i*0.25;
+      var y=PAD+cH-cH*yv;
+      px.fillText(yv.toFixed(2),PAD-3,y+3);
+      px.strokeStyle='#1a1a1a'; px.beginPath(); px.moveTo(PAD,y); px.lineTo(PAD+cW,y); px.stroke();
+    }
+
+    /* filled area + line */
+    if(P===1){
+      var y0=PAD+cH-cH*edProf[0];
+      px.strokeStyle=col; px.lineWidth=2;
+      px.beginPath(); px.moveTo(PAD,y0); px.lineTo(PAD+cW,y0); px.stroke();
+    } else {
+      px.beginPath(); px.moveTo(PAD,PAD+cH);
+      for(var t=0;t<P;t++){
+        var x=PAD+cW*(t/(P-1));
+        px.lineTo(x,PAD+cH-cH*edProf[t]);
+      }
+      px.lineTo(PAD+cW,PAD+cH); px.closePath();
+      px.fillStyle='rgba('+r1+','+g1+','+b1+',0.18)'; px.fill();
+      px.beginPath();
+      for(var t=0;t<P;t++){
+        var x=PAD+cW*(t/(P-1));
+        var y=PAD+cH-cH*edProf[t];
+        if(t===0) px.moveTo(x,y); else px.lineTo(x,y);
+      }
+      px.strokeStyle=col; px.lineWidth=2; px.stroke();
+      /* dots + labels */
+      px.fillStyle=col;
+      for(var t=0;t<P;t++){
+        var x=PAD+cW*(t/(P-1)), y=PAD+cH-cH*edProf[t];
+        px.beginPath(); px.arc(x,y,3,0,2*Math.PI); px.fill();
+        px.fillStyle='#aaa'; px.font='8px monospace'; px.textAlign='center';
+        px.fillText(edProf[t].toFixed(3),x,y-6);
+        px.fillStyle=col;
+      }
+    }
+    /* mean dashed */
+    var yMean=PAD+cH-cH*meanE;
+    px.strokeStyle='#555'; px.setLineDash([3,3]); px.lineWidth=1;
+    px.beginPath(); px.moveTo(PAD,yMean); px.lineTo(PAD+cW,yMean); px.stroke();
+    px.setLineDash([]);
+    px.fillStyle='#888'; px.font='9px monospace'; px.textAlign='left';
+    px.fillText('μ='+meanE.toFixed(3),PAD+2,yMean-2);
+    /* x labels */
+    px.fillStyle='#666'; px.textAlign='center';
+    for(var t=0;t<P;t++){
+      var x=PAD+(P===1?cW/2:cW*(t/(P-1)));
+      px.fillText('t='+t,x,PAD+cH+botPad-3);
+    }
+    /* title */
+    px.fillStyle='#888'; px.font='10px monospace'; px.textAlign='left';
+    px.fillText(word+' '+rule.toUpperCase()+' P='+P+'  Edge Density E_t',PAD,PAD-8);
+
+    /* ── 6-bit edge heat map ─────────────────────────────────────── */
+    var bc=document.getElementById('edge-bitheat');
+    var bx=bc.getContext('2d');
+    var BW=bc.width, BH=bc.height;
+    bx.fillStyle='#0a0a0a'; bx.fillRect(0,0,BW,BH);
+    var BPadL=36, BPadR=8, BPadT=6, BPadB=14;
+    var bCW=BW-BPadL-BPadR, bCH=BH-BPadT-BPadB;
+    var rowH=Math.floor(bCH/6), colW=P>0?Math.floor(bCW/P):bCW;
+
+    for(var b=0;b<6;b++){
+      var y0=BPadT+b*rowH;
+      /* bit label */
+      bx.fillStyle='#666'; bx.font='9px monospace'; bx.textAlign='right';
+      bx.fillText('b'+b,BPadL-4,y0+rowH/2+3);
+      for(var t=0;t<P;t++){
+        var val=bitMat[t][b];
+        var x0=BPadL+t*colW;
+        /* heatmap: 0=dark, 0.5=mid-rule-color, 1=bright */
+        var rf=Math.round(r1*val), gf=Math.round(g1*val), bf=Math.round(b1*val);
+        bx.fillStyle='rgb('+rf+','+gf+','+bf+')';
+        bx.fillRect(x0,y0,colW-1,rowH-1);
+        /* value label if cells are wide enough */
+        if(colW>=20){
+          bx.fillStyle=val>0.4?'#000':'#555';
+          bx.font='7px monospace'; bx.textAlign='center';
+          bx.fillText(val.toFixed(2),x0+colW/2,y0+rowH/2+2);
+        }
+      }
+    }
+    /* x-axis labels */
+    bx.fillStyle='#666'; bx.font='8px monospace'; bx.textAlign='center';
+    for(var t=0;t<P;t++){
+      bx.fillText('t'+t,BPadL+t*colW+colW/2,BH-2);
+    }
+
+    /* ── Info text ──────────────────────────────────────────────── */
+    var cls=['ZERO','FULL','HALF','MID'];
+    var classNames={ZERO:0,FULL:0,HALF:0,MID:0};
+    meanBit.forEach(function(v){classNames[classifyEdge(v)]++;});
+    var bitSummary=meanBit.map(function(v,b){return 'b'+b+'='+v.toFixed(3)+'('+classifyEdge(v)+')';}).join(' ');
+    document.getElementById('edge-info').innerHTML=
+      '<b>'+word+' '+rule.toUpperCase()+'</b>  P='+P+
+      '  mean_E='+meanE.toFixed(4)+'  delta_E='+deltaE.toFixed(4)+
+      '  range=['+minE.toFixed(4)+','+maxE.toFixed(4)+']<br>'+
+      'bit_edge: '+bitSummary;
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var lexArr=window.LEXICON_ARR||['ТУМАН','ГОРА'];
+    var sel=document.getElementById('ed-word');
+    if(sel){
+      lexArr.forEach(function(w){var o=document.createElement('option');o.value=w;o.textContent=w;sel.appendChild(o);});
+      sel.value='ГОРА';
+    }
+    var btn=document.getElementById('ed-btn');
+    var wordEl=document.getElementById('ed-word');
+    var ruleEl=document.getElementById('ed-rule');
+    if(btn)    btn.addEventListener('click',edRun);
+    if(wordEl) wordEl.addEventListener('change',edRun);
+    if(ruleEl) ruleEl.addEventListener('change',edRun);
+    setTimeout(function(){if(window.encL) edRun();},4200);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
