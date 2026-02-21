@@ -5490,6 +5490,226 @@ class TestSolanNetwork(unittest.TestCase):
         self.assertIn('СКС', content)
 
 
+class TestSolanPortrait(unittest.TestCase):
+    """Tests for solan_portrait.py and the viewer Portrait section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import (
+            portrait_dict, portrait_compare,
+            build_portrait_data, _l2_distance, _cosine_sim,
+            _AXES, _LABELS, _N_AXES,
+            _DEFAULT_RULE, _DEFAULT_W,
+        )
+        cls.portrait_dict    = staticmethod(portrait_dict)
+        cls.portrait_compare = staticmethod(portrait_compare)
+        cls.build_portrait   = staticmethod(build_portrait_data)
+        cls.l2               = staticmethod(_l2_distance)
+        cls.cosine           = staticmethod(_cosine_sim)
+        cls.AXES             = _AXES
+        cls.LABELS           = _LABELS
+        cls.N_AXES           = _N_AXES
+        cls.RULE             = _DEFAULT_RULE
+        cls.W                = _DEFAULT_W
+
+    # ── _l2_distance ──────────────────────────────────────────────────────────
+
+    def test_l2_zero_for_identical(self):
+        v = [0.5, 0.3, 0.8, 0.1, 0.6, 0.4, 0.7, 0.2]
+        self.assertAlmostEqual(self.l2(v, v), 0.0, places=8)
+
+    def test_l2_range(self):
+        v1 = [0.0] * 8
+        v2 = [1.0] * 8
+        # L2 normalised by N: sqrt(sum(1.0^2)/8) = sqrt(1) = 1
+        self.assertAlmostEqual(self.l2(v1, v2), 1.0, places=8)
+
+    def test_l2_symmetric(self):
+        v1 = [0.2, 0.5, 0.8, 0.1, 0.6, 0.3, 0.7, 0.4]
+        v2 = [0.4, 0.3, 0.6, 0.5, 0.2, 0.8, 0.1, 0.7]
+        self.assertAlmostEqual(self.l2(v1, v2), self.l2(v2, v1), places=8)
+
+    # ── _cosine_sim ───────────────────────────────────────────────────────────
+
+    def test_cosine_identical(self):
+        v = [0.3, 0.5, 0.7, 0.2, 0.8, 0.4, 0.6, 0.1]
+        self.assertAlmostEqual(self.cosine(v, v), 1.0, places=8)
+
+    def test_cosine_range(self):
+        v1 = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        v2 = [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.assertAlmostEqual(self.cosine(v1, v2), 0.0, places=8)
+
+    # ── portrait_dict ─────────────────────────────────────────────────────────
+
+    def test_pd_keys(self):
+        d = self.portrait_dict('ТУМАН', self.RULE)
+        for k in ['word', 'rule', 'width', 'axes', 'labels', 'metrics',
+                  'ic_entropy', 'period', 'transient', 'complexity',
+                  'topological_h', 'te_flow', 'sensitivity', 'autocorr',
+                  'ic_entropy_n', 'period_n', 'transient_n', 'complexity_n',
+                  'topological_h_n', 'te_flow_n', 'sensitivity_n', 'autocorr_n']:
+            self.assertIn(k, d)
+
+    def test_pd_word_upper(self):
+        d = self.portrait_dict('туман')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_pd_metrics_length(self):
+        d = self.portrait_dict('ТУМАН')
+        self.assertEqual(len(d['metrics']), self.N_AXES)
+
+    def test_pd_metrics_in_range(self):
+        d = self.portrait_dict('ТУМАН')
+        for v in d['metrics']:
+            self.assertGreaterEqual(v, 0.0, msg=f'metric<0: {v}')
+            self.assertLessEqual(v, 1.0,    msg=f'metric>1: {v}')
+
+    def test_pd_axes_length(self):
+        d = self.portrait_dict('ТУМАН')
+        self.assertEqual(len(d['axes']),    self.N_AXES)
+        self.assertEqual(len(d['labels']),  self.N_AXES)
+
+    def test_pd_period_matches_orbit(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ТУМАН'), self.W)
+        _, p  = find_orbit(cells[:], self.RULE)
+        d = self.portrait_dict('ТУМАН', self.RULE)
+        self.assertEqual(d['period'], max(p, 1))
+
+    def test_pd_topo_h_xor3_positive(self):
+        d = self.portrait_dict('ТУМАН', 'xor3')
+        self.assertGreater(d['topological_h'], 0.0)
+
+    def test_pd_period_xor3_tuman_is_8(self):
+        d = self.portrait_dict('ТУМАН', 'xor3')
+        self.assertEqual(d['period'], 8)
+
+    def test_pd_period_n_at_most_1(self):
+        for word in ['ТУМАН', 'ГОРА', 'ВОДА']:
+            d = self.portrait_dict(word, self.RULE)
+            self.assertLessEqual(d['period_n'], 1.0)
+
+    def test_pd_transient_n_at_most_1(self):
+        d = self.portrait_dict('ТУМАН', self.RULE)
+        self.assertLessEqual(d['transient_n'], 1.0)
+
+    def test_pd_normalised_suffix_matches_metrics(self):
+        d = self.portrait_dict('ТУМАН')
+        norm_keys = [a + '_n' for a in self.AXES]
+        for i, k in enumerate(norm_keys):
+            # _n keys are rounded to 6 d.p.; metrics stores full floats
+            self.assertAlmostEqual(d[k], d['metrics'][i], places=5,
+                                   msg=f'axis={k}')
+
+    def test_pd_gora_period_2(self):
+        d = self.portrait_dict('ГОРА', 'xor3')
+        self.assertEqual(d['period'], 2)
+
+    def test_pd_ic_entropy_nonneg(self):
+        d = self.portrait_dict('ТУМАН')
+        self.assertGreaterEqual(d['ic_entropy'], 0.0)
+
+    def test_pd_te_flow_xor_zero(self):
+        # XOR period-1 all-zeros → TE = 0
+        d = self.portrait_dict('ТУМАН', 'xor')
+        self.assertAlmostEqual(d['te_flow'], 0.0, places=4)
+
+    def test_pd_te_flow_xor3_positive(self):
+        d = self.portrait_dict('ТУМАН', 'xor3')
+        self.assertGreater(d['te_flow'], 0.0)
+
+    def test_pd_sensitivity_nonneg(self):
+        d = self.portrait_dict('ТУМАН')
+        self.assertGreaterEqual(d['sensitivity'], 0.0)
+
+    def test_pd_autocorr_n_in_range(self):
+        # autocorr_n = (acf1 + 1) / 2 ∈ [0, 1]
+        for word in ['ТУМАН', 'ГОРА', 'ВОДА']:
+            d = self.portrait_dict(word)
+            self.assertGreaterEqual(d['autocorr_n'], 0.0)
+            self.assertLessEqual(d['autocorr_n'], 1.0)
+
+    # ── portrait_compare ──────────────────────────────────────────────────────
+
+    def test_pc_keys(self):
+        c = self.portrait_compare('ТУМАН', 'ГОРА')
+        for k in ['word1', 'word2', 'rule', 'portrait1', 'portrait2',
+                  'l2_distance', 'cosine_sim']:
+            self.assertIn(k, c)
+
+    def test_pc_self_distance_zero(self):
+        c = self.portrait_compare('ТУМАН', 'ТУМАН')
+        self.assertAlmostEqual(c['l2_distance'], 0.0, places=6)
+
+    def test_pc_self_cosine_one(self):
+        c = self.portrait_compare('ТУМАН', 'ТУМАН')
+        self.assertAlmostEqual(c['cosine_sim'], 1.0, places=6)
+
+    def test_pc_distance_positive(self):
+        c = self.portrait_compare('ТУМАН', 'ГОРА')
+        self.assertGreater(c['l2_distance'], 0.0)
+
+    def test_pc_cosine_in_range(self):
+        c = self.portrait_compare('ТУМАН', 'ГОРА')
+        self.assertGreaterEqual(c['cosine_sim'], -1.0)
+        self.assertLessEqual(c['cosine_sim'], 1.0)
+
+    # ── build_portrait_data ───────────────────────────────────────────────────
+
+    def test_bpd_keys(self):
+        d = self.build_portrait(['ГОРА', 'ВОДА', 'МИР'])
+        for k in ['words', 'rule', 'axes', 'labels', 'portraits', 'ranking']:
+            self.assertIn(k, d)
+
+    def test_bpd_portraits_shape(self):
+        words = ['ГОРА', 'ВОДА']
+        d = self.build_portrait(words)
+        self.assertEqual(set(d['portraits'].keys()), set(words))
+        for w, m in d['portraits'].items():
+            self.assertEqual(len(m), self.N_AXES, msg=f'word={w}')
+
+    def test_bpd_ranking_axes(self):
+        d = self.build_portrait(['ГОРА', 'ВОДА', 'МИР'])
+        for ax in self.AXES:
+            self.assertIn(ax, d['ranking'])
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_prt_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prt-canvas', content)
+
+    def test_viewer_has_prt_bars(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prt-bars', content)
+
+    def test_viewer_has_prt_word2(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prt-word2', content)
+
+    def test_viewer_has_draw_radar(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('drawRadar', content)
+
+    def test_viewer_has_prt_lz76(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prtLZ76', content)
+
+    def test_viewer_has_prt_topo_h(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prtTopoH', content)
+
+    def test_viewer_has_prt_lyap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prtLyap', content)
+
+    def test_viewer_has_portrait_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('радарный отпечаток', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

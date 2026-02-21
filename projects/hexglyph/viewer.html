@@ -6719,6 +6719,294 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Портрет Q6 — радарный отпечаток динамики</h2>
+<p class="meta">8-мерный нормированный «отпечаток» слова: IC-H · Period · Trans. · LZ76 · Topo-h · TE · Lyap. · Autocorr · все оси [0,1] · радарная паутина · опциональное сравнение двух слов</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="prt-word1"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <span style="color:#666;font-size:12px">vs</span>
+  <select id="prt-word2"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="">(без сравнения)</option>
+  </select>
+  <select id="prt-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <button id="prt-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Портрет</button>
+</div>
+<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+  <canvas id="prt-canvas" style="display:block"></canvas>
+  <div id="prt-bars" style="color:#ccc;font-family:monospace;font-size:11px;min-width:260px"></div>
+</div>
+<div id="prt-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"></div>
+<script>
+(function(){
+  var PRT_COLS={xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+  var PRT_CMP='#f48';
+  var PRT_AX=['IC-H','Period','Trans.','LZ76','Topo-h','TE','Lyap.','Autocorr'];
+
+  function prtStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function prtOrbit(c0,rule){
+    var seen={},c=c0.slice(),t=0;
+    for(;;){var k=c.join(',');if(k in seen) return {T:seen[k],P:t-seen[k]};seen[k]=t;c=prtStep(c,rule);t++;}
+  }
+
+  function prtH(C){
+    var total=0;Object.values(C).forEach(function(v){total+=v;});
+    if(!total) return 0;
+    return -Object.values(C).reduce(function(h,v){var p=v/total;return h+(p>0?p*Math.log2(p):0);},0);
+  }
+
+  function prtIcH(cells,N){
+    var C={};cells.forEach(function(v){C[v]=(C[v]||0)+1;});
+    return Math.min(prtH(C)/Math.log2(N),1.0);
+  }
+
+  function prtLZ76(bits){
+    var n=bits.length;if(!n) return 0;
+    var sts=new Set(['']);var w='';var c=1;var i=0;
+    while(i<n){
+      var s=bits[i]?'1':'0';
+      if(sts.has(w+s)){w+=s;i++;}
+      else{c++;sts.add(w+s);w='';i++;}
+    }
+    if(w.length>0) c++;
+    var nMax=n/(Math.log2(n)||1);
+    return Math.min(c/nMax,1.0);
+  }
+
+  function prtTopoH(tempSeqs,maxN){
+    maxN=maxN||4;
+    function cnt(seqs,n){
+      var C={};
+      seqs.forEach(function(s){
+        var L=s.length;
+        for(var i=0;i<L;i++){var g='';for(var j=0;j<n;j++) g+=s[(i+j)%L];C[g]=(C[g]||0)+1;}
+      });
+      return C;
+    }
+    var topo=0;
+    for(var n=2;n<=maxN;n++) topo=Math.max(topo,prtH(cnt(tempSeqs,n))/n);
+    return Math.min(topo,1.0);
+  }
+
+  function prtTETotal(orbit,N){
+    var total=0;
+    var P=orbit.length;
+    for(var j=0;j<N;j++){
+      var yy={},y={};
+      for(var t=0;t<P;t++){var yt=orbit[t][j],yt1=orbit[(t+1)%P][j];var k1=yt+','+yt1;yy[k1]=(yy[k1]||0)+1;y[yt]=(y[yt]||0)+1;}
+      var Hcond=prtH(yy)-prtH(y);
+      for(var i=0;i<N;i++){
+        var xyy={},xy={};
+        for(var t=0;t<P;t++){var xt=orbit[t][i],yt2=orbit[t][j],yt12=orbit[(t+1)%P][j];var k2=xt+','+yt2+','+yt12;xyy[k2]=(xyy[k2]||0)+1;var k3=xt+','+yt2;xy[k3]=(xy[k3]||0)+1;}
+        total+=Math.max(0,Hcond-(prtH(xyy)-prtH(xy)));
+      }
+    }
+    return Math.min(total/300,1.0);
+  }
+
+  function prtLyap(cells0,rule,N){
+    var nPerturb=16,nSteps=20,totalPeak=0;
+    for(var pi=0;pi<nPerturb;pi++){
+      var ci=Math.floor(pi/6)%N,bi=pi%6;
+      var orig=cells0.slice(),pert=cells0.slice();
+      pert[ci]=(pert[ci]^(1<<bi))&63;
+      var peakD=0;
+      for(var t=0;t<nSteps;t++){
+        orig=prtStep(orig,rule);pert=prtStep(pert,rule);
+        var d=0;
+        for(var j=0;j<N;j++){var diff=orig[j]^pert[j];while(diff){d+=diff&1;diff>>=1;}}
+        peakD=Math.max(peakD,d);
+      }
+      totalPeak+=peakD;
+    }
+    return Math.min((totalPeak/nPerturb)/96,1.0);
+  }
+
+  function prtAutocorr1(grid){
+    var N=grid[0].length,P=grid.length,sumR=0,cnt=0;
+    for(var t=0;t<P;t++){
+      var row=grid[t];
+      var mu=row.reduce(function(s,v){return s+v;},0)/N;
+      var va=row.reduce(function(s,v){return s+(v-mu)*(v-mu);},0)/N;
+      if(va<1e-9) continue;
+      var r1=0;for(var i=0;i<N;i++) r1+=(row[i]-mu)*(row[(i+1)%N]-mu);
+      sumR+=r1/(N*va);cnt++;
+    }
+    var acf1=cnt>0?sumR/cnt:0;
+    return (acf1+1)/2;
+  }
+
+  function prtMetrics(cells,rule){
+    var N=cells.length;
+    var info=prtOrbit(cells.slice(),rule);
+    var T=info.T,P=Math.max(info.P,1);
+    var c=cells.slice();
+    for(var i=0;i<T;i++) c=prtStep(c,rule);
+    var grid=[];
+    for(var i=0;i<P;i++){grid.push(c.slice());c=prtStep(c,rule);}
+
+    var icH=prtIcH(cells,N);
+    var pN=Math.min(P/8,1.0);
+    var tN=Math.min(T/8,1.0);
+
+    var bits=[];
+    for(var t=0;t<P;t++) for(var i=0;i<N;i++) for(var b=0;b<6;b++) bits.push((grid[t][i]>>b)&1);
+    var lz=prtLZ76(bits);
+
+    var tempSeqs=[];
+    for(var i=0;i<N;i++){var sq=[];for(var t=0;t<P;t++) sq.push(grid[t][i]>=32?1:0);tempSeqs.push(sq);}
+    var topo=prtTopoH(tempSeqs,4);
+
+    var te=prtTETotal(grid,N);
+    var lyap=prtLyap(cells,rule,N);
+    var ac1=prtAutocorr1(grid);
+
+    return {vals:[icH,pN,tN,lz,topo,te,lyap,ac1],P:P,T:T};
+  }
+
+  function drawRadar(ctx,cx,cy,R,vals,col,fillAlpha){
+    var N=vals.length;
+    fillAlpha=fillAlpha||0.22;
+    function pt(i,r){var a=(2*Math.PI*i/N)-Math.PI/2;return[cx+r*Math.cos(a),cy+r*Math.sin(a)];}
+    // rings
+    for(var k=1;k<=5;k++){
+      ctx.beginPath();
+      for(var i=0;i<=N;i++){var p=pt(i%N,R*k/5);if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);}
+      ctx.closePath();ctx.strokeStyle='rgba(200,200,200,0.12)';ctx.lineWidth=0.5;ctx.stroke();
+    }
+    // axes
+    for(var i=0;i<N;i++){var p=pt(i,R);ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(p[0],p[1]);ctx.strokeStyle='rgba(200,200,200,0.2)';ctx.lineWidth=0.5;ctx.stroke();}
+    // polygon
+    ctx.beginPath();
+    for(var i=0;i<=N;i++){var p=pt(i%N,R*vals[i%N]);if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);}
+    ctx.closePath();
+    ctx.globalAlpha=fillAlpha;ctx.fillStyle=col;ctx.fill();
+    ctx.globalAlpha=1;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
+    // dots
+    for(var i=0;i<N;i++){var p=pt(i,R*vals[i]);ctx.beginPath();ctx.arc(p[0],p[1],3,0,2*Math.PI);ctx.fillStyle=col;ctx.fill();}
+  }
+
+  function drawLabels(ctx,cx,cy,R,labels){
+    var N=labels.length;
+    for(var i=0;i<N;i++){
+      var a=(2*Math.PI*i/N)-Math.PI/2;
+      var lx=cx+(R+22)*Math.cos(a),ly=cy+(R+22)*Math.sin(a);
+      ctx.fillStyle='#999';ctx.font='9px monospace';ctx.textAlign='center';
+      ctx.fillText(labels[i],lx,ly+4);
+    }
+  }
+
+  function prtRun(){
+    if(!window.encL||!window.padL) return;
+    var w1=(document.getElementById('prt-word1').value||'ТУМАН').toUpperCase();
+    var w2el=document.getElementById('prt-word2');
+    var w2=w2el?w2el.value:'';
+    var rule=document.getElementById('prt-rule').value||'xor3';
+    var N=16;
+    var col1=PRT_COLS[rule]||'#ccc';
+    var col2=PRT_CMP;
+
+    var cells1=window.padL(window.encL(w1),N);
+    var m1=prtMetrics(cells1,rule);
+
+    var GS=350,cx=GS/2,cy=GS/2,Rc=GS*0.36;
+    var canvas=document.getElementById('prt-canvas');
+    canvas.width=GS;canvas.height=GS;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0e0e0e';ctx.fillRect(0,0,GS,GS);
+
+    drawRadar(ctx,cx,cy,Rc,m1.vals,col1,0.22);
+    drawLabels(ctx,cx,cy,Rc,PRT_AX);
+
+    var barsHTML='<table style="border-collapse:collapse">';
+    barsHTML+='<tr><th style="padding:2px 6px;color:#666">ось</th>'
+      +'<th style="padding:2px 6px;color:'+col1+'">'+w1+'</th>';
+
+    var m2=null;
+    if(w2){
+      var cells2=window.padL(window.encL(w2.toUpperCase()),N);
+      m2=prtMetrics(cells2,rule);
+      drawRadar(ctx,cx,cy,Rc,m2.vals,col2,0.18);
+      barsHTML+='<th style="padding:2px 6px;color:'+col2+'">'+w2+'</th>';
+    }
+    barsHTML+='</tr>';
+
+    for(var i=0;i<PRT_AX.length;i++){
+      var v1=m1.vals[i];
+      var bar1='▓'.repeat(Math.round(v1*16))+'░'.repeat(16-Math.round(v1*16));
+      var row='<tr>'
+        +'<td style="padding:1px 6px;color:#888">'+PRT_AX[i]+'</td>'
+        +'<td style="padding:1px 6px;color:'+col1+';font-size:10px">'+bar1+' '+v1.toFixed(3)+'</td>';
+      if(m2){
+        var v2=m2.vals[i];
+        var bar2='▓'.repeat(Math.round(v2*16))+'░'.repeat(16-Math.round(v2*16));
+        row+='<td style="padding:1px 6px;color:'+col2+';font-size:10px">'+bar2+' '+v2.toFixed(3)+'</td>';
+      }
+      barsHTML+=row+'</tr>';
+    }
+    barsHTML+='</table>';
+    document.getElementById('prt-bars').innerHTML=barsHTML;
+
+    var statsHTML='<span style="color:'+col1+'">'+w1+'</span>'
+      +' P='+m1.P+' T='+m1.T;
+    if(m2){
+      // L2 distance
+      var d=0;
+      for(var i=0;i<8;i++) d+=(m1.vals[i]-m2.vals[i])*(m1.vals[i]-m2.vals[i]);
+      d=Math.sqrt(d/8);
+      var dot=0,n1s=0,n2s=0;
+      for(var i=0;i<8;i++){dot+=m1.vals[i]*m2.vals[i];n1s+=m1.vals[i]*m1.vals[i];n2s+=m2.vals[i]*m2.vals[i];}
+      var cos=dot/((Math.sqrt(n1s)||1)*(Math.sqrt(n2s)||1));
+      statsHTML+='  <span style="color:'+col2+'">'+w2+'</span>'
+        +' P='+m2.P+' T='+m2.T
+        +'  |  L2='+d.toFixed(3)+'  cosine='+cos.toFixed(3);
+    }
+    document.getElementById('prt-stats').innerHTML=statsHTML;
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel1=document.getElementById('prt-word1');
+    var sel2=document.getElementById('prt-word2');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o1=document.createElement('option');o1.value=o1.text=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o1.selected=true;
+        sel1.appendChild(o1);
+        var o2=document.createElement('option');o2.value=o2.text=w;
+        sel2.appendChild(o2);
+      });
+    }
+    var btn=document.getElementById('prt-btn');
+    var ruleEl=document.getElementById('prt-rule');
+    if(btn)    btn.addEventListener('click',prtRun);
+    if(sel1)   sel1.addEventListener('change',prtRun);
+    if(sel2)   sel2.addEventListener('change',prtRun);
+    if(ruleEl) ruleEl.addEventListener('change',prtRun);
+    setTimeout(function(){if(window.encL) prtRun();},1350);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
