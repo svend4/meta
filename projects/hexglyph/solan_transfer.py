@@ -34,6 +34,7 @@ XOR3 ТУМАН (P=8) and XOR3 ГОРА (P=2).
     cell_te(orbit, i, j, n_bits)               → float
     te_matrix(word, rule, width)               → list[list[float]]
     te_asymmetry(mat)                          → list[list[float]]
+    te_summary(word, rule, width)              → dict   (≡ te_dict)
     te_dict(word, rule, width)                 → dict
     all_te(word, width)                        → dict[str, dict]
     build_te_data(words, width)                → dict
@@ -44,6 +45,8 @@ XOR3 ТУМАН (P=8) and XOR3 ГОРА (P=2).
     python3 -m projects.hexglyph.solan_transfer --word ТУМАН --rule xor3
     python3 -m projects.hexglyph.solan_transfer --word ГОРА --all-rules --no-color
     python3 -m projects.hexglyph.solan_transfer --stats
+    python3 -m projects.hexglyph.solan_transfer --word ТУМАН --json
+    python3 -m projects.hexglyph.solan_transfer --table
 """
 from __future__ import annotations
 
@@ -251,12 +254,21 @@ def te_dict(
     }
 
 
+def te_summary(
+    word:  str,
+    rule:  str = 'xor3',
+    width: int = _DEFAULT_WIDTH,
+) -> dict:
+    """Alias for te_dict — standard *_summary convention."""
+    return te_dict(word, rule, width)
+
+
 def all_te(
     word:  str,
     width: int = _DEFAULT_WIDTH,
 ) -> dict[str, dict]:
-    """te_dict for all 4 rules."""
-    return {r: te_dict(word, r, width) for r in _ALL_RULES}
+    """te_summary for all 4 rules."""
+    return {r: te_summary(word, r, width) for r in _ALL_RULES}
 
 
 def build_te_data(
@@ -369,16 +381,22 @@ def print_te_stats(
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 def _main() -> None:
+    import json as _json
     parser = argparse.ArgumentParser(description='Transfer Entropy Q6 CA')
     parser.add_argument('--word',      default='ТУМАН', help='Русское слово')
     parser.add_argument('--rule',      default='xor3',  choices=_ALL_RULES)
     parser.add_argument('--all-rules', action='store_true')
     parser.add_argument('--stats',     action='store_true')
+    parser.add_argument('--table',     action='store_true', help='Lexicon TE table')
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     parser.add_argument('--width',     type=int, default=_DEFAULT_WIDTH)
     parser.add_argument('--no-color',  action='store_true')
     args  = parser.parse_args()
     color = not args.no_color
-    if args.stats:
+    if args.json:
+        d = te_summary(args.word, args.rule, args.width)
+        print(_json.dumps(d, ensure_ascii=False, indent=2))
+    elif args.stats or args.table:
         print_te_stats(color=color, width=args.width)
     elif args.all_rules:
         for rule in _ALL_RULES:
