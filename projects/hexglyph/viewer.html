@@ -8983,6 +8983,227 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Автокорреляция Q6 — ACF ячеек аттрактора</h2>
+<p class="meta">ACF(k) = Corr(x_t, x_{t+k}) по круговой границе (ровно 1 период) · τ₀ — первое нулевое пересечение · фиксированная точка → ACF=[1] (нет лагов); ГОРА AND (P=2) → ACF=[1,−1] (антиперсистентность); ТУМАН XOR3 (P=8) → τ₀≈1</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="acf-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="acf-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="acf-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="acf-heat" width="530" height="140"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="acf-mean" width="530" height="80"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="acf-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA helpers ─────────────────────────────────────────────────── */
+  function acfStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function acfOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=acfStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=acfStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++;
+      cur=acfStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  /* ── Circular ACF ───────────────────────────────────────────────────── */
+  function circACF(s,maxLag){
+    var n=s.length;
+    if(!n) return [1];
+    maxLag=Math.min(maxLag,n-1);
+    var mu=0;
+    for(var i=0;i<n;i++) mu+=s[i];
+    mu/=n;
+    var vr=0;
+    for(var i=0;i<n;i++) vr+=(s[i]-mu)*(s[i]-mu);
+    vr/=n;
+    if(vr<1e-12){
+      var r=[1];
+      for(var k=0;k<maxLag;k++) r.push(NaN);
+      return r;
+    }
+    var res=[];
+    for(var k=0;k<=maxLag;k++){
+      var s2=0;
+      for(var t=0;t<n;t++) s2+=(s[t]-mu)*(s[(t+k)%n]-mu);
+      res.push(s2/(n*vr));
+    }
+    return res;
+  }
+  /* ── ACF colour: blue(-1) → dark(0) → rule(+1) ─────────────────────── */
+  function acfColor(v,col){
+    if(isNaN(v)) return '#333';
+    if(v>=0){
+      /* interpolate #1a1a1a → col */
+      var t=Math.min(v,1);
+      var r0=0x1a,g0=0x1a,b0=0x1a;
+      var r1=parseInt(col.slice(1,3),16)||0x4f;
+      var g1=parseInt(col.slice(3,5),16)||0xc3;
+      var b1=parseInt(col.slice(5,7),16)||0xf7;
+      var r=Math.round(r0+t*(r1-r0));
+      var g=Math.round(g0+t*(g1-g0));
+      var b=Math.round(b0+t*(b1-b0));
+      return 'rgb('+r+','+g+','+b+')';
+    } else {
+      var t=Math.min(-v,1);
+      var r0=0x1a,g0=0x1a,b0=0x1a;
+      var r=Math.round(r0+t*(0xef-r0));
+      var g=Math.round(g0+t*(0x53-g0));
+      var b=Math.round(b0+t*(0x50-b0));
+      return 'rgb('+r+','+g+','+b+')';
+    }
+  }
+  /* ── Main render ────────────────────────────────────────────────────── */
+  function acfRun(){
+    var word=(document.getElementById('acf-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('acf-rule').value||'xor3';
+    var MAX_LAG=8;
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var grid=acfOrbit(ic,rule);
+    var P=grid.length,N=grid[0].length;
+    var lag=Math.min(MAX_LAG,P-1);
+    var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    var col=RCOL[rule]||'#4fc3f7';
+    /* Per-cell ACFs */
+    var cellACFs=[];
+    for(var i=0;i<N;i++){
+      var s=[];
+      for(var t=0;t<P;t++) s.push(grid[t][i]);
+      cellACFs.push(circACF(s,lag));
+    }
+    /* Mean ACF */
+    var meanACF=[];
+    for(var k=0;k<=lag;k++){
+      var vals=cellACFs.map(function(a){return a[k];}).filter(function(v){return !isNaN(v);});
+      meanACF.push(vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:NaN);
+    }
+    /* Decorrelation */
+    var tau0s=[];
+    cellACFs.forEach(function(a){
+      for(var k=1;k<a.length;k++){if(!isNaN(a[k])&&a[k]<=0){tau0s.push(k);return;}}
+    });
+    var meanTau0=tau0s.length?tau0s.reduce(function(a,b){return a+b;},0)/tau0s.length:null;
+    var mpower=meanACF.slice(1).filter(function(v){return !isNaN(v);})
+                .reduce(function(a,v){return a+v*v;},0)/Math.max(lag,1);
+    /* ── Heatmap canvas ──────────────────────────────────────────────── */
+    var hc=document.getElementById('acf-heat');
+    var hx=hc.getContext('2d');
+    var HW=hc.width,HH=hc.height;
+    hx.fillStyle='#0d0d0d'; hx.fillRect(0,0,HW,HH);
+    var nLags=lag+1;
+    var cellH=Math.floor((HH-30)/N),lagW=Math.floor((HW-50)/nLags);
+    lagW=Math.max(lagW,6);
+    for(var i=0;i<N;i++){
+      for(var k=0;k<nLags&&k<cellACFs[i].length;k++){
+        var v=cellACFs[i][k];
+        hx.fillStyle=acfColor(v,col);
+        hx.fillRect(40+k*lagW,10+i*cellH,lagW-1,cellH-1);
+      }
+    }
+    /* Lag labels */
+    hx.fillStyle='#555'; hx.font='8px monospace'; hx.textAlign='center';
+    for(var k=0;k<nLags;k++) hx.fillText(k,40+k*lagW+lagW/2,HH-16);
+    hx.fillText('lag',40+nLags*lagW/2,HH-4);
+    /* Cell labels */
+    hx.fillStyle='#555'; hx.font='8px monospace'; hx.textAlign='right';
+    for(var i=0;i<N;i+=4) hx.fillText(i,36,10+i*cellH+cellH/2+3);
+    /* Color scale legend */
+    var lx=HW-8,ly=10,lh=HH-40,lw=6;
+    for(var j=0;j<lh;j++){
+      var v2=1-2*j/lh;
+      hx.fillStyle=acfColor(v2,col);
+      hx.fillRect(lx,ly+j,lw,1);
+    }
+    hx.fillStyle='#666'; hx.font='8px monospace'; hx.textAlign='left';
+    hx.fillText('+1',lx-14,ly+5); hx.fillText('0',lx-8,ly+lh/2+3); hx.fillText('\u22121',lx-14,ly+lh+3);
+    /* ── Mean ACF bars ────────────────────────────────────────────────── */
+    var mc=document.getElementById('acf-mean');
+    var mx=mc.getContext('2d');
+    var MW=mc.width,MH=mc.height;
+    mx.fillStyle='#0d0d0d'; mx.fillRect(0,0,MW,MH);
+    var midY=Math.floor(MH/2);
+    mx.strokeStyle='#333'; mx.beginPath(); mx.moveTo(40,midY); mx.lineTo(MW-20,midY); mx.stroke();
+    var barW2=Math.max(Math.floor((MW-60)/nLags)-2,4);
+    for(var k=0;k<nLags;k++){
+      var v=meanACF[k];
+      if(isNaN(v)) continue;
+      var bh=Math.round(Math.min(Math.abs(v),1)*(midY-8));
+      var bx=40+k*(barW2+2);
+      if(v>=0){
+        mx.fillStyle=col; mx.globalAlpha=0.85;
+        mx.fillRect(bx,midY-bh,barW2,bh);
+      } else {
+        mx.fillStyle='#ef5350'; mx.globalAlpha=0.85;
+        mx.fillRect(bx,midY,barW2,bh);
+      }
+      mx.globalAlpha=1;
+      mx.fillStyle='#555'; mx.font='8px monospace'; mx.textAlign='center';
+      mx.fillText(k,bx+barW2/2,MH-6);
+    }
+    mx.fillStyle='#666'; mx.font='9px monospace'; mx.textAlign='left';
+    mx.fillText('\u0441\u0440.ACF',2,midY+3); mx.fillText('+1',2,12); mx.fillText('\u22121',2,MH-16);
+    /* Stats */
+    document.getElementById('acf-stats').innerHTML=
+      'P='+P+
+      '  lag='+lag+
+      (meanTau0!==null?'  \u03c4\u2080\u2248'+meanTau0.toFixed(2):'  \u03c4\u2080=\u221e')+
+      '  mean_ACF\u00b2='+mpower.toFixed(4);
+  }
+  window.acfRun=acfRun;
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('acf-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('acf-btn');
+    var wordEl=document.getElementById('acf-word');
+    var ruleEl=document.getElementById('acf-rule');
+    if(btn)    btn.addEventListener('click',acfRun);
+    if(wordEl) wordEl.addEventListener('change',acfRun);
+    if(ruleEl) ruleEl.addEventListener('change',acfRun);
+    setTimeout(function(){if(window.encL) acfRun();},2400);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">

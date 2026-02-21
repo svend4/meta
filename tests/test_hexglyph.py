@@ -8208,6 +8208,216 @@ class TestSolanForbidden(unittest.TestCase):
         self.assertIn('Запрещённые паттерны Q6', content)
 
 
+class TestSolanAutocorr(unittest.TestCase):
+    """Tests for solan_autocorr.py and the viewer ACF section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_autocorr import (
+            acf, decorrelation_lag, mean_acf_power,
+            cell_acf_profile, acf_dict, all_acf, build_acf_data,
+        )
+        cls.acf                = staticmethod(acf)
+        cls.decorrelation_lag  = staticmethod(decorrelation_lag)
+        cls.mean_acf_power     = staticmethod(mean_acf_power)
+        cls.cell_acf_profile   = staticmethod(cell_acf_profile)
+        cls.acf_dict           = staticmethod(acf_dict)
+        cls.all_acf            = staticmethod(all_acf)
+        cls.build_acf_data     = staticmethod(build_acf_data)
+
+    # ── acf() ──────────────────────────────────────────────────────────
+
+    def test_acf_lag0_always_one(self):
+        self.assertAlmostEqual(self.acf([1, 2, 3, 4, 5])[0], 1.0, places=8)
+
+    def test_acf_constant_returns_one_then_nan(self):
+        import math
+        vals = self.acf([7, 7, 7, 7], 3)
+        self.assertAlmostEqual(vals[0], 1.0)
+        self.assertTrue(all(math.isnan(v) for v in vals[1:]))
+
+    def test_acf_alternating_lag1_is_minus_one(self):
+        # [a, b, a, b, ...] → ACF(1) = -1
+        vals = self.acf([47, 1, 47, 1, 47, 1, 47, 1], 1)
+        self.assertAlmostEqual(vals[1], -1.0, places=6)
+
+    def test_acf_empty_series(self):
+        self.assertEqual(self.acf([]), [])
+
+    def test_acf_single_element(self):
+        vals = self.acf([5], 0)
+        self.assertAlmostEqual(vals[0], 1.0)
+
+    def test_acf_length(self):
+        vals = self.acf([1, 2, 3, 4, 5, 6], 4)
+        self.assertEqual(len(vals), 5)
+
+    def test_acf_max_lag_capped_at_n_minus_1(self):
+        vals = self.acf([1, 2, 3], 100)
+        self.assertEqual(len(vals), 3)   # max_lag capped at 2
+
+    # ── decorrelation_lag ──────────────────────────────────────────────
+
+    def test_decorrelation_lag_alternating(self):
+        # ACF = [1, -1] → τ₀ = 1
+        acf_vals = [1.0, -1.0]
+        self.assertEqual(self.decorrelation_lag(acf_vals), 1)
+
+    def test_decorrelation_lag_all_positive_is_none(self):
+        self.assertIsNone(self.decorrelation_lag([1.0, 0.8, 0.5, 0.2]))
+
+    def test_decorrelation_lag_zero_at_lag2(self):
+        self.assertEqual(self.decorrelation_lag([1.0, 0.3, -0.1, -0.4]), 2)
+
+    def test_decorrelation_lag_ignores_nan(self):
+        import math
+        self.assertIsNone(self.decorrelation_lag([1.0, float('nan'), float('nan')]))
+
+    # ── mean_acf_power ─────────────────────────────────────────────────
+
+    def test_mean_acf_power_alternating(self):
+        # ACF = [1, -1] → power over lags 1..1 = (-1)² = 1
+        self.assertAlmostEqual(self.mean_acf_power([1.0, -1.0]), 1.0, places=8)
+
+    def test_mean_acf_power_zero_lags(self):
+        self.assertAlmostEqual(self.mean_acf_power([1.0]), 0.0, places=8)
+
+    def test_mean_acf_power_nonneg(self):
+        self.assertGreaterEqual(self.mean_acf_power([1.0, 0.5, -0.3]), 0.0)
+
+    # ── Fixed-point attractors → max_lag=0 ────────────────────────────
+
+    def test_tuman_xor_max_lag_zero(self):
+        profile = self.cell_acf_profile('ТУМАН', 'xor', 16, 8)
+        for c in profile:
+            self.assertEqual(c['max_lag'], 0)
+            self.assertAlmostEqual(c['acf'][0], 1.0)
+
+    def test_gora_or_tau0_is_none(self):
+        profile = self.cell_acf_profile('ГОРА', 'or', 16, 8)
+        for c in profile:
+            self.assertIsNone(c['tau0'])
+
+    # ── ГОРА AND (P=2) → ACF = [1, -1] ───────────────────────────────
+
+    def test_gora_and_acf_lag1_minus_one(self):
+        profile = self.cell_acf_profile('ГОРА', 'and', 16, 8)
+        for c in profile:
+            self.assertAlmostEqual(c['acf'][0], 1.0, places=6)
+            self.assertAlmostEqual(c['acf'][1], -1.0, places=6)
+
+    def test_gora_and_tau0_is_one(self):
+        profile = self.cell_acf_profile('ГОРА', 'and', 16, 8)
+        for c in profile:
+            self.assertEqual(c['tau0'], 1)
+
+    def test_gora_and_mean_power_is_one(self):
+        d = self.acf_dict('ГОРА', 'and', 16, 8)
+        self.assertAlmostEqual(d['mean_mpower'], 1.0, places=6)
+
+    # ── ТУМАН XOR3 (P=8) → rich ACF ───────────────────────────────────
+
+    def test_tuman_xor3_max_lag_is_7(self):
+        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
+        self.assertEqual(d['max_lag'], 7)
+
+    def test_tuman_xor3_mean_acf_lag0_is_one(self):
+        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
+        self.assertAlmostEqual(d['mean_acf'][0], 1.0, places=6)
+
+    def test_tuman_xor3_tau0_small(self):
+        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
+        # Most cells decorrelate at lag 1 or 2
+        self.assertIsNotNone(d['mean_tau0'])
+        self.assertLessEqual(d['mean_tau0'], 3.0)
+
+    def test_tuman_xor3_acf_symmetric(self):
+        # For circular ACF of period P: ACF(k) = ACF(P-k)
+        profile = self.cell_acf_profile('ТУМАН', 'xor3', 16, 8)
+        for c in profile:
+            a = c['acf']
+            P = 8
+            if len(a) >= P:
+                self.assertAlmostEqual(a[1], a[P - 1], places=6)
+                self.assertAlmostEqual(a[2], a[P - 2], places=6)
+
+    # ── acf_dict structure ─────────────────────────────────────────────
+
+    def test_acf_dict_keys(self):
+        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
+        for k in ('word', 'rule', 'period', 'max_lag', 'cell_profile',
+                  'mean_acf', 'mean_tau0', 'mean_mpower'):
+            self.assertIn(k, d)
+
+    def test_acf_dict_cell_profile_length(self):
+        d = self.acf_dict('ГОРА', 'xor3', 16, 8)
+        self.assertEqual(len(d['cell_profile']), 16)
+
+    def test_acf_dict_word_uppercase(self):
+        d = self.acf_dict('туман', 'xor3', 16, 8)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_acf_dict_mean_acf_lag0(self):
+        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
+        self.assertAlmostEqual(d['mean_acf'][0], 1.0, places=6)
+
+    def test_acf_dict_mean_mpower_nonneg(self):
+        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
+        self.assertGreaterEqual(d['mean_mpower'], 0.0)
+
+    # ── all_acf ────────────────────────────────────────────────────────
+
+    def test_all_acf_has_four_rules(self):
+        result = self.all_acf('ТУМАН', 16, 8)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_acf_values_are_dicts(self):
+        result = self.all_acf('ГОРА', 16, 8)
+        for rule, d in result.items():
+            self.assertIsInstance(d, dict)
+            self.assertIn('mean_acf', d)
+
+    # ── build_acf_data ─────────────────────────────────────────────────
+
+    def test_build_acf_data_structure(self):
+        data = self.build_acf_data(['ТУМАН', 'ГОРА'], 16, 8)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_acf_data_entry_keys(self):
+        data = self.build_acf_data(['ТУМАН'], 16, 8)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'max_lag', 'mean_acf', 'mean_tau0', 'mean_mpower'):
+            self.assertIn(k, entry)
+
+    def test_build_acf_data_words_uppercase(self):
+        data = self.build_acf_data(['туман'], 16, 8)
+        self.assertIn('ТУМАН', data['words'])
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_acf_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('acf-heat', content)
+
+    def test_viewer_has_acf_mean(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('acf-mean', content)
+
+    def test_viewer_has_acf_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('acf-stats', content)
+
+    def test_viewer_has_acf_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('acfRun', content)
+
+    def test_viewer_has_acf_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Автокорреляция Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
