@@ -12179,6 +12179,216 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Bit-Layer Decomposition — разложение Q6 по 6 битовым плоскостям</h2>
+<p class="meta">Все Q6-правила побитовые → 6 плоскостей независимы · lcm(p₀…p₅)=P (теорема) · ТУМАН XOR: все 0 · ГОРА XOR3: b0=frozen-1, b1–5 active · ГОРА AND: b0=frozen-1, b4=frozen-0 · ГОРА OR: все 1</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="ly-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="ly-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="ly-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="layer-grid" width="530" height="200"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="layer-dens" width="530" height="70"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="layer-info"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  var BIT_COLS=['#4fc3f7','#80deea','#a5d6a7','#ffcc80','#ef9a9a','#ce93d8'];
+  function lyStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function lyOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=lyStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=lyStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=lyStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function lyMinPeriod(plane){
+    var P=plane.length;
+    for(var d=1;d<=P;d++){
+      if(P%d!==0) continue;
+      var ok=true;
+      for(var t=0;t<P;t++) if(plane[t].join()!==plane[t%d].join()){ok=false;break;}
+      if(ok) return d;
+    }
+    return P;
+  }
+  function lyGcd(a,b){while(b){var t=b;b=a%b;a=t;} return a;}
+  function lyLcm(a,b){return a*b/lyGcd(a,b);}
+
+  function lyRun(){
+    var word=(document.getElementById('ly-word').value||'ГОРА').toUpperCase();
+    var rule=document.getElementById('ly-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=lyOrbit(ic,rule), P=grid.length;
+
+    /* Extract 6 bit planes */
+    var planes=[];
+    for(var b=0;b<6;b++){
+      var pl=[];
+      for(var t=0;t<P;t++) pl.push(grid[t].map(function(v){return (v>>b)&1;}));
+      planes.push(pl);
+    }
+    /* Plane periods */
+    var pperiods=planes.map(lyMinPeriod);
+    var lcmP=pperiods.reduce(lyLcm,1);
+    /* Plane types */
+    function planeType(pl){
+      var allZero=pl.every(function(r){return r.every(function(v){return v===0;})});
+      var allOne=pl.every(function(r){return r.every(function(v){return v===1;})});
+      if(allZero) return 'frozen_0';
+      if(allOne)  return 'frozen_1';
+      var spUnif=pl.every(function(r){return r.every(function(v){return v===r[0];})});
+      if(spUnif){
+        var alt=true;
+        for(var t=0;t<pl.length-1;t++) if(pl[t][0]===pl[t+1][0]){alt=false;break;}
+        return alt?'uniform_alt':'uniform_irr';
+      }
+      return 'spatial';
+    }
+    var ptypes=planes.map(planeType);
+    var frozen0=[],frozen1=[],active=[];
+    for(var b=0;b<6;b++){
+      if(ptypes[b]==='frozen_0') frozen0.push(b);
+      else if(ptypes[b]==='frozen_1') frozen1.push(b);
+      else active.push(b);
+    }
+
+    /* ── Grid canvas ─────────────────────────────────────────────── */
+    var gc=document.getElementById('layer-grid');
+    var gx=gc.getContext('2d');
+    var GW=gc.width, GH=gc.height;
+    gx.fillStyle='#0a0a0a'; gx.fillRect(0,0,GW,GH);
+    var PAD=28, botPad=14;
+    var blockW=Math.floor((GW-PAD*2-5*3)/6); /* 6 planes, 5 separators */
+    var cellW=Math.floor(blockW/N);
+    var usableH=GH-PAD-botPad;
+    var cellH=Math.min(Math.floor(usableH/Math.max(P,1)),18);
+
+    /* Title */
+    gx.fillStyle='#888'; gx.font='9px monospace'; gx.textAlign='left';
+    gx.fillText(word+' '+rule.toUpperCase()+'  P='+P+
+      '  lcm('+pperiods.join(',')+')'+'='+lcmP+'='+(lcmP===P?'P✓':'P?'),PAD,14);
+
+    for(var b=0;b<6;b++){
+      var col=BIT_COLS[b];
+      var r1=parseInt(col.slice(1,3),16)||0x4f;
+      var g1=parseInt(col.slice(3,5),16)||0xc3;
+      var b1=parseInt(col.slice(5,7),16)||0xf7;
+      var bx0=PAD+b*(blockW+3);
+      /* Bit label */
+      gx.fillStyle=col; gx.font='9px monospace'; gx.textAlign='center';
+      gx.fillText('b'+b+(ptypes[b]==='frozen_0'?' ▪0':ptypes[b]==='frozen_1'?' ▪1':' p'+pperiods[b]),
+                  bx0+blockW/2, PAD-3);
+      /* Cell grid */
+      for(var t=0;t<P;t++){
+        for(var i=0;i<N;i++){
+          var v=planes[b][t][i];
+          var alpha=v?0.9:0.06;
+          gx.fillStyle=v?('rgba('+r1+','+g1+','+b1+',0.88)'):'rgba(10,10,10,0.9)';
+          gx.fillRect(bx0+i*cellW, PAD+t*cellH, Math.max(cellW-1,1), Math.max(cellH-1,1));
+        }
+      }
+    }
+
+    /* ── Density canvas (time series per bit) ─────────────────────── */
+    var dc=document.getElementById('layer-dens');
+    var dx2=dc.getContext('2d');
+    var DW=dc.width, DH=dc.height;
+    dx2.fillStyle='#0a0a0a'; dx2.fillRect(0,0,DW,DH);
+    var dPad=28, dBot=12;
+    var dCW=DW-dPad*2, dCH=DH-dPad-dBot;
+    /* Axes */
+    dx2.strokeStyle='#333'; dx2.lineWidth=1;
+    dx2.beginPath(); dx2.moveTo(dPad,dPad); dx2.lineTo(dPad,dPad+dCH);
+    dx2.lineTo(dPad+dCW,dPad+dCH); dx2.stroke();
+    /* Title */
+    dx2.fillStyle='#888'; dx2.font='9px monospace'; dx2.textAlign='left';
+    dx2.fillText('Bit density over orbit steps (6 planes)',dPad,dPad-10);
+    /* 0.5 reference line */
+    dx2.strokeStyle='#222'; dx2.setLineDash([2,3]);
+    dx2.beginPath(); dx2.moveTo(dPad, dPad+dCH*0.5);
+    dx2.lineTo(dPad+dCW, dPad+dCH*0.5); dx2.stroke();
+    dx2.setLineDash([]);
+    for(var b=0;b<6;b++){
+      var col=BIT_COLS[b];
+      var densPerStep=planes[b].map(function(row){return row.reduce(function(s,v){return s+v;},0)/N;});
+      if(P===1){
+        var yd=Math.round(dPad+dCH*(1-densPerStep[0]));
+        dx2.fillStyle=col;
+        dx2.fillRect(dPad, yd, dCW, Math.max(1,Math.round(dCH*densPerStep[0])));
+      } else {
+        dx2.strokeStyle=col; dx2.lineWidth=1.5;
+        dx2.beginPath();
+        for(var t=0;t<P;t++){
+          var xd=dPad+t*(dCW/(P-1||1));
+          var yd2=dPad+dCH*(1-densPerStep[t]);
+          if(t===0) dx2.moveTo(xd,yd2); else dx2.lineTo(xd,yd2);
+        }
+        dx2.stroke();
+      }
+    }
+
+    /* ── Info text ──────────────────────────────────────────────── */
+    var typeNames=ptypes.map(function(t,b){return 'b'+b+'='+t;}).join('  ');
+    document.getElementById('layer-info').innerHTML=
+      '<b>'+word+' '+rule.toUpperCase()+'</b>  P='+P+
+      '  lcm='+lcmP+' (='+(lcmP===P?'P ✓':'P ✗')+')<br>'+
+      'frozen_0='+JSON.stringify(frozen0)+
+      '  frozen_1='+JSON.stringify(frozen1)+
+      '  active='+JSON.stringify(active)+'<br>'+
+      typeNames;
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var lexArr=window.LEXICON_ARR||['ТУМАН','ГОРА'];
+    var sel=document.getElementById('ly-word');
+    if(sel){
+      lexArr.forEach(function(w){var o=document.createElement('option');o.value=w;o.textContent=w;sel.appendChild(o);});
+      sel.value='ГОРА';
+    }
+    var btn=document.getElementById('ly-btn');
+    var wEl=document.getElementById('ly-word');
+    var rEl=document.getElementById('ly-rule');
+    if(btn) btn.addEventListener('click',lyRun);
+    if(wEl) wEl.addEventListener('change',lyRun);
+    if(rEl) rEl.addEventListener('change',lyRun);
+    setTimeout(function(){if(window.encL) lyRun();},4750);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

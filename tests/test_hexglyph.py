@@ -14186,5 +14186,362 @@ class TestSolanVocab(unittest.TestCase):
         self.assertIn('hwBits', content)
 
 
+class TestSolanLayer(unittest.TestCase):
+    """Tests for solan_layer.py and the viewer Bit-Layer Decomposition section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_layer import (
+            bit_plane,
+            plane_period,
+            plane_type,
+            plane_density,
+            layer_periods,
+            active_bits,
+            frozen_bits,
+            lcm_equals_period,
+            layer_summary,
+            all_layers,
+            build_layer_data,
+            _lcm_list,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.bit_plane         = staticmethod(bit_plane)
+        cls.plane_period      = staticmethod(plane_period)
+        cls.plane_type        = staticmethod(plane_type)
+        cls.plane_density     = staticmethod(plane_density)
+        cls.layer_periods     = staticmethod(layer_periods)
+        cls.active_bits       = staticmethod(active_bits)
+        cls.frozen_bits       = staticmethod(frozen_bits)
+        cls.lcm_equals_period = staticmethod(lcm_equals_period)
+        cls.layer_summary     = staticmethod(layer_summary)
+        cls.all_layers        = staticmethod(all_layers)
+        cls.build_layer_data  = staticmethod(build_layer_data)
+        cls.lcm_list          = staticmethod(_lcm_list)
+        cls.LEXICON           = list(LEXICON)
+
+    # ── bit_plane() ────────────────────────────────────────────────────────────
+
+    def test_bit_plane_values_are_0_or_1(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    plane = self.bit_plane(word, rule, b)
+                    for row in plane:
+                        for v in row:
+                            self.assertIn(v, (0, 1))
+
+    def test_bit_plane_width(self):
+        plane = self.bit_plane('ГОРА', 'xor3', 0)
+        self.assertTrue(all(len(row) == 16 for row in plane))
+
+    def test_bit_plane_period(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'xor3', 16)
+        plane = self.bit_plane('ГОРА', 'xor3', 0)
+        self.assertEqual(len(plane), len(orbit))
+
+    def test_bit_plane_gora_xor3_bit0_all_ones(self):
+        plane = self.bit_plane('ГОРА', 'xor3', 0)
+        self.assertTrue(all(all(v == 1 for v in row) for row in plane))
+
+    def test_bit_plane_tuman_xor_all_zeros(self):
+        for b in range(6):
+            plane = self.bit_plane('ТУМАН', 'xor', b)
+            self.assertTrue(all(all(v == 0 for v in row) for row in plane))
+
+    def test_bit_plane_gora_or_all_ones(self):
+        for b in range(6):
+            plane = self.bit_plane('ГОРА', 'or', b)
+            self.assertTrue(all(all(v == 1 for v in row) for row in plane))
+
+    def test_bit_plane_gora_and_bit4_all_zeros(self):
+        plane = self.bit_plane('ГОРА', 'and', 4)
+        self.assertTrue(all(all(v == 0 for v in row) for row in plane))
+
+    def test_bit_plane_gora_and_bit0_all_ones(self):
+        plane = self.bit_plane('ГОРА', 'and', 0)
+        self.assertTrue(all(all(v == 1 for v in row) for row in plane))
+
+    # ── plane_period() ─────────────────────────────────────────────────────────
+
+    def test_plane_period_frozen_is_1(self):
+        self.assertEqual(self.plane_period('ТУМАН', 'xor', 0), 1)
+        self.assertEqual(self.plane_period('ГОРА', 'or', 5), 1)
+        self.assertEqual(self.plane_period('ГОРА', 'and', 0), 1)
+        self.assertEqual(self.plane_period('ГОРА', 'and', 4), 1)
+
+    def test_plane_period_gora_xor3_active_bits(self):
+        for b in [1, 2, 3, 4, 5]:
+            self.assertEqual(self.plane_period('ГОРА', 'xor3', b), 2)
+
+    def test_plane_period_tuman_xor3_all_8(self):
+        for b in range(6):
+            self.assertEqual(self.plane_period('ТУМАН', 'xor3', b), 8)
+
+    def test_plane_period_divides_orbit_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                P = word_trajectory(word, rule)['period']
+                for b in range(6):
+                    p = self.plane_period(word, rule, b)
+                    self.assertEqual(P % p, 0,
+                        msg=f'{word}/{rule}/b{b}: period {p} does not divide P={P}')
+
+    # ── plane_type() ──────────────────────────────────────────────────────────
+
+    def test_plane_type_frozen0_tuman_xor(self):
+        for b in range(6):
+            self.assertEqual(self.plane_type('ТУМАН', 'xor', b), 'frozen_0')
+
+    def test_plane_type_frozen1_gora_or(self):
+        for b in range(6):
+            self.assertEqual(self.plane_type('ГОРА', 'or', b), 'frozen_1')
+
+    def test_plane_type_gora_xor3_b0(self):
+        self.assertEqual(self.plane_type('ГОРА', 'xor3', 0), 'frozen_1')
+
+    def test_plane_type_gora_and_b0(self):
+        self.assertEqual(self.plane_type('ГОРА', 'and', 0), 'frozen_1')
+
+    def test_plane_type_gora_and_b4(self):
+        self.assertEqual(self.plane_type('ГОРА', 'and', 4), 'frozen_0')
+
+    def test_plane_type_gora_xor3_active_spatial(self):
+        for b in [1, 2, 3, 4, 5]:
+            pt = self.plane_type('ГОРА', 'xor3', b)
+            self.assertEqual(pt, 'spatial',
+                msg=f'ГОРА xor3 bit {b} should be spatial')
+
+    def test_plane_type_is_valid_string(self):
+        valid = {'frozen_0', 'frozen_1', 'uniform_alt', 'uniform_irr', 'spatial'}
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    self.assertIn(self.plane_type(word, rule, b), valid)
+
+    # ── plane_density() ────────────────────────────────────────────────────────
+
+    def test_density_length_equals_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                P = word_trajectory(word, rule)['period']
+                dens = self.plane_density(word, rule, 0)
+                self.assertEqual(len(dens), P)
+
+    def test_density_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    for d in self.plane_density(word, rule, b):
+                        self.assertGreaterEqual(d, 0.0)
+                        self.assertLessEqual(d, 1.0)
+
+    def test_density_frozen0_is_zero(self):
+        dens = self.plane_density('ТУМАН', 'xor', 3)
+        self.assertTrue(all(abs(d) < 1e-9 for d in dens))
+
+    def test_density_frozen1_is_one(self):
+        dens = self.plane_density('ГОРА', 'or', 2)
+        self.assertTrue(all(abs(d - 1.0) < 1e-9 for d in dens))
+
+    def test_density_gora_xor3_b0_always_1(self):
+        dens = self.plane_density('ГОРА', 'xor3', 0)
+        self.assertTrue(all(abs(d - 1.0) < 1e-9 for d in dens))
+
+    def test_density_gora_xor3_b1_oscillates_75_25(self):
+        dens = self.plane_density('ГОРА', 'xor3', 1)
+        self.assertEqual(sorted(round(d, 3) for d in dens), [0.25, 0.75])
+
+    def test_density_gora_xor3_b4_oscillates_50_50(self):
+        dens = self.plane_density('ГОРА', 'xor3', 4)
+        self.assertEqual(sorted(round(d, 3) for d in dens), [0.5, 0.5])
+
+    def test_density_gora_and_b0_always_1(self):
+        dens = self.plane_density('ГОРА', 'and', 0)
+        self.assertTrue(all(abs(d - 1.0) < 1e-9 for d in dens))
+
+    def test_density_gora_and_b4_always_0(self):
+        dens = self.plane_density('ГОРА', 'and', 4)
+        self.assertTrue(all(abs(d) < 1e-9 for d in dens))
+
+    # ── layer_periods() / active_bits() / frozen_bits() ───────────────────────
+
+    def test_layer_periods_length_6(self):
+        lps = self.layer_periods('ГОРА', 'xor3')
+        self.assertEqual(len(lps), 6)
+
+    def test_layer_periods_gora_and(self):
+        lps = self.layer_periods('ГОРА', 'and')
+        self.assertEqual(lps, [1, 2, 2, 2, 1, 2])
+
+    def test_layer_periods_gora_xor3(self):
+        lps = self.layer_periods('ГОРА', 'xor3')
+        self.assertEqual(lps, [1, 2, 2, 2, 2, 2])
+
+    def test_layer_periods_tuman_xor(self):
+        lps = self.layer_periods('ТУМАН', 'xor')
+        self.assertEqual(lps, [1, 1, 1, 1, 1, 1])
+
+    def test_layer_periods_tuman_xor3(self):
+        lps = self.layer_periods('ТУМАН', 'xor3')
+        self.assertEqual(lps, [8, 8, 8, 8, 8, 8])
+
+    def test_active_bits_gora_xor3(self):
+        self.assertEqual(self.active_bits('ГОРА', 'xor3'), [1, 2, 3, 4, 5])
+
+    def test_active_bits_gora_or(self):
+        self.assertEqual(self.active_bits('ГОРА', 'or'), [])
+
+    def test_active_bits_tuman_xor(self):
+        self.assertEqual(self.active_bits('ТУМАН', 'xor'), [])
+
+    def test_frozen_bits_tuman_xor(self):
+        f0, f1 = self.frozen_bits('ТУМАН', 'xor')
+        self.assertEqual(f0, [0, 1, 2, 3, 4, 5])
+        self.assertEqual(f1, [])
+
+    def test_frozen_bits_gora_or(self):
+        f0, f1 = self.frozen_bits('ГОРА', 'or')
+        self.assertEqual(f0, [])
+        self.assertEqual(f1, [0, 1, 2, 3, 4, 5])
+
+    def test_frozen_bits_gora_and(self):
+        f0, f1 = self.frozen_bits('ГОРА', 'and')
+        self.assertIn(4, f0)
+        self.assertIn(0, f1)
+
+    def test_frozen_active_partition(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                act = set(self.active_bits(word, rule))
+                f0  = set(self.frozen_bits(word, rule)[0])
+                f1  = set(self.frozen_bits(word, rule)[1])
+                self.assertEqual(act | f0 | f1, set(range(6)),
+                    msg=f'{word}/{rule}: active+frozen0+frozen1 != {{0..5}}')
+                self.assertEqual(act & f0, set())
+                self.assertEqual(act & f1, set())
+                self.assertEqual(f0 & f1, set())
+
+    # ── LCM theorem ───────────────────────────────────────────────────────────
+
+    def test_lcm_theorem_gora_xor(self):
+        self.assertTrue(self.lcm_equals_period('ГОРА', 'xor'))
+
+    def test_lcm_theorem_gora_and(self):
+        self.assertTrue(self.lcm_equals_period('ГОРА', 'and'))
+
+    def test_lcm_theorem_gora_xor3(self):
+        self.assertTrue(self.lcm_equals_period('ГОРА', 'xor3'))
+
+    def test_lcm_theorem_tuman_xor3(self):
+        self.assertTrue(self.lcm_equals_period('ТУМАН', 'xor3'))
+
+    def test_lcm_theorem_all_words_rules(self):
+        for word in self.LEXICON[:12]:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                self.assertTrue(self.lcm_equals_period(word, rule),
+                    msg=f'LCM theorem failed for {word}/{rule}')
+
+    def test_lcm_list_basic(self):
+        self.assertEqual(self.lcm_list([1, 2, 2, 2, 1, 2]), 2)
+        self.assertEqual(self.lcm_list([1, 1, 1, 1, 1, 1]), 1)
+        self.assertEqual(self.lcm_list([8, 8, 8, 8, 8, 8]), 8)
+
+    # ── layer_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.layer_summary('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'period', 'plane_periods', 'plane_types',
+                  'plane_density', 'mean_density', 'density_var',
+                  'active_bits', 'n_active', 'frozen_0_bits', 'frozen_1_bits',
+                  'n_frozen', 'lcm_period', 'lcm_equals_P'):
+            self.assertIn(k, d)
+
+    def test_summary_word_normalised(self):
+        self.assertEqual(self.layer_summary('гора', 'xor3')['word'], 'ГОРА')
+
+    def test_summary_lcm_equals_P_always_true(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.layer_summary(word, rule)
+                self.assertTrue(d['lcm_equals_P'],
+                    msg=f'{word}/{rule} summary: lcm_equals_P should be True')
+
+    def test_summary_n_active_plus_frozen_is_6(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.layer_summary(word, rule)
+                self.assertEqual(d['n_active'] + d['n_frozen'], 6)
+
+    def test_summary_gora_xor3_n_active_5(self):
+        self.assertEqual(self.layer_summary('ГОРА', 'xor3')['n_active'], 5)
+
+    def test_summary_gora_and_n_frozen_2(self):
+        self.assertEqual(self.layer_summary('ГОРА', 'and')['n_frozen'], 2)
+
+    def test_summary_density_var_frozen_is_zero(self):
+        d = self.layer_summary('ГОРА', 'or')
+        for var in d['density_var']:
+            self.assertAlmostEqual(var, 0.0, places=9)
+
+    # ── all_layers() / build_layer_data() ─────────────────────────────────────
+
+    def test_all_layers_four_rules(self):
+        r = self.all_layers('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_layer_data_keys(self):
+        data = self.build_layer_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_layer_data_word_coverage(self):
+        words = ['ГОРА', 'ТУМАН']
+        data = self.build_layer_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_layer_grid(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('layer-grid', content)
+
+    def test_viewer_has_layer_dens(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('layer-dens', content)
+
+    def test_viewer_has_layer_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('layer-info', content)
+
+    def test_viewer_has_ly_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ly-word', content)
+
+    def test_viewer_has_ly_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ly-rule', content)
+
+    def test_viewer_has_ly_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ly-btn', content)
+
+    def test_viewer_has_ly_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyRun', content)
+
+    def test_viewer_has_ly_min_period_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyMinPeriod', content)
+
+    def test_viewer_has_bit_cols(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('BIT_COLS', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
