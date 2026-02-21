@@ -18269,5 +18269,336 @@ class TestSolanWidth(unittest.TestCase):
         self.assertIn('wdOrbitLen', content)
 
 
+class TestSolanMultistep(unittest.TestCase):
+    """Tests for solan_multistep.py — multi-step Hamming distance matrix."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_multistep import (
+            hamming_dist,
+            orbit_dist_matrix,
+            eccentricity,
+            center_steps,
+            periphery_steps,
+            dist_histogram,
+            multistep_summary,
+            all_multistep,
+            build_multistep_data,
+            multistep_dict,
+        )
+        cls.hamming_dist       = staticmethod(hamming_dist)
+        cls.orbit_dist_matrix  = staticmethod(orbit_dist_matrix)
+        cls.eccentricity       = staticmethod(eccentricity)
+        cls.center_steps       = staticmethod(center_steps)
+        cls.periphery_steps    = staticmethod(periphery_steps)
+        cls.dist_histogram     = staticmethod(dist_histogram)
+        cls.multistep_summary  = staticmethod(multistep_summary)
+        cls.all_multistep      = staticmethod(all_multistep)
+        cls.build_multistep_data = staticmethod(build_multistep_data)
+        cls.multistep_dict     = staticmethod(multistep_dict)
+
+        # Precompute summaries used frequently
+        cls.s_tuman_xor  = multistep_summary('ТУМАН', 'xor',  16)
+        cls.s_tuman_xor3 = multistep_summary('ТУМАН', 'xor3', 16)
+        cls.s_gora_and   = multistep_summary('ГОРА',  'and',  16)
+        cls.s_gora_xor3  = multistep_summary('ГОРА',  'xor3', 16)
+        cls.s_mat_xor3   = multistep_summary('МАТ',   'xor3', 16)
+
+    # ── hamming_dist ──────────────────────────────────────────────────────────
+
+    def test_hamming_dist_identical(self):
+        self.assertEqual(self.hamming_dist([1, 2, 3], [1, 2, 3]), 0)
+
+    def test_hamming_dist_all_differ(self):
+        a = [0] * 16
+        b = [1] * 16
+        self.assertEqual(self.hamming_dist(a, b), 16)
+
+    def test_hamming_dist_half(self):
+        a = [0] * 8 + [1] * 8
+        b = [1] * 8 + [0] * 8
+        self.assertEqual(self.hamming_dist(a, b), 16)
+
+    def test_hamming_dist_one(self):
+        a = [0] * 16
+        b = list(a); b[5] = 1
+        self.assertEqual(self.hamming_dist(a, b), 1)
+
+    def test_hamming_dist_symmetric(self):
+        a = [0, 1, 2, 3]
+        b = [3, 2, 1, 0]
+        self.assertEqual(self.hamming_dist(a, b), self.hamming_dist(b, a))
+
+    # ── orbit_dist_matrix ─────────────────────────────────────────────────────
+
+    def test_dist_matrix_shape_p1(self):
+        mat = self.orbit_dist_matrix([[0] * 16])
+        self.assertEqual(len(mat), 1)
+        self.assertEqual(len(mat[0]), 1)
+
+    def test_dist_matrix_shape_p8(self):
+        mat = self.s_tuman_xor3['dist_matrix']
+        self.assertEqual(len(mat), 8)
+        self.assertTrue(all(len(row) == 8 for row in mat))
+
+    def test_dist_matrix_diagonal_zero(self):
+        mat = self.s_tuman_xor3['dist_matrix']
+        for t in range(8):
+            self.assertEqual(mat[t][t], 0)
+
+    def test_dist_matrix_symmetric(self):
+        mat = self.s_tuman_xor3['dist_matrix']
+        for t1 in range(8):
+            for t2 in range(8):
+                self.assertEqual(mat[t1][t2], mat[t2][t1])
+
+    def test_dist_matrix_values_in_range(self):
+        mat = self.s_tuman_xor3['dist_matrix']
+        for row in mat:
+            for d in row:
+                self.assertGreaterEqual(d, 0)
+                self.assertLessEqual(d, 16)
+
+    def test_dist_matrix_p1_trivial(self):
+        mat = self.s_tuman_xor['dist_matrix']
+        self.assertEqual(mat, [[0]])
+
+    def test_dist_matrix_p2_all_cells_differ(self):
+        # P=2 theorem: H[0][1] = N for all P=2 orbits
+        mat = self.s_gora_and['dist_matrix']
+        self.assertEqual(mat[0][1], 16)
+        self.assertEqual(mat[1][0], 16)
+
+    def test_dist_matrix_p2_xor3_all_cells_differ(self):
+        mat = self.s_gora_xor3['dist_matrix']
+        self.assertEqual(mat[0][1], 16)
+
+    # ── eccentricity ──────────────────────────────────────────────────────────
+
+    def test_eccentricity_length(self):
+        ecc = self.s_tuman_xor3['eccentricity']
+        self.assertEqual(len(ecc), 8)
+
+    def test_eccentricity_p1_is_zero(self):
+        ecc = self.s_tuman_xor['eccentricity']
+        self.assertEqual(ecc, [0])
+
+    def test_eccentricity_p2_all_max(self):
+        ecc = self.s_gora_and['eccentricity']
+        self.assertTrue(all(e == 16 for e in ecc))
+
+    def test_eccentricity_tuman_xor3_all_16(self):
+        ecc = self.s_tuman_xor3['eccentricity']
+        self.assertTrue(all(e == 16 for e in ecc))
+
+    def test_eccentricity_mat_xor3_not_uniform(self):
+        # MАТ XOR3 is non-regular: not all eccentricities equal
+        ecc = self.s_mat_xor3['eccentricity']
+        self.assertGreater(max(ecc), min(ecc))
+
+    # ── center_steps / periphery_steps ────────────────────────────────────────
+
+    def test_center_steps_p1(self):
+        self.assertEqual(self.s_tuman_xor['center_steps'], [0])
+
+    def test_periphery_steps_p1(self):
+        self.assertEqual(self.s_tuman_xor['periphery_steps'], [0])
+
+    def test_center_steps_regular_orbit_all(self):
+        # Regular orbit: all steps are center steps
+        ctrs = self.s_tuman_xor3['center_steps']
+        self.assertEqual(sorted(ctrs), list(range(8)))
+
+    def test_periphery_steps_regular_orbit_all(self):
+        peri = self.s_tuman_xor3['periphery_steps']
+        self.assertEqual(sorted(peri), list(range(8)))
+
+    def test_center_steps_mat_xor3(self):
+        # MАТ XOR3 has a genuine center (step 2)
+        ctrs = self.s_mat_xor3['center_steps']
+        self.assertIn(2, ctrs)
+        # center eccentricity < diameter
+        ecc = self.s_mat_xor3['eccentricity']
+        for c in ctrs:
+            self.assertLess(ecc[c], self.s_mat_xor3['diameter'])
+
+    # ── multistep_summary ─────────────────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'dist_matrix', 'eccentricity', 'diameter', 'radius',
+            'center_steps', 'periphery_steps',
+            'girth', 'orbit_spread', 'dist_histogram', 'is_regular',
+        }
+        self.assertTrue(required.issubset(self.s_tuman_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['word'], 'ТУМАН')
+
+    def test_summary_rule_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['rule'], 'xor3')
+
+    def test_summary_period_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['period'], 8)
+
+    def test_summary_period_tuman_xor(self):
+        self.assertEqual(self.s_tuman_xor['period'], 1)
+
+    def test_summary_n_cells(self):
+        self.assertEqual(self.s_tuman_xor3['n_cells'], 16)
+
+    def test_summary_diameter_tuman_xor(self):
+        self.assertEqual(self.s_tuman_xor['diameter'], 0)
+
+    def test_summary_diameter_gora_and(self):
+        self.assertEqual(self.s_gora_and['diameter'], 16)
+
+    def test_summary_diameter_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['diameter'], 16)
+
+    def test_summary_radius_tuman_xor(self):
+        self.assertEqual(self.s_tuman_xor['radius'], 0)
+
+    def test_summary_radius_tuman_xor3(self):
+        # Regular orbit: radius == diameter
+        self.assertEqual(self.s_tuman_xor3['radius'], 16)
+
+    def test_summary_radius_mat_xor3(self):
+        # Non-regular: radius < diameter
+        self.assertLess(self.s_mat_xor3['radius'], self.s_mat_xor3['diameter'])
+        self.assertEqual(self.s_mat_xor3['radius'], 12)
+
+    def test_summary_girth_p1(self):
+        self.assertEqual(self.s_tuman_xor['girth'], 0)
+
+    def test_summary_girth_p2_all16(self):
+        self.assertEqual(self.s_gora_and['girth'], 16)
+
+    def test_summary_girth_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['girth'], 6)
+
+    def test_summary_girth_mat_xor3(self):
+        self.assertEqual(self.s_mat_xor3['girth'], 4)
+
+    def test_summary_spread_p1(self):
+        self.assertAlmostEqual(self.s_tuman_xor['orbit_spread'], 0.0)
+
+    def test_summary_spread_p2(self):
+        self.assertAlmostEqual(self.s_gora_and['orbit_spread'], 16.0)
+
+    def test_summary_spread_tuman_xor3(self):
+        self.assertAlmostEqual(
+            self.s_tuman_xor3['orbit_spread'], 195.0 / 14, places=4
+        )  # 195/14 ≈ 13.9286
+
+    def test_summary_spread_mat_xor3(self):
+        self.assertAlmostEqual(self.s_mat_xor3['orbit_spread'], 9.7143, places=3)
+
+    def test_summary_is_regular_p1(self):
+        self.assertTrue(self.s_tuman_xor['is_regular'])
+
+    def test_summary_is_regular_p2(self):
+        self.assertTrue(self.s_gora_and['is_regular'])
+
+    def test_summary_is_regular_tuman_xor3(self):
+        self.assertTrue(self.s_tuman_xor3['is_regular'])
+
+    def test_summary_is_regular_mat_xor3_false(self):
+        self.assertFalse(self.s_mat_xor3['is_regular'])
+
+    def test_summary_is_regular_iff_diam_eq_rad(self):
+        s = self.s_mat_xor3
+        self.assertEqual(s['is_regular'], s['diameter'] == s['radius'])
+
+    # ── dist_histogram ────────────────────────────────────────────────────────
+
+    def test_histogram_p1_empty(self):
+        self.assertEqual(self.s_tuman_xor['dist_histogram'], {})
+
+    def test_histogram_p2_only_16(self):
+        h = self.s_gora_and['dist_histogram']
+        self.assertEqual(list(h.keys()), [16])
+        self.assertEqual(h[16], 2)  # H[0][1] and H[1][0]
+
+    def test_histogram_tuman_xor3_total_count(self):
+        h = self.s_tuman_xor3['dist_histogram']
+        self.assertEqual(sum(h.values()), 8 * 7)  # 56 off-diagonal pairs
+
+    def test_histogram_tuman_xor3_max_distance_count(self):
+        h = self.s_tuman_xor3['dist_histogram']
+        self.assertEqual(h.get(16, 0), 30)
+
+    def test_histogram_tuman_xor3_girth_count(self):
+        h = self.s_tuman_xor3['dist_histogram']
+        self.assertEqual(h.get(6, 0), 2)
+
+    # ── all_multistep / build_multistep_data ──────────────────────────────────
+
+    def test_all_multistep_has_four_rules(self):
+        d = self.all_multistep('ГОРА', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_multistep_data_returns_dict(self):
+        data = self.build_multistep_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('data', data)
+
+    def test_build_multistep_data_word_list(self):
+        data = self.build_multistep_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertEqual(data['words'], ['ТУМАН', 'ГОРА'])
+
+    def test_build_multistep_data_per_word(self):
+        data = self.build_multistep_data(['ТУМАН'], 16)
+        self.assertIn('ТУМАН', data['data'])
+
+    # ── multistep_dict (JSON serialisability) ─────────────────────────────────
+
+    def test_multistep_dict_keys(self):
+        d = self.multistep_dict(self.s_tuman_xor3)
+        self.assertIn('diameter', d)
+        self.assertIn('dist_histogram', d)
+
+    def test_multistep_dict_histogram_str_keys(self):
+        d = self.multistep_dict(self.s_tuman_xor3)
+        hist = d['dist_histogram']
+        for k in hist:
+            self.assertIsInstance(k, str)
+
+    def test_multistep_dict_serialisable(self):
+        import json
+        d = self.multistep_dict(self.s_tuman_xor3)
+        s = json.dumps(d)
+        self.assertIn('diameter', s)
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_ms_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ms-matrix', content)
+
+    def test_viewer_has_ms_ecc(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ms-ecc', content)
+
+    def test_viewer_has_ms_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('msRun', content)
+
+    def test_viewer_has_ms_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ms-info', content)
+
+    def test_viewer_has_ms_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ms-word', content)
+
+    def test_viewer_has_ms_hamming(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('msHamming', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

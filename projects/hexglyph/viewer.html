@@ -14355,6 +14355,237 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Multi-step Hamming Distance Matrix (solan_multistep)</h2>
+<p style="color:#888;font-size:13px">
+  P×P matrix of Q6 cell-level Hamming distances between all pairs of orbit states.
+  Reveals the full metric geometry of the attractor orbit state space.
+  Left: heatmap of H[t1][t2] (brighter = more cells differ).
+  Right: eccentricity per orbit step + key metrics.
+  <br>
+  ★ P=2 theorem: ALL period-2 orbits have H[0][1]=16 (all cells differ).&nbsp;
+  ★ MАТ XOR3: only non-regular P=8 orbit with girth=4, spread=9.71.
+</p>
+<label style="color:#aaa">Слово:
+  <select id="ms-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="ms-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="ms-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start">
+  <canvas id="ms-matrix" width="280" height="280"
+    style="background:#0a0a0a;border:1px solid #222"></canvas>
+  <canvas id="ms-ecc" width="220" height="280"
+    style="background:#0a0a0a;border:1px solid #222"></canvas>
+</div>
+<div id="ms-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+
+  function msStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function msOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=msStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=msStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=msStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function msHamming(a,b){
+    var d=0; for(var i=0;i<a.length;i++) if(a[i]!==b[i]) d++;
+    return d;
+  }
+
+  function msDistMatrix(grid){
+    var P=grid.length,mat=[];
+    for(var t1=0;t1<P;t1++){
+      mat.push([]);
+      for(var t2=0;t2<P;t2++) mat[t1].push(msHamming(grid[t1],grid[t2]));
+    }
+    return mat;
+  }
+
+  function msEccentricity(mat){
+    return mat.map(function(row){return Math.max.apply(null,row);});
+  }
+
+  function msRun(){
+    var word=(document.getElementById('ms-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('ms-rule').value;
+    var enc=window.encL;
+    if(!enc){document.getElementById('ms-info').textContent='(данные не загружены)';return;}
+
+    // Build IC
+    var raw=[];
+    for(var i=0;i<word.length;i++){
+      var v=enc[word[i]];
+      if(v!==undefined) raw.push(v);
+    }
+    if(!raw.length){document.getElementById('ms-info').textContent='(нет фонетических символов)';return;}
+    var ic=[]; for(var i=0;i<16;i++) ic.push(raw[i%raw.length]);
+
+    var grid=msOrbit(ic,rule);
+    var P=grid.length, N=16;
+    var mat=msDistMatrix(grid);
+    var ecc=msEccentricity(mat);
+    var diam=Math.max.apply(null,ecc);
+    var rad=Math.min.apply(null,ecc);
+
+    // off-diagonal stats
+    var offSum=0,offCnt=0,girth=N;
+    for(var t1=0;t1<P;t1++) for(var t2=0;t2<P;t2++) if(t1!==t2){
+      offSum+=mat[t1][t2]; offCnt++;
+      if(mat[t1][t2]<girth) girth=mat[t1][t2];
+    }
+    var spread=offCnt?offSum/offCnt:0;
+    var isReg=(diam===rad);
+
+    // ── Draw P×P heatmap ──────────────────────────────────────────
+    var hc=document.getElementById('ms-matrix');
+    var hctx=hc.getContext('2d');
+    hc.width=Math.max(240,P*32+40); hc.height=hc.width;
+    hctx.clearRect(0,0,hc.width,hc.height);
+    var cellSz=Math.floor((hc.width-40)/P);
+    var ox=20,oy=20;
+    var col=BCOL[rule]||'#80deea';
+
+    for(var t1=0;t1<P;t1++){
+      for(var t2=0;t2<P;t2++){
+        var d=mat[t1][t2];
+        var frac=d/N; // 0..1
+        if(t1===t2){
+          hctx.fillStyle='#111';
+        } else if(d===diam){
+          hctx.fillStyle='#ff6060';
+        } else {
+          // gradient: dark → col
+          var r2=Math.round(parseInt(col.slice(1,3),16)*frac);
+          var g2=Math.round(parseInt(col.slice(3,5),16)*frac);
+          var b2=Math.round(parseInt(col.slice(5,7),16)*frac);
+          hctx.fillStyle='rgb('+r2+','+g2+','+b2+')';
+        }
+        hctx.fillRect(ox+t2*cellSz, oy+t1*cellSz, cellSz-1, cellSz-1);
+        // value label
+        if(cellSz>=24 && t1!==t2){
+          hctx.fillStyle='#fff';
+          hctx.font='bold '+(cellSz>32?12:10)+'px monospace';
+          hctx.textAlign='center';
+          hctx.fillText(d, ox+t2*cellSz+cellSz/2, oy+t1*cellSz+cellSz/2+4);
+        }
+      }
+      // row label
+      hctx.fillStyle='#666'; hctx.font='10px monospace'; hctx.textAlign='right';
+      hctx.fillText('t'+t1, ox-3, oy+t1*cellSz+cellSz/2+3);
+    }
+    // col labels
+    hctx.fillStyle='#666'; hctx.textAlign='center';
+    for(var t2=0;t2<P;t2++)
+      hctx.fillText('t'+t2, ox+t2*cellSz+cellSz/2, oy-4);
+
+    // ── Draw eccentricity bars ────────────────────────────────────
+    var ec=document.getElementById('ms-ecc');
+    var ectx=ec.getContext('2d');
+    ec.height=hc.height; ec.width=220;
+    ectx.clearRect(0,0,ec.width,ec.height);
+    var bw=Math.min(28,(ec.width-60)/Math.max(P,1));
+    var bx0=40;
+
+    ectx.fillStyle='#555'; ectx.font='11px monospace';
+    ectx.fillText('Eccentricity',bx0,16);
+
+    for(var t=0;t<P;t++){
+      var bh=Math.round((ecc[t]/N)*(ec.height-40));
+      var by=ec.height-20-bh;
+      var bx=bx0+t*(bw+4);
+      // color by ecc value
+      var ef=ecc[t]/N;
+      ectx.fillStyle='rgba(128,222,234,'+ef+')';
+      if(ecc[t]===diam) ectx.fillStyle='rgba(255,96,96,0.85)';
+      if(ecc[t]===rad && rad<diam) ectx.fillStyle='rgba(100,220,100,0.85)';
+      ectx.fillRect(bx,by,bw,bh);
+      ectx.fillStyle='#888'; ectx.font='10px monospace'; ectx.textAlign='center';
+      ectx.fillText('t'+t, bx+bw/2, ec.height-6);
+      ectx.fillStyle='#ccc';
+      ectx.fillText(ecc[t], bx+bw/2, by-3);
+    }
+    // axis label
+    ectx.fillStyle='#555'; ectx.font='10px monospace';
+    ectx.fillText('0', 4, ec.height-18);
+    ectx.fillText(N, 4, 20);
+
+    // ── Metrics text ──────────────────────────────────────────────
+    var lines=[
+      'P='+P+'  N='+N+'  rule='+rule,
+      'diameter  = '+diam,
+      'radius    = '+rad+'  '+(isReg?'(regular)':'(non-regular)'),
+      'girth     = '+(P>1?girth:'—'),
+      'spread    = '+spread.toFixed(4),
+      'is_regular= '+(isReg?'true':'false'),
+    ];
+    document.getElementById('ms-info').textContent=lines.join('\n');
+  }
+
+  // Populate word list
+  (function(){
+    var sel=document.getElementById('ms-word');
+    if(window.LEXICON_WORDS){
+      window.LEXICON_WORDS.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=w; o.textContent=w;
+        if(w==='ТУМАН') o.selected=true;
+        sel.appendChild(o);
+      });
+    } else {
+      ['ТУМАН','ГОРА','МАТ','БОЛТ','НОРА'].forEach(function(w){
+        var o=document.createElement('option');
+        o.value=w; o.textContent=w;
+        if(w==='ТУМАН') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+  })();
+
+  document.getElementById('ms-btn').addEventListener('click',msRun);
+  document.getElementById('ms-word').addEventListener('change',msRun);
+  document.getElementById('ms-rule').addEventListener('change',msRun);
+  setTimeout(function(){if(window.encL) msRun();},9500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
