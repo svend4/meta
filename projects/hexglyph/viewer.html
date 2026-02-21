@@ -16060,6 +16060,220 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Cell Fourier Spectrum (solan_fourier)</h2>
+<p style="color:#888;font-size:13px">
+  One-sided DFT of each cell's period-P temporal sequence.
+  Left: per-cell AC spectrum heatmap (cells=rows, k=1…⌊P/2⌋=cols; colour by frequency, intensity by power).
+  Right: mean S[k] across cells.
+  <br>
+  ★ P=2 words: only k=1 (Nyquist); dom=1 for every cell, H=0.
+  &nbsp;★ РАБОТА XOR3: cell 1 dom=4 (Nyquist), dom_hist {1:8, 2:1, 3:1, 4:6}.
+  &nbsp;★ МОНТАЖ XOR3: highest mean H≈1.618 bits (closest to max log₂4=2.0).
+</p>
+<label style="color:#aaa">Слово:
+  <select id="ft-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="ft-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="ft-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="ft-canvas" width="660" height="280"
+  style="background:#0a0a0a;border:1px solid #222"></canvas>
+<div id="ft-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var FREQ_RGB = {1:[70,160,255], 2:[90,220,90], 3:[255,165,50], 4:[255,60,60]};
+  function fqRgb(k){ return FREQ_RGB[k]||[160,160,160]; }
+
+  function ftStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function ftOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=ftStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=ftStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=ftStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function ftDFT(seq){
+    var P=seq.length,half=P>>1,F=[];
+    for(var k=0;k<=half;k++){
+      var re=0,im=0;
+      for(var t=0;t<P;t++){
+        var a=-2*Math.PI*k*t/P;
+        re+=seq[t]*Math.cos(a); im+=seq[t]*Math.sin(a);
+      }
+      F.push((re*re+im*im)/P);
+    }
+    return F;
+  }
+
+  function ftDomFreq(ps){
+    if(ps.length<=1) return 0;
+    var bk=1,bv=ps[1];
+    for(var k=2;k<ps.length;k++) if(ps[k]>bv){bv=ps[k];bk=k;}
+    return bk;
+  }
+
+  function ftRun(){
+    var word=(document.getElementById('ft-word').value||'РАБОТА').toUpperCase();
+    var rule=document.getElementById('ft-rule').value;
+    var cv=document.getElementById('ft-canvas');
+    var ctx=cv.getContext('2d');
+    var W=cv.width,H=cv.height;
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
+
+    if(!window.encL||!window.padL){
+      document.getElementById('ft-info').textContent='(данные не загружены)'; return;
+    }
+    var lw=window.LEXW||16;
+    var raw=window.encL(word);
+    if(!raw||!raw.length){document.getElementById('ft-info').textContent='(нет символов)';return;}
+    var ic=window.padL(raw,lw);
+    var orbit=ftOrbit(ic,rule);
+    var P=orbit.length,N=lw;
+
+    if(P<2){
+      ctx.fillStyle='#666'; ctx.font='13px monospace'; ctx.textAlign='left';
+      ctx.fillText('Fixed point (P=1): no AC spectrum',20,H/2);
+      document.getElementById('ft-info').textContent='P=1: no variation';
+      return;
+    }
+
+    var half=P>>1;
+    var cellPS=[];
+    for(var i=0;i<N;i++){
+      var seq=[]; for(var t=0;t<P;t++) seq.push(orbit[t][i]);
+      cellPS.push(ftDFT(seq));
+    }
+
+    // ── Left: per-cell heatmap of AC bins k=1..half ─────────────────────
+    var topY=32,cellH=Math.floor((H-topY-8)/N)-1;
+    var nBins=half,leftW=320,binW=Math.max(1,Math.floor((leftW-62)/nBins)-1);
+
+    ctx.fillStyle='#555'; ctx.font='10px monospace'; ctx.textAlign='left';
+    ctx.fillText('AC heatmap  (cells \xd7 freq bins)',6,16);
+
+    ctx.font='9px monospace'; ctx.textAlign='center';
+    for(var k=1;k<=half;k++){
+      var xk=62+(k-1)*(binW+1)+binW/2;
+      var rgb=fqRgb(k);
+      ctx.fillStyle='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')';
+      ctx.fillText('k'+k,xk,28);
+    }
+
+    for(var i=0;i<N;i++){
+      var y=topY+i*(cellH+1);
+      var ps=cellPS[i];
+      var maxAC=0;
+      for(var k=1;k<=half;k++) if(ps[k]>maxAC) maxAC=ps[k];
+      var dom=ftDomFreq(ps);
+      ctx.fillStyle='#444'; ctx.font='9px monospace'; ctx.textAlign='right';
+      ctx.fillText(i,58,y+cellH-1);
+      for(var k=1;k<=half;k++){
+        var x=62+(k-1)*(binW+1);
+        var frac=maxAC>1e-20?ps[k]/maxAC:0;
+        var rgb=fqRgb(k);
+        ctx.fillStyle='rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+(0.08+0.92*frac)+')';
+        ctx.fillRect(x,y,binW,cellH);
+        if(k===dom&&maxAC>1e-10){
+          ctx.fillStyle='rgba(255,255,255,0.55)';
+          ctx.fillRect(x+binW*0.35,y+cellH*0.2,binW*0.3,cellH*0.6);
+        }
+      }
+    }
+
+    // ── Right: mean S[k] bar chart ───────────────────────────────────────
+    var rightX=340,rightW=W-rightX-10;
+    ctx.fillStyle='#555'; ctx.font='10px monospace'; ctx.textAlign='left';
+    ctx.fillText('Mean S[k] across cells',rightX,16);
+
+    var meanPS=[];
+    for(var k=0;k<=half;k++){
+      var s=0; for(var i=0;i<N;i++) s+=cellPS[i][k]; meanPS.push(s/N);
+    }
+    var maxM=Math.max.apply(null,meanPS)||1;
+    var bH2=Math.floor((H-topY-6)/(half+1))-2;
+
+    for(var k=0;k<=half;k++){
+      var ky=topY+k*(bH2+2);
+      var bw=Math.round(meanPS[k]/maxM*(rightW-85));
+      var rgb=k===0?[70,70,70]:fqRgb(k);
+      ctx.fillStyle='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')';
+      if(bw>0) ctx.fillRect(rightX,ky,bw,bH2);
+      ctx.fillStyle=k===0?'#555':'#aaa';
+      ctx.font='10px monospace'; ctx.textAlign='left';
+      ctx.fillText((k===0?'DC':('k='+k))+' '+meanPS[k].toFixed(0),
+                   rightX+bw+4,ky+bH2-1);
+    }
+
+    // ── Info ─────────────────────────────────────────────────────────────
+    var domHist={};
+    for(var i=0;i<N;i++){var d=ftDomFreq(cellPS[i]);domHist[d]=(domHist[d]||0)+1;}
+    var meanH=0;
+    for(var i=0;i<N;i++){
+      var acSum=0;
+      for(var k=1;k<=half;k++) acSum+=cellPS[i][k];
+      if(acSum>1e-10)
+        for(var k=1;k<=half;k++){var p=cellPS[i][k]/acSum;if(p>1e-20)meanH-=p*Math.log2(p);}
+    }
+    meanH/=N;
+    document.getElementById('ft-info').textContent=
+      'word='+word+'  rule='+rule+'  P='+P+
+      '\ndom_freq_hist='+JSON.stringify(domHist)+
+      '  mean_H='+meanH.toFixed(3)+' bits  max='+Math.log2(half).toFixed(3)+' bits';
+  }
+
+  (function(){
+    var sel=document.getElementById('ft-word');
+    var words=window.LEXICON_ARR||['РАБОТА','МАТ','ТОННА','ЗАВОД'];
+    words.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='РАБОТА') o.selected=true;
+      sel.appendChild(o);
+    });
+  })();
+
+  document.getElementById('ft-btn').addEventListener('click',ftRun);
+  document.getElementById('ft-word').addEventListener('change',ftRun);
+  document.getElementById('ft-rule').addEventListener('change',ftRun);
+  setTimeout(function(){if(window.encL&&window.LEXICON_ARR) ftRun();},13500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

@@ -7780,231 +7780,6 @@ class TestSolanWperm(unittest.TestCase):
         self.assertIn('Взвешенная энтропия перестановок Q6', content)
 
 
-class TestSolanFourier(unittest.TestCase):
-    """Tests for solan_fourier.py and the viewer Fourier/PSD section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_fourier import (
-            dft1, power_spectrum, spectral_entropy,
-            normalised_spectral_entropy, spectral_flatness,
-            dominant_harmonic, cell_fourier, fourier_profile,
-            fourier_dict, all_fourier, build_fourier_data,
-        )
-        cls.dft1                        = staticmethod(dft1)
-        cls.power_spectrum              = staticmethod(power_spectrum)
-        cls.spectral_entropy            = staticmethod(spectral_entropy)
-        cls.normalised_spectral_entropy = staticmethod(normalised_spectral_entropy)
-        cls.spectral_flatness           = staticmethod(spectral_flatness)
-        cls.dominant_harmonic           = staticmethod(dominant_harmonic)
-        cls.cell_fourier                = staticmethod(cell_fourier)
-        cls.fourier_profile             = staticmethod(fourier_profile)
-        cls.fourier_dict                = staticmethod(fourier_dict)
-        cls.all_fourier                 = staticmethod(all_fourier)
-        cls.build_fourier_data          = staticmethod(build_fourier_data)
-
-    # ── dft1 ───────────────────────────────────────────────────────────
-
-    def test_dft1_empty(self):
-        self.assertEqual(self.dft1([]), [])
-
-    def test_dft1_single(self):
-        X = self.dft1([3.0])
-        self.assertEqual(len(X), 1)
-        self.assertAlmostEqual(X[0].real, 3.0, places=10)
-
-    def test_dft1_dc_component(self):
-        s = [1.0, 2.0, 3.0, 4.0]
-        X = self.dft1(s)
-        self.assertAlmostEqual(X[0].real, 10.0, places=8)
-
-    def test_dft1_pure_cosine_peak_at_k1(self):
-        import math
-        N = 8
-        s = [math.cos(2 * math.pi * t / N) for t in range(N)]
-        X = self.dft1(s)
-        self.assertGreater(abs(X[1]), abs(X[0]))
-
-    # ── power_spectrum ─────────────────────────────────────────────────
-
-    def test_power_spectrum_empty(self):
-        self.assertEqual(self.power_spectrum([]), [])
-
-    def test_power_spectrum_length(self):
-        ps = self.power_spectrum([1, 2, 3, 4, 5, 6, 7, 8])
-        self.assertEqual(len(ps), 5)
-
-    def test_power_spectrum_nonneg(self):
-        ps = self.power_spectrum([10, 5, 20, 15, 3, 8])
-        self.assertTrue(all(v >= 0 for v in ps))
-
-    def test_power_spectrum_constant_dc_only(self):
-        ps = self.power_spectrum([5, 5, 5, 5])
-        self.assertGreater(ps[0], 0)
-        self.assertAlmostEqual(sum(ps[1:]), 0.0, places=8)
-
-    # ── spectral_entropy ───────────────────────────────────────────────
-
-    def test_spectral_entropy_single_bin_is_zero(self):
-        self.assertAlmostEqual(self.spectral_entropy([5.0]), 0.0)
-
-    def test_spectral_entropy_all_zero_is_zero(self):
-        self.assertAlmostEqual(self.spectral_entropy([0.0, 0.0]), 0.0)
-
-    def test_spectral_entropy_uniform_max(self):
-        import math
-        ps = [1.0, 1.0, 1.0, 1.0]
-        self.assertAlmostEqual(self.spectral_entropy(ps), math.log2(4), places=8)
-
-    def test_spectral_entropy_nonneg(self):
-        self.assertGreaterEqual(self.spectral_entropy([3.0, 1.0, 2.0, 0.5]), 0.0)
-
-    # ── normalised_spectral_entropy ────────────────────────────────────
-
-    def test_nse_range(self):
-        v = self.normalised_spectral_entropy([2.0, 1.0, 3.0, 0.5])
-        self.assertGreaterEqual(v, 0.0)
-        self.assertLessEqual(v, 1.0)
-
-    def test_nse_uniform_is_one(self):
-        self.assertAlmostEqual(self.normalised_spectral_entropy([1.0] * 8), 1.0, places=6)
-
-    def test_nse_one_bin_is_zero(self):
-        self.assertAlmostEqual(self.normalised_spectral_entropy([7.0]), 0.0)
-
-    def test_nse_all_zero_is_zero(self):
-        self.assertAlmostEqual(self.normalised_spectral_entropy([0.0, 0.0, 0.0]), 0.0)
-
-    # ── spectral_flatness ──────────────────────────────────────────────
-
-    def test_sf_uniform_is_one(self):
-        self.assertAlmostEqual(self.spectral_flatness([2.0, 2.0, 2.0, 2.0]), 1.0, places=6)
-
-    def test_sf_zero_if_zero_bin(self):
-        self.assertAlmostEqual(self.spectral_flatness([3.0, 0.0, 2.0]), 0.0)
-
-    def test_sf_range(self):
-        v = self.spectral_flatness([10.0, 1.0, 5.0, 2.0])
-        self.assertGreaterEqual(v, 0.0)
-        self.assertLessEqual(v, 1.0)
-
-    # ── dominant_harmonic ──────────────────────────────────────────────
-
-    def test_dominant_harmonic_returns_k_ge_1(self):
-        k = self.dominant_harmonic([100.0, 5.0, 20.0, 3.0])
-        self.assertGreaterEqual(k, 1)
-
-    def test_dominant_harmonic_finds_peak(self):
-        self.assertEqual(self.dominant_harmonic([100.0, 5.0, 80.0, 3.0]), 2)
-
-    def test_dominant_harmonic_single_bin(self):
-        self.assertEqual(self.dominant_harmonic([5.0]), 1)
-
-    # ── Fixed-point attractors → nH_sp = 0 ────────────────────────────
-
-    def test_tuman_xor_nh_sp_zero(self):
-        profile = self.fourier_profile('ТУМАН', 'xor', 16)
-        for c in profile:
-            self.assertAlmostEqual(c['nh_sp'], 0.0)
-
-    def test_gora_and_nh_sp_high(self):
-        profile = self.fourier_profile('ГОРА', 'and', 16)
-        active = [c['nh_sp'] for c in profile if c['ac_total'] > 0]
-        if active:
-            self.assertGreater(sum(active) / len(active), 0.9)
-
-    def test_tuman_xor3_nh_sp_mid(self):
-        d = self.fourier_dict('ТУМАН', 'xor3', 16)
-        self.assertGreater(d['mean_nh_sp'], 0.05)
-        self.assertLess(d['mean_nh_sp'], 0.6)
-
-    # ── fourier_dict structure ─────────────────────────────────────────
-
-    def test_fourier_dict_keys(self):
-        d = self.fourier_dict('ТУМАН', 'xor3', 16)
-        for k in ('word', 'rule', 'period', 'cell_fourier',
-                  'mean_nh_sp', 'mean_sf', 'mean_dc_frac',
-                  'mean_ps', 'dominant_k', 'eff_period', 'n_bins'):
-            self.assertIn(k, d)
-
-    def test_fourier_dict_profile_length(self):
-        d = self.fourier_dict('ГОРА', 'xor3', 16)
-        self.assertEqual(len(d['cell_fourier']), 16)
-
-    def test_fourier_dict_nh_sp_range(self):
-        d = self.fourier_dict('ТУМАН', 'xor3', 16)
-        for c in d['cell_fourier']:
-            self.assertGreaterEqual(c['nh_sp'], 0.0)
-            self.assertLessEqual(c['nh_sp'], 1.0)
-
-    def test_fourier_dict_dc_frac_range(self):
-        d = self.fourier_dict('ГОРА', 'and', 16)
-        for c in d['cell_fourier']:
-            self.assertGreaterEqual(c['dc_frac'], 0.0)
-            self.assertLessEqual(c['dc_frac'], 1.0)
-
-    def test_fourier_dict_dominant_k_ge_1(self):
-        d = self.fourier_dict('ТУМАН', 'xor3', 16)
-        self.assertGreaterEqual(d['dominant_k'], 1)
-
-    def test_fourier_dict_word_uppercase(self):
-        d = self.fourier_dict('туман', 'xor3', 16)
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    # ── all_fourier ────────────────────────────────────────────────────
-
-    def test_all_fourier_has_four_rules(self):
-        result = self.all_fourier('ТУМАН', 16)
-        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_all_fourier_values_are_dicts(self):
-        result = self.all_fourier('ГОРА', 16)
-        for rule, d in result.items():
-            self.assertIsInstance(d, dict)
-            self.assertIn('mean_nh_sp', d)
-
-    # ── build_fourier_data ─────────────────────────────────────────────
-
-    def test_build_fourier_data_structure(self):
-        data = self.build_fourier_data(['ТУМАН', 'ГОРА'], 16)
-        self.assertIn('words', data)
-        self.assertIn('per_rule', data)
-        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_fourier_data_entry_keys(self):
-        data = self.build_fourier_data(['ТУМАН'], 16)
-        entry = data['per_rule']['xor3']['ТУМАН']
-        for k in ('period', 'mean_nh_sp', 'mean_sf', 'mean_dc_frac',
-                  'dominant_k', 'eff_period', 'n_bins'):
-            self.assertIn(k, entry)
-
-    def test_build_fourier_data_words_uppercase(self):
-        data = self.build_fourier_data(['туман'], 16)
-        self.assertIn('ТУМАН', data['words'])
-
-    # ── viewer ─────────────────────────────────────────────────────────
-
-    def test_viewer_has_fou_spectrum(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('fou-spectrum', content)
-
-    def test_viewer_has_fou_cell(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('fou-cell', content)
-
-    def test_viewer_has_fou_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('fou-stats', content)
-
-    def test_viewer_has_fou_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('fouRun', content)
-
-    def test_viewer_has_fou_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Фурье / PSD Q6', content)
-
-
 class TestSolanForbidden(unittest.TestCase):
     """Tests for solan_forbidden.py and the viewer Forbidden Patterns section."""
 
@@ -20756,6 +20531,358 @@ class TestSolanPCA(unittest.TestCase):
     def test_viewer_has_solan_pca_section(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_pca', content)
+
+
+class TestSolanFourier(unittest.TestCase):
+    """Tests for solan_fourier.py — DFT spectral analysis of Q6 CA orbits."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_fourier import (
+            dft1, power_spectrum, spectral_entropy, normalised_spectral_entropy,
+            spectral_flatness, dominant_harmonic,
+            cell_spectrum, fourier_summary, all_fourier,
+            build_fourier_data, fourier_dict,
+        )
+        cls.dft1          = staticmethod(dft1)
+        cls.power_spectrum = staticmethod(power_spectrum)
+        cls.spec_ent      = staticmethod(spectral_entropy)
+        cls.norm_ent      = staticmethod(normalised_spectral_entropy)
+        cls.sf            = staticmethod(spectral_flatness)
+        cls.dom_harm      = staticmethod(dominant_harmonic)
+        cls.cell_spectrum = staticmethod(cell_spectrum)
+        cls.fourier_summary = staticmethod(fourier_summary)
+        cls.all_fourier   = staticmethod(all_fourier)
+        cls.build_data    = staticmethod(build_fourier_data)
+        cls.fourier_dict  = staticmethod(fourier_dict)
+
+        # Precomputed summaries
+        cls.s_rabota_xor3 = fourier_summary('РАБОТА', 'xor3', 16)
+        cls.s_gora_xor3   = fourier_summary('ГОРА',   'xor3', 16)
+        cls.s_montazh_xor3= fourier_summary('МОНТАЖ', 'xor3', 16)
+        cls.s_gorod_xor3  = fourier_summary('ГОРОД',  'xor3', 16)
+        cls.s_mat_and     = fourier_summary('МАТ',    'and',  16)
+
+    # ── dft1 ─────────────────────────────────────────────────────────────────
+
+    def test_dft1_length(self):
+        self.assertEqual(len(self.dft1([1, 2, 3, 4])), 4)
+
+    def test_dft1_dc_equals_sum(self):
+        seq = [1, 2, 3, 4]
+        F = self.dft1(seq)
+        self.assertAlmostEqual(F[0].real, sum(seq), places=6)
+        self.assertAlmostEqual(F[0].imag, 0.0, places=6)
+
+    def test_dft1_empty(self):
+        self.assertEqual(self.dft1([]), [])
+
+    def test_dft1_conjugate_symmetry(self):
+        import cmath
+        seq = [5, 3, 1, 7, 2, 6]
+        F = self.dft1(seq)
+        P = len(F)
+        for k in range(1, P):
+            self.assertAlmostEqual(F[k].real,  F[P - k].real, places=5)
+            self.assertAlmostEqual(F[k].imag, -F[P - k].imag, places=5)
+
+    # ── power_spectrum ────────────────────────────────────────────────────────
+
+    def test_power_spectrum_length_even(self):
+        self.assertEqual(len(self.power_spectrum([1, 2, 3, 4])), 3)  # 4//2+1
+
+    def test_power_spectrum_length_odd(self):
+        self.assertEqual(len(self.power_spectrum([1, 2, 3])), 2)     # 3//2+1
+
+    def test_power_spectrum_non_negative(self):
+        for v in self.power_spectrum([5, 3, 2, 7, 1, 4]):
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_power_spectrum_empty(self):
+        self.assertEqual(self.power_spectrum([]), [])
+
+    def test_power_spectrum_parseval_approx(self):
+        # Σ|F[k]|²/P ≈ Σ|x[t]|² (two-sided), one-sided approximation
+        seq = [5, 3, 2, 7, 1, 4, 6, 2]
+        ps  = self.power_spectrum(seq)
+        P   = len(seq)
+        # DC and Nyquist counted once; sum of all |F[k]|²/P = Σ x[t]²
+        # full Parseval: Σ_{k=0}^{P-1} |F[k]|²/P = Σ x²
+        xsq = sum(x * x for x in seq)
+        # Reconstruct two-sided: S[0] + 2*S[1..P//2-1] + S[P//2] ≈ xsq
+        half = P // 2
+        two_sided = ps[0] + sum(2 * ps[k] for k in range(1, half)) + ps[half]
+        self.assertAlmostEqual(two_sided, xsq, places=2)
+
+    # ── spectral_entropy ──────────────────────────────────────────────────────
+
+    def test_spec_ent_uniform_is_max(self):
+        import math
+        power = [1.0, 1.0, 1.0, 1.0]
+        self.assertAlmostEqual(self.spec_ent(power), math.log2(4), places=6)
+
+    def test_spec_ent_single_bin_is_zero(self):
+        self.assertAlmostEqual(self.spec_ent([0.0, 0.0, 5.0, 0.0]), 0.0, places=6)
+
+    def test_spec_ent_all_zero_is_zero(self):
+        self.assertAlmostEqual(self.spec_ent([0.0, 0.0, 0.0]), 0.0, places=6)
+
+    def test_spec_ent_non_negative(self):
+        self.assertGreaterEqual(self.spec_ent([2.0, 3.0, 1.0, 4.0]), 0.0)
+
+    # ── normalised_spectral_entropy ───────────────────────────────────────────
+
+    def test_norm_ent_range(self):
+        v = self.norm_ent([1.0, 2.0, 3.0, 4.0])
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_norm_ent_uniform_is_one(self):
+        self.assertAlmostEqual(self.norm_ent([1.0, 1.0, 1.0, 1.0]), 1.0, places=6)
+
+    def test_norm_ent_single_is_zero(self):
+        self.assertAlmostEqual(self.norm_ent([0.0, 5.0, 0.0]), 0.0, places=6)
+
+    # ── spectral_flatness ─────────────────────────────────────────────────────
+
+    def test_sf_range(self):
+        v = self.sf([1.0, 2.0, 3.0, 4.0])
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_sf_uniform_is_one(self):
+        self.assertAlmostEqual(self.sf([3.0, 3.0, 3.0, 3.0]), 1.0, places=5)
+
+    def test_sf_zero_bin_is_zero(self):
+        self.assertAlmostEqual(self.sf([1.0, 0.0, 2.0]), 0.0, places=6)
+
+    # ── dominant_harmonic ─────────────────────────────────────────────────────
+
+    def test_dom_harm_skips_dc(self):
+        # DC (k=0) = 100, k=1 = 5 → k* = 1
+        k = self.dom_harm([100.0, 5.0, 3.0])
+        self.assertEqual(k, 1)
+
+    def test_dom_harm_selects_max_ac(self):
+        k = self.dom_harm([1.0, 2.0, 10.0, 3.0])
+        self.assertEqual(k, 2)
+
+    def test_dom_harm_single_bin(self):
+        self.assertEqual(self.dom_harm([5.0]), 0)
+
+    # ── cell_spectrum structure ───────────────────────────────────────────────
+
+    def test_cell_spectrum_keys(self):
+        cs = self.cell_spectrum([10, 20, 30, 20])
+        for k in ('power', 'dom_freq', 'ac_power', 'dc', 'dc_frac',
+                  'h_sp', 'nh_sp', 'spec_entropy', 'sf', 'period'):
+            self.assertIn(k, cs, msg=f"missing key: {k}")
+
+    def test_cell_spectrum_p1_ac_zero(self):
+        cs = self.cell_spectrum([42])
+        self.assertEqual(cs['ac_power'], 0.0)
+        self.assertEqual(cs['dom_freq'], 0)
+
+    def test_cell_spectrum_p2_dom_is_1(self):
+        cs = self.cell_spectrum([10, 50])
+        self.assertEqual(cs['dom_freq'], 1)  # only Nyquist bin for P=2
+
+    def test_cell_spectrum_power_non_negative(self):
+        for v in self.cell_spectrum([5, 3, 2, 7, 1, 4, 6, 2])['power']:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_cell_spectrum_dc_frac_range(self):
+        cs = self.cell_spectrum([5, 3, 2, 7, 1, 4, 6, 2])
+        self.assertGreaterEqual(cs['dc_frac'], 0.0)
+        self.assertLessEqual(cs['dc_frac'], 1.0)
+
+    # ── fourier_summary structure ─────────────────────────────────────────────
+
+    def test_fourier_summary_all_keys(self):
+        for k in ('word', 'rule', 'period', 'n_cells',
+                  'cell_dom_freq', 'cell_ac_power', 'cell_dc',
+                  'cell_spec_entropy', 'cell_nh_sp', 'cell_dc_frac', 'cell_power',
+                  'max_ac_power', 'max_ac_cell', 'mean_ac_power',
+                  'dom_freq_hist', 'most_common_dom_freq',
+                  'n_nyquist_dom', 'n_fundamental_dom',
+                  'mean_spec_entropy', 'max_spec_entropy', 'max_spec_entropy_cell',
+                  'mean_nh_sp', 'mean_dc_frac', 'mean_ps', 'dominant_k'):
+            self.assertIn(k, self.s_rabota_xor3, msg=f"missing key: {k}")
+
+    def test_fourier_summary_word_preserved(self):
+        self.assertEqual(self.s_rabota_xor3['word'], 'РАБОТА')
+
+    def test_fourier_summary_rule_preserved(self):
+        self.assertEqual(self.s_rabota_xor3['rule'], 'xor3')
+
+    def test_fourier_summary_cell_lists_length(self):
+        for key in ('cell_dom_freq', 'cell_ac_power', 'cell_dc',
+                    'cell_spec_entropy', 'cell_nh_sp', 'cell_dc_frac', 'cell_power'):
+            self.assertEqual(len(self.s_rabota_xor3[key]), 16,
+                             msg=f"{key} length ≠ 16")
+
+    def test_fourier_summary_mean_dc_frac_in_range(self):
+        v = self.s_rabota_xor3['mean_dc_frac']
+        self.assertGreater(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    # ── РАБОТА XOR3 known values ──────────────────────────────────────────────
+
+    def test_rabota_xor3_period_8(self):
+        self.assertEqual(self.s_rabota_xor3['period'], 8)
+
+    def test_rabota_xor3_dom_freq_hist(self):
+        h = self.s_rabota_xor3['dom_freq_hist']
+        self.assertEqual(h.get(1), 8)
+        self.assertEqual(h.get(2), 1)
+        self.assertEqual(h.get(3), 1)
+        self.assertEqual(h.get(4), 6)
+
+    def test_rabota_xor3_n_nyquist_dom(self):
+        self.assertEqual(self.s_rabota_xor3['n_nyquist_dom'], 6)
+
+    def test_rabota_xor3_n_fundamental_dom(self):
+        self.assertEqual(self.s_rabota_xor3['n_fundamental_dom'], 8)
+
+    def test_rabota_xor3_cell1_dom_freq_is_4(self):
+        self.assertEqual(self.s_rabota_xor3['cell_dom_freq'][1], 4)
+
+    def test_rabota_xor3_mean_spec_entropy_approx(self):
+        self.assertAlmostEqual(self.s_rabota_xor3['mean_spec_entropy'], 1.482, places=2)
+
+    def test_rabota_xor3_mean_ac_positive(self):
+        self.assertGreater(self.s_rabota_xor3['mean_ac_power'], 0.0)
+
+    # ── ГОРА XOR3 (P=2) known values ─────────────────────────────────────────
+
+    def test_gora_xor3_period_2(self):
+        self.assertEqual(self.s_gora_xor3['period'], 2)
+
+    def test_gora_xor3_all_dom_freq_1(self):
+        for df in self.s_gora_xor3['cell_dom_freq']:
+            self.assertEqual(df, 1)
+
+    def test_gora_xor3_spec_entropy_zero(self):
+        # P=2 → only one AC bin → entropy = 0
+        for H in self.s_gora_xor3['cell_spec_entropy']:
+            self.assertAlmostEqual(H, 0.0, places=6)
+
+    def test_gora_xor3_n_nyquist_dom_is_16(self):
+        # P//2 = 1, so all cells dom k=1 = Nyquist
+        self.assertEqual(self.s_gora_xor3['n_nyquist_dom'], 16)
+
+    # ── МОНТАЖ XOR3 — highest mean spectral entropy ───────────────────────────
+
+    def test_montazh_xor3_highest_mean_entropy(self):
+        # МОНТАЖ has highest mean_spec_entropy in the lexicon ≈ 1.618
+        self.assertGreater(self.s_montazh_xor3['mean_spec_entropy'],
+                           self.s_rabota_xor3['mean_spec_entropy'])
+
+    def test_montazh_xor3_entropy_approx(self):
+        self.assertAlmostEqual(self.s_montazh_xor3['mean_spec_entropy'], 1.618, places=2)
+
+    # ── ГОРОД XOR3 — k=3 dominated ───────────────────────────────────────────
+
+    def test_gorod_xor3_dom3_cells_is_12(self):
+        h = self.s_gorod_xor3['dom_freq_hist']
+        self.assertEqual(h.get(3), 12)
+
+    def test_gorod_xor3_n_nyquist_dom_zero(self):
+        self.assertEqual(self.s_gorod_xor3['n_nyquist_dom'], 0)
+
+    def test_gorod_xor3_mean_entropy_low(self):
+        # Low entropy (concentrated spectrum): approx 1.163
+        self.assertLess(self.s_gorod_xor3['mean_spec_entropy'], 1.3)
+
+    # ── AND rule (P=1 fixed point) ────────────────────────────────────────────
+
+    def test_and_p1_period_is_1(self):
+        self.assertEqual(self.s_mat_and['period'], 1)
+
+    def test_and_p1_all_ac_power_zero(self):
+        for ac in self.s_mat_and['cell_ac_power']:
+            self.assertAlmostEqual(ac, 0.0, places=6)
+
+    def test_and_p1_all_dom_freq_zero(self):
+        for df in self.s_mat_and['cell_dom_freq']:
+            self.assertEqual(df, 0)
+
+    def test_and_p1_spec_entropy_zero(self):
+        for H in self.s_mat_and['cell_spec_entropy']:
+            self.assertAlmostEqual(H, 0.0, places=6)
+
+    # ── all_fourier ───────────────────────────────────────────────────────────
+
+    def test_all_fourier_four_rules(self):
+        res = self.all_fourier('РАБОТА', 16)
+        for r in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(r, res)
+
+    def test_all_fourier_each_is_dict(self):
+        for s in self.all_fourier('МАТ', 16).values():
+            self.assertIsInstance(s, dict)
+
+    # ── build_fourier_data ────────────────────────────────────────────────────
+
+    def test_build_data_has_words_key(self):
+        d = self.build_data(['МАТ'], 16)
+        self.assertIn('words', d)
+
+    def test_build_data_has_data_key(self):
+        d = self.build_data(['МАТ'], 16)
+        self.assertIn('data', d)
+
+    def test_build_data_nested(self):
+        d = self.build_data(['МАТ'], 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, d['data']['МАТ'])
+
+    # ── fourier_dict ──────────────────────────────────────────────────────────
+
+    def test_fourier_dict_json_serialisable(self):
+        import json
+        fd = self.fourier_dict(self.s_rabota_xor3)
+        out = json.dumps(fd)
+        self.assertIsInstance(out, str)
+
+    def test_fourier_dict_hist_keys_are_strings(self):
+        fd = self.fourier_dict(self.s_rabota_xor3)
+        for k in fd['dom_freq_hist']:
+            self.assertIsInstance(k, str)
+
+    def test_fourier_dict_cell_power_is_list_of_lists(self):
+        fd = self.fourier_dict(self.s_rabota_xor3)
+        cp = fd['cell_power']
+        self.assertIsInstance(cp, list)
+        self.assertIsInstance(cp[0], list)
+
+    # ── Viewer HTML assertions ────────────────────────────────────────────────
+
+    def test_viewer_has_ft_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ft-canvas', content)
+
+    def test_viewer_has_ft_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ftRun', content)
+
+    def test_viewer_has_ft_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ftOrbit', content)
+
+    def test_viewer_has_ft_dft(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ftDFT', content)
+
+    def test_viewer_has_ft_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ft-info', content)
+
+    def test_viewer_has_solan_fourier_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_fourier', content)
 
 
 if __name__ == "__main__":
