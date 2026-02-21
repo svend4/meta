@@ -9926,6 +9926,232 @@ class TestSolanHamming(unittest.TestCase):
         self.assertIn('BIMODAL', content)
 
 
+class TestSolanCoact(unittest.TestCase):
+    """Tests for solan_coact.py and the viewer Bit Co-activation section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coact import (
+            bit_joint_prob, bit_pearson_corr, cell_coact_stats,
+            aggregate_joint_prob, aggregate_pearson, top_corr_pairs,
+            coact_summary, all_coact, build_coact_data,
+        )
+        cls.bit_joint_prob      = staticmethod(bit_joint_prob)
+        cls.bit_pearson_corr    = staticmethod(bit_pearson_corr)
+        cls.cell_coact_stats    = staticmethod(cell_coact_stats)
+        cls.aggregate_joint_prob = staticmethod(aggregate_joint_prob)
+        cls.aggregate_pearson   = staticmethod(aggregate_pearson)
+        cls.top_corr_pairs      = staticmethod(top_corr_pairs)
+        cls.coact_summary       = staticmethod(coact_summary)
+        cls.all_coact           = staticmethod(all_coact)
+        cls.build_coact_data    = staticmethod(build_coact_data)
+
+    # ── bit_joint_prob() ──────────────────────────────────────────────
+
+    def test_bit_joint_prob_empty(self):
+        mat = self.bit_joint_prob([])
+        self.assertEqual(len(mat), 6)
+        for row in mat:
+            self.assertTrue(all(v == 0.0 for v in row))
+
+    def test_bit_joint_prob_diagonal_equals_balance(self):
+        # J[b][b] = P(bit_b = 1) = balance_b
+        series = [47, 1]   # 47=0b101111, 1=0b000001
+        mat = self.bit_joint_prob(series)
+        # bit 0: always 1 → J[0][0] = 1.0
+        self.assertAlmostEqual(mat[0][0], 1.0, places=9)
+        # bit 4: always 0 → J[4][4] = 0.0
+        self.assertAlmostEqual(mat[4][4], 0.0, places=9)
+        # bit 1: on in 47, off in 1 → J[1][1] = 0.5
+        self.assertAlmostEqual(mat[1][1], 0.5, places=9)
+
+    def test_bit_joint_prob_symmetric(self):
+        series = [48, 51, 43, 40]
+        mat = self.bit_joint_prob(series)
+        for b in range(6):
+            for b2 in range(6):
+                self.assertAlmostEqual(mat[b][b2], mat[b2][b], places=9)
+
+    def test_bit_joint_prob_shape(self):
+        mat = self.bit_joint_prob([1, 2, 3])
+        self.assertEqual(len(mat), 6)
+        for row in mat: self.assertEqual(len(row), 6)
+
+    def test_bit_joint_prob_range(self):
+        series = [0, 63, 47, 1, 15, 48]
+        mat = self.bit_joint_prob(series)
+        for row in mat:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+                self.assertLessEqual(v, 1.0)
+
+    # ── bit_pearson_corr() ────────────────────────────────────────────
+
+    def test_bit_pearson_empty(self):
+        mat = self.bit_pearson_corr([])
+        self.assertEqual(len(mat), 6)
+        for row in mat:
+            self.assertTrue(all(v == 0.0 for v in row))
+
+    def test_bit_pearson_frozen_zero(self):
+        # Constant series: all bits frozen → all correlations = 0
+        mat = self.bit_pearson_corr([47, 47, 47])
+        for row in mat:
+            for v in row:
+                self.assertAlmostEqual(v, 0.0, places=9)
+
+    def test_bit_pearson_self_loop_all_active(self):
+        # Self-correlation for active bits = 1.0
+        mat = self.bit_pearson_corr([47, 1])  # bits 1,2,3,5 are active
+        for b in [1, 2, 3, 5]:
+            self.assertAlmostEqual(mat[b][b], 1.0, places=9)
+
+    def test_bit_pearson_frozen_bits_zero_diagonal(self):
+        # Frozen bits (bit 0 always 1, bit 4 always 0) → diagonal = 0
+        mat = self.bit_pearson_corr([47, 1])
+        self.assertAlmostEqual(mat[0][0], 0.0, places=9)
+        self.assertAlmostEqual(mat[4][4], 0.0, places=9)
+
+    def test_bit_pearson_symmetric(self):
+        series = [48, 51, 43, 40, 63, 1]
+        mat = self.bit_pearson_corr(series)
+        for b in range(6):
+            for b2 in range(6):
+                self.assertAlmostEqual(mat[b][b2], mat[b2][b], places=8)
+
+    # ── ТУМАН XOR (P=1, all=0) ────────────────────────────────────────
+
+    def test_tuman_xor_pearson_all_zero(self):
+        mat = self.aggregate_pearson('ТУМАН', 'xor', 16)
+        for row in mat:
+            for v in row:
+                self.assertAlmostEqual(v, 0.0, places=6)
+
+    # ── ГОРА AND (P=2, block structure) ──────────────────────────────
+
+    def test_gora_and_bits_1235_block_one(self):
+        mat = self.aggregate_pearson('ГОРА', 'and', 16)
+        for b in [1, 2, 3, 5]:
+            for b2 in [1, 2, 3, 5]:
+                self.assertAlmostEqual(mat[b][b2], 1.0, places=6)
+
+    def test_gora_and_frozen_rows_zero(self):
+        mat = self.aggregate_pearson('ГОРА', 'and', 16)
+        for b2 in range(6):
+            self.assertAlmostEqual(mat[0][b2], 0.0, places=6)
+            self.assertAlmostEqual(mat[4][b2], 0.0, places=6)
+            self.assertAlmostEqual(mat[b2][0], 0.0, places=6)
+            self.assertAlmostEqual(mat[b2][4], 0.0, places=6)
+
+    def test_gora_and_n_dependent(self):
+        d = self.coact_summary('ГОРА', 'and', 16)
+        # 6 off-diagonal pairs among {1,2,3,5}: (1,2),(1,3),(1,5),(2,3),(2,5),(3,5)
+        self.assertEqual(d['n_dependent'], 6)
+
+    def test_gora_and_n_negative_zero(self):
+        d = self.coact_summary('ГОРА', 'and', 16)
+        self.assertEqual(d['n_negative'], 0)
+
+    # ── ТУМАН XOR3 (P=8, b0=b1 everywhere) ───────────────────────────
+
+    def test_tuman_xor3_b0_b1_corr_one(self):
+        mat = self.aggregate_pearson('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(mat[0][1], 1.0, places=5)
+        self.assertAlmostEqual(mat[1][0], 1.0, places=5)
+
+    def test_tuman_xor3_n_dependent_one(self):
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['n_dependent'], 1)   # only b0-b1 pair
+
+    def test_tuman_xor3_has_negative_pairs(self):
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['n_negative'], 0)
+
+    def test_tuman_xor3_diagonal_b2_b4_b5_lt_1(self):
+        # Cells with frozen bits contribute 0 → aggregate diagonal < 1
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        diag = d['diagonal']
+        self.assertLess(diag[2], 1.0)
+        self.assertLess(diag[4], 1.0)
+        self.assertLess(diag[5], 1.0)
+
+    def test_tuman_xor3_diagonal_b0_b3_one(self):
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        diag = d['diagonal']
+        self.assertAlmostEqual(diag[0], 1.0, places=5)
+        self.assertAlmostEqual(diag[3], 1.0, places=5)
+
+    # ── top_corr_pairs() ─────────────────────────────────────────────
+
+    def test_top_corr_pairs_sorted_descending(self):
+        mat = self.aggregate_pearson('ГОРА', 'and', 16)
+        pairs = self.top_corr_pairs(mat, n=10)
+        vals = [abs(r) for r, _, _ in pairs]
+        self.assertEqual(vals, sorted(vals, reverse=True))
+
+    def test_top_corr_pairs_off_diagonal(self):
+        mat = self.aggregate_pearson('ТУМАН', 'xor3', 16)
+        pairs = self.top_corr_pairs(mat, n=6)
+        for _, b, b2 in pairs:
+            self.assertNotEqual(b, b2)
+            self.assertLess(b, b2)   # b < b'
+
+    # ── coact_summary() structure ─────────────────────────────────────
+
+    def test_coact_summary_keys(self):
+        d = self.coact_summary('ГОРА', 'and', 16)
+        for k in ('word', 'rule', 'period', 'agg_joint', 'agg_pearson',
+                  'top_pairs', 'n_positive', 'n_negative', 'n_dependent',
+                  'diagonal', 'n_frozen_bits'):
+            self.assertIn(k, d)
+
+    def test_coact_summary_word_uppercase(self):
+        d = self.coact_summary('гора', 'and', 16)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_coact_summary_matrix_shape(self):
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['agg_pearson']), 6)
+        for row in d['agg_pearson']:
+            self.assertEqual(len(row), 6)
+
+    # ── all_coact() ───────────────────────────────────────────────────
+
+    def test_all_coact_four_rules(self):
+        result = self.all_coact('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_coact_data() ────────────────────────────────────────────
+
+    def test_build_coact_data_has_pearson(self):
+        data = self.build_coact_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        self.assertIn('agg_pearson', entry)
+
+    def test_build_coact_data_has_n_dependent(self):
+        data = self.build_coact_data(['ГОРА'], 16)
+        entry = data['per_rule']['and']['ГОРА']
+        self.assertIn('n_dependent', entry)
+
+    # ── Viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_ca_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ca-matrix', content)
+
+    def test_viewer_has_ca_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ca-stats', content)
+
+    def test_viewer_has_coact_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('coactRun', content)
+
+    def test_viewer_has_coact_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Bit Co-activation Q6', content)
+
+
 class TestSolanRuns(unittest.TestCase):
     """Tests for solan_runs.py and the viewer Run-Length section."""
 
