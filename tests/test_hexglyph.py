@@ -18600,5 +18600,317 @@ class TestSolanMultistep(unittest.TestCase):
         self.assertIn('msHamming', content)
 
 
+class TestSolanSemantic(unittest.TestCase):
+    """Tests for solan_semantic.py — semantic orbit trajectory."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_semantic import (
+            hamming_dist,
+            nearest_in_lex,
+            dist_to_self,
+            semantic_summary,
+            all_semantic,
+            build_semantic_data,
+            semantic_dict,
+        )
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cls.hamming_dist     = staticmethod(hamming_dist)
+        cls.nearest_in_lex   = staticmethod(nearest_in_lex)
+        cls.dist_to_self_fn  = staticmethod(dist_to_self)
+        cls.semantic_summary = staticmethod(semantic_summary)
+        cls.all_semantic     = staticmethod(all_semantic)
+        cls.build_semantic_data = staticmethod(build_semantic_data)
+        cls.semantic_dict    = staticmethod(semantic_dict)
+        cls.encode_word      = staticmethod(encode_word)
+        cls.pad_to           = staticmethod(pad_to)
+
+        # Shared lex ICs
+        from projects.hexglyph.solan_semantic import _encode_lex
+        cls._lex_ics = _encode_lex(16)
+
+        # Precompute summaries
+        cls.s_tuman_xor  = semantic_summary('ТУМАН', 'xor',  16, _lex_ics=cls._lex_ics)
+        cls.s_tuman_xor3 = semantic_summary('ТУМАН', 'xor3', 16, _lex_ics=cls._lex_ics)
+        cls.s_gora_xor3  = semantic_summary('ГОРА',  'xor3', 16, _lex_ics=cls._lex_ics)
+        cls.s_mat_xor3   = semantic_summary('МАТ',   'xor3', 16, _lex_ics=cls._lex_ics)
+        cls.s_gora_and   = semantic_summary('ГОРА',  'and',  16, _lex_ics=cls._lex_ics)
+
+    # ── hamming_dist ──────────────────────────────────────────────────────────
+
+    def test_hamming_dist_identical(self):
+        self.assertEqual(self.hamming_dist([1, 2, 3], [1, 2, 3]), 0)
+
+    def test_hamming_dist_all_differ(self):
+        self.assertEqual(self.hamming_dist([0]*16, [1]*16), 16)
+
+    def test_hamming_dist_symmetric(self):
+        a = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+        b = [1,0,3,2,5,4,7,6,9,8,11,10,13,12,15,14]
+        self.assertEqual(self.hamming_dist(a, b), self.hamming_dist(b, a))
+
+    # ── nearest_in_lex ────────────────────────────────────────────────────────
+
+    def test_nearest_is_self_for_word_ic(self):
+        # The IC for ТУМАН should be nearest to itself
+        ic = self.pad_to(self.encode_word('ТУМАН'), 16)
+        nbs = self.nearest_in_lex(ic, self._lex_ics, top_n=1)
+        self.assertEqual(nbs[0][0], 'ТУМАН')
+        self.assertEqual(nbs[0][1], 0)
+
+    def test_nearest_sorted_ascending(self):
+        ic = self.pad_to(self.encode_word('ТУМАН'), 16)
+        nbs = self.nearest_in_lex(ic, self._lex_ics, top_n=5)
+        dists = [d for _, d in nbs]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_nearest_top_n_length(self):
+        ic = self.pad_to(self.encode_word('ТУМАН'), 16)
+        nbs = self.nearest_in_lex(ic, self._lex_ics, top_n=4)
+        self.assertLessEqual(len(nbs), 4)
+
+    def test_nearest_returns_pairs(self):
+        ic = self.pad_to(self.encode_word('ГОРА'), 16)
+        nbs = self.nearest_in_lex(ic, self._lex_ics, top_n=3)
+        for item in nbs:
+            self.assertEqual(len(item), 2)
+            self.assertIsInstance(item[0], str)
+            self.assertIsInstance(item[1], int)
+
+    # ── dist_to_self ──────────────────────────────────────────────────────────
+
+    def test_dist_to_self_t0_xor3_is_zero(self):
+        # XOR3 has transient=0 → orbit[0] = word IC → d_self[0]=0
+        self.assertEqual(self.s_tuman_xor3['dist_to_self'][0], 0)
+
+    def test_dist_to_self_length_equals_period(self):
+        self.assertEqual(
+            len(self.s_tuman_xor3['dist_to_self']),
+            self.s_tuman_xor3['period']
+        )
+
+    def test_dist_to_self_in_range(self):
+        for d in self.s_tuman_xor3['dist_to_self']:
+            self.assertGreaterEqual(d, 0)
+            self.assertLessEqual(d, 16)
+
+    # ── semantic_summary required keys ────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'nearest', 'nearest_word', 'nearest_dist', 'dist_to_self',
+            'self_nearest_steps', 'void_steps', 'unique_words',
+            'n_unique_words', 'mean_nearest_dist',
+            'min_nearest_dist', 'max_nearest_dist', 'self_is_nearest_t0',
+        }
+        self.assertTrue(required.issubset(self.s_tuman_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['word'], 'ТУМАН')
+
+    def test_summary_rule_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['rule'], 'xor3')
+
+    def test_summary_period_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['period'], 8)
+
+    def test_summary_period_gora_xor3(self):
+        self.assertEqual(self.s_gora_xor3['period'], 2)
+
+    # ── nearest_word / nearest_dist ───────────────────────────────────────────
+
+    def test_nearest_word_length_equals_period(self):
+        self.assertEqual(len(self.s_tuman_xor3['nearest_word']), 8)
+
+    def test_nearest_dist_length_equals_period(self):
+        self.assertEqual(len(self.s_tuman_xor3['nearest_dist']), 8)
+
+    def test_nearest_word_t0_is_self_xor3(self):
+        # XOR3 transient=0 → orbit[0]=word IC → nearest is the word itself
+        self.assertEqual(self.s_tuman_xor3['nearest_word'][0], 'ТУМАН')
+        self.assertEqual(self.s_gora_xor3['nearest_word'][0], 'ГОРА')
+        self.assertEqual(self.s_mat_xor3['nearest_word'][0], 'МАТ')
+
+    def test_nearest_dist_t0_xor3_is_zero(self):
+        self.assertEqual(self.s_tuman_xor3['nearest_dist'][0], 0)
+        self.assertEqual(self.s_gora_xor3['nearest_dist'][0], 0)
+
+    def test_nearest_dist_in_valid_range(self):
+        for d in self.s_tuman_xor3['nearest_dist']:
+            self.assertGreaterEqual(d, 0)
+            self.assertLessEqual(d, 16)
+
+    def test_nearest_top_has_correct_structure(self):
+        top = self.s_tuman_xor3['nearest']
+        self.assertEqual(len(top), 8)
+        for step in top:
+            self.assertIsInstance(step, list)
+            self.assertGreater(len(step), 0)
+
+    # ── self_nearest_steps ────────────────────────────────────────────────────
+
+    def test_self_nearest_steps_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['self_nearest_steps'], [0, 3, 6])
+
+    def test_self_nearest_steps_gora_xor3(self):
+        self.assertEqual(self.s_gora_xor3['self_nearest_steps'], [0])
+
+    def test_self_nearest_steps_mat_xor3(self):
+        self.assertEqual(self.s_mat_xor3['self_nearest_steps'], [0, 2, 6])
+
+    def test_self_nearest_steps_is_subset_of_range(self):
+        P = self.s_tuman_xor3['period']
+        for t in self.s_tuman_xor3['self_nearest_steps']:
+            self.assertIn(t, range(P))
+
+    def test_self_nearest_steps_t0_always_included_for_xor3(self):
+        # XOR3 transient=0 → step 0 always nearest to self
+        self.assertIn(0, self.s_tuman_xor3['self_nearest_steps'])
+        self.assertIn(0, self.s_gora_xor3['self_nearest_steps'])
+        self.assertIn(0, self.s_mat_xor3['self_nearest_steps'])
+
+    # ── void_steps ────────────────────────────────────────────────────────────
+
+    def test_void_steps_gora_xor3(self):
+        # P=2 XOR3: t=1 is always void (complement state not in lexicon)
+        self.assertIn(1, self.s_gora_xor3['void_steps'])
+
+    def test_void_steps_tuman_xor3_empty(self):
+        # ТУМАН XOR3 has no void steps (all nearest dist < 16)
+        self.assertEqual(self.s_tuman_xor3['void_steps'], [])
+
+    def test_void_steps_mat_xor3_empty(self):
+        self.assertEqual(self.s_mat_xor3['void_steps'], [])
+
+    def test_void_steps_correspond_to_max_dist(self):
+        N = 16
+        for t in self.s_gora_xor3['void_steps']:
+            self.assertEqual(self.s_gora_xor3['nearest_dist'][t], N)
+
+    # ── unique_words / n_unique_words ─────────────────────────────────────────
+
+    def test_n_unique_words_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['n_unique_words'], 6)
+
+    def test_n_unique_words_gora_xor3(self):
+        # ГОРА: nearest at t=0 is ГОРА, at t=1 is a void placeholder
+        self.assertEqual(self.s_gora_xor3['n_unique_words'], 2)
+
+    def test_unique_words_first_is_self_for_xor3(self):
+        # Orbit starts at word's IC, so nearest at t=0 = word itself
+        self.assertEqual(self.s_tuman_xor3['unique_words'][0], 'ТУМАН')
+        self.assertEqual(self.s_mat_xor3['unique_words'][0], 'МАТ')
+
+    def test_unique_words_length_le_period(self):
+        P = self.s_tuman_xor3['period']
+        self.assertLessEqual(self.s_tuman_xor3['n_unique_words'], P)
+
+    def test_unique_words_no_duplicates(self):
+        uw = self.s_tuman_xor3['unique_words']
+        self.assertEqual(len(uw), len(set(uw)))
+
+    # ── mean/min/max nearest dist ─────────────────────────────────────────────
+
+    def test_mean_nearest_dist_tuman_xor3(self):
+        self.assertAlmostEqual(self.s_tuman_xor3['mean_nearest_dist'], 10.875, places=3)
+
+    def test_min_nearest_dist_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['min_nearest_dist'], 0)
+
+    def test_max_nearest_dist_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['max_nearest_dist'], 15)
+
+    def test_max_nearest_dist_gora_xor3_void(self):
+        # Void step → max dist = 16
+        self.assertEqual(self.s_gora_xor3['max_nearest_dist'], 16)
+
+    def test_mean_dist_consistent_with_nearest_dist(self):
+        nd = self.s_tuman_xor3['nearest_dist']
+        expected = sum(nd) / len(nd)
+        self.assertAlmostEqual(self.s_tuman_xor3['mean_nearest_dist'],
+                               expected, places=4)
+
+    # ── self_is_nearest_t0 ────────────────────────────────────────────────────
+
+    def test_self_is_nearest_t0_xor3_true(self):
+        # XOR3 transient=0: orbit starts at word IC → nearest is self
+        self.assertTrue(self.s_tuman_xor3['self_is_nearest_t0'])
+        self.assertTrue(self.s_gora_xor3['self_is_nearest_t0'])
+        self.assertTrue(self.s_mat_xor3['self_is_nearest_t0'])
+
+    # ── all_semantic / build_semantic_data ────────────────────────────────────
+
+    def test_all_semantic_has_four_rules(self):
+        d = self.all_semantic('ГОРА', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_semantic_data_keys(self):
+        data = self.build_semantic_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('data', data)
+
+    def test_build_semantic_data_word_list(self):
+        data = self.build_semantic_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertEqual(data['words'], ['ТУМАН', 'ГОРА'])
+
+    # ── semantic_dict ─────────────────────────────────────────────────────────
+
+    def test_semantic_dict_keys(self):
+        d = self.semantic_dict(self.s_tuman_xor3)
+        self.assertIn('nearest_word', d)
+        self.assertIn('void_steps', d)
+        self.assertIn('unique_words', d)
+
+    def test_semantic_dict_serialisable(self):
+        import json
+        d = self.semantic_dict(self.s_tuman_xor3)
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIn('ТУМАН', s)
+
+    def test_semantic_dict_nearest_top_structure(self):
+        d = self.semantic_dict(self.s_tuman_xor3)
+        top = d['nearest_top']
+        self.assertEqual(len(top), 8)
+        self.assertIn('word', top[0][0])
+        self.assertIn('dist', top[0][0])
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_sm_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sm-canvas', content)
+
+    def test_viewer_has_sm_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('smRun', content)
+
+    def test_viewer_has_sm_nearest(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('smNearest', content)
+
+    def test_viewer_has_sm_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sm-info', content)
+
+    def test_viewer_has_sm_hamming(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('smHamming', content)
+
+    def test_viewer_has_sm_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('smOrbit', content)
+
+    def test_viewer_has_void_steps_label(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('void_steps', content)
+
+    def test_viewer_has_self_nearest_label(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('self_nearest', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

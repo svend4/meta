@@ -14586,6 +14586,192 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Semantic Orbit Trajectory (solan_semantic)</h2>
+<p style="color:#888;font-size:13px">
+  Each orbit state is compared to all 49 lexicon ICs by Q6 Hamming distance.
+  The nearest word at each orbit step forms the "semantic trajectory".
+  Color: green = self (word nearest to itself), orange = semantic void (d=16), blue = other word.
+  Red dot = distance to original word IC (d_self).
+  <br>
+  ★ P=2 XOR3 voids: t=1 state equidistant (d=16) from every lexicon word.&nbsp;
+  ★ ТУМАН XOR3: self-echo at t=0(d=0), t=3(d=6), t=6(d=12) — 3/8 steps nearest to self.
+</p>
+<label style="color:#aaa">Слово:
+  <select id="sm-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="sm-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="sm-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="sm-canvas" width="600" height="200"
+  style="background:#0a0a0a;border:1px solid #222"></canvas>
+<div id="sm-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var SELF_COL  = '#80e080';
+  var VOID_COL  = '#ffd54f';
+  var OTHER_COL = '#4fc3f7';
+
+  function smStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function smOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=smStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=smStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=smStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function smHamming(a,b){
+    var d=0; for(var i=0;i<a.length;i++) if(a[i]!==b[i]) d++;
+    return d;
+  }
+
+  function smNearest(state,lexICs,N){
+    var best=null,bestDist=N+1;
+    for(var k=0;k<lexICs.length;k++){
+      var d=smHamming(state,lexICs[k].ic);
+      if(d<bestDist){bestDist=d;best=lexICs[k].word;}
+    }
+    return {word:best,dist:bestDist};
+  }
+
+  function smRun(){
+    var word=(document.getElementById('sm-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('sm-rule').value;
+    if(!window.encL||!window.padL||!window.LEXICON_ARR){
+      document.getElementById('sm-info').textContent='(данные не загружены)';return;
+    }
+    var lw=window.LEXW||16;
+    var raw=window.encL(word);
+    if(!raw||!raw.length){document.getElementById('sm-info').textContent='(нет символов)';return;}
+    var ic=window.padL(raw,lw);
+
+    var lexICs=window.LEXICON_ARR.map(function(w){
+      return {word:w,ic:window.padL(window.encL(w),lw)};
+    });
+
+    var orbit=smOrbit(ic,rule);
+    var P=orbit.length,N=lw;
+    var traj=orbit.map(function(state){return smNearest(state,lexICs,N);});
+    var nearWords=traj.map(function(x){return x.word;});
+    var nearDists=traj.map(function(x){return x.dist;});
+    var distToSelf=orbit.map(function(state){return smHamming(state,ic);});
+
+    var voidSteps=[],selfSteps=[];
+    for(var t=0;t<P;t++){
+      if(nearDists[t]>=N) voidSteps.push(t);
+      if(nearWords[t]===word) selfSteps.push(t);
+    }
+    var uniqueWords=nearWords.filter(function(w,i){return nearWords.indexOf(w)===i;});
+    var meanDist=nearDists.reduce(function(a,b){return a+b;},0)/P;
+
+    var cv=document.getElementById('sm-canvas');
+    var ctx=cv.getContext('2d');
+    var barW=Math.min(Math.floor(580/Math.max(P,1)),80);
+    cv.width=Math.max(500,P*barW+20);
+    cv.height=200;
+    ctx.clearRect(0,0,cv.width,cv.height);
+
+    for(var t=0;t<P;t++){
+      var bx=10+t*barW;
+      var nw=nearWords[t],nd=nearDists[t];
+      var frac=nd/N;
+      var bh=Math.round(frac*(cv.height-70));
+      var by=cv.height-40-bh;
+      var fillCol=(nd>=N?VOID_COL:nw===word?SELF_COL:OTHER_COL);
+      ctx.globalAlpha=0.2; ctx.fillStyle=fillCol;
+      ctx.fillRect(bx,by,barW-2,bh);
+      ctx.globalAlpha=1.0;
+      var boxH=28,boxY=by-boxH-2;
+      if(boxY<2) boxY=2;
+      ctx.fillStyle=fillCol; ctx.globalAlpha=0.88;
+      ctx.fillRect(bx,boxY,barW-2,boxH);
+      ctx.globalAlpha=1.0;
+      ctx.fillStyle='#000'; ctx.font='bold 9px monospace'; ctx.textAlign='center';
+      var lbl=nw||'?'; if(lbl.length>7) lbl=lbl.slice(0,6)+'…';
+      ctx.fillText(lbl,bx+(barW-2)/2,boxY+11);
+      ctx.font='9px monospace';
+      ctx.fillText('d='+nd,bx+(barW-2)/2,boxY+22);
+      ctx.fillStyle='#555'; ctx.font='9px monospace';
+      ctx.fillText('t'+t,bx+(barW-2)/2,cv.height-24);
+      var dsf=distToSelf[t]/N;
+      var dotY=cv.height-40-Math.round(dsf*(cv.height-70));
+      ctx.fillStyle='#ff6060';
+      ctx.beginPath(); ctx.arc(bx+(barW-2)/2,dotY,3,0,2*Math.PI); ctx.fill();
+    }
+    // legend
+    ctx.font='9px monospace'; ctx.textAlign='left';
+    [[SELF_COL,'self'],[VOID_COL,'void'],[OTHER_COL,'other']].forEach(function(item,k){
+      var lx=10+k*55;
+      ctx.fillStyle=item[0]; ctx.fillRect(lx,cv.height-14,9,9);
+      ctx.fillStyle='#888'; ctx.fillText(item[1],lx+11,cv.height-6);
+    });
+    ctx.fillStyle='#ff6060'; ctx.beginPath();
+    ctx.arc(175,cv.height-10,3,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle='#888'; ctx.fillText('d_self',179,cv.height-6);
+
+    var lines=[
+      'P='+P+'  rule='+rule+'  word='+word,
+      'void_steps   = ['+voidSteps.join(',')+']  ('+voidSteps.length+'/'+P+')',
+      'self_nearest = ['+selfSteps.join(',')+']  ('+selfSteps.length+'/'+P+')',
+      'unique_words = '+uniqueWords.length+'  ['+uniqueWords.join(', ')+']',
+      'mean_dist    = '+meanDist.toFixed(4),
+      'trajectory   = '+nearWords.map(function(w,t){return w+'('+nearDists[t]+')';}).join(' → '),
+    ];
+    document.getElementById('sm-info').textContent=lines.join('\n');
+  }
+
+  (function(){
+    var sel=document.getElementById('sm-word');
+    var words=window.LEXICON_ARR||['ТУМАН','ГОРА','МАТ','БОЛТ'];
+    words.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='ТУМАН') o.selected=true;
+      sel.appendChild(o);
+    });
+  })();
+
+  document.getElementById('sm-btn').addEventListener('click',smRun);
+  document.getElementById('sm-word').addEventListener('change',smRun);
+  document.getElementById('sm-rule').addEventListener('change',smRun);
+  setTimeout(function(){if(window.encL&&window.LEXICON_ARR) smRun();},10000);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
