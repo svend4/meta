@@ -13696,6 +13696,184 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Consecutive-step Hamming &amp; Cell Mobility (solan_hamming)</h2>
+<p style="color:#888;font-size:13px">
+  H(t): number of cells that change value at each orbit transition (top heatmap —
+  dark=stays, bright=changes).&nbsp; Bottom bars: cell mobility = fraction of steps
+  at which each cell changes.&nbsp;
+  ★ ТУМАН XOR3: "shrinking frozen edges" at steps 2→3, 3→4, 4→5.
+</p>
+<label style="color:#aaa">Слово:
+  <select id="hm-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="hm-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="hm-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="ham-map" width="530" height="160"
+  style="background:#0a0a0a;display:block;border:1px solid #222"></canvas>
+<canvas id="ham-mob" width="530" height="80"
+  style="background:#0a0a0a;display:block;border:1px solid #222;margin-top:4px"></canvas>
+<div id="ham-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+
+  function hmStep(cells,rule){
+    var N=cells.length, out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function hmOrbit(ic,rule){
+    var seen={}, t=0, cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key], period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=hmStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.slice()); cur=hmStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=hmStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function hmFlipMask(grid){
+    var P=grid.length, N=grid[0].length, masks=[];
+    for(var t=0;t<P;t++){
+      var row=[];
+      for(var i=0;i<N;i++) row.push(grid[t][i]!==grid[(t+1)%P][i]?1:0);
+      masks.push(row);
+    }
+    return masks;
+  }
+
+  function hmMobility(masks,N){
+    var P=masks.length, mob=[];
+    for(var i=0;i<N;i++){
+      var s=0; for(var t=0;t<P;t++) s+=masks[t][i];
+      mob.push(s/P);
+    }
+    return mob;
+  }
+
+  function hmRun(){
+    var wEl=document.getElementById('hm-word');
+    var rEl=document.getElementById('hm-rule');
+    var info=document.getElementById('ham-info');
+    if(!window.encL){if(info) info.textContent='Ожидание…'; return;}
+    var word=(wEl?wEl.value:'ТУМАН').toUpperCase();
+    var rule=rEl?rEl.value:'xor3';
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=hmOrbit(ic,rule);
+    var P=grid.length;
+    var col=BCOL[rule]||'#80deea';
+
+    var masks=hmFlipMask(grid);
+    var H=masks.map(function(m){return m.reduce(function(a,b){return a+b;},0);});
+    var mob=hmMobility(masks,N);
+    var meanH=H.reduce(function(a,b){return a+b;},0)/P;
+    var meanMob=mob.reduce(function(a,b){return a+b;},0)/N;
+
+    /* ── Flip-mask heatmap ───────────────────────────────── */
+    var mc=document.getElementById('ham-map');
+    var mx=mc.getContext('2d');
+    var MW=mc.width, MH=mc.height;
+    mx.fillStyle='#0a0a0a'; mx.fillRect(0,0,MW,MH);
+    var cellW=Math.floor(MW/N);
+    var rowH=Math.max(1,Math.floor(MH/Math.min(P,MH)));
+    for(var t=0;t<Math.min(P,Math.floor(MH/rowH));t++){
+      for(var i=0;i<N;i++){
+        /* changed=bright, frozen=dark */
+        mx.fillStyle=masks[t][i]?col:'#111';
+        mx.fillRect(i*cellW, t*rowH, cellW-1, rowH-1);
+      }
+    }
+    mx.fillStyle='#555'; mx.font='10px monospace';
+    mx.fillText('flip mask (bright=changed)',2,10);
+
+    /* ── Mobility bar chart ──────────────────────────────── */
+    var bc=document.getElementById('ham-mob');
+    var bx=bc.getContext('2d');
+    var BW=bc.width, BH=bc.height, pad=18;
+    bx.fillStyle='#0a0a0a'; bx.fillRect(0,0,BW,BH);
+    var barW=Math.max(1,Math.floor((BW-4)/N));
+    var maxMob=Math.max.apply(null,mob)||1;
+    for(var i=0;i<N;i++){
+      var frac=mob[i]/maxMob;
+      var bh=Math.round(frac*(BH-pad-4));
+      bx.fillStyle=col;
+      bx.fillRect(2+i*barW, BH-pad-bh, barW-1, bh);
+      if(barW>=8){
+        bx.fillStyle='#555'; bx.font='9px monospace';
+        bx.fillText(i, 2+i*barW+1, BH-4);
+      }
+    }
+    bx.fillStyle='#555'; bx.font='10px monospace';
+    bx.fillText('cell mobility',2,12);
+    bx.fillText('mean='+meanMob.toFixed(3),BW-90,12);
+
+    /* ── Info ─────────────────────────────────────────────── */
+    var frozen=mob.filter(function(v){return v===0;}).length;
+    var maxMobCells=[];
+    for(var i=0;i<N;i++) if(mob[i]>=maxMob-1e-9) maxMobCells.push(i);
+    var mobSym=mob.every(function(v,i){return Math.abs(v-mob[N-1-i])<1e-6;});
+    var lines=[
+      'Слово: '+word+'  Правило: '+rule.toUpperCase()+'  P='+P+'  N='+N,
+      'H(t): ['+H.join(', ')+']',
+      'mean_H='+meanH.toFixed(2)+'  max_H='+Math.max.apply(null,H)+
+        '  min_H='+Math.min.apply(null,H),
+      'mobility: ['+mob.map(function(v){return v.toFixed(3);}).join(', ')+']',
+      'mean_mob='+meanMob.toFixed(3)+'  frozen_cells='+frozen+
+        '  max_mob_cells='+maxMobCells.length,
+      (mobSym?'★ mobility_symmetric: mob[i]=mob[N-1-i]':''),
+      (H.every(function(v){return v===0;})?'★ all_frozen: fixed-point orbit':''),
+      (H.every(function(v){return v===N;})?'★ all_max: every cell flips every step':''),
+    ].filter(Boolean);
+    if(info) info.textContent=lines.join('\n');
+  }
+
+  /* Populate word selector */
+  var sel=document.getElementById('hm-word');
+  if(sel && window.LEXICON_ARR){
+    window.LEXICON_ARR.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='ТУМАН') o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+  document.getElementById('hm-btn').addEventListener('click',hmRun);
+  document.getElementById('hm-word').addEventListener('change',hmRun);
+  document.getElementById('hm-rule').addEventListener('change',hmRun);
+  setTimeout(function(){if(window.encL) hmRun();},8000);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

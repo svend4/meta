@@ -1,294 +1,255 @@
 """
-solan_hamming.py — Hamming Weight Dynamics of Q6 CA Attractor States.
+solan_hamming.py — Consecutive-step Hamming Distances & Cell Mobility.
 
-The Hamming weight  w(v) = popcount(v & 63) ∈ {0, 1, …, 6}  counts the
-number of 1-bits in a Q6 value.  It serves as the "energy" or "density"
-of a single cell's state.
+For an attractor orbit [s₀, s₁, …, s_{P−1}] (periodic ring of width N):
 
-Key statistics
-──────────────
-  Per time step t:
-    μ_t = mean(w(orbit[t][i]) for i = 0…N−1)   spatial mean weight
-    σ_t = std of the same                         spatial heterogeneity
+  H(t)  = Hamming(sₜ, s_{(t+1) mod P})
+         = |{i ∈ 0..N−1 : sₜ[i] ≠ s_{t+1}[i]}|
+         = number of cells that CHANGE VALUE at step t
 
-  Over the orbit:
-    global_mean    = mean of all μ_t              (density = global_mean / 6)
-    osc_std        = std of [μ_0 … μ_{P-1}]       temporal oscillation of mean
-    spatial_mean_std = mean of [σ_0 … σ_{P-1}]   average spatial heterogeneity
+  flip_mask[t][i] = 1 if sₜ[i] ≠ s_{t+1}[i], else 0
 
-  Weight histogram: fraction of all (cell, step) pairs with each weight 0…6.
+  cell_mobility(i)  = (1/P) Σ_t flip_mask[t][i]
+                    = fraction of orbit transitions at which cell i changes
+
+Contrast with related modules
+───────────────────────────────
+  solan_dist:     pairwise Hamming between ALL orbit step PAIRS (not just
+                  consecutive); finds maximum and minimum separation.
+  solan_boundary: spatial XOR between ADJACENT CELLS at one step (domain walls).
+  solan_hamming:  TEMPORAL Hamming between CONSECUTIVE STATES (dynamics).
 
 Key results  (width = 16)
 ──────────────────────────
-  ТУМАН XOR  (P=1, all=0)
-      All weights = 0. density=0.  osc_std=0.  spatial_std=0.
-      Histogram: {0: 1.0} — vacuum state.
+  ТУМАН XOR  (P=1, fixed point)
+      H = [0]  mean=0  ★ frozen: no cell ever changes (fixed-point orbit).
 
-  ГОРА AND  (P=2, 47↔1)
-      Group A (even cells):  w(47)=5 at step 0,  w(1)=1 at step 1.
-      Group B (odd  cells):  w(1)=1  at step 0,  w(47)=5 at step 1.
-      → μ_0 = μ_1 = 3.0 — MEAN IS CONSTANT despite oscillation!
-        osc_std = 0 (temporal mean stable)
-        spatial_mean_std = 2.0 (large spatial spread at every step)
-      Histogram: {1: 0.5, 5: 0.5} — BIMODAL (two distinct energy levels).
-      Anti-phase oscillation keeps the mean fixed while the variance is large.
+  ГОРА OR    (P=1, fixed point)
+      H = [0]  mean=0  ★ same: trivially frozen.
 
-  ГОРА XOR3  (P=2, 4 spatial clusters)
-      Profile = [4.5, 2.5] → osc_std = 1.0 (genuine temporal oscillation).
-      Histogram: diverse {1,2,3,4,5,6} — wide spread.
+  ГОРА AND   (P=2, anti-phase)
+      H = [16, 16]  mean=16  ★ maximally turbulent: ALL cells flip at EVERY step.
+      mobility = [1, 1, …, 1] (all cells flip at each of the two transitions).
+
+  ГОРА XOR3  (P=2, 4-periodic pattern)
+      H = [16, 16]  mean=16  ★ same as AND: all cells flip at every step.
+      mobility = [1, 1, …, 1]
 
   ТУМАН XOR3  (P=8)
-      Histogram: {0, 2, 4, 6} only — ALL EVEN WEIGHTS.
-      XOR3 rule preserves Hamming-weight parity globally:
-        w(a⊕b⊕c) has parity = parity(w(a)+w(b)+w(c)).
-        If all initial cell weights are even, the orbit stays even.
-      parity_even_fraction = 1.0  (structural conserved quantity).
-      Profile oscillates: [3.12, 2.25, 3.75, 3.5, 2.88, 3.5, 3.5, 2.75]
-      osc_std ≈ 0.47.  spatial_mean_std ≈ 1.20.
+      H = [16, 16, 10, 12, 14, 16, 16, 14]   mean=14.25
+      ★ Steps 0→1, 1→2, 5→6, 6→7: all 16 cells change (H=N).
+      ★ Step 2→3: MINIMUM — only 10 cells change; 6 cells stay still:
+          cells {0,1,2} and {13,14,15} form FROZEN EDGES.
+      ★ Step 3→4: 12 cells change; 4 cells stay still: {0,1} and {14,15}.
+      ★ Step 4→5: 14 cells change; 2 cells stay still: {0} and {15}.
+      ★ "Shrinking frozen-edge" pattern: the static zone contracts from 6
+          cells at step 2→3 to 4 cells at 3→4 to 2 cells at 4→5.
 
-Interpretation
-  density ≈ 0   : system mostly in low-energy states (few 1-bits)
-  density ≈ 0.5 : balanced activation (≈ 3 bits on average)
-  density ≈ 1   : system mostly in high-energy states (many 1-bits)
-  osc_std > 0   : the mean density fluctuates over the orbit (temporal rhythm)
-  osc_std = 0   : mean density is constant (may still have large spatial spread)
-  bimodal hist  : system alternates between two energy levels
-  even-only hist: XOR3 parity conservation (all initial weights even)
+      Cell mobility (symmetric profile):
+          cell 0,15 : 0.500  (change at 4/8 steps — LEAST mobile)
+          cell 1,14 : 0.750  (change at 6/8 steps)
+          cell 2,13 : 0.875  (change at 7/8 steps)
+          cell 3..12: 1.000  (change at 8/8 steps — MAXIMALLY mobile)
+
+      ★ Mobility is SYMMETRIC: mob[i] = mob[N−1−i] for all i.
+      ★ Mobility OPPOSES entropy at the extremes:
+          edge cells (0,15): LOW mobility (0.5) but INTERMEDIATE H_c (1.75)
+          inner cells (7,8): MAX mobility (1.0) but LOWEST H_c (1.56)
+          → inner cells always move but cycle through fewer distinct values;
+            outer cells pause longer but visit more varied states.
+
+Flip-mask pattern for ТУМАН XOR3 (1=changes, 0=stays):
+    t=0→1: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1  (all 16)
+    t=1→2: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1  (all 16)
+    t=2→3: 0 0 0 1 1 1 1 1 1 1 1 1 1 0 0 0  (10; frozen edges: 0,1,2 & 13,14,15)
+    t=3→4: 0 0 1 1 1 1 1 1 1 1 1 1 1 1 0 0  (12; frozen: 0,1 & 14,15)
+    t=4→5: 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0  (14; frozen: 0 & 15)
+    t=5→6: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1  (all 16)
+    t=6→7: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1  (all 16)
+    t=7→0: 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0  (14; frozen: 0 & 15)
 
 Functions
 ─────────
-  hamming_weight(v)                          → int  ∈ {0, …, 6}
-  orbit_weight_grid(word, rule, width)       → list[list[int]]  P×N grid
-  state_mean_weight(weights)                 → float
-  state_weight_std(weights)                  → float
-  orbit_weight_profile(word, rule, width)    → list[dict]  (per-step)
-  weight_histogram(word, rule, width)        → dict[int, float]
-  parity_even_fraction(word, rule, width)    → float
-  cell_weight_stats(w_series)                → dict
-  all_cell_weight_stats(word, rule, width)   → list[dict]
-  weight_summary(word, rule, width)          → dict
-  all_weights(word, width)                   → dict[str, dict]
-  build_weight_data(words, width)            → dict
-  print_hamming(word, rule, color)           → None
-  print_weight_stats(words, color)           → None
+  hamming_dist(a, b)                      → int
+  consecutive_hamming(orbit)              → list[int]
+  flip_mask(orbit)                        → list[list[int]]
+  cell_mobility(orbit)                    → list[float]
+  hamming_profile(word, rule, width)      → list[int]
+  flip_mask_word(word, rule, width)       → list[list[int]]
+  cell_mobility_word(word, rule, width)   → list[float]
+  mean_hamming(word, rule, width)         → float
+  max_hamming(word, rule, width)          → int
+  min_hamming(word, rule, width)          → int
+  hamming_summary(word, rule, width)      → dict
+  all_hamming(word, width)                → dict[str, dict]
+  build_hamming_data(words, width)        → dict
+  print_hamming(word, rule, color)        → None
+  print_hamming_table(words, color)       → None
 
 Запуск
 ──────
-  python3 -m projects.hexglyph.solan_hamming --word ГОРА --rule and
-  python3 -m projects.hexglyph.solan_hamming --word ТУМАН --all-rules --no-color
-  python3 -m projects.hexglyph.solan_hamming --stats --no-color
+  python3 -m projects.hexglyph.solan_hamming --word ТУМАН --rule xor3 --no-color
+  python3 -m projects.hexglyph.solan_hamming --word ГОРА --all-rules --no-color
+  python3 -m projects.hexglyph.solan_hamming --table --no-color
 """
 
 from __future__ import annotations
 import sys
 import argparse
-import math
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 _RULES:     list[str] = ['xor', 'xor3', 'and', 'or']
 _DEFAULT_W: int = 16
-_MAX_W:     int = 6      # maximum Hamming weight for Q6
 
 
-# ── Core primitives ────────────────────────────────────────────────────────────
-
-def hamming_weight(v: int) -> int:
-    """Number of 1-bits in the Q6 value v (popcount(v & 63))."""
-    return bin(v & 63).count('1')
-
-
-def state_mean_weight(weights: list[int]) -> float:
-    """Mean Hamming weight across a state vector."""
-    if not weights:
-        return 0.0
-    return sum(weights) / len(weights)
-
-
-def state_weight_std(weights: list[int]) -> float:
-    """Population std of Hamming weights across a state vector."""
-    n = len(weights)
-    if n == 0:
-        return 0.0
-    mu = sum(weights) / n
-    return math.sqrt(sum((w - mu) ** 2 for w in weights) / n)
-
-
-# ── Orbit helpers ─────────────────────────────────────────────────────────────
-
-def _get_orbit(word: str, rule: str, width: int):
+def _get_orbit(word: str, rule: str, width: int) -> list[tuple[int, ...]]:
     from projects.hexglyph.solan_perm import get_orbit
     return get_orbit(word.upper(), rule, width)
 
 
-def orbit_weight_grid(word: str, rule: str,
-                      width: int = _DEFAULT_W) -> list[list[int]]:
-    """
-    P×N grid of Hamming weights: grid[t][i] = w(orbit[t][i]).
-    """
-    orbit = _get_orbit(word, rule, width)
-    return [[hamming_weight(orbit[t][i]) for i in range(width)]
-            for t in range(len(orbit))]
+# ── Core functions ─────────────────────────────────────────────────────────────
+
+def hamming_dist(a: tuple[int, ...] | list[int],
+                 b: tuple[int, ...] | list[int]) -> int:
+    """Number of positions where a[i] ≠ b[i]."""
+    return sum(x != y for x, y in zip(a, b))
 
 
-# ── Profile and histogram ─────────────────────────────────────────────────────
+def consecutive_hamming(orbit: list[tuple[int, ...]]) -> list[int]:
+    """H(t) = Hamming(orbit[t], orbit[(t+1) % P]) for each orbit step.
 
-def orbit_weight_profile(word: str, rule: str,
-                         width: int = _DEFAULT_W) -> list[dict]:
+    H(t) = number of cells that change value at transition t → t+1.
+    Returns a list of P values (one per orbit step).
     """
-    Per-step weight statistics: list of P dicts, each with keys:
-      step, mean, std, min, max, range.
-    """
-    grid = orbit_weight_grid(word, rule, width)
-    profile = []
-    for t, row in enumerate(grid):
-        mu  = state_mean_weight(row)
-        std = state_weight_std(row)
-        profile.append({
-            'step':  t,
-            'mean':  round(mu, 6),
-            'std':   round(std, 6),
-            'min':   min(row),
-            'max':   max(row),
-            'range': max(row) - min(row),
-        })
-    return profile
+    P = len(orbit)
+    return [hamming_dist(orbit[t], orbit[(t + 1) % P]) for t in range(P)]
 
 
-def weight_histogram(word: str, rule: str,
-                     width: int = _DEFAULT_W) -> dict[int, float]:
-    """
-    Fraction of all (cell, step) pairs with each Hamming weight 0…6.
+def flip_mask(orbit: list[tuple[int, ...]]) -> list[list[int]]:
+    """Binary flip indicator for each (step, cell) pair.
 
-    Keys are only weights that actually occur.
+    flip_mask[t][i] = 1 if orbit[t][i] ≠ orbit[(t+1)%P][i], else 0.
+    Shape: P × N.
     """
+    P = len(orbit)
+    N = len(orbit[0])
+    return [[1 if orbit[t][i] != orbit[(t + 1) % P][i] else 0
+             for i in range(N)]
+            for t in range(P)]
+
+
+def cell_mobility(orbit: list[tuple[int, ...]]) -> list[float]:
+    """For each cell i, fraction of orbit transitions at which it changes.
+
+    cell_mobility[i] = (1/P) Σ_t flip_mask[t][i] ∈ [0.0, 1.0].
+
+    0.0 → cell never changes (frozen / fixed cell).
+    1.0 → cell changes at every orbit step (maximally mobile).
+    """
+    P = len(orbit)
+    N = len(orbit[0])
+    masks = flip_mask(orbit)
+    return [round(sum(masks[t][i] for t in range(P)) / P, 6) for i in range(N)]
+
+
+# ── Per-word functions ─────────────────────────────────────────────────────────
+
+def hamming_profile(word: str, rule: str, width: int = _DEFAULT_W) -> list[int]:
+    """Consecutive Hamming distance at each orbit step."""
+    return consecutive_hamming(_get_orbit(word, rule, width))
+
+
+def flip_mask_word(word: str, rule: str,
+                   width: int = _DEFAULT_W) -> list[list[int]]:
+    """Flip mask (P × N binary array) for the orbit."""
+    return flip_mask(_get_orbit(word, rule, width))
+
+
+def cell_mobility_word(word: str, rule: str,
+                       width: int = _DEFAULT_W) -> list[float]:
+    """Per-cell mobility fraction for the orbit."""
+    return cell_mobility(_get_orbit(word, rule, width))
+
+
+def mean_hamming(word: str, rule: str, width: int = _DEFAULT_W) -> float:
+    """Mean consecutive Hamming distance (= mean_H over orbit steps)."""
+    h = hamming_profile(word, rule, width)
+    return round(sum(h) / len(h), 6)
+
+
+def max_hamming(word: str, rule: str, width: int = _DEFAULT_W) -> int:
+    """Maximum consecutive Hamming distance across orbit steps."""
+    return max(hamming_profile(word, rule, width))
+
+
+def min_hamming(word: str, rule: str, width: int = _DEFAULT_W) -> int:
+    """Minimum consecutive Hamming distance across orbit steps."""
+    return min(hamming_profile(word, rule, width))
+
+
+# ── Summary ────────────────────────────────────────────────────────────────────
+
+def hamming_summary(word: str, rule: str, width: int = _DEFAULT_W) -> dict:
+    """Full Hamming/mobility summary for word × rule."""
     orbit = _get_orbit(word, rule, width)
     P     = len(orbit)
-    total = P * width
-    counts: dict[int, int] = {}
-    for t in range(P):
-        for i in range(width):
-            w = hamming_weight(orbit[t][i])
-            counts[w] = counts.get(w, 0) + 1
-    return {k: round(v / total, 6) for k, v in sorted(counts.items())}
-
-
-def parity_even_fraction(word: str, rule: str,
-                         width: int = _DEFAULT_W) -> float:
-    """
-    Fraction of all (cell, step) pairs whose Hamming weight is even (0,2,4,6).
-
-    = 1.0 for ТУМАН XOR3 (parity conservation).
-    = 0.0 for ГОРА AND (both weights 1 and 5 are odd).
-    """
-    hist  = weight_histogram(word, rule, width)
-    return round(sum(v for k, v in hist.items() if k % 2 == 0), 6)
-
-
-# ── Per-cell statistics ────────────────────────────────────────────────────────
-
-def cell_weight_stats(w_series: list[int]) -> dict:
-    """Full Hamming-weight statistics for a single cell's weight series."""
-    P = len(w_series)
-    if P == 0:
-        return {'mean': 0.0, 'std': 0.0, 'min': 0, 'max': 0,
-                'range': 0, 'density': 0.0, 'n_distinct': 0}
-    mu  = sum(w_series) / P
-    std = math.sqrt(sum((w - mu) ** 2 for w in w_series) / P)
+    N     = width
+    H     = consecutive_hamming(orbit)
+    mob   = cell_mobility(orbit)
+    masks = flip_mask(orbit)
+    # Frozen cells: mobility = 0 (for P>1 fixed points these are all cells)
+    frozen   = [i for i, m in enumerate(mob) if m == 0.0]
+    maxmob   = [i for i, m in enumerate(mob) if m == 1.0]
+    mob_sym  = all(abs(mob[i] - mob[N - 1 - i]) < 1e-9 for i in range(N // 2))
+    # Steps with minimum H (most frozen transitions)
+    min_h     = min(H)
+    frozen_steps = [t for t, h in enumerate(H) if h == min_h]
     return {
-        'mean':     round(mu, 6),
-        'std':      round(std, 6),
-        'min':      min(w_series),
-        'max':      max(w_series),
-        'range':    max(w_series) - min(w_series),
-        'density':  round(mu / _MAX_W, 6),
-        'n_distinct': len(set(w_series)),
+        'word':             word.upper(),
+        'rule':             rule,
+        'period':           P,
+        'n_cells':          N,
+        # Hamming profile
+        'hamming':          H,
+        'mean_hamming':     round(sum(H) / P, 6),
+        'max_hamming':      max(H),
+        'min_hamming':      min_h,
+        'hamming_range':    max(H) - min_h,
+        # Mobility
+        'mobility':         mob,
+        'mean_mobility':    round(sum(mob) / N, 6),
+        'max_mobility':     max(mob),
+        'min_mobility':     min(mob),
+        'frozen_cells':     frozen,
+        'maxmobile_cells':  maxmob,
+        'mobile_symmetric': mob_sym,
+        # Flags
+        'all_frozen':       all(h == 0 for h in H),
+        'all_max':          all(h == N for h in H),
+        'min_hamming_steps': frozen_steps,
+        'flip_mask':        masks,
     }
 
 
-def all_cell_weight_stats(word: str, rule: str,
-                          width: int = _DEFAULT_W) -> list[dict]:
-    """Per-cell Hamming-weight stats (list of length = width)."""
-    grid = orbit_weight_grid(word, rule, width)
-    P    = len(grid)
-    out  = []
-    for i in range(width):
-        w_series = [grid[t][i] for t in range(P)]
-        s        = cell_weight_stats(w_series)
-        s['cell'] = i
-        out.append(s)
-    return out
+def all_hamming(word: str, width: int = _DEFAULT_W) -> dict[str, dict]:
+    """hamming_summary for all 4 rules."""
+    return {rule: hamming_summary(word, rule, width) for rule in _RULES}
 
 
-# ── Summary ───────────────────────────────────────────────────────────────────
-
-def weight_summary(word: str, rule: str, width: int = _DEFAULT_W) -> dict:
-    """Comprehensive Hamming-weight statistics for word × rule."""
-    from projects.hexglyph.solan_traj import word_trajectory
-    traj    = word_trajectory(word.upper(), rule, width)
-    period  = traj['period']
-    profile = orbit_weight_profile(word, rule, width)
-    hist    = weight_histogram(word, rule, width)
-    pef     = parity_even_fraction(word, rule, width)
-    css     = all_cell_weight_stats(word, rule, width)
-
-    # Global mean and density
-    step_means = [p['mean'] for p in profile]
-    P          = len(step_means)
-    g_mean     = sum(step_means) / P if P else 0.0
-
-    # Temporal oscillation of mean weight
-    osc_std    = math.sqrt(sum((m - g_mean) ** 2 for m in step_means) / P) if P else 0.0
-
-    # Spatial heterogeneity: mean of per-step std
-    spatial_stds   = [p['std'] for p in profile]
-    spatial_mean_std = sum(spatial_stds) / P if P else 0.0
-
-    # Bimodal check: hist has exactly 2 distinct weights
-    is_bimodal  = len(hist) == 2
-    all_even    = all(k % 2 == 0 for k in hist.keys())
-    all_odd     = all(k % 2 == 1 for k in hist.keys())
-
-    # Weight range over entire orbit
-    min_w = min(p['min'] for p in profile) if profile else 0
-    max_w = max(p['max'] for p in profile) if profile else 0
-
-    return {
-        'word':            word.upper(),
-        'rule':            rule,
-        'period':          period,
-        'global_mean':     round(g_mean, 6),
-        'density':         round(g_mean / _MAX_W, 6),
-        'osc_std':         round(osc_std, 6),
-        'spatial_mean_std': round(spatial_mean_std, 6),
-        'step_profile':    profile,
-        'histogram':       hist,
-        'parity_even_frac': pef,
-        'is_bimodal':      is_bimodal,
-        'all_even_weights': all_even,
-        'all_odd_weights':  all_odd,
-        'min_weight':      min_w,
-        'max_weight':      max_w,
-        'cell_stats':      css,
-    }
-
-
-def all_weights(word: str, width: int = _DEFAULT_W) -> dict[str, dict]:
-    """weight_summary for all 4 rules."""
-    return {rule: weight_summary(word, rule, width) for rule in _RULES}
-
-
-def build_weight_data(words: list[str], width: int = _DEFAULT_W) -> dict:
-    """Compact weight data for a list of words (no cell_stats, no profile)."""
+def build_hamming_data(words: list[str], width: int = _DEFAULT_W) -> dict:
+    """Compact Hamming data for all words × rules."""
     per_rule: dict[str, dict] = {rule: {} for rule in _RULES}
     for word in words:
         for rule in _RULES:
-            d = weight_summary(word, rule, width)
+            d = hamming_summary(word, rule, width)
             per_rule[rule][word.upper()] = {
-                k: d[k] for k in
-                ('period', 'global_mean', 'density', 'osc_std',
-                 'spatial_mean_std', 'histogram', 'parity_even_frac',
-                 'is_bimodal', 'all_even_weights', 'all_odd_weights',
-                 'min_weight', 'max_weight')
+                k: d[k] for k in ('period', 'hamming', 'mean_hamming',
+                                   'max_hamming', 'min_hamming', 'hamming_range',
+                                   'mobility', 'mean_mobility',
+                                   'max_mobility', 'min_mobility',
+                                   'frozen_cells', 'maxmobile_cells',
+                                   'mobile_symmetric', 'all_frozen', 'all_max',
+                                   'min_hamming_steps')
             }
     return {'words': [w.upper() for w in words], 'width': width,
             'per_rule': per_rule}
@@ -296,75 +257,89 @@ def build_weight_data(words: list[str], width: int = _DEFAULT_W) -> dict:
 
 # ── Print helpers ──────────────────────────────────────────────────────────────
 
-_RCOL = {'xor': '\033[96m', 'xor3': '\033[36m', 'and': '\033[91m', 'or': '\033[33m'}
+_RCOL = {'xor': '\033[96m', 'xor3': '\033[36m',
+         'and': '\033[91m',  'or':   '\033[33m'}
 _RST  = '\033[0m'
+_BAR_W = 16   # bar width in chars
 
 
-def _hist_bar(fraction: float, w: int = 16) -> str:
-    filled = round(fraction * w)
+def _bar(val: int | float, max_val: int | float, w: int = _BAR_W) -> str:
+    frac   = val / max_val if max_val > 0 else 0.0
+    filled = round(frac * w)
     return '█' * filled + '░' * (w - filled)
 
 
-def print_hamming(word: str = 'ГОРА', rule: str = 'and',
+def print_hamming(word: str = 'ТУМАН', rule: str = 'xor3',
                   color: bool = True) -> None:
-    d   = weight_summary(word, rule)
+    d   = hamming_summary(word, rule)
     c   = _RCOL.get(rule, '') if color else ''
     r   = _RST if color else ''
-    lbl = {'xor': 'XOR ⊕', 'xor3': 'XOR3', 'and': 'AND &', 'or': 'OR |'}.get(rule, rule)
-
-    notes = []
-    if d['is_bimodal']:      notes.append('BIMODAL')
-    if d['all_even_weights']: notes.append('even-only')
-    if d['all_odd_weights']:  notes.append('odd-only')
-    note_str = '  [' + ', '.join(notes) + ']' if notes else ''
-
-    print(f'  {c}◈ Hamming  {word.upper()}  |  {lbl}  P={d["period"]}  '
-          f'density={d["density"]:.3f}  osc_std={d["osc_std"]:.3f}  '
-          f'spatial_std={d["spatial_mean_std"]:.3f}{note_str}{r}')
-    print('  ' + '─' * 62)
-
-    # Step profile
-    print(f'  Step profile (mean weight / step):')
-    for p in d['step_profile']:
-        bar = _hist_bar(p['mean'] / _MAX_W)
-        print(f'    t={p["step"]}: μ={p["mean"]:5.2f}  σ={p["std"]:5.2f}  '
-              f'[{p["min"]},{p["max"]}]  {bar}')
-
-    # Weight histogram
-    print(f'\n  Weight histogram (fraction by weight value):')
-    for k in range(_MAX_W + 1):
-        frac = d['histogram'].get(k, 0.0)
-        if frac > 0:
-            bar = _hist_bar(frac)
-            print(f'    w={k}: {frac:.3f}  {bar}')
-
-    # Summary metrics
-    print(f'\n  parity_even_frac={d["parity_even_frac"]:.3f}  '
-          f'weight_range=[{d["min_weight"]},{d["max_weight"]}]')
+    lbl = {'xor': 'XOR ⊕', 'xor3': 'XOR3',
+           'and': 'AND &',  'or':   'OR |'}.get(rule, rule)
+    af  = ' ★all_frozen'  if d['all_frozen'] else ''
+    am  = ' ★all_max'     if d['all_max']    else ''
+    sym = ' ★mob_sym'     if d['mobile_symmetric'] else ''
+    print(f'  {c}◈ Hamming  {word.upper()}  |  {lbl}  P={d["period"]}'
+          f'  mean_H={d["mean_hamming"]:.2f}'
+          f'  mean_mob={d["mean_mobility"]:.3f}{af}{am}{sym}{r}')
+    print('  ' + '─' * 68)
+    N = d['n_cells']
+    print(f'  {"step":>4}  {"H":>3}/{N:<2}  bar             '
+          f'  frozen cells')
+    for t, (h, mask) in enumerate(zip(d['hamming'], d['flip_mask'])):
+        frozen = [i for i, f in enumerate(mask) if f == 0]
+        bar = _bar(h, N)
+        fr  = str(frozen) if frozen else '—'
+        print(f'  t={t:>2}  {h:>3}     [{bar}]  {fr}')
+    print()
+    print(f'  Cell mobility  (range [{d["min_mobility"]:.3f}, {d["max_mobility"]:.3f}]):')
+    mob = d['mobility']
+    max_m = max(mob) if max(mob) > 0 else 1.0
+    for i, m in enumerate(mob):
+        bar = _bar(m, max_m)
+        tag = ''
+        if i in d['frozen_cells']:    tag = ' ★frozen'
+        if i in d['maxmobile_cells']: tag = ' ★max'
+        print(f'  cell {i:>2}  {m:.4f}  [{bar}]{tag}')
     print()
 
 
-def print_weight_stats(words: list[str] | None = None,
-                       color: bool = True) -> None:
-    WORDS = words or ['ТУМАН', 'ГОРА']
+def print_hamming_table(words: list[str] | None = None,
+                         color: bool = True) -> None:
+    from projects.hexglyph.solan_lexicon import LEXICON
+    WORDS = words or LEXICON
+    R = _RST if color else ''
+    head = '  '.join(
+        (_RCOL.get(rl, '') if color else '') + f'{rl.upper():>5} mH mMob af' + R
+        for rl in _RULES)
+    print(f'  {"Слово":10s}  {head}')
+    print('  ' + '─' * 72)
     for word in WORDS:
+        parts = []
         for rule in _RULES:
-            print_hamming(word, rule, color)
+            col = _RCOL.get(rule, '') if color else ''
+            d   = hamming_summary(word, rule)
+            af  = '★' if d['all_frozen'] or d['all_max'] else ' '
+            parts.append(f'{col}{d["mean_hamming"]:>4.1f}'
+                         f' {d["mean_mobility"]:>5.3f} {af}{R}')
+        print(f'  {word.upper():10s}  ' + '  '.join(parts))
+    print()
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 def _cli() -> None:
-    p = argparse.ArgumentParser(description='Hamming weight dynamics of Q6 CA')
-    p.add_argument('--word',      default='ГОРА')
-    p.add_argument('--rule',      default='and', choices=_RULES)
+    p = argparse.ArgumentParser(
+        description='Consecutive-step Hamming Distances & Cell Mobility')
+    p.add_argument('--word',      default='ТУМАН')
+    p.add_argument('--rule',      default='xor3', choices=_RULES)
     p.add_argument('--all-rules', action='store_true')
-    p.add_argument('--stats',     action='store_true')
+    p.add_argument('--table',     action='store_true')
     p.add_argument('--no-color',  action='store_true')
-    args = p.parse_args()
+    args  = p.parse_args()
     color = not args.no_color and sys.stdout.isatty()
-    if args.stats:
-        print_weight_stats(color=color)
+    if args.table:
+        print_hamming_table(color=color)
     elif args.all_rules:
         for rule in _RULES:
             print_hamming(args.word, rule, color)

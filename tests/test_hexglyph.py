@@ -15951,6 +15951,424 @@ class TestSolanEntropyOrbit(unittest.TestCase):
         self.assertIn('enTemporalH', content)
 
 
+class TestSolanHamming(unittest.TestCase):
+    """Tests for solan_hamming.py — Consecutive-step Hamming Distances & Cell Mobility."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_hamming import (
+            hamming_dist, consecutive_hamming, flip_mask, cell_mobility,
+            hamming_profile, flip_mask_word, cell_mobility_word,
+            mean_hamming, max_hamming, min_hamming,
+            hamming_summary, all_hamming, build_hamming_data,
+        )
+        cls.hamming_dist       = staticmethod(hamming_dist)
+        cls.consecutive_hamming = staticmethod(consecutive_hamming)
+        cls.flip_mask          = staticmethod(flip_mask)
+        cls.cell_mobility      = staticmethod(cell_mobility)
+        cls.hamming_profile    = staticmethod(hamming_profile)
+        cls.flip_mask_word     = staticmethod(flip_mask_word)
+        cls.cell_mobility_word = staticmethod(cell_mobility_word)
+        cls.mean_hamming       = staticmethod(mean_hamming)
+        cls.max_hamming        = staticmethod(max_hamming)
+        cls.min_hamming        = staticmethod(min_hamming)
+        cls.hamming_summary    = staticmethod(hamming_summary)
+        cls.all_hamming        = staticmethod(all_hamming)
+        cls.build_hamming_data = staticmethod(build_hamming_data)
+
+    # ── hamming_dist ──────────────────────────────────────────────────────────
+
+    def test_hamming_dist_returns_int(self):
+        self.assertIsInstance(self.hamming_dist((0, 1), (0, 1)), int)
+
+    def test_hamming_dist_equal_states(self):
+        self.assertEqual(self.hamming_dist((1, 2, 3), (1, 2, 3)), 0)
+
+    def test_hamming_dist_all_differ(self):
+        self.assertEqual(self.hamming_dist((0, 0, 0, 0), (1, 1, 1, 1)), 4)
+
+    def test_hamming_dist_one_differs(self):
+        self.assertEqual(self.hamming_dist((0, 1, 2), (0, 9, 2)), 1)
+
+    def test_hamming_dist_symmetric(self):
+        a, b = (3, 7, 2), (1, 7, 9)
+        self.assertEqual(self.hamming_dist(a, b), self.hamming_dist(b, a))
+
+    def test_hamming_dist_nonnegative(self):
+        self.assertGreaterEqual(self.hamming_dist((0, 1), (1, 0)), 0)
+
+    # ── consecutive_hamming ───────────────────────────────────────────────────
+
+    def test_consecutive_hamming_returns_list(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        self.assertIsInstance(self.consecutive_hamming(orbit), list)
+
+    def test_consecutive_hamming_length_equals_period(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        self.assertEqual(len(self.consecutive_hamming(orbit)), 2)
+
+    def test_consecutive_hamming_p1_is_zero(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor', 16)
+        self.assertEqual(self.consecutive_hamming(orbit), [0])
+
+    def test_consecutive_hamming_gora_or_zero(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'or', 16)
+        self.assertEqual(self.consecutive_hamming(orbit), [0])
+
+    def test_consecutive_hamming_gora_and_max(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        self.assertEqual(self.consecutive_hamming(orbit), [16, 16])
+
+    def test_consecutive_hamming_gora_xor3_max(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'xor3', 16)
+        self.assertEqual(self.consecutive_hamming(orbit), [16, 16])
+
+    def test_consecutive_hamming_tuman_xor3(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        self.assertEqual(self.consecutive_hamming(orbit),
+                         [16, 16, 10, 12, 14, 16, 16, 14])
+
+    def test_consecutive_hamming_nonneg(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        self.assertTrue(all(h >= 0 for h in self.consecutive_hamming(orbit)))
+
+    def test_consecutive_hamming_le_n(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        self.assertTrue(all(h <= 16 for h in self.consecutive_hamming(orbit)))
+
+    # ── flip_mask ─────────────────────────────────────────────────────────────
+
+    def test_flip_mask_returns_list_of_lists(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        result = self.flip_mask(orbit)
+        self.assertIsInstance(result, list)
+        self.assertIsInstance(result[0], list)
+
+    def test_flip_mask_shape(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        m = self.flip_mask(orbit)
+        self.assertEqual(len(m), 2)
+        self.assertEqual(len(m[0]), 16)
+
+    def test_flip_mask_values_binary(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        m = self.flip_mask(orbit)
+        self.assertTrue(all(v in (0, 1) for row in m for v in row))
+
+    def test_flip_mask_fixed_point_all_zeros(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor', 16)
+        m = self.flip_mask(orbit)
+        self.assertEqual(m, [[0] * 16])
+
+    def test_flip_mask_gora_and_all_ones(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        m = self.flip_mask(orbit)
+        self.assertTrue(all(v == 1 for row in m for v in row))
+
+    def test_flip_mask_row_sum_equals_hamming(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        m = self.flip_mask(orbit)
+        H = self.consecutive_hamming(orbit)
+        for t, (row, h) in enumerate(zip(m, H)):
+            self.assertEqual(sum(row), h)
+
+    def test_flip_mask_tuman_xor3_step2_frozen_edges(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        m = self.flip_mask(orbit)
+        # Step 2→3: cells 0,1,2,13,14,15 stay still (flip=0)
+        frozen = [i for i, v in enumerate(m[2]) if v == 0]
+        self.assertEqual(frozen, [0, 1, 2, 13, 14, 15])
+
+    def test_flip_mask_tuman_xor3_step3_frozen_edges(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        m = self.flip_mask(orbit)
+        frozen = [i for i, v in enumerate(m[3]) if v == 0]
+        self.assertEqual(frozen, [0, 1, 14, 15])
+
+    def test_flip_mask_tuman_xor3_step4_frozen_edges(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        m = self.flip_mask(orbit)
+        frozen = [i for i, v in enumerate(m[4]) if v == 0]
+        self.assertEqual(frozen, [0, 15])
+
+    # ── cell_mobility ─────────────────────────────────────────────────────────
+
+    def test_cell_mobility_returns_list(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        self.assertIsInstance(self.cell_mobility(orbit), list)
+
+    def test_cell_mobility_length_n(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        self.assertEqual(len(self.cell_mobility(orbit)), 16)
+
+    def test_cell_mobility_range_0_1(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mob = self.cell_mobility(orbit)
+        self.assertTrue(all(0.0 <= m <= 1.0 for m in mob))
+
+    def test_cell_mobility_fixed_point_zero(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor', 16)
+        mob = self.cell_mobility(orbit)
+        self.assertTrue(all(m == 0.0 for m in mob))
+
+    def test_cell_mobility_gora_and_all_one(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        mob = self.cell_mobility(orbit)
+        self.assertTrue(all(m == 1.0 for m in mob))
+
+    def test_cell_mobility_tuman_xor3_symmetric(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mob = self.cell_mobility(orbit)
+        N = len(mob)
+        for i in range(N // 2):
+            self.assertAlmostEqual(mob[i], mob[N - 1 - i], places=5)
+
+    def test_cell_mobility_tuman_xor3_edge_cells(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mob = self.cell_mobility(orbit)
+        self.assertAlmostEqual(mob[0],  0.5, places=5)
+        self.assertAlmostEqual(mob[15], 0.5, places=5)
+
+    def test_cell_mobility_tuman_xor3_inner_cells_max(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mob = self.cell_mobility(orbit)
+        for i in range(3, 13):
+            self.assertAlmostEqual(mob[i], 1.0, places=5)
+
+    def test_cell_mobility_mean_equals_mean_hamming_over_n(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mob = self.cell_mobility(orbit)
+        H   = self.consecutive_hamming(orbit)
+        mean_mob = sum(mob) / len(mob)
+        mean_H_N = sum(H) / (len(H) * 16)
+        self.assertAlmostEqual(mean_mob, mean_H_N, places=5)
+
+    # ── hamming_profile ───────────────────────────────────────────────────────
+
+    def test_hamming_profile_returns_list(self):
+        self.assertIsInstance(self.hamming_profile('ГОРА', 'and'), list)
+
+    def test_hamming_profile_tuman_xor(self):
+        self.assertEqual(self.hamming_profile('ТУМАН', 'xor'), [0])
+
+    def test_hamming_profile_gora_and(self):
+        self.assertEqual(self.hamming_profile('ГОРА', 'and'), [16, 16])
+
+    def test_hamming_profile_tuman_xor3(self):
+        self.assertEqual(self.hamming_profile('ТУМАН', 'xor3'),
+                         [16, 16, 10, 12, 14, 16, 16, 14])
+
+    def test_hamming_profile_case_insensitive(self):
+        self.assertEqual(
+            self.hamming_profile('гора', 'and'),
+            self.hamming_profile('ГОРА', 'and'),
+        )
+
+    # ── mean / max / min hamming ──────────────────────────────────────────────
+
+    def test_mean_hamming_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_hamming('ТУМАН', 'xor'), 0.0)
+
+    def test_mean_hamming_gora_and(self):
+        self.assertAlmostEqual(self.mean_hamming('ГОРА', 'and'), 16.0)
+
+    def test_mean_hamming_tuman_xor3(self):
+        self.assertAlmostEqual(self.mean_hamming('ТУМАН', 'xor3'), 14.25)
+
+    def test_max_hamming_tuman_xor(self):
+        self.assertEqual(self.max_hamming('ТУМАН', 'xor'), 0)
+
+    def test_max_hamming_gora_and(self):
+        self.assertEqual(self.max_hamming('ГОРА', 'and'), 16)
+
+    def test_max_hamming_tuman_xor3(self):
+        self.assertEqual(self.max_hamming('ТУМАН', 'xor3'), 16)
+
+    def test_min_hamming_tuman_xor(self):
+        self.assertEqual(self.min_hamming('ТУМАН', 'xor'), 0)
+
+    def test_min_hamming_tuman_xor3(self):
+        self.assertEqual(self.min_hamming('ТУМАН', 'xor3'), 10)
+
+    def test_min_hamming_gora_and(self):
+        self.assertEqual(self.min_hamming('ГОРА', 'and'), 16)
+
+    # ── hamming_summary ───────────────────────────────────────────────────────
+
+    def test_hamming_summary_returns_dict(self):
+        self.assertIsInstance(self.hamming_summary('ГОРА', 'and'), dict)
+
+    def test_hamming_summary_required_keys(self):
+        d = self.hamming_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'n_cells',
+                    'hamming', 'mean_hamming', 'max_hamming',
+                    'min_hamming', 'hamming_range',
+                    'mobility', 'mean_mobility', 'max_mobility',
+                    'min_mobility', 'frozen_cells', 'maxmobile_cells',
+                    'mobile_symmetric', 'all_frozen', 'all_max',
+                    'min_hamming_steps', 'flip_mask'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_hamming_summary_tuman_xor_all_frozen(self):
+        d = self.hamming_summary('ТУМАН', 'xor')
+        self.assertTrue(d['all_frozen'])
+        self.assertFalse(d['all_max'])
+        self.assertEqual(d['frozen_cells'], list(range(16)))
+
+    def test_hamming_summary_gora_and_all_max(self):
+        d = self.hamming_summary('ГОРА', 'and')
+        self.assertTrue(d['all_max'])
+        self.assertFalse(d['all_frozen'])
+        self.assertEqual(d['maxmobile_cells'], list(range(16)))
+
+    def test_hamming_summary_gora_or_all_frozen(self):
+        d = self.hamming_summary('ГОРА', 'or')
+        self.assertTrue(d['all_frozen'])
+
+    def test_hamming_summary_tuman_xor3_not_all_frozen(self):
+        d = self.hamming_summary('ТУМАН', 'xor3')
+        self.assertFalse(d['all_frozen'])
+        self.assertFalse(d['all_max'])
+
+    def test_hamming_summary_tuman_xor3_mean(self):
+        d = self.hamming_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_hamming'], 14.25)
+
+    def test_hamming_summary_tuman_xor3_min_step(self):
+        d = self.hamming_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['min_hamming'], 10)
+        self.assertEqual(d['min_hamming_steps'], [2])
+
+    def test_hamming_summary_tuman_xor3_mobile_symmetric(self):
+        d = self.hamming_summary('ТУМАН', 'xor3')
+        self.assertTrue(d['mobile_symmetric'])
+
+    def test_hamming_summary_tuman_xor3_maxmobile_cells(self):
+        d = self.hamming_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['maxmobile_cells'], list(range(3, 13)))
+
+    def test_hamming_summary_hamming_range(self):
+        d = self.hamming_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['hamming_range'], 16 - 10)
+
+    def test_hamming_summary_word_upper(self):
+        d = self.hamming_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_hamming_summary_n_cells(self):
+        d = self.hamming_summary('ГОРА', 'and')
+        self.assertEqual(d['n_cells'], 16)
+
+    def test_hamming_summary_flip_mask_shape(self):
+        d = self.hamming_summary('ГОРА', 'and')
+        m = d['flip_mask']
+        self.assertEqual(len(m), d['period'])
+        self.assertEqual(len(m[0]), d['n_cells'])
+
+    # ── all_hamming ───────────────────────────────────────────────────────────
+
+    def test_all_hamming_returns_dict(self):
+        self.assertIsInstance(self.all_hamming('ГОРА'), dict)
+
+    def test_all_hamming_four_rules(self):
+        d = self.all_hamming('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_hamming_data ────────────────────────────────────────────────────
+
+    def test_build_hamming_data_returns_dict(self):
+        self.assertIsInstance(self.build_hamming_data(['ГОРА']), dict)
+
+    def test_build_hamming_data_top_keys(self):
+        d = self.build_hamming_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_hamming_data_four_rule_keys(self):
+        d = self.build_hamming_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_hamming_data_word_uppercase(self):
+        d = self.build_hamming_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_hamming_data_all_frozen(self):
+        d = self.build_hamming_data(['ТУМАН'])
+        self.assertTrue(d['per_rule']['xor']['ТУМАН']['all_frozen'])
+
+    def test_build_hamming_data_known_fields(self):
+        d   = self.build_hamming_data(['ГОРА'])
+        rec = d['per_rule']['and']['ГОРА']
+        for key in ('period', 'hamming', 'mean_hamming',
+                    'max_hamming', 'min_hamming', 'hamming_range',
+                    'mobility', 'mean_mobility', 'max_mobility',
+                    'min_mobility', 'frozen_cells', 'maxmobile_cells',
+                    'mobile_symmetric', 'all_frozen', 'all_max',
+                    'min_hamming_steps'):
+            self.assertIn(key, rec)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_ham_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ham-map', content)
+
+    def test_viewer_has_ham_mob(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ham-mob', content)
+
+    def test_viewer_has_ham_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ham-info', content)
+
+    def test_viewer_has_hm_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hm-word', content)
+
+    def test_viewer_has_hm_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hm-btn', content)
+
+    def test_viewer_has_hm_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hmRun', content)
+
+    def test_viewer_has_hm_flip_mask_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hmFlipMask', content)
+
+    def test_viewer_has_hm_mobility_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hmMobility', content)
+
+
 class TestSolanBoundary(unittest.TestCase):
     """Tests for solan_boundary.py — Spatial XOR-Boundary Analysis."""
 
