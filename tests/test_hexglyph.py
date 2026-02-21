@@ -6527,6 +6527,276 @@ class TestSolanTemporal(unittest.TestCase):
         self.assertIn('Временной спектр Q6', content)
 
 
+class TestSolanPersistence(unittest.TestCase):
+    """Tests for solan_persistence.py and the viewer Persistence section."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib, sys
+        spec = importlib.util.spec_from_file_location(
+            'solan_persistence',
+            str(pathlib.Path(__file__).resolve().parents[1] /
+                'projects' / 'hexglyph' / 'solan_persistence.py'))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules['solan_persistence'] = mod
+        spec.loader.exec_module(mod)
+        cls.mod = mod
+
+    # ── run_lengths ────────────────────────────────────────────────────
+
+    def test_rl_empty(self):
+        self.assertEqual(self.mod.run_lengths([]), [])
+
+    def test_rl_single(self):
+        self.assertEqual(self.mod.run_lengths([0]), [1])
+
+    def test_rl_constant_circular(self):
+        # All same → one run of length n
+        self.assertEqual(self.mod.run_lengths([0, 0, 0, 0]), [4])
+
+    def test_rl_alternating_circular(self):
+        runs = self.mod.run_lengths([0, 1, 0, 1])
+        self.assertEqual(runs, [1, 1, 1, 1])
+
+    def test_rl_mixed_circular(self):
+        # [0,1,1,0,0,1] circular runs: 0|1,1|0,0|1 → wraps: 0 at end+0 at start=2
+        # transitions at positions 0,2,4 (0→1,1→0,0→1); lengths: 0→2=2, 2→4=2, 4→0+6=2?
+        # Let's just check sum = n and all positive
+        seq = [0, 1, 1, 0, 0, 1]
+        runs = self.mod.run_lengths(seq, circular=True)
+        self.assertEqual(sum(runs), len(seq))
+        self.assertTrue(all(r > 0 for r in runs))
+
+    def test_rl_sum_equals_length(self):
+        import random
+        rng = random.Random(42)
+        seq = [rng.randint(0, 1) for _ in range(16)]
+        runs = self.mod.run_lengths(seq)
+        self.assertEqual(sum(runs), 16)
+
+    def test_rl_noncircular_constant(self):
+        self.assertEqual(self.mod.run_lengths([1, 1, 1], circular=False), [3])
+
+    def test_rl_noncircular_alternating(self):
+        self.assertEqual(self.mod.run_lengths([0, 1, 0], circular=False), [1, 1, 1])
+
+    def test_rl_noncircular_sum(self):
+        seq = [0, 0, 1, 1, 0, 1]
+        runs = self.mod.run_lengths(seq, circular=False)
+        self.assertEqual(sum(runs), len(seq))
+
+    # ── persistence ────────────────────────────────────────────────────
+
+    def test_persist_constant(self):
+        self.assertAlmostEqual(self.mod.persistence([0, 0, 0, 0]), 1.0)
+
+    def test_persist_alternating_even(self):
+        self.assertAlmostEqual(self.mod.persistence([0, 1, 0, 1]), 0.0)
+
+    def test_persist_single(self):
+        self.assertAlmostEqual(self.mod.persistence([1]), 1.0)
+
+    def test_persist_empty(self):
+        self.assertAlmostEqual(self.mod.persistence([]), 1.0)
+
+    def test_persist_range(self):
+        # persistence must be in [0, 1]
+        import random
+        rng = random.Random(7)
+        seq = [rng.randint(0, 1) for _ in range(20)]
+        p = self.mod.persistence(seq)
+        self.assertGreaterEqual(p, 0.0)
+        self.assertLessEqual(p, 1.0)
+
+    def test_persist_half(self):
+        # [0,0,1,1] circular: transitions at 1 and 3 → 2/4 → persist=0.5
+        self.assertAlmostEqual(self.mod.persistence([0, 0, 1, 1]), 0.5)
+
+    # ── run_stats ──────────────────────────────────────────────────────
+
+    def test_rs_keys(self):
+        s = self.mod.run_stats([0, 1, 0, 1])
+        for k in ('n_runs', 'persistence', 'mean_run', 'std_run', 'max_run', 'min_run', 'cv_run'):
+            self.assertIn(k, s)
+
+    def test_rs_constant(self):
+        s = self.mod.run_stats([0, 0, 0, 0])
+        self.assertEqual(s['n_runs'], 1)
+        self.assertAlmostEqual(s['persistence'], 1.0)
+        self.assertAlmostEqual(s['mean_run'], 4.0)
+        self.assertAlmostEqual(s['cv_run'], 0.0)
+
+    def test_rs_alternating(self):
+        s = self.mod.run_stats([0, 1, 0, 1])
+        self.assertEqual(s['n_runs'], 4)
+        self.assertAlmostEqual(s['persistence'], 0.0)
+        self.assertAlmostEqual(s['mean_run'], 1.0)
+        self.assertAlmostEqual(s['cv_run'], 0.0)
+
+    def test_rs_max_run_constant(self):
+        s = self.mod.run_stats([1, 1, 1, 1, 1])
+        self.assertEqual(s['max_run'], 5)
+
+    def test_rs_min_run_alternating(self):
+        s = self.mod.run_stats([0, 1, 0, 1, 0, 1])
+        self.assertEqual(s['min_run'], 1)
+
+    # ── cell_run_stats ─────────────────────────────────────────────────
+
+    def test_crs_length(self):
+        stats = self.mod.cell_run_stats('ТУМАН', 'xor', 16)
+        self.assertEqual(len(stats), 16)
+
+    def test_crs_each_has_keys(self):
+        stats = self.mod.cell_run_stats('ТУМАН', 'xor3', 16)
+        for s in stats:
+            self.assertIn('persistence', s)
+            self.assertIn('mean_run', s)
+
+    def test_crs_xor_tuman_all_persistent(self):
+        # XOR ТУМАН P=1 → all constant → persistence=1.0
+        stats = self.mod.cell_run_stats('ТУМАН', 'xor', 16)
+        for s in stats:
+            self.assertAlmostEqual(s['persistence'], 1.0)
+
+    def test_crs_gora_and_all_alternating(self):
+        # ГОРА AND P=2, all alternating → persistence=0.0
+        stats = self.mod.cell_run_stats('ГОРА', 'and', 16)
+        for s in stats:
+            self.assertAlmostEqual(s['persistence'], 0.0)
+
+    def test_crs_gora_xor3_mixed(self):
+        # ГОРА XOR3 P=2: 8 constant (persist=1), 8 alternating (persist=0)
+        stats = self.mod.cell_run_stats('ГОРА', 'xor3', 16)
+        persts = [s['persistence'] for s in stats]
+        n_ones  = sum(1 for p in persts if p == 1.0)
+        n_zeros = sum(1 for p in persts if p == 0.0)
+        self.assertEqual(n_ones,  8)
+        self.assertEqual(n_zeros, 8)
+
+    # ── pooled_run_dist ────────────────────────────────────────────────
+
+    def test_prd_returns_dict(self):
+        h = self.mod.pooled_run_dist('ТУМАН', 'xor3', 16)
+        self.assertIsInstance(h, dict)
+
+    def test_prd_xor_tuman_only_run1(self):
+        # XOR ТУМАН P=1 → each cell is constant → run length = 1 (trivially P=1)
+        h = self.mod.pooled_run_dist('ТУМАН', 'xor', 16)
+        self.assertEqual(list(h.keys()), [1])
+
+    def test_prd_all_positive_counts(self):
+        h = self.mod.pooled_run_dist('ТУМАН', 'xor3', 16)
+        self.assertTrue(all(v > 0 for v in h.values()))
+
+    def test_prd_gora_xor3_has_run1_and_run2(self):
+        h = self.mod.pooled_run_dist('ГОРА', 'xor3', 16)
+        self.assertIn(1, h)
+        self.assertIn(2, h)
+
+    # ── persistence_dict ───────────────────────────────────────────────
+
+    def test_pd_keys(self):
+        d = self.mod.persistence_dict('ТУМАН', 'xor3', 16)
+        for k in ('word', 'rule', 'period', 'cell_stats', 'run_dist',
+                  'mean_persistence', 'mean_run', 'mean_cv',
+                  'max_run_global', 'min_persistence', 'max_persistence',
+                  'all_persistent', 'all_alternating'):
+            self.assertIn(k, d)
+
+    def test_pd_xor_tuman_all_persistent(self):
+        d = self.mod.persistence_dict('ТУМАН', 'xor', 16)
+        self.assertTrue(d['all_persistent'])
+        self.assertFalse(d['all_alternating'])
+        self.assertAlmostEqual(d['mean_persistence'], 1.0)
+
+    def test_pd_gora_and_all_alternating(self):
+        d = self.mod.persistence_dict('ГОРА', 'and', 16)
+        self.assertTrue(d['all_alternating'])
+        self.assertFalse(d['all_persistent'])
+        self.assertAlmostEqual(d['mean_persistence'], 0.0)
+
+    def test_pd_gora_xor3_mean_persistence(self):
+        d = self.mod.persistence_dict('ГОРА', 'xor3', 16)
+        self.assertAlmostEqual(d['mean_persistence'], 0.5, places=5)
+
+    def test_pd_cell_stats_length(self):
+        d = self.mod.persistence_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['cell_stats']), 16)
+
+    def test_pd_period_correct(self):
+        d = self.mod.persistence_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['period'], 8)
+
+    def test_pd_word_uppercased(self):
+        d = self.mod.persistence_dict('туман', 'xor3', 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_pd_max_run_positive(self):
+        d = self.mod.persistence_dict('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['max_run_global'], 0)
+
+    def test_pd_min_le_max_persistence(self):
+        d = self.mod.persistence_dict('ТУМАН', 'xor3', 16)
+        self.assertLessEqual(d['min_persistence'], d['max_persistence'])
+
+    # ── all_persistence ────────────────────────────────────────────────
+
+    def test_ap_four_rules(self):
+        ap = self.mod.all_persistence('ТУМАН', 16)
+        self.assertEqual(set(ap.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_ap_each_is_dict(self):
+        ap = self.mod.all_persistence('ГОРА', 16)
+        for rule, d in ap.items():
+            self.assertIn('mean_persistence', d)
+
+    # ── build_persistence_data ─────────────────────────────────────────
+
+    def test_bpd_structure(self):
+        d = self.mod.build_persistence_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', d)
+        self.assertIn('width', d)
+        self.assertIn('per_rule', d)
+
+    def test_bpd_per_rule_keys(self):
+        d = self.mod.build_persistence_data(['ТУМАН'], 16)
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_bpd_word_entry_keys(self):
+        d = self.mod.build_persistence_data(['ТУМАН'], 16)
+        entry = d['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'mean_persistence', 'mean_run', 'mean_cv',
+                  'max_run_global', 'all_persistent'):
+            self.assertIn(k, entry)
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_prs_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prs-cell', content)
+
+    def test_viewer_has_prs_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prs-run', content)
+
+    def test_viewer_has_prs_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prs-stats', content)
+
+    def test_viewer_has_prs_run_fn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prsRun', content)
+
+    def test_viewer_has_prs_rl_fn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('prsRL', content)
+
+    def test_viewer_has_persistence_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Персистентность Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

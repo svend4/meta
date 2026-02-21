@@ -7531,6 +7531,200 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Персистентность Q6 — длины серий на аттракторе</h2>
+<p class="meta">Для бинаризованного аттрактора (порог=32): persistence(i) = 1 − transitions/P · mean_run(i) = P / n_runs · CV = std/mean по длинам серий · высокая персистентность → медленные осцилляции, низкая → быстрые переключения</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="prs-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="prs-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="prs-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="prs-cell" width="530" height="130"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="prs-run"  width="530" height="110"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="prs-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA helpers ─────────────────────────────────────────────────── */
+  function prsStep(cells,rule){
+    var n=cells.length,out=[];
+    for(var i=0;i<n;i++){
+      var l=cells[(i-1+n)%n],c=cells[i],r=cells[(i+1)%n];
+      if(rule==='xor')       out.push((l^r)&63);
+      else if(rule==='xor3') out.push((l^c^r)&63);
+      else if(rule==='and')  out.push((l&r)&63);
+      else                   out.push((l|r)&63);
+    }
+    return out;
+  }
+  function prsOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=prsStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){
+          grid.push(cur.map(function(v){return v>=32?1:0;}));
+          cur=prsStep(cur,rule);
+        }
+        return grid;
+      }
+      seen[key]=t++;
+      cur=prsStep(cur,rule);
+    }
+    return [ic.map(function(v){return v>=32?1:0;})];
+  }
+  /* ── Run-length / persistence computation ────────────────────────── */
+  function prsRL(seq){
+    var n=seq.length;
+    if(n===0) return [];
+    if(n===1) return [1];
+    var trans=[];
+    for(var t=0;t<n;t++) if(seq[t]!==seq[(t+1)%n]) trans.push(t);
+    if(!trans.length) return [n];
+    var nt=trans.length,runs=[];
+    for(var i=0;i<nt;i++){
+      var s=trans[i],e=trans[(i+1)%nt];
+      runs.push(e>s?e-s:n-s+e);
+    }
+    return runs;
+  }
+  function prsPersist(seq){
+    var n=seq.length;
+    if(n<=1) return 1.0;
+    var tr=0;
+    for(var t=0;t<n;t++) if(seq[t]!==seq[(t+1)%n]) tr++;
+    return 1.0-tr/n;
+  }
+  /* ── Main render ────────────────────────────────────────────────── */
+  window.prsRun=function(){
+    var word=(document.getElementById('prs-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('prs-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var grid=prsOrbit(ic,rule);
+    var P=grid.length;
+    if(!P) return;
+    var N=grid[0].length;
+    /* Per-cell stats */
+    var persts=[],mruns=[],maxruns=[],cvs=[];
+    var hist={};
+    for(var i=0;i<N;i++){
+      var seq=[];
+      for(var t=0;t<P;t++) seq.push(grid[t][i]);
+      var runs=prsRL(seq);
+      var nr=runs.length;
+      var mr=runs.reduce(function(a,b){return a+b;},0)/nr;
+      var maxr=Math.max.apply(null,runs);
+      var variance=nr>1?runs.reduce(function(a,b){return a+(b-mr)*(b-mr);},0)/nr:0;
+      var std=Math.sqrt(variance);
+      persts.push(prsPersist(seq));
+      mruns.push(mr);
+      maxruns.push(maxr);
+      cvs.push(mr>0?std/mr:0);
+      runs.forEach(function(r){ hist[r]=(hist[r]||0)+1; });
+    }
+    var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    var col=RCOL[rule]||'#4fc3f7';
+    var meanP=persts.reduce(function(a,b){return a+b;},0)/N;
+    var meanR=mruns.reduce(function(a,b){return a+b;},0)/N;
+    var meanCV=cvs.reduce(function(a,b){return a+b;},0)/N;
+    var maxRG=Math.max.apply(null,maxruns);
+    var allPersist=persts.every(function(p){return p===1;});
+    var allAlt=persts.every(function(p){return p===0;});
+    /* ── Per-cell persistence bars ────────────────────────────────── */
+    var cc=document.getElementById('prs-cell');
+    var cx=cc.getContext('2d');
+    var W=cc.width,H=cc.height;
+    cx.fillStyle='#0d0d0d'; cx.fillRect(0,0,W,H);
+    var CellW=Math.floor((W-44)/N);
+    var BARMAX=H-44;
+    for(var i=0;i<N;i++){
+      var p=persts[i];
+      var bh=Math.round(p*BARMAX);
+      cx.globalAlpha=0.2+0.8*p;
+      cx.fillStyle=col;
+      cx.fillRect(42+i*CellW,H-28-bh,CellW-2,bh);
+      cx.globalAlpha=1;
+      cx.strokeStyle=col; cx.lineWidth=0.5;
+      cx.strokeRect(42+i*CellW,H-28-BARMAX,CellW-2,BARMAX);
+      cx.fillStyle='#ccc'; cx.font='8px monospace'; cx.textAlign='center';
+      cx.fillText(i,42+i*CellW+CellW/2,H-4);
+      cx.fillStyle='#fff'; cx.font='8px monospace';
+      cx.fillText(p.toFixed(2),42+i*CellW+CellW/2,H-18);
+    }
+    cx.fillStyle='#777'; cx.textAlign='left'; cx.font='9px monospace';
+    cx.fillText('pers',2,H/2-4);
+    /* ── Run distribution histogram ───────────────────────────────── */
+    var rc=document.getElementById('prs-run');
+    var rx=rc.getContext('2d');
+    var RW=rc.width,RH=rc.height;
+    rx.fillStyle='#0d0d0d'; rx.fillRect(0,0,RW,RH);
+    var keys=Object.keys(hist).map(Number).sort(function(a,b){return a-b;});
+    var maxCnt=Math.max.apply(null,keys.map(function(k){return hist[k];}));
+    var NR=keys.length;
+    if(NR>0){
+      var BW=Math.min(40,Math.floor((RW-60)/NR));
+      var X0=40;
+      for(var ki=0;ki<NR;ki++){
+        var r=keys[ki],cnt=hist[r];
+        var bh2=Math.round((cnt/maxCnt)*(RH-40));
+        rx.fillStyle=col; rx.globalAlpha=0.7;
+        rx.fillRect(X0+ki*(BW+4),RH-28-bh2,BW,bh2);
+        rx.globalAlpha=1;
+        rx.fillStyle='#ccc'; rx.font='8px monospace'; rx.textAlign='center';
+        rx.fillText('r='+r,X0+ki*(BW+4)+BW/2,RH-14);
+        rx.fillStyle='#aaa';
+        rx.fillText(cnt,X0+ki*(BW+4)+BW/2,RH-28-bh2-3);
+      }
+    }
+    rx.fillStyle='#777'; rx.textAlign='left'; rx.font='9px monospace';
+    rx.fillText('run\ndist',2,RH/2);
+    /* Stats */
+    document.getElementById('prs-stats').innerHTML=
+      'P='+P+
+      '  persist\u0304='+meanP.toFixed(4)+
+      '  run\u0304='+meanR.toFixed(3)+
+      '  CV\u0304='+meanCV.toFixed(3)+
+      '  max_run='+maxRG+
+      (allPersist?' \u00b7 \u0432\u0441\u0435 \u043f\u043e\u0441\u0442\u043e\u044f\u043d\u043d\u044b':'')+(allAlt?' \u00b7 \u0432\u0441\u0435 \u0447\u0435\u0440\u0435\u0434\u0443\u044e\u0449\u0438\u0435\u0441\u044f':'');
+  };
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('prs-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('prs-btn');
+    var wordEl=document.getElementById('prs-word');
+    var ruleEl=document.getElementById('prs-rule');
+    if(btn)    btn.addEventListener('click',prsRun);
+    if(wordEl) wordEl.addEventListener('change',prsRun);
+    if(ruleEl) ruleEl.addEventListener('change',prsRun);
+    setTimeout(function(){if(window.encL) prsRun();},1700);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
