@@ -20430,5 +20430,333 @@ class TestSolanCross(unittest.TestCase):
         self.assertIn('solan_cross', content)
 
 
+class TestSolanPCA(unittest.TestCase):
+    """Tests for solan_pca.py — PCA of Q6 CA orbit trajectories."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_pca import (
+            gram_eig, orbit_pca, pca_summary,
+            all_pca, build_pca_data, pca_dict,
+        )
+        cls.gram_eig    = staticmethod(gram_eig)
+        cls.orbit_pca   = staticmethod(orbit_pca)
+        cls.pca_summary = staticmethod(pca_summary)
+        cls.all_pca     = staticmethod(all_pca)
+        cls.build_data  = staticmethod(build_pca_data)
+        cls.pca_dict    = staticmethod(pca_dict)
+
+        # Precomputed summaries
+        cls.s_rabota_xor3 = pca_summary('РАБОТА', 'xor3', 16)
+        cls.s_mat_xor3    = pca_summary('МАТ',    'xor3', 16)
+        cls.s_gora_xor3   = pca_summary('ГОРА',   'xor3', 16)
+        cls.s_tonha_xor3  = pca_summary('ТОННА',  'xor3', 16)
+        cls.s_zavod_xor3  = pca_summary('ЗАВОД',  'xor3', 16)
+        cls.s_nitro_xor3  = pca_summary('НИТРО',  'xor3', 16)
+        cls.s_mat_and     = pca_summary('МАТ',    'and',  16)
+
+    # ── gram_eig ──────────────────────────────────────────────────────────────
+
+    def test_gram_eig_returns_pair(self):
+        G = [[2.0, 1.0], [1.0, 2.0]]
+        vals, vecs = self.gram_eig(G)
+        self.assertEqual(len(vals), 2)
+        self.assertEqual(len(vecs), 2)
+
+    def test_gram_eig_sorted_descending(self):
+        G = [[2.0, 1.0], [1.0, 2.0]]
+        vals, _ = self.gram_eig(G)
+        self.assertGreaterEqual(vals[0], vals[1])
+
+    def test_gram_eig_eigenvalues_correct(self):
+        # 2×2 symmetric: eigenvalues are 3 and 1
+        G = [[2.0, 1.0], [1.0, 2.0]]
+        vals, _ = self.gram_eig(G)
+        self.assertAlmostEqual(vals[0], 3.0, places=4)
+        self.assertAlmostEqual(vals[1], 1.0, places=4)
+
+    def test_gram_eig_eigenvalues_non_negative(self):
+        G = [[4.0, 2.0], [2.0, 3.0]]
+        vals, _ = self.gram_eig(G)
+        for v in vals:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_gram_eig_empty(self):
+        vals, vecs = self.gram_eig([])
+        self.assertEqual(vals, [])
+        self.assertEqual(vecs, [])
+
+    def test_gram_eig_1x1(self):
+        vals, vecs = self.gram_eig([[5.0]])
+        self.assertAlmostEqual(vals[0], 5.0, places=6)
+
+    # ── orbit_pca ─────────────────────────────────────────────────────────────
+
+    def test_orbit_pca_keys_present(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        for k in ('period', 'n_cells', 'eigenvalues', 'total_var', 'evr', 'cumevr',
+                  'loadings', 'mean_state'):
+            self.assertIn(k, raw)
+
+    def test_orbit_pca_period_correct(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        self.assertEqual(raw['period'], 8)
+
+    def test_orbit_pca_n_cells_correct(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        self.assertEqual(raw['n_cells'], 16)
+
+    def test_orbit_pca_eigenvalues_length_equals_period(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        self.assertEqual(len(raw['eigenvalues']), raw['period'])
+
+    def test_orbit_pca_mean_state_length(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        self.assertEqual(len(raw['mean_state']), 16)
+
+    def test_orbit_pca_p1_total_var_zero(self):
+        raw = self.orbit_pca('МАТ', 'and', 16)
+        self.assertEqual(raw['period'], 1)
+        self.assertEqual(raw['total_var'], 0.0)
+
+    def test_orbit_pca_p1_loadings_zero(self):
+        raw = self.orbit_pca('МАТ', 'and', 16)
+        # All loadings should be zero for P=1
+        for row in raw['loadings']:
+            for v in row:
+                self.assertAlmostEqual(v, 0.0, places=10)
+
+    # ── pca_summary structure ─────────────────────────────────────────────────
+
+    def test_pca_summary_all_keys(self):
+        for k in ('word', 'rule', 'period', 'n_cells', 'eigenvalues',
+                  'explained_var_ratio', 'cumulative_evr', 'total_var',
+                  'orbit_rank', 'n_components_95', 'pc1_loadings',
+                  'pc1_dom_cell', 'pc1_dom_loading', 'pc1_var_ratio',
+                  'n_pcs_meaningful', 'all_loadings', 'mean_state'):
+            self.assertIn(k, self.s_rabota_xor3, msg=f"missing key: {k}")
+
+    def test_pca_summary_word_preserved(self):
+        self.assertEqual(self.s_rabota_xor3['word'], 'РАБОТА')
+
+    def test_pca_summary_rule_preserved(self):
+        self.assertEqual(self.s_rabota_xor3['rule'], 'xor3')
+
+    def test_pca_summary_evr_sums_to_one(self):
+        evr = self.s_rabota_xor3['explained_var_ratio']
+        self.assertAlmostEqual(sum(evr), 1.0, places=5)
+
+    def test_pca_summary_cumevr_ends_at_one(self):
+        cum = self.s_rabota_xor3['cumulative_evr']
+        self.assertAlmostEqual(cum[-1], 1.0, places=5)
+
+    def test_pca_summary_cumevr_monotone(self):
+        cum = self.s_rabota_xor3['cumulative_evr']
+        for i in range(len(cum) - 1):
+            self.assertLessEqual(cum[i], cum[i + 1] + 1e-10)
+
+    def test_pca_summary_eigenvalues_non_negative(self):
+        for v in self.s_rabota_xor3['eigenvalues']:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_pca_summary_eigenvalues_sorted_desc(self):
+        evals = self.s_rabota_xor3['eigenvalues']
+        for i in range(len(evals) - 1):
+            self.assertGreaterEqual(evals[i] + 1e-10, evals[i + 1])
+
+    def test_pca_summary_pc1_loadings_unit_length(self):
+        import math
+        lv = self.s_rabota_xor3['pc1_loadings']
+        nm = math.sqrt(sum(x * x for x in lv))
+        self.assertAlmostEqual(nm, 1.0, places=4)
+
+    def test_pca_summary_dom_cell_consistent(self):
+        s = self.s_rabota_xor3
+        dom = s['pc1_dom_cell']
+        lv  = s['pc1_loadings']
+        max_abs = max(abs(v) for v in lv)
+        self.assertAlmostEqual(abs(lv[dom]), max_abs, places=6)
+
+    def test_pca_summary_dom_loading_consistent(self):
+        s = self.s_rabota_xor3
+        self.assertAlmostEqual(s['pc1_dom_loading'], s['pc1_loadings'][s['pc1_dom_cell']], places=5)
+
+    def test_pca_summary_pc1_var_ratio_consistent(self):
+        s = self.s_rabota_xor3
+        evr = s['explained_var_ratio']
+        self.assertAlmostEqual(s['pc1_var_ratio'], evr[0], places=5)
+
+    # ── РАБОТА XOR3 known values ──────────────────────────────────────────────
+
+    def test_rabota_xor3_period_8(self):
+        self.assertEqual(self.s_rabota_xor3['period'], 8)
+
+    def test_rabota_xor3_orbit_rank_7(self):
+        self.assertEqual(self.s_rabota_xor3['orbit_rank'], 7)
+
+    def test_rabota_xor3_pc1_dom_cell_is_1(self):
+        self.assertEqual(self.s_rabota_xor3['pc1_dom_cell'], 1)
+
+    def test_rabota_xor3_pc1_dom_loading_positive(self):
+        self.assertGreater(self.s_rabota_xor3['pc1_dom_loading'], 0.0)
+
+    def test_rabota_xor3_pc1_dom_loading_approx(self):
+        # Cell 1 loading ≈ +0.6664
+        self.assertAlmostEqual(self.s_rabota_xor3['pc1_dom_loading'], 0.6664, places=2)
+
+    def test_rabota_xor3_pc1_var_ratio_approx(self):
+        # PC₁ explains ≈ 35.8 % of variance
+        self.assertAlmostEqual(self.s_rabota_xor3['pc1_var_ratio'], 0.358, places=2)
+
+    def test_rabota_xor3_n_meaningful_pcs(self):
+        # 5 PCs with EVR > 5%
+        self.assertEqual(self.s_rabota_xor3['n_pcs_meaningful'], 5)
+
+    def test_rabota_xor3_n95_is_5(self):
+        self.assertEqual(self.s_rabota_xor3['n_components_95'], 5)
+
+    def test_rabota_xor3_total_var_positive(self):
+        self.assertGreater(self.s_rabota_xor3['total_var'], 0.0)
+
+    # ── ГОРА XOR3 (P=2, rank=1) known values ──────────────────────────────────
+
+    def test_gora_xor3_period_2(self):
+        self.assertEqual(self.s_gora_xor3['period'], 2)
+
+    def test_gora_xor3_orbit_rank_1(self):
+        self.assertEqual(self.s_gora_xor3['orbit_rank'], 1)
+
+    def test_gora_xor3_pc1_var_ratio_is_1(self):
+        # P=2 → rank=1 → 100% of variance in PC₁
+        self.assertAlmostEqual(self.s_gora_xor3['pc1_var_ratio'], 1.0, places=4)
+
+    def test_gora_xor3_n95_is_1(self):
+        self.assertEqual(self.s_gora_xor3['n_components_95'], 1)
+
+    def test_gora_xor3_cumevr_second_is_one(self):
+        cum = self.s_gora_xor3['cumulative_evr']
+        self.assertAlmostEqual(cum[0], 1.0, places=4)
+
+    # ── ТОННА XOR3 — highest PC1 among P=8 words ──────────────────────────────
+
+    def test_tonha_xor3_pc1_highest_p8(self):
+        # ТОННА PC₁ ≈ 52.9 % — highest among P=8 words
+        self.assertGreater(self.s_tonha_xor3['pc1_var_ratio'],
+                           self.s_zavod_xor3['pc1_var_ratio'])
+
+    def test_tonha_xor3_pc1_approx_529(self):
+        self.assertAlmostEqual(self.s_tonha_xor3['pc1_var_ratio'], 0.529, places=2)
+
+    def test_zavod_xor3_pc1_approx_278(self):
+        # ЗАВОД ≈ 27.8 % (most spread)
+        self.assertAlmostEqual(self.s_zavod_xor3['pc1_var_ratio'], 0.278, places=2)
+
+    # ── НИТРО XOR3 — negative dominant loading ─────────────────────────────────
+
+    def test_nitro_xor3_dom_cell_is_5(self):
+        self.assertEqual(self.s_nitro_xor3['pc1_dom_cell'], 5)
+
+    def test_nitro_xor3_dom_loading_negative(self):
+        self.assertLess(self.s_nitro_xor3['pc1_dom_loading'], 0.0)
+
+    def test_nitro_xor3_dom_loading_approx(self):
+        self.assertAlmostEqual(self.s_nitro_xor3['pc1_dom_loading'], -0.640, places=2)
+
+    # ── AND rule (P=1 fixed point) ────────────────────────────────────────────
+
+    def test_and_p1_total_var_zero(self):
+        self.assertEqual(self.s_mat_and['total_var'], 0.0)
+
+    def test_and_p1_orbit_rank_zero(self):
+        self.assertEqual(self.s_mat_and['orbit_rank'], 0)
+
+    def test_and_p1_pc1_var_ratio_zero(self):
+        self.assertEqual(self.s_mat_and['pc1_var_ratio'], 0.0)
+
+    def test_and_p1_period_is_1(self):
+        self.assertEqual(self.s_mat_and['period'], 1)
+
+    # ── all_pca ───────────────────────────────────────────────────────────────
+
+    def test_all_pca_four_rules(self):
+        res = self.all_pca('РАБОТА', 16)
+        for r in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(r, res)
+
+    def test_all_pca_each_is_dict(self):
+        res = self.all_pca('МАТ', 16)
+        for s in res.values():
+            self.assertIsInstance(s, dict)
+
+    # ── build_pca_data ────────────────────────────────────────────────────────
+
+    def test_build_data_has_words_key(self):
+        d = self.build_data(['МАТ'], 16)
+        self.assertIn('words', d)
+
+    def test_build_data_has_data_key(self):
+        d = self.build_data(['МАТ'], 16)
+        self.assertIn('data', d)
+
+    def test_build_data_nested(self):
+        d = self.build_data(['МАТ'], 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, d['data']['МАТ'])
+
+    # ── pca_dict ──────────────────────────────────────────────────────────────
+
+    def test_pca_dict_json_serialisable(self):
+        import json
+        pd = self.pca_dict(self.s_rabota_xor3)
+        out = json.dumps(pd)
+        self.assertIsInstance(out, str)
+
+    def test_pca_dict_all_loadings_present(self):
+        pd = self.pca_dict(self.s_rabota_xor3)
+        self.assertIn('all_loadings', pd)
+
+    def test_pca_dict_all_loadings_shape(self):
+        pd = self.pca_dict(self.s_rabota_xor3)
+        # all_loadings: P rows × N cols
+        al = pd['all_loadings']
+        self.assertEqual(len(al), self.s_rabota_xor3['period'])
+        self.assertEqual(len(al[0]), 16)
+
+    def test_pca_dict_floats_rounded(self):
+        pd = self.pca_dict(self.s_rabota_xor3)
+        evr = pd['explained_var_ratio']
+        if evr:
+            # rounded to 8 places, so no more than 8 decimal digits
+            self.assertIsInstance(evr[0], float)
+
+    # ── Viewer HTML assertions ────────────────────────────────────────────────
+
+    def test_viewer_has_pca_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pca-canvas', content)
+
+    def test_viewer_has_pca_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pcaRun', content)
+
+    def test_viewer_has_pca_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pcaOrbit', content)
+
+    def test_viewer_has_pca_compute(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pcaCompute', content)
+
+    def test_viewer_has_pca_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pca-info', content)
+
+    def test_viewer_has_solan_pca_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_pca', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

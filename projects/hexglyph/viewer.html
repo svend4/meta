@@ -15829,6 +15829,237 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Orbit PCA — Principal Components of Trajectories (solan_pca)</h2>
+<p style="color:#888;font-size:13px">
+  PCA of the P×16 orbit matrix.  Left panel: PC₁ cell loadings (orange=positive, blue=negative, ★=dominant cell).
+  Right panel: explained-variance ratio per PC.
+  <br>
+  ★ P=2 words: rank=1, PC₁=100 % — trivially 1-D orbit.
+  &nbsp;★ РАБОТА XOR3: PC₁=35.8 %, dom cell=1, loading=+0.666 (same cell as max turns in solan_run).
+  &nbsp;★ ТОННА XOR3: PC₁=52.9 % (most concentrated); ЗАВОД XOR3: 27.8 % (most spread).
+</p>
+<label style="color:#aaa">Слово:
+  <select id="pca-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="pca-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="pca-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="pca-canvas" width="660" height="280"
+  style="background:#0a0a0a;border:1px solid #222"></canvas>
+<div id="pca-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  function pcaStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function pcaOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=pcaStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=pcaStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=pcaStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  // ── power-iteration eigendecomposition of P×P Gram matrix ──────────────────
+  function matVec(A,v){
+    var P=A.length,r=[];
+    for(var i=0;i<P;i++){var s=0;for(var j=0;j<P;j++)s+=A[i][j]*v[j];r.push(s);}
+    return r;
+  }
+  function dot(u,v){var s=0;for(var i=0;i<u.length;i++)s+=u[i]*v[i];return s;}
+  function nrm(v){return Math.sqrt(dot(v,v));}
+  function nor(v){var n=nrm(v);return n>1e-20?v.map(function(x){return x/n;}):v.slice();}
+  function powerEig(A,start){
+    var v=nor(start);
+    for(var it=0;it<400;it++){
+      var vn=nor(matVec(A,v));
+      var d=0;for(var i=0;i<v.length;i++)d+=(vn[i]-v[i])*(vn[i]-v[i]);
+      v=vn; if(Math.sqrt(d)<1e-10) break;
+    }
+    return v;
+  }
+  function gramEig(G){
+    var P=G.length,vals=[],vecs=[],Ac=G.map(function(r){return r.slice();});
+    for(var k=0;k<P;k++){
+      var start=[];for(var i=0;i<P;i++)start.push(i===k?1.0:0.1*(i+1)/P);
+      var u=powerEig(Ac,start);
+      var lam=Math.max(0,dot(u,matVec(Ac,u)));
+      vals.push(lam); vecs.push(u);
+      for(var i=0;i<P;i++)for(var j=0;j<P;j++)Ac[i][j]-=lam*u[i]*u[j];
+    }
+    var pairs=vals.map(function(v,i){return[v,vecs[i]];});
+    pairs.sort(function(a,b){return b[0]-a[0];});
+    return {vals:pairs.map(function(p){return p[0];}),vecs:pairs.map(function(p){return p[1];})};
+  }
+
+  function pcaCompute(orbit){
+    var P=orbit.length,N=orbit[0].length;
+    if(P<2) return null;
+    // centred matrix
+    var mean=[];
+    for(var i=0;i<N;i++){var s=0;for(var t=0;t<P;t++)s+=orbit[t][i];mean.push(s/P);}
+    var X=orbit.map(function(row,t){return row.map(function(v,i){return v-mean[i];});});
+    // Gram matrix G[t1][t2] = <X[t1],X[t2]>/P
+    var G=[];
+    for(var t1=0;t1<P;t1++){
+      var row=[];
+      for(var t2=0;t2<P;t2++){var s=0;for(var i=0;i<N;i++)s+=X[t1][i]*X[t2][i];row.push(s/P);}
+      G.push(row);
+    }
+    var eig=gramEig(G);
+    var vals=eig.vals,uvecs=eig.vecs;
+    var totalVar=vals.reduce(function(a,v){return a+v;},0);
+    var evr=vals.map(function(v){return totalVar>1e-20?v/totalVar:0;});
+    // PC1 cell loadings
+    var uk=uvecs[0];
+    var vk=[];
+    for(var i=0;i<N;i++){var s=0;for(var t=0;t<P;t++)s+=X[t][i]*uk[t];vk.push(s);}
+    var nm=Math.sqrt(vk.reduce(function(a,v){return a+v*v;},0));
+    if(nm>1e-20) vk=vk.map(function(v){return v/nm;});
+    var rnk=vals.filter(function(v){return v>0.01*totalVar/Math.max(P,1);}).length;
+    return {evr:evr,pc1:vk,rank:rnk,totalVar:totalVar};
+  }
+
+  function pcaRun(){
+    var word=(document.getElementById('pca-word').value||'РАБОТА').toUpperCase();
+    var rule=document.getElementById('pca-rule').value;
+    var cv=document.getElementById('pca-canvas');
+    var ctx=cv.getContext('2d');
+    var W=cv.width,H=cv.height;
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
+
+    if(!window.encL||!window.padL){
+      document.getElementById('pca-info').textContent='(данные не загружены)'; return;
+    }
+    var lw=window.LEXW||16;
+    var raw=window.encL(word);
+    if(!raw||!raw.length){document.getElementById('pca-info').textContent='(нет символов)';return;}
+    var ic=window.padL(raw,lw);
+    var orbit=pcaOrbit(ic,rule);
+    var res=pcaCompute(orbit);
+
+    if(!res){
+      ctx.fillStyle='#666'; ctx.font='13px monospace';
+      ctx.fillText('Fixed point (P=1): no temporal variance',20,H/2);
+      document.getElementById('pca-info').textContent='P=1: no variance';
+      return;
+    }
+
+    var N=16;
+    // ── Left panel: PC₁ cell loadings centred bar chart ────────────────────
+    var leftW=320,cellH=Math.floor((H-44)/N)-1,topY=30;
+    var maxAbs=Math.max.apply(null,res.pc1.map(function(v){return Math.abs(v);}));
+    if(maxAbs<1e-10) maxAbs=1;
+    var halfBar=(leftW-80)/2,midX=60+halfBar;
+
+    ctx.fillStyle='#666'; ctx.font='11px monospace'; ctx.textAlign='left';
+    ctx.fillText('PC\u2081 loadings  (\u25c4neg | pos\u25ba)',8,16);
+    ctx.fillStyle='#282828'; ctx.fillRect(midX,topY-2,1,(N)*(cellH+1)+4);
+
+    for(var i=0;i<N;i++){
+      var y=topY+i*(cellH+1);
+      var v=res.pc1[i];
+      var frac=Math.abs(v)/maxAbs;
+      var filled=Math.max(1,Math.round(frac*halfBar));
+      var isMax=Math.abs(Math.abs(v)-maxAbs)<0.01;
+      // cell label
+      ctx.fillStyle='#555'; ctx.font='10px monospace'; ctx.textAlign='right';
+      ctx.fillText(i,midX-halfBar-4,y+cellH-1);
+      // bar
+      if(Math.abs(v)>0.01){
+        if(v>0){
+          ctx.fillStyle=isMax?'#ff9900':'#b36200';
+          ctx.fillRect(midX+1,y,filled,cellH);
+        } else {
+          ctx.fillStyle=isMax?'#4fc3f7':'#1a6a9f';
+          ctx.fillRect(midX-filled,y,filled,cellH);
+        }
+      }
+      // ★ dominant cell marker
+      if(isMax){
+        ctx.fillStyle='#ff9900'; ctx.font='bold 10px monospace'; ctx.textAlign='left';
+        ctx.fillText('\u2605',midX+filled+3,y+cellH-1);
+      }
+    }
+
+    // ── Right panel: EVR bar chart ──────────────────────────────────────────
+    var rightX=340,rightW=W-rightX-10;
+    ctx.fillStyle='#666'; ctx.font='11px monospace'; ctx.textAlign='left';
+    ctx.fillText('Explained Variance Ratio per PC',rightX,16);
+
+    var numPCs=res.evr.length;
+    var pcH=Math.floor((H-44)/numPCs)-1;
+    var maxEvr=Math.max.apply(null,res.evr);
+
+    for(var k=0;k<numPCs;k++){
+      var ky=topY+k*(pcH+1);
+      var e=res.evr[k];
+      var bw=Math.round(e/Math.max(maxEvr,0.001)*(rightW-80));
+      var col=k===0?'#ff9900':(e>0.05?'#665533':'#2a2a2a');
+      if(bw>0){ctx.fillStyle=col; ctx.fillRect(rightX,ky,bw,pcH);}
+      ctx.fillStyle=k===0?'#ffbb44':(e>0.05?'#aaa':'#444');
+      ctx.font=(k===0?'bold ':'')+'11px monospace'; ctx.textAlign='left';
+      ctx.fillText('PC'+(k+1)+' '+(e*100).toFixed(1)+'%',rightX+bw+4,ky+pcH-1);
+    }
+
+    // ── Info bar ───────────────────────────────────────────────────────────
+    var dom=res.pc1.reduce(function(mx,v,i){return Math.abs(v)>Math.abs(res.pc1[mx])?i:mx;},0);
+    document.getElementById('pca-info').textContent=
+      'word='+word+'  rule='+rule+'  P='+orbit.length+
+      '  rank='+res.rank+'  PC\u2081='+( res.evr[0]*100).toFixed(1)+
+      '%  dom cell='+dom+'  load='+(res.pc1[dom]>=0?'+':'')+res.pc1[dom].toFixed(3);
+  }
+
+  (function(){
+    var sel=document.getElementById('pca-word');
+    var words=window.LEXICON_ARR||['РАБОТА','МАТ','ТОННА','ЗАВОД'];
+    words.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='РАБОТА') o.selected=true;
+      sel.appendChild(o);
+    });
+  })();
+
+  document.getElementById('pca-btn').addEventListener('click',pcaRun);
+  document.getElementById('pca-word').addEventListener('change',pcaRun);
+  document.getElementById('pca-rule').addEventListener('change',pcaRun);
+  setTimeout(function(){if(window.encL&&window.LEXICON_ARR) pcaRun();},13000);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
