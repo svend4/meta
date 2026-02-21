@@ -5986,6 +5986,275 @@ class TestSolanCoarse(unittest.TestCase):
         self.assertIn('Огрубление Q6', content)
 
 
+class TestSolanActive(unittest.TestCase):
+    """Tests for solan_active.py and the viewer AIS section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import (
+            cell_seqs, h_ngrams, ais_k,
+            ais_profile, cell_ais_k,
+            ais_dict, all_ais, build_ais_data,
+        )
+        cls.cell_seqs      = staticmethod(cell_seqs)
+        cls.h_ngrams       = staticmethod(h_ngrams)
+        cls.ais_k          = staticmethod(ais_k)
+        cls.ais_profile    = staticmethod(ais_profile)
+        cls.cell_ais_k     = staticmethod(cell_ais_k)
+        cls.ais_dict       = staticmethod(ais_dict)
+        cls.all_ais        = staticmethod(all_ais)
+        cls.build_ais_data = staticmethod(build_ais_data)
+
+    # ── h_ngrams ──────────────────────────────────────────────────────────────
+
+    def test_h_ngrams_constant_zero(self):
+        seqs = [[0, 0, 0, 0]]
+        self.assertAlmostEqual(self.h_ngrams(seqs, 1), 0.0)
+
+    def test_h_ngrams_alternating_1gram(self):
+        seqs = [[0, 1, 0, 1]]
+        self.assertAlmostEqual(self.h_ngrams(seqs, 1), 1.0, places=6)
+
+    def test_h_ngrams_alternating_2gram(self):
+        """Alternating [0,1]: bigrams (0,1) and (1,0) each p=0.5 → H=1."""
+        seqs = [[0, 1, 0, 1]]
+        self.assertAlmostEqual(self.h_ngrams(seqs, 2), 1.0, places=6)
+
+    def test_h_ngrams_nonneg(self):
+        """Entropy is always ≥ 0."""
+        for seqs in [[[0, 0]], [[1, 1, 1]], [[0, 1, 0, 1, 1]]]:
+            self.assertGreaterEqual(self.h_ngrams(seqs, 1), 0.0)
+
+    def test_h_ngrams_empty_seqs(self):
+        self.assertEqual(self.h_ngrams([], 1), 0.0)
+
+    def test_h_ngrams_h2_ge_h1(self):
+        """H_2 >= H_1 (more context → more bits, generally)."""
+        seqs = [[0, 1, 0, 0, 1, 1, 0, 1]]
+        h1 = self.h_ngrams(seqs, 1)
+        h2 = self.h_ngrams(seqs, 2)
+        self.assertGreaterEqual(h2, h1 - 1e-9)
+
+    # ── ais_k ────────────────────────────────────────────────────────────────
+
+    def test_ais_k_constant_seq(self):
+        """Constant sequence has H1=0 → AIS=0."""
+        seqs = [[0, 0, 0, 0, 0, 0, 0, 0]]
+        self.assertAlmostEqual(self.ais_k(seqs, 1), 0.0)
+        self.assertAlmostEqual(self.ais_k(seqs, 2), 0.0)
+
+    def test_ais_k_alternating_k1(self):
+        """Per-cell alternating [0,1]: AIS_1 = H1 - (H2-H1) = 1-(1-1) = 1."""
+        seqs = [[0, 1, 0, 1, 0, 1, 0, 1]]
+        self.assertAlmostEqual(self.ais_k(seqs, 1), 1.0, places=6)
+
+    def test_ais_k_alternating_k2(self):
+        """Alternating: AIS_2 = H1 - (H3-H2) = 1-(1-1) = 1."""
+        seqs = [[0, 1, 0, 1, 0, 1, 0, 1]]
+        self.assertAlmostEqual(self.ais_k(seqs, 2), 1.0, places=6)
+
+    def test_ais_k_nonneg(self):
+        """AIS is always ≥ 0."""
+        for k in [1, 2, 3]:
+            v = self.ais_k([[0, 1, 0, 0, 1, 1, 0, 1]], k)
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_ais_k_le_h1(self):
+        """AIS ≤ H1."""
+        seqs = [[0, 1, 0, 0, 1, 1, 0, 1]]
+        h1 = self.h_ngrams(seqs, 1)
+        for k in [1, 2, 3]:
+            self.assertLessEqual(self.ais_k(seqs, k), h1 + 1e-9)
+
+    # ── cell_seqs ─────────────────────────────────────────────────────────────
+
+    def test_cell_seqs_width(self):
+        seqs = self.cell_seqs('ТУМАН', 'xor3')
+        self.assertEqual(len(seqs), 16)
+
+    def test_cell_seqs_binary(self):
+        seqs = self.cell_seqs('ТУМАН', 'xor3')
+        for s in seqs:
+            for v in s:
+                self.assertIn(v, (0, 1))
+
+    def test_cell_seqs_equal_lengths(self):
+        """All temporal sequences have the same length (orbit period)."""
+        seqs = self.cell_seqs('ТУМАН', 'xor3')
+        lengths = [len(s) for s in seqs]
+        self.assertEqual(len(set(lengths)), 1)
+
+    def test_cell_seqs_xor_h1_zero(self):
+        """XOR ТУМАН has fixed-point attractor → H1=0 for all cells."""
+        seqs = self.cell_seqs('ТУМАН', 'xor')
+        h1 = self.h_ngrams(seqs, 1)
+        self.assertAlmostEqual(h1, 0.0)
+
+    # ── ais_profile ───────────────────────────────────────────────────────────
+
+    def test_ais_profile_length(self):
+        p = self.ais_profile('ТУМАН', 'xor3', max_k=6)
+        self.assertEqual(len(p), 6)
+
+    def test_ais_profile_nonneg(self):
+        p = self.ais_profile('ТУМАН', 'xor3', max_k=4)
+        for v in p:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_ais_profile_xor_all_zero(self):
+        """XOR ТУМАН fixed-point: all AIS = 0."""
+        p = self.ais_profile('ТУМАН', 'xor', max_k=4)
+        for v in p:
+            self.assertAlmostEqual(v, 0.0)
+
+    def test_ais_profile_xor3_nondecreasing(self):
+        """XOR3 ТУМАН: AIS profile generally non-decreasing (more memory helps)."""
+        p = self.ais_profile('ТУМАН', 'xor3', max_k=6)
+        for i in range(len(p) - 1):
+            self.assertGreaterEqual(p[i + 1] + 1e-6, p[i])
+
+    # ── cell_ais_k ────────────────────────────────────────────────────────────
+
+    def test_cell_ais_k_length(self):
+        c = self.cell_ais_k('ТУМАН', 'xor3', k=2)
+        self.assertEqual(len(c), 16)
+
+    def test_cell_ais_k_range(self):
+        c = self.cell_ais_k('ТУМАН', 'xor3', k=2)
+        for v in c:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0 + 1e-9)
+
+    def test_cell_ais_k_xor_zero(self):
+        """XOR ТУМАН fixed-point: per-cell AIS = 0."""
+        c = self.cell_ais_k('ТУМАН', 'xor', k=2)
+        for v in c:
+            self.assertAlmostEqual(v, 0.0)
+
+    def test_cell_ais_k_and_gora_perfect(self):
+        """ГОРА AND period-2 alternating: per-cell AIS_1 = 1.0."""
+        c = self.cell_ais_k('ГОРА', 'and', k=1)
+        for v in c:
+            self.assertAlmostEqual(v, 1.0, places=5)
+
+    # ── ais_dict ──────────────────────────────────────────────────────────────
+
+    def test_ais_dict_keys(self):
+        d = self.ais_dict('ТУМАН', 'xor3')
+        for key in ('word', 'rule', 'max_k', 'h1',
+                    'ais_profile', 'ais_1', 'ais_2',
+                    'cell_ais', 'total_ais', 'mean_ais',
+                    'max_cell_ais', 'min_cell_ais', 'ais_frac'):
+            self.assertIn(key, d)
+
+    def test_ais_dict_word_upper(self):
+        d = self.ais_dict('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_ais_dict_profile_length(self):
+        d = self.ais_dict('ТУМАН', 'xor3', max_k=4)
+        self.assertEqual(len(d['ais_profile']), 4)
+
+    def test_ais_dict_ais1_matches_profile(self):
+        d = self.ais_dict('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['ais_1'], d['ais_profile'][0], places=6)
+
+    def test_ais_dict_ais2_matches_profile(self):
+        d = self.ais_dict('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['ais_2'], d['ais_profile'][1], places=6)
+
+    def test_ais_dict_xor_h1_zero(self):
+        d = self.ais_dict('ТУМАН', 'xor')
+        self.assertAlmostEqual(d['h1'], 0.0)
+
+    def test_ais_dict_xor3_h1_positive(self):
+        d = self.ais_dict('ТУМАН', 'xor3')
+        self.assertGreater(d['h1'], 0.0)
+
+    def test_ais_dict_xor3_ais2_positive(self):
+        d = self.ais_dict('ТУМАН', 'xor3')
+        self.assertGreater(d['ais_2'], 0.0)
+
+    def test_ais_dict_frac_in_unit(self):
+        d = self.ais_dict('ТУМАН', 'xor3')
+        self.assertGreaterEqual(d['ais_frac'], 0.0)
+        self.assertLessEqual(d['ais_frac'], 1.0 + 1e-6)
+
+    def test_ais_dict_gora_xor3_ais2_perfect(self):
+        """ГОРА XOR3: pooled AIS_2 = H1 = 1.0 (period-2 mixed cells)."""
+        d = self.ais_dict('ГОРА', 'xor3')
+        self.assertAlmostEqual(d['h1'], 1.0, places=5)
+        self.assertAlmostEqual(d['ais_2'], 1.0, places=5)
+        self.assertAlmostEqual(d['ais_frac'], 1.0, places=5)
+
+    def test_ais_dict_gora_xor3_ais1_zero(self):
+        """ГОРА XOR3: pooled AIS_1 = 0 (1-gram context uninformative)."""
+        d = self.ais_dict('ГОРА', 'xor3')
+        self.assertAlmostEqual(d['ais_1'], 0.0, places=5)
+
+    def test_ais_dict_cell_ais_length(self):
+        d = self.ais_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['cell_ais']), 16)
+
+    # ── all_ais ───────────────────────────────────────────────────────────────
+
+    def test_all_ais_rules(self):
+        d = self.all_ais('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_ais_each_valid(self):
+        d = self.all_ais('ГОРА')
+        for rule, ad in d.items():
+            self.assertIn('ais_profile', ad)
+
+    # ── build_ais_data ────────────────────────────────────────────────────────
+
+    def test_bad_keys(self):
+        d = self.build_ais_data(['ГОРА', 'ВОДА'], max_k=2)
+        for key in ('words', 'max_k', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_bad_per_rule_has_all_rules(self):
+        d = self.build_ais_data(['ГОРА'], max_k=2)
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_bad_word_entry_keys(self):
+        d = self.build_ais_data(['ГОРА'], max_k=2)
+        entry = d['per_rule']['xor3']['ГОРА']
+        for key in ('h1', 'ais_2', 'ais_frac', 'mean_ais'):
+            self.assertIn(key, entry)
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_ais_profile_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ais-profile', content)
+
+    def test_viewer_has_ais_cell_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ais-cell', content)
+
+    def test_viewer_has_ais_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ais-stats', content)
+
+    def test_viewer_has_ais_h_ngrams(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('aisHNgrams', content)
+
+    def test_viewer_has_ais_k_func(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('aisK', content)
+
+    def test_viewer_has_ais_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('aisRun', content)
+
+    def test_viewer_has_ais_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Active Information Storage', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

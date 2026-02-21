@@ -7159,6 +7159,195 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Active Information Storage Q6 — локальная память клетки</h2>
+<p class="meta">AIS(k) = MI(X_{t+1} ; X_t,…,X_{t-k+1}) = H₁ − (H_{k+1} − H_k) · мера того, сколько собственного прошлого клетки определяет её будущее · AIS=0 означает отсутствие памяти, AIS=H₁ — идеальная предсказуемость</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="ais-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="ais-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="ais-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="ais-profile" width="530" height="220"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="ais-cell"    width="530" height="100"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="ais-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA helpers ─────────────────────────────────────────────────── */
+  function aisStep(cells,rule){
+    var n=cells.length,out=[];
+    for(var i=0;i<n;i++){
+      var l=cells[(i-1+n)%n],c=cells[i],r=cells[(i+1)%n];
+      if(rule==='xor') out.push((l^r)&63);
+      else if(rule==='xor3') out.push((l^c^r)&63);
+      else if(rule==='and') out.push((l&r)&63);
+      else out.push((l|r)&63);
+    }
+    return out;
+  }
+  function aisOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=aisStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){
+          grid.push(cur.map(function(v){return v>=32?1:0;}));
+          cur=aisStep(cur,rule);
+        }
+        return grid;
+      }
+      seen[key]=t++;
+      cur=aisStep(cur,rule);
+    }
+    return [ic.map(function(v){return v>=32?1:0;})];
+  }
+  /* ── AIS computation ────────────────────────────────────────────────── */
+  function aisHNgrams(seqs,n){
+    var counts={},total=0;
+    for(var si=0;si<seqs.length;si++){
+      var s=seqs[si],m=s.length;
+      for(var t=0;t<m;t++){
+        var gram=[];
+        for(var j=0;j<n;j++) gram.push(s[(t+j)%m]);
+        var k=gram.join('');
+        counts[k]=(counts[k]||0)+1;
+        total++;
+      }
+    }
+    if(!total) return 0;
+    var h=0;
+    for(var k in counts){var p=counts[k]/total; h-=p*Math.log2(p);}
+    return Math.max(0,h);
+  }
+  function aisK(seqs,k){
+    var h1=aisHNgrams(seqs,1),hk=aisHNgrams(seqs,k),hk1=aisHNgrams(seqs,k+1);
+    return Math.max(0,Math.min(h1-(hk1-hk),h1));
+  }
+  /* ── Main render ────────────────────────────────────────────────────── */
+  function aisRun(){
+    var word=(document.getElementById('ais-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('ais-rule').value||'xor3';
+    var MAX_K=6;
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var grid=aisOrbit(ic,rule);
+    var P=grid.length;
+    if(!P) return;
+    var N=grid[0].length;
+    /* Build pooled temporal seqs */
+    var seqs=[];
+    for(var i=0;i<N;i++){
+      var s=[];
+      for(var t=0;t<P;t++) s.push(grid[t][i]);
+      seqs.push(s);
+    }
+    var h1=aisHNgrams(seqs,1);
+    var profile=[];
+    for(var k=1;k<=MAX_K;k++) profile.push(aisK(seqs,k));
+    /* Per-cell AIS(k=2) */
+    var cellA=[];
+    for(var i=0;i<N;i++){
+      var s=[];
+      for(var t=0;t<P;t++) s.push(grid[t][i]);
+      cellA.push(aisK([s],2));
+    }
+    var ais2=profile[1]||0;
+    var frac=h1>0?ais2/h1:0;
+    var meanA=cellA.reduce(function(a,b){return a+b;},0)/N;
+    /* ── Profile bar chart ─────────────────────────────────────────── */
+    var pc=document.getElementById('ais-profile');
+    var cx=pc.getContext('2d');
+    var W=pc.width,H=pc.height;
+    cx.fillStyle='#0d0d0d'; cx.fillRect(0,0,W,H);
+    var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    var col=RCOL[rule]||'#4fc3f7';
+    var BAR_W=58,BAR_GAP=10,X0=60,MAX_HB=H-60;
+    /* H1 dashed line */
+    cx.strokeStyle='#555'; cx.setLineDash([4,4]);
+    var h1y=H-40-h1*MAX_HB;
+    cx.beginPath(); cx.moveTo(X0-5,h1y); cx.lineTo(W-10,h1y); cx.stroke();
+    cx.setLineDash([]);
+    cx.fillStyle='#666'; cx.font='10px monospace';
+    cx.fillText('H₁='+h1.toFixed(3),2,h1y+3);
+    /* bars */
+    for(var k=0;k<MAX_K;k++){
+      var bx=X0+k*(BAR_W+BAR_GAP);
+      var bh=profile[k]*MAX_HB;
+      cx.globalAlpha=0.25+0.75*(h1>0?profile[k]/h1:0);
+      cx.fillStyle=col; cx.fillRect(bx,H-40-bh,BAR_W,bh);
+      cx.globalAlpha=1; cx.strokeStyle=col;
+      cx.strokeRect(bx,H-40-bh,BAR_W,bh);
+      cx.fillStyle='#aaa'; cx.font='11px monospace'; cx.textAlign='center';
+      cx.fillText('k='+(k+1),bx+BAR_W/2,H-25);
+      if(profile[k]>0.005)
+        cx.fillText(profile[k].toFixed(3),bx+BAR_W/2,H-40-bh-5);
+    }
+    cx.textAlign='left';
+    /* ── Per-cell heatmap ──────────────────────────────────────────── */
+    var hc=document.getElementById('ais-cell');
+    var hx=hc.getContext('2d');
+    var CW=hc.width,CH=hc.height;
+    hx.fillStyle='#0d0d0d'; hx.fillRect(0,0,CW,CH);
+    var CellW=Math.floor((CW-44)/N);
+    for(var i=0;i<N;i++){
+      var v=cellA[i];
+      var intensity=h1>0?v/h1:(v>0?1:0);
+      var g=Math.round(intensity*160+50),b=Math.round(200-intensity*80);
+      hx.fillStyle='rgba(80,'+g+','+b+',0.85)';
+      hx.fillRect(42+i*CellW,10,CellW-2,CH-34);
+      hx.fillStyle='#ccc'; hx.font='8px monospace'; hx.textAlign='center';
+      hx.fillText(i,42+i*CellW+CellW/2,CH-4);
+      hx.fillStyle='#fff'; hx.font='8px monospace';
+      hx.fillText(v.toFixed(2),42+i*CellW+CellW/2,CH-18);
+    }
+    hx.fillStyle='#777'; hx.textAlign='left'; hx.font='9px monospace';
+    hx.fillText('AIS\nk=2',2,CH/2);
+    /* Stats */
+    document.getElementById('ais-stats').innerHTML=
+      'H₁='+h1.toFixed(4)+
+      '  AIS(1)='+(profile[0]||0).toFixed(4)+
+      '  AIS(2)='+ais2.toFixed(4)+
+      '  frac='+frac.toFixed(3)+
+      '  mean_cell='+meanA.toFixed(4)+
+      '  P='+P;
+  }
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('ais-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='ТУМАН') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('ais-btn');
+    var wordEl=document.getElementById('ais-word');
+    var ruleEl=document.getElementById('ais-rule');
+    if(btn)    btn.addEventListener('click',aisRun);
+    if(wordEl) wordEl.addEventListener('change',aisRun);
+    if(ruleEl) ruleEl.addEventListener('change',aisRun);
+    setTimeout(function(){if(window.encL) aisRun();},1500);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
