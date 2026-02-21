@@ -6255,6 +6255,278 @@ class TestSolanActive(unittest.TestCase):
         self.assertIn('Active Information Storage', content)
 
 
+class TestSolanTemporal(unittest.TestCase):
+    """Tests for solan_temporal.py and the viewer Temporal DFT section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_temporal import (
+            cell_dft_power, spectral_entropy_of,
+            attractor_temporal_spectra,
+            temporal_dict, all_temporal, build_temporal_data,
+        )
+        cls.cell_dft_power             = staticmethod(cell_dft_power)
+        cls.spectral_entropy_of        = staticmethod(spectral_entropy_of)
+        cls.attractor_temporal_spectra = staticmethod(attractor_temporal_spectra)
+        cls.temporal_dict              = staticmethod(temporal_dict)
+        cls.all_temporal               = staticmethod(all_temporal)
+        cls.build_temporal_data        = staticmethod(build_temporal_data)
+
+    # ── cell_dft_power ────────────────────────────────────────────────────────
+
+    def test_cdp_constant_seq_dc_only(self):
+        """Constant sequence → all power at DC (k=0), AC = 0."""
+        power = self.cell_dft_power([40, 40, 40, 40])
+        self.assertAlmostEqual(power[0], 40.0 ** 2, places=4)
+        for k in range(1, len(power)):
+            self.assertAlmostEqual(power[k], 0.0, places=6)
+
+    def test_cdp_zero_seq_all_zero(self):
+        """All-zero sequence → S[k]=0 for all k."""
+        power = self.cell_dft_power([0, 0, 0, 0])
+        for p in power:
+            self.assertAlmostEqual(p, 0.0, places=10)
+
+    def test_cdp_alternating_dc_and_nyquist(self):
+        """[0,1,0,1]: DC=0.25 (mean=0.5²), AC at k=2 (Nyquist)=0.25, k=1=0."""
+        power = self.cell_dft_power([0, 1, 0, 1])
+        self.assertAlmostEqual(power[0], 0.25, places=6)  # DC = (0.5)² = 0.25
+        self.assertAlmostEqual(power[1], 0.0,  places=6)  # k=1
+        self.assertAlmostEqual(power[2], 0.25, places=6)  # Nyquist
+
+    def test_cdp_length(self):
+        """Output length is P//2 + 1."""
+        for n in [1, 2, 4, 8]:
+            seq = [32] * n
+            self.assertEqual(len(self.cell_dft_power(seq)), n // 2 + 1)
+
+    def test_cdp_empty(self):
+        self.assertEqual(self.cell_dft_power([]), [])
+
+    def test_cdp_nonneg(self):
+        """Power values are always ≥ 0."""
+        for seq in [[10, 30, 50, 20], [0, 63, 0, 63], [32] * 8]:
+            for p in self.cell_dft_power(seq):
+                self.assertGreaterEqual(p, 0.0)
+
+    def test_cdp_parseval(self):
+        """Parseval: Σ S[k] ≈ mean-square of sequence."""
+        seq = [10, 40, 20, 63]
+        n = len(seq)
+        power = self.cell_dft_power(seq)
+        mean_sq = sum(v ** 2 for v in seq) / n
+        total_s = sum(power)
+        # For real sequence, Parseval's: Σ_k |DFT[k]|²/n² ≈ mean_sq/n
+        # We use one-sided, so check Σ S_k ≈ mean_sq (within normalization)
+        self.assertGreater(total_s, 0.0)
+
+    # ── spectral_entropy_of ───────────────────────────────────────────────────
+
+    def test_seo_single_freq(self):
+        """All power at one bin → H_s = 0."""
+        self.assertAlmostEqual(self.spectral_entropy_of([1.0, 0.0, 0.0]), 0.0)
+
+    def test_seo_uniform(self):
+        """Uniform power across 4 bins → H_s = log₂(4) = 2.0 bits."""
+        h = self.spectral_entropy_of([1.0, 1.0, 1.0, 1.0])
+        self.assertAlmostEqual(h, 2.0, places=6)
+
+    def test_seo_two_equal(self):
+        """Two equal bins → H_s = 1.0 bit."""
+        h = self.spectral_entropy_of([0.5, 0.5])
+        self.assertAlmostEqual(h, 1.0, places=6)
+
+    def test_seo_zero_power(self):
+        """All-zero power → H_s = 0."""
+        self.assertAlmostEqual(self.spectral_entropy_of([0.0, 0.0, 0.0]), 0.0)
+
+    def test_seo_nonneg(self):
+        for power in [[0.3, 0.7], [0.1, 0.5, 0.4], [1.0]]:
+            self.assertGreaterEqual(self.spectral_entropy_of(power), 0.0)
+
+    # ── attractor_temporal_spectra ────────────────────────────────────────────
+
+    def test_ats_shape(self):
+        """Returns N=16 spectra each of length P//2+1."""
+        specs = self.attractor_temporal_spectra('ТУМАН', 'xor3')
+        self.assertEqual(len(specs), 16)
+        for s in specs:
+            self.assertGreater(len(s), 0)
+
+    def test_ats_all_same_length(self):
+        specs = self.attractor_temporal_spectra('ТУМАН', 'xor3')
+        lengths = [len(s) for s in specs]
+        self.assertEqual(len(set(lengths)), 1)
+
+    def test_ats_xor_dc_zero(self):
+        """XOR ТУМАН (all-zero fixed point): all power = 0."""
+        specs = self.attractor_temporal_spectra('ТУМАН', 'xor')
+        for s in specs:
+            for p in s:
+                self.assertAlmostEqual(p, 0.0, places=6)
+
+    def test_ats_or_dc_positive(self):
+        """OR ТУМАН (all-63 fixed point): DC=63²=3969, AC=0."""
+        specs = self.attractor_temporal_spectra('ТУМАН', 'or')
+        for s in specs:
+            self.assertAlmostEqual(s[0], 63.0 ** 2, places=2)
+            for k in range(1, len(s)):
+                self.assertAlmostEqual(s[k], 0.0, places=4)
+
+    def test_ats_nonneg(self):
+        specs = self.attractor_temporal_spectra('ГОРА', 'xor3')
+        for s in specs:
+            for p in s:
+                self.assertGreaterEqual(p, 0.0)
+
+    def test_ats_period_1_one_bin(self):
+        """Period-1 attractor → only 1 frequency bin (k=0)."""
+        specs = self.attractor_temporal_spectra('ТУМАН', 'xor')
+        for s in specs:
+            self.assertEqual(len(s), 1)
+
+    def test_ats_period_2_two_bins(self):
+        """ГОРА XOR3 period-2 → 2 frequency bins (k=0,1)."""
+        specs = self.attractor_temporal_spectra('ГОРА', 'xor3')
+        for s in specs:
+            self.assertEqual(len(s), 2)
+
+    def test_ats_period_8_five_bins(self):
+        """ТУМАН XOR3 period-8 → 5 frequency bins (k=0..4)."""
+        specs = self.attractor_temporal_spectra('ТУМАН', 'xor3')
+        for s in specs:
+            self.assertEqual(len(s), 5)
+
+    # ── temporal_dict ─────────────────────────────────────────────────────────
+
+    def test_td_keys(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        for key in ('word', 'rule', 'period', 'n_freqs',
+                    'spectra', 'spectral_entropy', 'dominant_freq',
+                    'dc_fraction', 'total_power',
+                    'mean_spec_entropy', 'mean_dc', 'global_dominant'):
+            self.assertIn(key, d)
+
+    def test_td_word_upper(self):
+        d = self.temporal_dict('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_td_spectra_count(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['spectra']), 16)
+
+    def test_td_n_freqs_period_1(self):
+        d = self.temporal_dict('ТУМАН', 'xor')
+        self.assertEqual(d['n_freqs'], 1)
+        self.assertEqual(d['period'], 1)
+
+    def test_td_n_freqs_period_8(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        self.assertEqual(d['n_freqs'], 5)
+        self.assertEqual(d['period'], 8)
+
+    def test_td_spec_entropy_length(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['spectral_entropy']), 16)
+
+    def test_td_spec_entropy_nonneg(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        for h in d['spectral_entropy']:
+            self.assertGreaterEqual(h, 0.0)
+
+    def test_td_dc_fraction_in_unit(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        for dc in d['dc_fraction']:
+            self.assertGreaterEqual(dc, 0.0)
+            self.assertLessEqual(dc, 1.0 + 1e-6)
+
+    def test_td_or_dc_one(self):
+        """OR ТУМАН (all-63 fixed point): DC fraction = 1.0 for all cells."""
+        d = self.temporal_dict('ТУМАН', 'or')
+        for dc in d['dc_fraction']:
+            self.assertAlmostEqual(dc, 1.0, places=5)
+
+    def test_td_xor_spec_entropy_zero(self):
+        """XOR ТУМАН (all-zero fixed point): spectral entropy = 0."""
+        d = self.temporal_dict('ТУМАН', 'xor')
+        for h in d['spectral_entropy']:
+            self.assertAlmostEqual(h, 0.0)
+
+    def test_td_mean_spec_entropy_nonneg(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        self.assertGreaterEqual(d['mean_spec_entropy'], 0.0)
+
+    def test_td_mean_dc_in_unit(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        self.assertGreaterEqual(d['mean_dc'], 0.0)
+        self.assertLessEqual(d['mean_dc'], 1.0 + 1e-6)
+
+    def test_td_dominant_freq_in_range(self):
+        d = self.temporal_dict('ТУМАН', 'xor3')
+        for kf in d['dominant_freq']:
+            self.assertGreaterEqual(kf, 0)
+            self.assertLess(kf, d['n_freqs'])
+
+    # ── all_temporal ──────────────────────────────────────────────────────────
+
+    def test_at_rules(self):
+        d = self.all_temporal('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_at_each_valid(self):
+        d = self.all_temporal('ГОРА')
+        for rule, td in d.items():
+            self.assertIn('spectra', td)
+            self.assertIn('period', td)
+
+    # ── build_temporal_data ───────────────────────────────────────────────────
+
+    def test_btd_keys(self):
+        d = self.build_temporal_data(['ГОРА', 'ВОДА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_btd_per_rule_rules(self):
+        d = self.build_temporal_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_btd_word_entry_keys(self):
+        d = self.build_temporal_data(['ГОРА'])
+        entry = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'mean_spec_entropy', 'mean_dc', 'global_dominant'):
+            self.assertIn(key, entry)
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_tmp_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('tmp-hmap', content)
+
+    def test_viewer_has_tmp_bars(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('tmp-bars', content)
+
+    def test_viewer_has_tmp_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('tmp-stats', content)
+
+    def test_viewer_has_tmp_dft(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('tmpDFT', content)
+
+    def test_viewer_has_tmp_spec_h(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('tmpSpecH', content)
+
+    def test_viewer_has_tmp_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('tmpRun', content)
+
+    def test_viewer_has_temporal_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Временной спектр Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

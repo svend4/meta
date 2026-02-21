@@ -7348,6 +7348,189 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Временной спектр Q6 — ДПФ по клеткам (аттрактор)</h2>
+<p class="meta">Для каждой клетки i вычисляется ДПФ временного ряда x_i(0)…x_i(P−1) на аттракторе · S[k] = |ДПФ[k]|²/P² · k=0: постоянная составляющая (DC) · k=1…P/2: осцилляции с периодом P/k шагов · H_s = −Σ p_k log₂ p_k — спектральная энтропия клетки</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="tmp-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="tmp-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="tmp-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="tmp-hmap" width="530" height="230"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="tmp-bars" width="530" height="90"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="tmp-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA step (Q6 values, not binary) ───────────────────────────── */
+  function tmpStep(cells,rule){
+    var n=cells.length,out=[];
+    for(var i=0;i<n;i++){
+      var l=cells[(i-1+n)%n],c=cells[i],r=cells[(i+1)%n];
+      if(rule==='xor') out.push((l^r)&63);
+      else if(rule==='xor3') out.push((l^c^r)&63);
+      else if(rule==='and') out.push((l&r)&63);
+      else out.push((l|r)&63);
+    }
+    return out;
+  }
+  function tmpOrbit(ic,rule){
+    /* Returns P×N Q6 attractor grid */
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=tmpStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.slice()); cur=tmpStep(cur,rule);}
+        return {grid:grid,period:period};
+      }
+      seen[key]=t++; cur=tmpStep(cur,rule);
+    }
+    return {grid:[ic.slice()],period:1};
+  }
+  /* ── DFT ─────────────────────────────────────────────────────────── */
+  function tmpDFT(seq){
+    var n=seq.length;
+    if(!n) return [];
+    var power=[], tpn=2*Math.PI/n;
+    for(var k=0;k<=(n>>1);k++){
+      var re=0,im=0;
+      for(var j=0;j<n;j++){var a=-tpn*k*j; re+=seq[j]*Math.cos(a); im+=seq[j]*Math.sin(a);}
+      power.push((re*re+im*im)/(n*n));
+    }
+    return power;
+  }
+  function tmpSpecH(power){
+    var tot=0;
+    for(var k=0;k<power.length;k++) tot+=power[k];
+    if(!tot) return 0;
+    var h=0;
+    for(var k=0;k<power.length;k++){
+      if(power[k]>0){var p=power[k]/tot; h-=p*Math.log2(p);}
+    }
+    return Math.max(0,h);
+  }
+  /* ── Main render ────────────────────────────────────────────────────── */
+  function tmpRun(){
+    var word=(document.getElementById('tmp-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('tmp-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var orb=tmpOrbit(ic,rule);
+    var grid=orb.grid, P=orb.period, N=ic.length;
+    /* Per-cell power spectra */
+    var spectra=[],nFreqs=(P>>1)+1;
+    for(var i=0;i<N;i++){
+      var seq=[]; for(var t=0;t<P;t++) seq.push(grid[t][i]);
+      spectra.push(tmpDFT(seq));
+    }
+    var specH=[]; for(var i=0;i<N;i++) specH.push(tmpSpecH(spectra[i]));
+    /* Global max for colour scaling */
+    var maxS=0;
+    for(var i=0;i<N;i++) for(var k=0;k<nFreqs;k++) if(spectra[i][k]>maxS) maxS=spectra[i][k];
+    /* ── Heatmap: N rows (cells) × nFreqs cols (freq bins) ─────────── */
+    var hc=document.getElementById('tmp-hmap');
+    var hx=hc.getContext('2d'); var W=hc.width,H=hc.height;
+    hx.fillStyle='#0d0d0d'; hx.fillRect(0,0,W,H);
+    var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    var col=RCOL[rule]||'#4fc3f7';
+    var LABEL_W=38, TOP=24, CELL_H=Math.floor((H-TOP-16)/N);
+    var BIN_W=Math.min(60,Math.floor((W-LABEL_W-10)/nFreqs));
+    /* Axis labels */
+    hx.fillStyle='#666'; hx.font='10px monospace'; hx.textAlign='center';
+    for(var k=0;k<nFreqs;k++){
+      hx.fillText('k='+k, LABEL_W+k*BIN_W+BIN_W/2, TOP-6);
+    }
+    hx.textAlign='right'; hx.font='9px monospace';
+    /* Cells */
+    for(var i=0;i<N;i++){
+      var cy=TOP+i*CELL_H;
+      hx.fillStyle='#555';
+      hx.fillText(i, LABEL_W-3, cy+CELL_H/2+3);
+      for(var k=0;k<nFreqs;k++){
+        var v=maxS>0?spectra[i][k]/maxS:0;
+        var r=Math.round(20+v*100), g=Math.round(60+v*160), b=Math.round(180+v*60);
+        hx.fillStyle='rgb('+r+','+g+','+b+')';
+        hx.fillRect(LABEL_W+k*BIN_W, cy, BIN_W-2, CELL_H-1);
+      }
+      /* H_s annotation */
+      hx.fillStyle='rgba(255,255,255,0.6)'; hx.font='8px monospace'; hx.textAlign='left';
+      hx.fillText('H='+specH[i].toFixed(2), LABEL_W+nFreqs*BIN_W+4, cy+CELL_H/2+3);
+    }
+    hx.textAlign='left';
+    /* ── Spectral entropy bars ────────────────────────────────────────── */
+    var bc=document.getElementById('tmp-bars');
+    var bx=bc.getContext('2d'); var BW=bc.width,BH=bc.height;
+    bx.fillStyle='#0d0d0d'; bx.fillRect(0,0,BW,BH);
+    var maxH=Math.max.apply(null,specH)||1;
+    var CW2=Math.floor((BW-LABEL_W-10)/N);
+    for(var i=0;i<N;i++){
+      var bh=specH[i]/maxH*(BH-30);
+      bx.fillStyle=col; bx.globalAlpha=0.4+0.6*specH[i]/maxH;
+      bx.fillRect(LABEL_W+i*CW2,BH-20-bh,CW2-2,bh);
+      bx.globalAlpha=1;
+      bx.fillStyle='#888'; bx.font='8px monospace'; bx.textAlign='center';
+      bx.fillText(i,LABEL_W+i*CW2+CW2/2,BH-5);
+    }
+    bx.fillStyle='#666'; bx.textAlign='left'; bx.font='9px monospace';
+    bx.fillText('H_s',2,BH/2);
+    /* Stats */
+    var meanH=specH.reduce(function(a,b){return a+b;},0)/N;
+    var meanDC=spectra.reduce(function(a,s){
+      var tot=s.reduce(function(x,y){return x+y;},0);
+      return a+(tot>0?s[0]/tot:0);
+    },0)/N;
+    var domF=spectra.map(function(s){
+      if(s.length<=1) return 0;
+      var best=1;
+      for(var k=2;k<s.length;k++) if(s[k]>s[best]) best=k;
+      return best;
+    });
+    var modeCnt={};
+    domF.forEach(function(k){modeCnt[k]=(modeCnt[k]||0)+1;});
+    var globalK=Object.keys(modeCnt).reduce(function(a,b){return modeCnt[a]>modeCnt[b]?a:b;},0);
+    document.getElementById('tmp-stats').innerHTML=
+      'P='+P+'  freqs='+(nFreqs)+
+      '  Hs̄='+meanH.toFixed(4)+
+      '  DC̄='+meanDC.toFixed(3)+
+      '  k*='+globalK+' (period '+(P/Number(globalK)).toFixed(1)+' шагов)';
+  }
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('tmp-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='ТУМАН') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('tmp-btn');
+    var wordEl=document.getElementById('tmp-word');
+    var ruleEl=document.getElementById('tmp-rule');
+    if(btn)    btn.addEventListener('click',tmpRun);
+    if(wordEl) wordEl.addEventListener('change',tmpRun);
+    if(ruleEl) ruleEl.addEventListener('change',tmpRun);
+    setTimeout(function(){if(window.encL) tmpRun();},1600);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
