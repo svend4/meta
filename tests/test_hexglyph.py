@@ -7303,6 +7303,279 @@ class TestSolanMultiscale(unittest.TestCase):
         self.assertIn('Мультимасштабная энтропия Q6', content)
 
 
+class TestSolanChPlane(unittest.TestCase):
+    """Tests for solan_ch_plane.py and the viewer C-H plane section."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib, sys
+        spec = importlib.util.spec_from_file_location(
+            'solan_ch_plane',
+            str(pathlib.Path(__file__).resolve().parents[1] /
+                'projects' / 'hexglyph' / 'solan_ch_plane.py'))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules['solan_ch_plane'] = mod
+        spec.loader.exec_module(mod)
+        cls.mod = mod
+
+    # ── ordinal_pattern ────────────────────────────────────────────────
+
+    def test_op_constant(self):
+        # All equal → stable sort by index → (0,1,2)
+        self.assertEqual(self.mod.ordinal_pattern([5, 5, 5]), (0, 1, 2))
+
+    def test_op_ascending(self):
+        self.assertEqual(self.mod.ordinal_pattern([1, 2, 3]), (0, 1, 2))
+
+    def test_op_descending(self):
+        self.assertEqual(self.mod.ordinal_pattern([3, 2, 1]), (2, 1, 0))
+
+    def test_op_mixed(self):
+        # [1, 3, 2]: sorted indices: 0(1), 2(2), 1(3) → ranks: 0→0, 1→2, 2→1
+        self.assertEqual(self.mod.ordinal_pattern([1, 3, 2]), (0, 2, 1))
+
+    def test_op_length_2(self):
+        self.assertEqual(self.mod.ordinal_pattern([10, 5]), (1, 0))
+
+    def test_op_length_4(self):
+        result = self.mod.ordinal_pattern([2, 0, 3, 1])
+        self.assertEqual(len(result), 4)
+        self.assertEqual(sorted(result), [0, 1, 2, 3])
+
+    # ── h_norm ─────────────────────────────────────────────────────────
+
+    def test_hn_empty(self):
+        self.assertAlmostEqual(self.mod.h_norm({}, 3), 0.0)
+
+    def test_hn_concentrated(self):
+        # All probability on 1 pattern → H=0
+        self.assertAlmostEqual(self.mod.h_norm({(0, 1, 2): 1.0}, 3), 0.0)
+
+    def test_hn_uniform_m2(self):
+        # Uniform over m=2 → 2 patterns → H_S = 1.0
+        dist = {(0, 1): 0.5, (1, 0): 0.5}
+        self.assertAlmostEqual(self.mod.h_norm(dist, 2), 1.0, places=6)
+
+    def test_hn_uniform_m3(self):
+        # Uniform over all 6 patterns → H_S = 1.0
+        dist = {i: 1/6 for i in range(6)}
+        self.assertAlmostEqual(self.mod.h_norm(dist, 3), 1.0, places=5)
+
+    def test_hn_in_range(self):
+        dist = {(0, 1, 2): 0.5, (2, 1, 0): 0.3, (1, 0, 2): 0.2}
+        hs = self.mod.h_norm(dist, 3)
+        self.assertGreaterEqual(hs, 0.0)
+        self.assertLessEqual(hs, 1.0)
+
+    # ── jsd_uniform ────────────────────────────────────────────────────
+
+    def test_jsd_uniform_input(self):
+        # When dist == uniform → JSD = 0
+        M = 6
+        dist = {i: 1/M for i in range(M)}
+        jsd = self.mod.jsd_uniform(dist, 3)
+        self.assertAlmostEqual(jsd, 0.0, places=5)
+
+    def test_jsd_concentrated(self):
+        # All probability on 1 → maximum JSD
+        dist = {(0, 1, 2): 1.0}
+        jsd = self.mod.jsd_uniform(dist, 3)
+        self.assertGreater(jsd, 0.5)
+
+    def test_jsd_in_range(self):
+        dist = {(0, 1, 2): 0.4, (2, 1, 0): 0.4, (1, 2, 0): 0.2}
+        jsd = self.mod.jsd_uniform(dist, 3)
+        self.assertGreaterEqual(jsd, 0.0)
+        self.assertLessEqual(jsd, 1.0)
+
+    def test_jsd_empty(self):
+        # Empty dist → all missing → mixture = U/2
+        jsd = self.mod.jsd_uniform({}, 3)
+        self.assertAlmostEqual(jsd, 0.5, places=5)   # H_mix=H_U, H_P=0 → (H_U+H_U)/2-H_U/2 = H_U/2 → 0.5
+
+    # ── statistical_complexity ─────────────────────────────────────────
+
+    def test_sc_concentrated_zero(self):
+        # H_S=0 → C=0 regardless of JSD
+        dist = {(0, 1, 2): 1.0}
+        self.assertAlmostEqual(self.mod.statistical_complexity(dist, 3), 0.0)
+
+    def test_sc_uniform_zero(self):
+        # JSD=0 → C=0
+        M = 6
+        dist = {i: 1/M for i in range(M)}
+        self.assertAlmostEqual(self.mod.statistical_complexity(dist, 3), 0.0, places=5)
+
+    def test_sc_in_range(self):
+        dist = {(0, 1, 2): 0.5, (2, 1, 0): 0.5}
+        c = self.mod.statistical_complexity(dist, 3)
+        self.assertGreaterEqual(c, 0.0)
+        self.assertLessEqual(c, 1.0)
+
+    # ── pattern_dist ───────────────────────────────────────────────────
+
+    def test_pd_sums_to_one(self):
+        dist = self.mod.pattern_dist('ТУМАН', 'xor3', 3, 16, 64)
+        total = sum(dist.values())
+        self.assertAlmostEqual(total, 1.0, places=6)
+
+    def test_pd_xor_tuman_one_pattern(self):
+        # Fixed point → only 1 ordinal pattern
+        dist = self.mod.pattern_dist('ТУМАН', 'xor', 3, 16, 64)
+        self.assertEqual(len(dist), 1)
+
+    def test_pd_xor3_tuman_multiple(self):
+        # P=8 complex → multiple patterns
+        dist = self.mod.pattern_dist('ТУМАН', 'xor3', 3, 16, 64)
+        self.assertGreater(len(dist), 1)
+
+    def test_pd_probabilities_positive(self):
+        dist = self.mod.pattern_dist('ГОРА', 'xor3', 3, 16, 64)
+        self.assertTrue(all(p > 0 for p in dist.values()))
+
+    # ── ch_point ───────────────────────────────────────────────────────
+
+    def test_chp_returns_tuple(self):
+        result = self.mod.ch_point('ТУМАН', 'xor3', 3, 16, 64)
+        self.assertEqual(len(result), 3)
+
+    def test_chp_xor_tuman_hs_zero(self):
+        hs, djs, c = self.mod.ch_point('ТУМАН', 'xor', 3, 16, 64)
+        self.assertAlmostEqual(hs, 0.0)
+        self.assertAlmostEqual(c, 0.0)
+
+    def test_chp_xor3_tuman_high_hs(self):
+        hs, djs, c = self.mod.ch_point('ТУМАН', 'xor3', 3, 16, 64)
+        self.assertGreater(hs, 0.9)
+
+    def test_chp_gora_xor3_nonzero_c(self):
+        hs, djs, c = self.mod.ch_point('ГОРА', 'xor3', 3, 16, 64)
+        self.assertGreater(c, 0.0)
+
+    def test_chp_values_in_range(self):
+        hs, djs, c = self.mod.ch_point('ГОРА', 'and', 3, 16, 64)
+        self.assertGreaterEqual(hs, 0.0); self.assertLessEqual(hs, 1.0)
+        self.assertGreaterEqual(djs, 0.0); self.assertLessEqual(djs, 1.0)
+        self.assertGreaterEqual(c, 0.0);  self.assertLessEqual(c, 1.0)
+
+    # ── cell_ch ────────────────────────────────────────────────────────
+
+    def test_cc_length(self):
+        cells = self.mod.cell_ch('ТУМАН', 'xor3', 3, 16, 64)
+        self.assertEqual(len(cells), 16)
+
+    def test_cc_keys(self):
+        cells = self.mod.cell_ch('ТУМАН', 'xor3', 3, 16, 64)
+        for c in cells:
+            for k in ('cell', 'h_s', 'd_js', 'c', 'n_patterns'):
+                self.assertIn(k, c)
+
+    def test_cc_values_in_range(self):
+        cells = self.mod.cell_ch('ТУМАН', 'xor3', 3, 16, 64)
+        for c in cells:
+            self.assertGreaterEqual(c['h_s'], 0.0)
+            self.assertLessEqual(c['h_s'], 1.0)
+            self.assertGreaterEqual(c['c'], 0.0)
+
+    def test_cc_xor_tuman_all_zero_c(self):
+        cells = self.mod.cell_ch('ТУМАН', 'xor', 3, 16, 64)
+        for c in cells:
+            self.assertAlmostEqual(c['c'], 0.0)
+
+    # ── ch_dict ────────────────────────────────────────────────────────
+
+    def test_cd_keys(self):
+        d = self.mod.ch_dict('ТУМАН', 'xor3', 3, 16, 64)
+        for k in ('word', 'rule', 'period', 'm', 'M', 'h_s', 'd_js', 'c',
+                  'cell_ch', 'mean_h_s', 'mean_d_js', 'mean_c', 'std_c'):
+            self.assertIn(k, d)
+
+    def test_cd_period_xor3(self):
+        d = self.mod.ch_dict('ТУМАН', 'xor3', 3, 16, 64)
+        self.assertEqual(d['period'], 8)
+
+    def test_cd_word_uppercase(self):
+        d = self.mod.ch_dict('туман', 'xor3', 3, 16, 64)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_cd_M_is_factorial_m(self):
+        import math
+        d = self.mod.ch_dict('ТУМАН', 'xor3', 3, 16, 64)
+        self.assertEqual(d['M'], math.factorial(d['m']))
+
+    def test_cd_xor_c_zero(self):
+        d = self.mod.ch_dict('ТУМАН', 'xor', 3, 16, 64)
+        self.assertAlmostEqual(d['c'], 0.0)
+
+    def test_cd_gora_xor3_c_positive(self):
+        d = self.mod.ch_dict('ГОРА', 'xor3', 3, 16, 64)
+        self.assertGreater(d['c'], 0.0)
+
+    def test_cd_cell_ch_length(self):
+        d = self.mod.ch_dict('ТУМАН', 'xor3', 3, 16, 64)
+        self.assertEqual(len(d['cell_ch']), 16)
+
+    def test_cd_std_c_nonneg(self):
+        d = self.mod.ch_dict('ТУМАН', 'xor3', 3, 16, 64)
+        self.assertGreaterEqual(d['std_c'], 0.0)
+
+    # ── all_ch ─────────────────────────────────────────────────────────
+
+    def test_ach_four_rules(self):
+        ac = self.mod.all_ch('ТУМАН', 3, 16, 64)
+        self.assertEqual(set(ac.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_ach_each_has_c(self):
+        ac = self.mod.all_ch('ГОРА', 3, 16, 64)
+        for rule, d in ac.items():
+            self.assertIn('c', d)
+
+    # ── build_ch_data ──────────────────────────────────────────────────
+
+    def test_bcd_structure(self):
+        d = self.mod.build_ch_data(['ТУМАН', 'ГОРА'], 3, 16, 64)
+        self.assertIn('words', d)
+        self.assertIn('width', d)
+        self.assertIn('m', d)
+        self.assertIn('per_rule', d)
+
+    def test_bcd_per_rule_keys(self):
+        d = self.mod.build_ch_data(['ТУМАН'], 3, 16, 64)
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_bcd_word_entry_keys(self):
+        d = self.mod.build_ch_data(['ТУМАН'], 3, 16, 64)
+        entry = d['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'h_s', 'd_js', 'c', 'mean_h_s', 'mean_d_js', 'mean_c'):
+            self.assertIn(k, entry)
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_chp_plot(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('chp-plot', content)
+
+    def test_viewer_has_chp_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('chp-cell', content)
+
+    def test_viewer_has_chp_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('chp-stats', content)
+
+    def test_viewer_has_chp_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('chpRun', content)
+
+    def test_viewer_has_ord_pat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ordPat', content)
+
+    def test_viewer_has_ch_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('C-H плоскость Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

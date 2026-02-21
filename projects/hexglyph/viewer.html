@@ -7725,6 +7725,233 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>C-H плоскость Q6 — энтропийная сложность (Rosso 2007)</h2>
+<p class="meta">x = H_S = H_PE / log₂(m!) ∈ [0,1] нормированная энтропия перестановок · y = C = H_S · D_JS(P‖U) ∈ [0,1] статистическая сложность · фиксированная точка → (0,0); период-2 → (0.39, 0.18); сложный P=8 → (0.98, 0.01)</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="chp-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="chp-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="chp-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="chp-plot" width="530" height="260"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="chp-cell" width="530" height="90"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="chp-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA helpers ─────────────────────────────────────────────────── */
+  var M_ORD = 3, M_FACT = 6;   // m=3, m!=6
+  function chpStep(cells,rule){
+    var n=cells.length,out=[];
+    for(var i=0;i<n;i++){
+      var l=cells[(i-1+n)%n],c=cells[i],r=cells[(i+1)%n];
+      if(rule==='xor')       out.push((l^r)&63);
+      else if(rule==='xor3') out.push((l^c^r)&63);
+      else if(rule==='and')  out.push((l&r)&63);
+      else                   out.push((l|r)&63);
+    }
+    return out;
+  }
+  function chpOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=Math.max(t-trans,1);
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=chpStep(cur,rule);
+        var rows=[]; var rep=Math.max(1,Math.ceil(64/period));
+        for(var i=0;i<period*rep;i++){rows.push(cur.slice());cur=chpStep(cur,rule);}
+        return {rows:rows,period:period};
+      }
+      seen[key]=t++;
+      cur=chpStep(cur,rule);
+    }
+    return {rows:[ic.slice()],period:1};
+  }
+  /* ── Ordinal pattern (stable sort) ─────────────────────────────────── */
+  function ordPat(window){
+    var m=window.length;
+    var idx=[];
+    for(var i=0;i<m;i++) idx.push(i);
+    idx.sort(function(a,b){return window[a]!==window[b]?window[a]-window[b]:a-b;});
+    var ranks=new Array(m);
+    for(var r=0;r<m;r++) ranks[idx[r]]=r;
+    return ranks.join(',');
+  }
+  function patDist(rows,cellIdx){
+    var m=M_ORD,counts={},total=0;
+    var n=rows.length;
+    for(var j=0;j<n-m+1;j++){
+      var win=[];
+      for(var k=0;k<m;k++) win.push(rows[j+k][cellIdx]);
+      var key=ordPat(win);
+      counts[key]=(counts[key]||0)+1; total++;
+    }
+    var dist={};
+    if(total) for(var k in counts) dist[k]=counts[k]/total;
+    return dist;
+  }
+  function hNorm(dist){
+    var M=M_FACT,h=0;
+    for(var k in dist){var p=dist[k]; if(p>0) h-=p*Math.log2(p);}
+    return M>1?Math.max(0,Math.min(h/Math.log2(M),1)):0;
+  }
+  function jsdUniform(dist){
+    var M=M_FACT,u=1/M,nMiss=M-Object.keys(dist).length,hMix=0;
+    for(var k in dist){var q=(dist[k]+u)/2; if(q>0) hMix-=q*Math.log2(q);}
+    if(nMiss>0){var qm=u/2; hMix-=nMiss*qm*Math.log2(qm);}
+    var hP=0; for(var k in dist){var p=dist[k]; if(p>0) hP-=p*Math.log2(p);}
+    var hU=Math.log2(M);
+    return Math.max(0,Math.min((hMix-(hP+hU)/2),1));
+  }
+  function chpPoint(rows,cellIdx){
+    var d=patDist(rows,cellIdx);
+    var hs=hNorm(d),djs=jsdUniform(d);
+    return {hs:hs,djs:djs,c:hs*djs,nPat:Object.keys(d).length};
+  }
+  /* ── Main render ────────────────────────────────────────────────── */
+  var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  var RULES=['xor','xor3','and','or'];
+  window.chpRun=function(){
+    var word=(document.getElementById('chp-word').value||'ТУМАН').toUpperCase();
+    var activeRule=document.getElementById('chp-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    /* Compute for all 4 rules */
+    var ruleData={};
+    RULES.forEach(function(rule){
+      var res=chpOrbit(ic,rule);
+      var N=res.rows[0].length;
+      var pts=[],sumHs=0,sumC=0;
+      for(var i=0;i<N;i++){var p=chpPoint(res.rows,i);pts.push(p);sumHs+=p.hs;sumC+=p.c;}
+      var poolD={},poolT=0;
+      res.rows.forEach(function(row,ri){
+        if(ri<res.rows.length-M_ORD+1){
+          for(var ci=0;ci<N;ci++){
+            var win=[];
+            for(var k=0;k<M_ORD;k++) win.push(res.rows[ri+k][ci]);
+            var key=ordPat(win);
+            poolD[key]=(poolD[key]||0)+1; poolT++;
+          }
+        }
+      });
+      var poolDist={};
+      if(poolT) for(var k in poolD) poolDist[k]=poolD[k]/poolT;
+      var phS=hNorm(poolDist),pdjs=jsdUniform(poolDist);
+      ruleData[rule]={pts:pts,poolHs:phS,poolC:phS*pdjs,meanHs:sumHs/N,meanC:sumC/N,period:res.period};
+    });
+    /* ── C-H scatter plot ───────────────────────────────────────── */
+    var pc=document.getElementById('chp-plot');
+    var cx=pc.getContext('2d');
+    var W=pc.width,H=pc.height;
+    cx.fillStyle='#0d0d0d'; cx.fillRect(0,0,W,H);
+    var X0=58,YBASE=H-38,XEND=W-20,YTOP=20;
+    var WPLOT=XEND-X0,HPLOT=YBASE-YTOP;
+    /* Axes */
+    cx.strokeStyle='#333'; cx.lineWidth=1;
+    cx.beginPath(); cx.moveTo(X0,YTOP); cx.lineTo(X0,YBASE); cx.lineTo(XEND,YBASE); cx.stroke();
+    [0,0.25,0.5,0.75,1.0].forEach(function(f){
+      var x=X0+f*WPLOT;
+      cx.strokeStyle='#1a1a1a'; cx.beginPath(); cx.moveTo(x,YTOP); cx.lineTo(x,YBASE); cx.stroke();
+      cx.fillStyle='#666'; cx.font='9px monospace'; cx.textAlign='center';
+      cx.fillText(f.toFixed(2),x,YBASE+14);
+    });
+    [0,0.1,0.2,0.3,0.4].forEach(function(f){
+      var y=YBASE-f*HPLOT/0.4;
+      cx.strokeStyle='#1a1a1a'; cx.beginPath(); cx.moveTo(X0,y); cx.lineTo(XEND,y); cx.stroke();
+      cx.fillStyle='#666'; cx.font='9px monospace'; cx.textAlign='right';
+      cx.fillText(f.toFixed(2),X0-4,y+3);
+    });
+    cx.fillStyle='#555'; cx.font='10px monospace'; cx.textAlign='center';
+    cx.fillText('H_S (энтропия)',X0+WPLOT/2,H-4);
+    cx.save(); cx.translate(14,YTOP+HPLOT/2); cx.rotate(-Math.PI/2);
+    cx.fillText('C (сложность)',0,0); cx.restore();
+    /* Draw per-cell points (small) for active rule */
+    var act=ruleData[activeRule];
+    if(act){
+      act.pts.forEach(function(pt){
+        var x=X0+pt.hs*WPLOT, y=YBASE-Math.min(pt.c/0.4,1)*HPLOT;
+        cx.beginPath(); cx.arc(x,y,3,0,Math.PI*2);
+        cx.fillStyle=RCOL[activeRule]||'#4fc3f7'; cx.globalAlpha=0.4; cx.fill();
+        cx.globalAlpha=1;
+      });
+    }
+    /* Draw pooled points for all 4 rules */
+    var RNAME={xor:'XOR',xor3:'XOR3',and:'AND',or:'OR'};
+    RULES.forEach(function(rule){
+      var d=ruleData[rule];
+      if(!d) return;
+      var x=X0+d.poolHs*WPLOT, y=YBASE-Math.min(d.poolC/0.4,1)*HPLOT;
+      cx.beginPath(); cx.arc(x,y,rule===activeRule?9:6,0,Math.PI*2);
+      cx.fillStyle=RCOL[rule]||'#aaa'; cx.globalAlpha=rule===activeRule?1:0.6; cx.fill();
+      cx.globalAlpha=1;
+      cx.fillStyle='#111'; cx.font='8px monospace'; cx.textAlign='center';
+      cx.fillText(RNAME[rule],x,y+3);
+      cx.fillStyle=RCOL[rule]; cx.font='8px monospace';
+      cx.fillText('('+d.poolHs.toFixed(2)+','+d.poolC.toFixed(3)+')',x,y-12);
+    });
+    /* ── Per-cell C bars for active rule ──────────────────────────── */
+    var hc=document.getElementById('chp-cell');
+    var hx=hc.getContext('2d');
+    var CW=hc.width,CH=hc.height;
+    hx.fillStyle='#0d0d0d'; hx.fillRect(0,0,CW,CH);
+    var N2=act?act.pts.length:16;
+    var CellW=Math.floor((CW-44)/N2);
+    var cmax=act?Math.max.apply(null,act.pts.map(function(p){return p.c;}))||0.001:0.001;
+    if(act) act.pts.forEach(function(p,i){
+      var frac=p.c/cmax;
+      hx.globalAlpha=0.2+0.8*frac; hx.fillStyle=RCOL[activeRule]||'#4fc3f7';
+      var bh=Math.round(frac*(CH-34));
+      hx.fillRect(42+i*CellW,CH-18-bh,CellW-2,bh);
+      hx.globalAlpha=1;
+      hx.fillStyle='#ccc'; hx.font='8px monospace'; hx.textAlign='center';
+      hx.fillText(i,42+i*CellW+CellW/2,CH-4);
+      if(p.c>0.005) hx.fillText(p.c.toFixed(2),42+i*CellW+CellW/2,CH-18-bh-3);
+    });
+    hx.fillStyle='#777'; hx.textAlign='left'; hx.font='9px monospace'; hx.fillText('C',2,CH/2);
+    /* Stats */
+    var ad=ruleData[activeRule];
+    document.getElementById('chp-stats').innerHTML=
+      'P='+ad.period+
+      '  H_S(pool)='+ad.poolHs.toFixed(4)+
+      '  C(pool)='+ad.poolC.toFixed(4)+
+      '  mean_H_S='+ad.meanHs.toFixed(4)+
+      '  mean_C='+ad.meanC.toFixed(4);
+  };
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('chp-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('chp-btn');
+    var wordEl=document.getElementById('chp-word');
+    var ruleEl=document.getElementById('chp-rule');
+    if(btn)    btn.addEventListener('click',chpRun);
+    if(wordEl) wordEl.addEventListener('change',chpRun);
+    if(ruleEl) ruleEl.addEventListener('change',chpRun);
+    setTimeout(function(){if(window.encL) chpRun();},2000);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Мультимасштабная энтропия Q6 (MSE) — сложность по шкалам</h2>
 <p class="meta">Для каждой шкалы τ=1..6: огрублённый ряд y_j^(τ)=(1/τ)Σ x_i, затем Sample Entropy SampEn(m=2, r=0.15σ) · CI = среднее по шкалам · τ* = шкала пика · постоянные → SampEn≈0; P=8 XOR3 → осциллирующий профиль</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
