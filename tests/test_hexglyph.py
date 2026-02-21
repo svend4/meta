@@ -9116,6 +9116,273 @@ class TestSolanBitflip(unittest.TestCase):
         self.assertIn('Bit-Flip Dynamics Q6', content)
 
 
+class TestSolanPhase(unittest.TestCase):
+    """Tests for solan_phase.py and the viewer Phase Offset Analysis section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phase import (
+            series_match, phase_offset, sync_matrix,
+            sync_clusters, inter_cluster_offsets, sync_fraction,
+            phase_summary, all_phase, build_phase_data,
+        )
+        cls.series_match          = staticmethod(series_match)
+        cls.phase_offset          = staticmethod(phase_offset)
+        cls.sync_matrix           = staticmethod(sync_matrix)
+        cls.sync_clusters         = staticmethod(sync_clusters)
+        cls.inter_cluster_offsets = staticmethod(inter_cluster_offsets)
+        cls.sync_fraction         = staticmethod(sync_fraction)
+        cls.phase_summary         = staticmethod(phase_summary)
+        cls.all_phase             = staticmethod(all_phase)
+        cls.build_phase_data      = staticmethod(build_phase_data)
+
+    # ── series_match() ────────────────────────────────────────────────
+
+    def test_series_match_offset_0_identical(self):
+        self.assertTrue(self.series_match([1, 2, 3], [1, 2, 3], 0))
+
+    def test_series_match_offset_1(self):
+        # [3, 1, 2] should match [1, 2, 3] with offset=2
+        self.assertTrue(self.series_match([1, 2, 3], [3, 1, 2], 2))
+
+    def test_series_match_wrong_offset(self):
+        self.assertFalse(self.series_match([1, 2, 3], [2, 3, 1], 0))
+
+    def test_series_match_empty(self):
+        self.assertFalse(self.series_match([], [1], 0))
+
+    def test_series_match_self_any_offset_constant(self):
+        # Constant series: matches any offset
+        s = [5, 5, 5]
+        for k in range(3):
+            self.assertTrue(self.series_match(s, s, k))
+
+    # ── phase_offset() ────────────────────────────────────────────────
+
+    def test_phase_offset_self(self):
+        self.assertEqual(self.phase_offset([1, 2, 3], [1, 2, 3]), 0)
+
+    def test_phase_offset_shift_1(self):
+        # sj = shift(si, 1): sj[t] = si[(t+1)%3]
+        si = [10, 20, 30]
+        sj = [20, 30, 10]   # sj[t] = si[(t+1)%3]
+        self.assertEqual(self.phase_offset(si, sj), 1)
+
+    def test_phase_offset_shift_2(self):
+        si = [10, 20, 30]
+        sj = [30, 10, 20]   # sj[t] = si[(t+2)%3]
+        self.assertEqual(self.phase_offset(si, sj), 2)
+
+    def test_phase_offset_none(self):
+        self.assertIsNone(self.phase_offset([1, 2, 3], [4, 5, 6]))
+
+    def test_phase_offset_antiphase_p2(self):
+        # [47, 1] and [1, 47]: sj[0]=1=si[1], sj[1]=47=si[0] → offset=1
+        self.assertEqual(self.phase_offset([47, 1], [1, 47]), 1)
+
+    def test_phase_offset_antiphase_symmetry(self):
+        # Anti-phase is symmetric for P=2: offset(A,B) = offset(B,A) = 1
+        self.assertEqual(self.phase_offset([47, 1], [1, 47]),
+                         self.phase_offset([1, 47], [47, 1]))
+
+    # ── ТУМАН XOR (P=1, trivial) ──────────────────────────────────────
+
+    def test_tuman_xor_sync_fraction_1(self):
+        self.assertAlmostEqual(self.sync_fraction('ТУМАН', 'xor', 16), 1.0)
+
+    def test_tuman_xor_one_cluster(self):
+        clusters = self.sync_clusters('ТУМАН', 'xor', 16)
+        self.assertEqual(len(clusters), 1)
+        self.assertEqual(len(clusters[0]), 16)
+
+    def test_tuman_xor_matrix_all_zero(self):
+        mat = self.sync_matrix('ТУМАН', 'xor', 16)
+        for row in mat:
+            for v in row:
+                self.assertEqual(v, 0)
+
+    # ── ГОРА AND (P=2, anti-phase) ────────────────────────────────────
+
+    def test_gora_and_sync_fraction_1(self):
+        self.assertAlmostEqual(self.sync_fraction('ГОРА', 'and', 16), 1.0)
+
+    def test_gora_and_two_clusters(self):
+        clusters = self.sync_clusters('ГОРА', 'and', 16)
+        self.assertEqual(len(clusters), 2)
+        sizes = sorted(len(g) for g in clusters)
+        self.assertEqual(sizes, [8, 8])
+
+    def test_gora_and_clusters_even_odd(self):
+        clusters = self.sync_clusters('ГОРА', 'and', 16)
+        all_cells = sorted(c for g in clusters for c in g)
+        self.assertEqual(all_cells, list(range(16)))
+        # One cluster even cells, one odd
+        for g in clusters:
+            parities = set(c % 2 for c in g)
+            self.assertEqual(len(parities), 1)  # all same parity
+
+    def test_gora_and_inter_cluster_offset_1(self):
+        ic = self.inter_cluster_offsets('ГОРА', 'and', 16)
+        for off in ic.values():
+            self.assertEqual(off, 1)
+
+    def test_gora_and_antiphase_detected(self):
+        d = self.phase_summary('ГОРА', 'and', 16)
+        self.assertTrue(d['any_antiphase'])
+
+    def test_gora_and_offset_hist(self):
+        d = self.phase_summary('ГОРА', 'and', 16)
+        hist = d['offset_hist']
+        self.assertIn('0', hist)
+        self.assertIn('1', hist)
+        self.assertEqual(hist['0'], 128)
+        self.assertEqual(hist['1'], 128)
+
+    def test_gora_and_matrix_diagonal_0(self):
+        mat = self.sync_matrix('ГОРА', 'and', 16)
+        for i in range(16):
+            self.assertEqual(mat[i][i], 0)
+
+    def test_gora_and_matrix_offdiag_0_or_1(self):
+        mat = self.sync_matrix('ГОРА', 'and', 16)
+        for i in range(16):
+            for j in range(16):
+                self.assertIn(mat[i][j], [0, 1])
+
+    # ── ГОРА XOR3 (P=2, 4 clusters, no antiphase) ─────────────────────
+
+    def test_gora_xor3_four_clusters(self):
+        clusters = self.sync_clusters('ГОРА', 'xor3', 16)
+        self.assertEqual(len(clusters), 4)
+        sizes = sorted(len(g) for g in clusters)
+        self.assertEqual(sizes, [4, 4, 4, 4])
+
+    def test_gora_xor3_sync_fraction_25(self):
+        sf = self.sync_fraction('ГОРА', 'xor3', 16)
+        self.assertAlmostEqual(sf, 0.25, places=6)
+
+    def test_gora_xor3_no_antiphase(self):
+        d = self.phase_summary('ГОРА', 'xor3', 16)
+        self.assertFalse(d['any_antiphase'])
+
+    def test_gora_xor3_inter_cluster_all_none(self):
+        ic = self.inter_cluster_offsets('ГОРА', 'xor3', 16)
+        for off in ic.values():
+            self.assertIsNone(off)
+
+    # ── ТУМАН XOR3 (P=8, all unique) ──────────────────────────────────
+
+    def test_tuman_xor3_16_clusters(self):
+        clusters = self.sync_clusters('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(clusters), 16)
+
+    def test_tuman_xor3_sync_fraction_low(self):
+        sf = self.sync_fraction('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(sf, 1 / 16, places=6)
+
+    def test_tuman_xor3_no_antiphase(self):
+        d = self.phase_summary('ТУМАН', 'xor3', 16)
+        self.assertFalse(d['any_antiphase'])
+
+    def test_tuman_xor3_n_distinct_16(self):
+        d = self.phase_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['n_distinct'], 16)
+
+    # ── sync_matrix() structure ───────────────────────────────────────
+
+    def test_sync_matrix_diagonal_always_0(self):
+        for word, rule in [('ТУМАН','xor3'), ('ГОРА','and'), ('ЛЕБЕДЬ','or')]:
+            mat = self.sync_matrix(word, rule, 16)
+            for i in range(16):
+                self.assertEqual(mat[i][i], 0)
+
+    def test_sync_matrix_shape_16x16(self):
+        mat = self.sync_matrix('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 16)
+
+    def test_sync_matrix_offset_range(self):
+        # All non-None offsets must be in [0, P-1]
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word, rule in [('ГОРА','and'), ('ГОРА','xor3'), ('ТУМАН','xor3')]:
+            P = word_trajectory(word, rule, 16)['period']
+            mat = self.sync_matrix(word, rule, 16)
+            for row in mat:
+                for v in row:
+                    if v is not None:
+                        self.assertGreaterEqual(v, 0)
+                        self.assertLess(v, P)
+
+    # ── phase_summary() structure ─────────────────────────────────────
+
+    def test_phase_summary_keys(self):
+        d = self.phase_summary('ГОРА', 'and', 16)
+        for k in ('word', 'rule', 'period', 'n_distinct', 'sync_fraction',
+                  'offset_hist', 'n_clusters', 'cluster_sizes', 'ic_offsets',
+                  'any_antiphase', 'dominant_offset', 'matrix'):
+            self.assertIn(k, d)
+
+    def test_phase_summary_word_uppercase(self):
+        d = self.phase_summary('гора', 'and', 16)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_phase_summary_sync_fraction_range(self):
+        d = self.phase_summary('ТУМАН', 'xor3', 16)
+        self.assertGreaterEqual(d['sync_fraction'], 0.0)
+        self.assertLessEqual(d['sync_fraction'], 1.0)
+
+    # ── all_phase() ───────────────────────────────────────────────────
+
+    def test_all_phase_four_rules(self):
+        result = self.all_phase('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_phase_data() ────────────────────────────────────────────
+
+    def test_build_phase_data_structure(self):
+        data = self.build_phase_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+
+    def test_build_phase_data_no_matrix(self):
+        # build_phase_data should NOT include 'matrix' (compact output)
+        data = self.build_phase_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        self.assertNotIn('matrix', entry)
+
+    def test_build_phase_data_has_sync_fraction(self):
+        data = self.build_phase_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        self.assertIn('sync_fraction', entry)
+
+    # ── Viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_ph_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ph-matrix', content)
+
+    def test_viewer_has_ph_hist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ph-hist', content)
+
+    def test_viewer_has_ph_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ph-stats', content)
+
+    def test_viewer_has_ph_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('phRun', content)
+
+    def test_viewer_has_phase_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Phase Offset Analysis Q6', content)
+
+    def test_viewer_antiphase_text(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('anti-phase', content)
+
+
 class TestSolanRuns(unittest.TestCase):
     """Tests for solan_runs.py and the viewer Run-Length section."""
 

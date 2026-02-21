@@ -10282,6 +10282,218 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Phase Offset Analysis Q6 — фазовая синхронизация клеток аттрактора</h2>
+<p class="meta">M[i][j] = min k: series_j = shift(series_i, k) · ГОРА AND: 100% sync, антифаза offset=1 · XOR3: 6% (только self) · XOR3 ГОРА: 4 кластера без антифазы</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="ph-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="ph-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="and" selected>AND</option>
+    <option value="xor3">XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="ph-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="ph-matrix" width="530" height="160"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="ph-hist" width="530" height="70"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="ph-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  function phStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function phOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=phStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=phStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=phStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function phaseOffset(si,sj){
+    var P=si.length;
+    for(var k=0;k<P;k++){
+      var ok=true;
+      for(var t=0;t<P;t++){
+        if(sj[t]!==si[(t+k)%P]){ok=false;break;}
+      }
+      if(ok) return k;
+    }
+    return -1;  /* -1 = not synchronized */
+  }
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  function phRun(){
+    var word=(document.getElementById('ph-word').value||'ГОРА').toUpperCase();
+    var rule=document.getElementById('ph-rule').value||'and';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length, grid=phOrbit(ic,rule), P=grid.length;
+    var col=BCOL[rule]||'#ef5350';
+    var r1=parseInt(col.slice(1,3),16)||0xef;
+    var g1=parseInt(col.slice(3,5),16)||0x53;
+    var b1=parseInt(col.slice(5,7),16)||0x50;
+    /* Build series per cell */
+    var series=[];
+    for(var i=0;i<N;i++){
+      var s=[];
+      for(var t=0;t<P;t++) s.push(grid[t][i]);
+      series.push(s);
+    }
+    /* Phase matrix  N×N */
+    var mat=[];
+    for(var i=0;i<N;i++){
+      var row=[];
+      for(var j=0;j<N;j++) row.push(phaseOffset(series[i],series[j]));
+      mat.push(row);
+    }
+    /* ── Phase matrix canvas ─────────────────────────────────────────── */
+    var mc=document.getElementById('ph-matrix');
+    var mx=mc.getContext('2d');
+    var MW=mc.width, MH=mc.height;
+    mx.fillStyle='#0a0a0a'; mx.fillRect(0,0,MW,MH);
+    var MPAD=20;
+    var cellW=Math.floor((MW-MPAD*2)/N);
+    var cellH=Math.floor((MH-MPAD)/N);
+    if(cellW<1) cellW=1; if(cellH<1) cellH=1;
+    for(var i=0;i<N;i++){
+      for(var j=0;j<N;j++){
+        var off=mat[i][j];
+        if(off<0){
+          mx.fillStyle='#0a0a0a';
+        } else if(off===0){
+          mx.fillStyle='rgb('+r1+','+g1+','+b1+')';
+        } else {
+          /* brightness = 1 - off/P  (anti-phase = 0.5 brightness) */
+          var frac=1-off/P;
+          var ri=Math.round(frac*r1); var gi=Math.round(frac*g1); var bi2=Math.round(frac*b1);
+          if(ri<10) ri=10; if(gi<10) gi=10; if(bi2<10) bi2=10;
+          mx.fillStyle='rgb('+ri+','+gi+','+bi2+')';
+        }
+        mx.fillRect(MPAD+j*cellW, MPAD+i*cellH, cellW, cellH);
+      }
+    }
+    /* labels */
+    mx.fillStyle='#444'; mx.font='8px monospace'; mx.textAlign='center';
+    for(var i=0;i<N;i+=4){
+      mx.fillText(i, MPAD+i*cellW+cellW/2, MPAD-4);
+      mx.textAlign='right';
+      mx.fillText(i, MPAD-2, MPAD+i*cellH+cellH/2);
+      mx.textAlign='center';
+    }
+    /* ── Offset histogram ────────────────────────────────────────────── */
+    var hc=document.getElementById('ph-hist');
+    var hx=hc.getContext('2d');
+    var HW=hc.width, HH=hc.height;
+    hx.fillStyle='#0a0a0a'; hx.fillRect(0,0,HW,HH);
+    /* Count offsets */
+    var hist={'-1':0};
+    var maxK=0;
+    for(var i=0;i<N;i++) for(var j=0;j<N;j++){
+      var v=mat[i][j];
+      if(v<0){hist['-1']++;}
+      else{hist[v]=(hist[v]||0)+1; if(v>maxK) maxK=v;}
+    }
+    /* Bins: k=0,1,...,maxK, then -1 (unsync) */
+    var bins=[];
+    for(var k=0;k<=maxK;k++) bins.push({label:'k='+k,val:hist[k]||0});
+    bins.push({label:'—',val:hist['-1']||0});
+    var maxVal=Math.max.apply(null,bins.map(function(b){return b.val;}));
+    var bw=Math.max(4,Math.floor((HW-40)/bins.length)-2);
+    var HPAD=24;
+    for(var bi=0;bi<bins.length;bi++){
+      var bh=maxVal>0?Math.round(bins[bi].val*(HH-HPAD-4)/maxVal):0;
+      var bx2=HPAD+bi*(bw+2);
+      if(bi<bins.length-1){
+        var frac=maxK>0?1-bi/maxK:1;
+        var ri=Math.round(frac*r1); var gi2=Math.round(frac*g1); var bi2x=Math.round(frac*b1);
+        if(ri<10) ri=10; if(gi2<10) gi2=10; if(bi2x<10) bi2x=10;
+        hx.fillStyle='rgb('+ri+','+gi2+','+bi2x+')';
+      } else {
+        hx.fillStyle='#333';  /* unsync = grey */
+      }
+      hx.fillRect(bx2,HH-HPAD-bh,bw,bh);
+      hx.fillStyle='#555'; hx.font='8px monospace'; hx.textAlign='center';
+      hx.fillText(bins[bi].label,bx2+bw/2,HH-4);
+      if(bins[bi].val>0){
+        hx.fillStyle='#888';
+        hx.fillText(bins[bi].val,bx2+bw/2,HH-HPAD-bh-2);
+      }
+    }
+    hx.strokeStyle='#333'; hx.lineWidth=0.5;
+    hx.beginPath(); hx.moveTo(HPAD,HH-HPAD); hx.lineTo(HW-4,HH-HPAD); hx.stroke();
+    /* ── Stats ──────────────────────────────────────────────────────── */
+    var syncPairs=N*N-(hist['-1']||0);
+    var sf=(syncPairs/(N*N)).toFixed(3);
+    /* clusters: group cells with identical series */
+    var clusterMap={};
+    for(var i=0;i<N;i++){
+      var key=series[i].join(',');
+      if(!clusterMap[key]) clusterMap[key]=[];
+      clusterMap[key].push(i);
+    }
+    var clusters=Object.values(clusterMap);
+    var antiPhase=false;
+    for(var a=0;a<clusters.length;a++){
+      for(var b=0;b<clusters.length;b++){
+        if(a!==b){
+          var off2=phaseOffset(series[clusters[a][0]],series[clusters[b][0]]);
+          if(off2>0) antiPhase=true;
+        }
+      }
+    }
+    document.getElementById('ph-stats').innerHTML=
+      'P='+P+
+      '  sync_fraction='+sf+
+      '  n_clusters='+clusters.length+
+      '  cluster_sizes=['+clusters.map(function(g){return g.length;}).join(',')+']'+
+      (antiPhase?'  ★ anti-phase detected':'');
+  }
+  window.phRun=phRun;
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('ph-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0413\u041e\u0420\u0410') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('ph-btn');
+    var wordEl=document.getElementById('ph-word');
+    var ruleEl=document.getElementById('ph-rule');
+    if(btn)    btn.addEventListener('click',phRun);
+    if(wordEl) wordEl.addEventListener('change',phRun);
+    if(ruleEl) ruleEl.addEventListener('change',phRun);
+    setTimeout(function(){if(window.encL) phRun();},3450);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
