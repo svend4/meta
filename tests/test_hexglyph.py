@@ -8418,6 +8418,207 @@ class TestSolanAutocorr(unittest.TestCase):
         self.assertIn('Автокорреляция Q6', content)
 
 
+class TestSolanMoran(unittest.TestCase):
+    """Tests for solan_moran.py and the viewer Moran's I section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moran import (
+            morans_i, spatial_classification,
+            morans_i_series, morans_i_dict, all_morans_i, build_moran_data,
+        )
+        cls.morans_i               = staticmethod(morans_i)
+        cls.spatial_classification = staticmethod(spatial_classification)
+        cls.morans_i_series        = staticmethod(morans_i_series)
+        cls.morans_i_dict          = staticmethod(morans_i_dict)
+        cls.all_morans_i           = staticmethod(all_morans_i)
+        cls.build_moran_data       = staticmethod(build_moran_data)
+
+    # ── morans_i() ─────────────────────────────────────────────────────
+
+    def test_morans_i_constant_is_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([5, 5, 5, 5])))
+
+    def test_morans_i_alternating_is_minus_one(self):
+        vals = [47, 1] * 8   # 16 elements alternating
+        self.assertAlmostEqual(self.morans_i(vals), -1.0, places=6)
+
+    def test_morans_i_single_element_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([42])))
+
+    def test_morans_i_empty_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([])))
+
+    def test_morans_i_range(self):
+        import random, math
+        random.seed(0)
+        vals = [random.randint(0, 63) for _ in range(16)]
+        v = self.morans_i(vals)
+        if not math.isnan(v):
+            self.assertGreaterEqual(v, -1.1)
+            self.assertLessEqual(v, 1.1)
+
+    def test_morans_i_two_elements(self):
+        # [a, b] alternating in 1-ring: each cell's neighbours are both the other cell
+        v = self.morans_i([10, 50])
+        self.assertAlmostEqual(v, -1.0, places=6)
+
+    # ── spatial_classification ─────────────────────────────────────────
+
+    def test_classification_constant(self):
+        import math
+        self.assertEqual(self.spatial_classification(float('nan')), 'constant')
+
+    def test_classification_strongly_clustered(self):
+        self.assertEqual(self.spatial_classification(0.8), 'strongly clustered')
+
+    def test_classification_clustered(self):
+        self.assertEqual(self.spatial_classification(0.3), 'clustered')
+
+    def test_classification_random(self):
+        self.assertEqual(self.spatial_classification(0.0), 'random')
+
+    def test_classification_dispersed(self):
+        self.assertEqual(self.spatial_classification(-0.3), 'dispersed')
+
+    def test_classification_strongly_dispersed(self):
+        self.assertEqual(self.spatial_classification(-0.8), 'strongly dispersed')
+
+    # ── Fixed-point attractors → NaN ──────────────────────────────────
+
+    def test_tuman_xor_all_nan(self):
+        import math
+        series = self.morans_i_series('ТУМАН', 'xor', 16)
+        self.assertEqual(len(series), 1)
+        self.assertTrue(math.isnan(series[0]))
+
+    def test_gora_or_all_nan(self):
+        import math
+        series = self.morans_i_series('ГОРА', 'or', 16)
+        self.assertEqual(len(series), 1)
+        self.assertTrue(math.isnan(series[0]))
+
+    # ── ГОРА AND (P=2, perfect alternating → I=−1) ────────────────────
+
+    def test_gora_and_i_is_minus_one(self):
+        series = self.morans_i_series('ГОРА', 'and', 16)
+        for v in series:
+            self.assertAlmostEqual(v, -1.0, places=6)
+
+    def test_gora_and_mean_is_minus_one(self):
+        d = self.morans_i_dict('ГОРА', 'and', 16)
+        self.assertAlmostEqual(d['mean_i'], -1.0, places=6)
+
+    def test_gora_and_classification_strongly_dispersed(self):
+        d = self.morans_i_dict('ГОРА', 'and', 16)
+        self.assertEqual(d['classification'], 'strongly dispersed')
+
+    def test_gora_and_var_is_zero(self):
+        d = self.morans_i_dict('ГОРА', 'and', 16)
+        self.assertAlmostEqual(d['var_i'], 0.0, places=6)
+
+    # ── ТУМАН XOR3 (P=8, varied spatial patterns) ─────────────────────
+
+    def test_tuman_xor3_series_length_8(self):
+        series = self.morans_i_series('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(series), 8)
+
+    def test_tuman_xor3_series_all_valid(self):
+        import math
+        series = self.morans_i_series('ТУМАН', 'xor3', 16)
+        self.assertTrue(all(not math.isnan(v) for v in series))
+
+    def test_tuman_xor3_has_mixed_sign(self):
+        series = self.morans_i_series('ТУМАН', 'xor3', 16)
+        self.assertTrue(any(v > 0 for v in series))
+        self.assertTrue(any(v < 0 for v in series))
+
+    def test_tuman_xor3_mean_i_in_range(self):
+        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
+        self.assertGreaterEqual(d['mean_i'], -1.0)
+        self.assertLessEqual(d['mean_i'], 1.0)
+
+    def test_tuman_xor3_min_le_max(self):
+        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
+        self.assertLessEqual(d['min_i'], d['max_i'])
+
+    # ── morans_i_dict structure ────────────────────────────────────────
+
+    def test_morans_i_dict_keys(self):
+        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
+        for k in ('word', 'rule', 'period', 'series', 'mean_i',
+                  'min_i', 'max_i', 'var_i', 'classification', 'n_valid'):
+            self.assertIn(k, d)
+
+    def test_morans_i_dict_word_uppercase(self):
+        d = self.morans_i_dict('туман', 'xor3', 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_morans_i_dict_series_len_equals_period(self):
+        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['series']), d['period'])
+
+    def test_morans_i_dict_n_valid_le_period(self):
+        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
+        self.assertLessEqual(d['n_valid'], d['period'])
+
+    # ── all_morans_i ───────────────────────────────────────────────────
+
+    def test_all_morans_i_has_four_rules(self):
+        result = self.all_morans_i('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_morans_i_values_are_dicts(self):
+        result = self.all_morans_i('ГОРА', 16)
+        for rule, d in result.items():
+            self.assertIsInstance(d, dict)
+            self.assertIn('mean_i', d)
+
+    # ── build_moran_data ───────────────────────────────────────────────
+
+    def test_build_moran_data_structure(self):
+        data = self.build_moran_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_moran_data_entry_keys(self):
+        data = self.build_moran_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'series', 'mean_i', 'min_i', 'max_i',
+                  'var_i', 'classification', 'n_valid'):
+            self.assertIn(k, entry)
+
+    def test_build_moran_data_words_uppercase(self):
+        data = self.build_moran_data(['туман'], 16)
+        self.assertIn('ТУМАН', data['words'])
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_moran_time(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('moran-time', content)
+
+    def test_viewer_has_moran_all(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('moran-all', content)
+
+    def test_viewer_has_moran_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('moran-stats', content)
+
+    def test_viewer_has_moran_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('moranRun', content)
+
+    def test_viewer_has_moran_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn("Moran's I Q6", content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
