@@ -26,6 +26,7 @@ MI profile by distance:
     entropy_profile(word, rule, width)        → list[float]
     mi_matrix(word, rule, width)              → list[list[float]]
     mi_profile(mi_mat, width)                 → list[float]
+    mutual_summary(word, rule, width)         → dict    (≡ trajectory_mutual)
     trajectory_mutual(word, rule, width)      → dict
     all_mutual(word, width)                   → dict[str, dict]
     build_mutual_data(words, width)           → dict
@@ -37,6 +38,8 @@ MI profile by distance:
     python3 -m projects.hexglyph.solan_mutual --word ГОРА --rule xor3
     python3 -m projects.hexglyph.solan_mutual --word ТУМАН --all-rules --no-color
     python3 -m projects.hexglyph.solan_mutual --stats
+    python3 -m projects.hexglyph.solan_mutual --word ТУМАН --json
+    python3 -m projects.hexglyph.solan_mutual --table
 """
 from __future__ import annotations
 
@@ -236,12 +239,21 @@ def trajectory_mutual(
     }
 
 
+def mutual_summary(
+    word:  str,
+    rule:  str = 'xor3',
+    width: int = _DEFAULT_WIDTH,
+) -> dict:
+    """Alias for trajectory_mutual — standard *_summary convention."""
+    return trajectory_mutual(word, rule, width)
+
+
 def all_mutual(
     word:  str,
     width: int = _DEFAULT_WIDTH,
 ) -> dict[str, dict]:
-    """trajectory_mutual for all 4 rules."""
-    return {r: trajectory_mutual(word, r, width) for r in _ALL_RULES}
+    """mutual_summary for all 4 rules."""
+    return {r: mutual_summary(word, r, width) for r in _ALL_RULES}
 
 
 # ── Full dataset ───────────────────────────────────────────────────────────────
@@ -401,16 +413,21 @@ def print_mutual_stats(
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 def _main() -> None:
+    import json as _json
     parser = argparse.ArgumentParser(description='Mutual Information Analysis Q6 CA')
     parser.add_argument('--word',      default='ГОРА',  help='Русское слово')
     parser.add_argument('--rule',      default='xor3',  choices=_ALL_RULES)
     parser.add_argument('--all-rules', action='store_true')
     parser.add_argument('--stats',     action='store_true')
+    parser.add_argument('--table',     action='store_true', help='Lexicon entropy table')
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     parser.add_argument('--width',     type=int, default=_DEFAULT_WIDTH)
     parser.add_argument('--no-color',  action='store_true')
     args  = parser.parse_args()
     color = not args.no_color
-    if args.stats:
+    if args.json:
+        print(_json.dumps(mutual_dict(args.word, args.width), ensure_ascii=False, indent=2))
+    elif args.stats or args.table:
         print_mutual_stats(color=color)
     elif args.all_rules:
         for rule in _ALL_RULES:

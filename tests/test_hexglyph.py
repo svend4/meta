@@ -4010,292 +4010,6 @@ class TestSolanRecurrence(unittest.TestCase):
         self.assertIn('rcRows', content)
 
 
-class TestSolanMutual(unittest.TestCase):
-    """Tests for solan_mutual.py and the viewer MI section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_mutual import (
-            attractor_states, cell_entropy, cell_mi,
-            entropy_profile, mi_matrix, mi_profile,
-            trajectory_mutual, all_mutual,
-            build_mutual_data, mutual_dict,
-            _ALL_RULES, _DEFAULT_WIDTH,
-        )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.attractor_states  = staticmethod(attractor_states)
-        cls.cell_entropy      = staticmethod(cell_entropy)
-        cls.cell_mi           = staticmethod(cell_mi)
-        cls.entropy_profile   = staticmethod(entropy_profile)
-        cls.mi_matrix         = staticmethod(mi_matrix)
-        cls.mi_profile        = staticmethod(mi_profile)
-        cls.trajectory_mutual = staticmethod(trajectory_mutual)
-        cls.all_mutual        = staticmethod(all_mutual)
-        cls.build_mutual_data = staticmethod(build_mutual_data)
-        cls.mutual_dict       = staticmethod(mutual_dict)
-        cls.ALL_RULES         = _ALL_RULES
-        cls.W                 = _DEFAULT_WIDTH
-        cls.LEXICON           = list(LEXICON)
-
-    # ── attractor_states() ────────────────────────────────────────────────────
-
-    def test_as_length_equals_period(self):
-        from projects.hexglyph.solan_ca import find_orbit
-        from projects.hexglyph.solan_word import encode_word, pad_to
-        cells = pad_to(encode_word('ГОРА'), 16)
-        _, period = find_orbit(cells[:], 'xor3')
-        states = self.attractor_states('ГОРА', 'xor3')
-        self.assertEqual(len(states), max(period, 1))
-
-    def test_as_each_state_has_width_cells(self):
-        states = self.attractor_states('ГОРА', 'xor3', 16)
-        for s in states:
-            self.assertEqual(len(s), 16)
-
-    def test_as_xor_period_one(self):
-        states = self.attractor_states('ГОРА', 'xor')
-        self.assertEqual(len(states), 1)
-
-    def test_as_values_in_q6_range(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for s in states:
-            for v in s:
-                self.assertGreaterEqual(v, 0)
-                self.assertLessEqual(v, 63)
-
-    def test_as_xor_attractor_all_zeros(self):
-        # XOR rule: attractor is the all-zeros state
-        states = self.attractor_states('ГОРА', 'xor')
-        self.assertEqual(states[0], [0] * 16)
-
-    # ── cell_entropy() ────────────────────────────────────────────────────────
-
-    def test_ce_constant_state(self):
-        # Single state → H = 0
-        self.assertAlmostEqual(self.cell_entropy([[5, 3, 0]], 0), 0.0, places=9)
-
-    def test_ce_two_distinct_values(self):
-        # Alternating [0, 1, 0, 1] for cell 0 → H = 1 bit
-        states = [[0, 0], [1, 0], [0, 0], [1, 0]]
-        self.assertAlmostEqual(self.cell_entropy(states, 0), 1.0, places=9)
-
-    def test_ce_all_same_value(self):
-        states = [[7, 7]] * 8
-        self.assertAlmostEqual(self.cell_entropy(states, 0), 0.0, places=9)
-
-    def test_ce_non_negative(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(16):
-            self.assertGreaterEqual(self.cell_entropy(states, i), 0.0)
-
-    def test_ce_xor_zero_entropy(self):
-        # XOR attractor is all-zeros: entropy = 0
-        states = self.attractor_states('ГОРА', 'xor')
-        self.assertAlmostEqual(self.cell_entropy(states, 0), 0.0, places=9)
-
-    # ── cell_mi() ─────────────────────────────────────────────────────────────
-
-    def test_cmi_self_equals_entropy(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(4):
-            mi_self = self.cell_mi(states, i, i)
-            ent     = self.cell_entropy(states, i)
-            self.assertAlmostEqual(mi_self, ent, places=6)
-
-    def test_cmi_symmetric(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(4):
-            for j in range(4):
-                self.assertAlmostEqual(
-                    self.cell_mi(states, i, j),
-                    self.cell_mi(states, j, i),
-                    places=9,
-                )
-
-    def test_cmi_non_negative(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(8):
-            for j in range(8):
-                self.assertGreaterEqual(self.cell_mi(states, i, j), 0.0)
-
-    def test_cmi_bounded_by_min_entropy(self):
-        # I(X;Y) ≤ min(H(X), H(Y))
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(6):
-            for j in range(6):
-                mi  = self.cell_mi(states, i, j)
-                hi  = self.cell_entropy(states, i)
-                hj  = self.cell_entropy(states, j)
-                self.assertLessEqual(mi, max(hi, hj) + 1e-9)
-
-    def test_cmi_xor_constant(self):
-        # XOR period-1 (constant): MI = 0 between any pair
-        states = self.attractor_states('ГОРА', 'xor')
-        self.assertAlmostEqual(self.cell_mi(states, 0, 5), 0.0, places=9)
-
-    def test_cmi_empty_states(self):
-        self.assertEqual(self.cell_mi([], 0, 0), 0)
-
-    # ── entropy_profile() ─────────────────────────────────────────────────────
-
-    def test_ep_length(self):
-        ep = self.entropy_profile('ГОРА', 'xor3', 16)
-        self.assertEqual(len(ep), 16)
-
-    def test_ep_all_non_negative(self):
-        ep = self.entropy_profile('ТУМАН', 'xor3')
-        for v in ep:
-            self.assertGreaterEqual(v, 0.0)
-
-    def test_ep_xor_all_zero(self):
-        ep = self.entropy_profile('ГОРА', 'xor')
-        for v in ep:
-            self.assertAlmostEqual(v, 0.0, places=9)
-
-    # ── mi_matrix() ───────────────────────────────────────────────────────────
-
-    def test_mm_shape(self):
-        M = self.mi_matrix('ГОРА', 'xor3', 16)
-        self.assertEqual(len(M), 16)
-        self.assertEqual(len(M[0]), 16)
-
-    def test_mm_symmetric(self):
-        M = self.mi_matrix('ТУМАН', 'xor3')
-        for i in range(16):
-            for j in range(16):
-                self.assertAlmostEqual(M[i][j], M[j][i], places=6)
-
-    def test_mm_diagonal_is_entropy(self):
-        M  = self.mi_matrix('ТУМАН', 'xor3')
-        ep = self.entropy_profile('ТУМАН', 'xor3')
-        for i in range(16):
-            self.assertAlmostEqual(M[i][i], ep[i], places=6)
-
-    def test_mm_all_non_negative(self):
-        M = self.mi_matrix('ТУМАН', 'xor3')
-        for row in M:
-            for v in row:
-                self.assertGreaterEqual(v, -1e-9)
-
-    def test_mm_xor_all_zero(self):
-        M = self.mi_matrix('ГОРА', 'xor')
-        for row in M:
-            for v in row:
-                self.assertAlmostEqual(v, 0.0, places=9)
-
-    # ── mi_profile() ──────────────────────────────────────────────────────────
-
-    def test_mp_length(self):
-        M   = self.mi_matrix('ТУМАН', 'xor3')
-        p   = self.mi_profile(M, 16)
-        self.assertEqual(len(p), 16 // 2 + 1)
-
-    def test_mp_d0_is_mean_entropy(self):
-        M   = self.mi_matrix('ТУМАН', 'xor3')
-        p   = self.mi_profile(M, 16)
-        ep  = self.entropy_profile('ТУМАН', 'xor3')
-        self.assertAlmostEqual(p[0], sum(ep) / len(ep), places=4)
-
-    def test_mp_all_non_negative(self):
-        M = self.mi_matrix('ТУМАН', 'xor3')
-        for v in self.mi_profile(M, 16):
-            self.assertGreaterEqual(v, -1e-9)
-
-    # ── trajectory_mutual() ───────────────────────────────────────────────────
-
-    def test_tm_keys(self):
-        r = self.trajectory_mutual('ГОРА', 'xor3')
-        for k in ['word', 'rule', 'width', 'period', 'entropy',
-                  'M', 'mi_by_dist', 'mean_entropy', 'max_mi', 'max_mi_pair']:
-            self.assertIn(k, r)
-
-    def test_tm_word_uppercased(self):
-        self.assertEqual(self.trajectory_mutual('гора', 'xor3')['word'], 'ГОРА')
-
-    def test_tm_xor_zero_entropy(self):
-        r = self.trajectory_mutual('ГОРА', 'xor')
-        self.assertAlmostEqual(r['mean_entropy'], 0.0, places=9)
-
-    def test_tm_xor3_tuман_mean_entropy(self):
-        r = self.trajectory_mutual('ТУМАН', 'xor3')
-        self.assertAlmostEqual(r['mean_entropy'], 2.234, delta=0.01)
-
-    def test_tm_max_mi_non_negative(self):
-        r = self.trajectory_mutual('ТУМАН', 'xor3')
-        self.assertGreaterEqual(r['max_mi'], 0.0)
-
-    def test_tm_max_mi_pair_is_tuple_or_list(self):
-        r = self.trajectory_mutual('ТУМАН', 'xor3')
-        self.assertEqual(len(r['max_mi_pair']), 2)
-
-    # ── all_mutual() ──────────────────────────────────────────────────────────
-
-    def test_am_all_rules(self):
-        d = self.all_mutual('ГОРА')
-        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
-
-    def test_am_each_has_period(self):
-        d = self.all_mutual('ВОДА')
-        for rule in self.ALL_RULES:
-            self.assertIn('period', d[rule])
-
-    # ── build_mutual_data() ───────────────────────────────────────────────────
-
-    def test_bmd_keys(self):
-        d = self.build_mutual_data(['ГОРА', 'ВОДА'])
-        for k in ['words', 'width', 'per_rule', 'ranking', 'max_h', 'min_h']:
-            self.assertIn(k, d)
-
-    def test_bmd_ranking_sorted(self):
-        d = self.build_mutual_data(['ГОРА', 'ВОДА', 'ТУМАН'])
-        for rule in self.ALL_RULES:
-            hs = [x[1] for x in d['ranking'][rule]]
-            self.assertEqual(hs, sorted(hs, reverse=True))
-
-    # ── mutual_dict() ─────────────────────────────────────────────────────────
-
-    def test_md_json_serialisable(self):
-        import json
-        d = self.mutual_dict('ГОРА')
-        json.dumps(d)
-
-    def test_md_no_matrix(self):
-        d = self.mutual_dict('ГОРА')
-        for rule in self.ALL_RULES:
-            self.assertNotIn('M', d['rules'][rule])
-
-    def test_md_has_mi_by_dist(self):
-        d = self.mutual_dict('ТУМАН')
-        for rule in self.ALL_RULES:
-            self.assertIn('mi_by_dist', d['rules'][rule])
-
-    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
-
-    def test_viewer_has_mi_mat(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('mi-mat', content)
-
-    def test_viewer_has_mi_dist(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('mi-dist', content)
-
-    def test_viewer_has_mi_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('mi-stats', content)
-
-    def test_viewer_has_mi_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('mi-btn', content)
-
-    def test_viewer_has_mi_cell_mi(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('miCellMI', content)
-
-    def test_viewer_has_mi_entropy(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('miEntropy', content)
-
-
 class TestSolanSpacetime(unittest.TestCase):
     """Tests for solan_spacetime.py and the viewer Space-time section."""
 
@@ -20883,6 +20597,371 @@ class TestSolanFourier(unittest.TestCase):
     def test_viewer_has_solan_fourier_section(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_fourier', content)
+
+
+class TestSolanMutual(unittest.TestCase):
+    """Tests for solan_mutual.py — Mutual Information Analysis of Q6 CA orbits."""
+
+    # ── imports ──────────────────────────────────────────────────────────────
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mutual import (
+            cell_entropy, cell_mi,
+            attractor_states, entropy_profile,
+            mi_matrix, mi_profile,
+            mutual_summary, trajectory_mutual,
+            all_mutual, build_mutual_data, mutual_dict,
+        )
+        cls.cell_entropy      = staticmethod(cell_entropy)
+        cls.cell_mi           = staticmethod(cell_mi)
+        cls.attractor_states  = staticmethod(attractor_states)
+        cls.entropy_profile   = staticmethod(entropy_profile)
+        cls.mi_matrix         = staticmethod(mi_matrix)
+        cls.mi_profile        = staticmethod(mi_profile)
+        cls.mutual_summary    = staticmethod(mutual_summary)
+        cls.trajectory_mutual = staticmethod(trajectory_mutual)
+        cls.all_mutual        = staticmethod(all_mutual)
+        cls.build_mutual_data = staticmethod(build_mutual_data)
+        cls.mutual_dict       = staticmethod(mutual_dict)
+
+    # ── cell_entropy ─────────────────────────────────────────────────────────
+
+    def test_cell_entropy_constant_zero(self):
+        # constant sequence → H=0
+        states = [[5]*16] * 3
+        self.assertAlmostEqual(self.cell_entropy(states, 0), 0.0)
+
+    def test_cell_entropy_two_values_equal(self):
+        # alternating [0,1,0,1,...] → H=1 bit
+        states = [[0]*16, [1]*16]
+        self.assertAlmostEqual(self.cell_entropy(states, 0), 1.0)
+
+    def test_cell_entropy_non_negative(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(16):
+            self.assertGreaterEqual(self.cell_entropy(states, i), 0.0)
+
+    def test_cell_entropy_bounded_by_log2_period(self):
+        import math
+        states = self.attractor_states('ТУМАН', 'xor3')
+        P = len(states)
+        for i in range(16):
+            self.assertLessEqual(self.cell_entropy(states, i), math.log2(P) + 1e-9)
+
+    # ── cell_mi ───────────────────────────────────────────────────────────────
+
+    def test_cell_mi_diagonal_equals_entropy(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(16):
+            mi_ii  = self.cell_mi(states, i, i)
+            h_i    = self.cell_entropy(states, i)
+            self.assertAlmostEqual(mi_ii, h_i, places=9)
+
+    def test_cell_mi_symmetric(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(0, 4):
+            for j in range(i+1, 4):
+                self.assertAlmostEqual(
+                    self.cell_mi(states, i, j),
+                    self.cell_mi(states, j, i), places=9)
+
+    def test_cell_mi_non_negative(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(16):
+            for j in range(16):
+                self.assertGreaterEqual(self.cell_mi(states, i, j), 0.0)
+
+    def test_cell_mi_p1_all_zero(self):
+        # P=1 → constant orbit → H=0 → MI=0
+        states = self.attractor_states('ГОРА', 'xor')
+        for i in range(16):
+            for j in range(16):
+                self.assertAlmostEqual(self.cell_mi(states, i, j), 0.0)
+
+    def test_cell_mi_bounded_by_min_entropy(self):
+        # I(X;Y) ≤ min(H(X), H(Y))
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(0, 4):
+            for j in range(0, 4):
+                mi_ij = self.cell_mi(states, i, j)
+                h_i   = self.cell_entropy(states, i)
+                h_j   = self.cell_entropy(states, j)
+                self.assertLessEqual(mi_ij, min(h_i, h_j) + 1e-9)
+
+    # ── attractor_states ──────────────────────────────────────────────────────
+
+    def test_attractor_states_returns_list(self):
+        states = self.attractor_states('ГОРА', 'xor3')
+        self.assertIsInstance(states, list)
+
+    def test_attractor_states_each_row_width(self):
+        states = self.attractor_states('ГОРА', 'xor3', 16)
+        for s in states:
+            self.assertEqual(len(s), 16)
+
+    def test_attractor_states_p1_one_row(self):
+        states = self.attractor_states('ГОРА', 'xor')
+        self.assertEqual(len(states), 1)
+
+    def test_attractor_states_gora_p2(self):
+        states = self.attractor_states('ГОРА', 'xor3')
+        self.assertEqual(len(states), 2)
+
+    def test_attractor_states_tuman_p8(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        self.assertEqual(len(states), 8)
+
+    # ── entropy_profile ───────────────────────────────────────────────────────
+
+    def test_entropy_profile_length(self):
+        ep = self.entropy_profile('ГОРА', 'xor3', 16)
+        self.assertEqual(len(ep), 16)
+
+    def test_entropy_profile_non_negative(self):
+        ep = self.entropy_profile('ТУМАН', 'xor3', 16)
+        for h in ep:
+            self.assertGreaterEqual(h, 0.0)
+
+    def test_entropy_profile_p1_all_zero(self):
+        ep = self.entropy_profile('ГОРА', 'xor', 16)
+        for h in ep:
+            self.assertAlmostEqual(h, 0.0)
+
+    def test_entropy_profile_gora_xor3_all_one(self):
+        # ГОРА P=2: all cells alternate → H=1 for all
+        ep = self.entropy_profile('ГОРА', 'xor3', 16)
+        for h in ep:
+            self.assertAlmostEqual(h, 1.0)
+
+    # ── mi_matrix ────────────────────────────────────────────────────────────
+
+    def test_mi_matrix_shape(self):
+        M = self.mi_matrix('ГОРА', 'xor3')
+        self.assertEqual(len(M), 16)
+        for row in M:
+            self.assertEqual(len(row), 16)
+
+    def test_mi_matrix_symmetric(self):
+        M = self.mi_matrix('ТУМАН', 'xor3')
+        for i in range(16):
+            for j in range(16):
+                self.assertAlmostEqual(M[i][j], M[j][i], places=9)
+
+    def test_mi_matrix_diagonal_positive_tuman(self):
+        M = self.mi_matrix('ТУМАН', 'xor3')
+        for i in range(16):
+            self.assertGreater(M[i][i], 0.0)
+
+    def test_mi_matrix_diagonal_zero_xor(self):
+        M = self.mi_matrix('ГОРА', 'xor')
+        for i in range(16):
+            self.assertAlmostEqual(M[i][i], 0.0)
+
+    def test_mi_matrix_gora_xor3_all_ones(self):
+        # ГОРА P=2: all cells fully correlated → entire matrix = 1.0
+        M = self.mi_matrix('ГОРА', 'xor3')
+        for i in range(16):
+            for j in range(16):
+                self.assertAlmostEqual(M[i][j], 1.0)
+
+    # ── mi_profile ────────────────────────────────────────────────────────────
+
+    def test_mi_profile_length(self):
+        M = self.mi_matrix('ТУМАН', 'xor3')
+        prof = self.mi_profile(M, 16)
+        self.assertEqual(len(prof), 9)   # W//2 + 1 = 9
+
+    def test_mi_profile_d0_equals_mean_entropy(self):
+        # d=0 means MI(i,i)=H(i), average = mean_entropy
+        M   = self.mi_matrix('ТУМАН', 'xor3')
+        prof = self.mi_profile(M, 16)
+        ent_mean = sum(M[i][i] for i in range(16)) / 16
+        self.assertAlmostEqual(prof[0], ent_mean, places=5)
+
+    def test_mi_profile_gora_xor3_all_one(self):
+        # all pairs fully correlated
+        M    = self.mi_matrix('ГОРА', 'xor3')
+        prof = self.mi_profile(M, 16)
+        for v in prof:
+            self.assertAlmostEqual(v, 1.0)
+
+    def test_mi_profile_non_negative(self):
+        M    = self.mi_matrix('ТУМАН', 'xor3')
+        prof = self.mi_profile(M, 16)
+        for v in prof:
+            self.assertGreaterEqual(v, 0.0)
+
+    # ── mutual_summary / trajectory_mutual ───────────────────────────────────
+
+    def test_mutual_summary_alias_identical(self):
+        tr1 = self.mutual_summary('ГОРА', 'xor3')
+        tr2 = self.trajectory_mutual('ГОРА', 'xor3')
+        self.assertEqual(tr1['period'], tr2['period'])
+        self.assertAlmostEqual(tr1['mean_entropy'], tr2['mean_entropy'])
+        self.assertAlmostEqual(tr1['max_mi'],       tr2['max_mi'])
+
+    def test_mutual_summary_has_required_keys(self):
+        tr = self.mutual_summary('ГОРА', 'xor3')
+        for k in ('word','rule','width','period','entropy','M','mi_by_dist',
+                  'mean_entropy','max_mi','max_mi_pair'):
+            self.assertIn(k, tr)
+
+    def test_mutual_summary_word_uppercased(self):
+        tr = self.mutual_summary('гора', 'xor3')
+        self.assertEqual(tr['word'], 'ГОРА')
+
+    def test_mutual_summary_gora_xor3_period(self):
+        tr = self.mutual_summary('ГОРА', 'xor3')
+        self.assertEqual(tr['period'], 2)
+
+    def test_mutual_summary_gora_xor3_mean_entropy(self):
+        tr = self.mutual_summary('ГОРА', 'xor3')
+        self.assertAlmostEqual(tr['mean_entropy'], 1.0, places=6)
+
+    def test_mutual_summary_gora_xor3_max_mi(self):
+        tr = self.mutual_summary('ГОРА', 'xor3')
+        self.assertAlmostEqual(tr['max_mi'], 1.0, places=6)
+
+    def test_mutual_summary_tuman_xor3_period(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        self.assertEqual(tr['period'], 8)
+
+    def test_mutual_summary_tuman_xor3_mean_entropy(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(tr['mean_entropy'], 2.23407, places=4)
+
+    def test_mutual_summary_tuman_xor3_max_mi(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(tr['max_mi'], 2.75, places=6)
+
+    def test_mutual_summary_tuman_xor3_max_pair(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        self.assertEqual(tuple(tr['max_mi_pair']), (2, 13))
+
+    def test_mutual_summary_xor_all_zero(self):
+        tr = self.mutual_summary('ГОРА', 'xor')
+        self.assertEqual(tr['period'], 1)
+        self.assertAlmostEqual(tr['mean_entropy'], 0.0)
+        self.assertAlmostEqual(tr['max_mi'], 0.0)
+
+    def test_mutual_summary_entropy_list_length(self):
+        tr = self.mutual_summary('ГОРА', 'xor3', 16)
+        self.assertEqual(len(tr['entropy']), 16)
+
+    def test_mutual_summary_mi_by_dist_length(self):
+        tr = self.mutual_summary('ГОРА', 'xor3', 16)
+        self.assertEqual(len(tr['mi_by_dist']), 9)
+
+    def test_mutual_summary_M_shape(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(tr['M']), 16)
+        for row in tr['M']:
+            self.assertEqual(len(row), 16)
+
+    def test_mutual_summary_entropy_matches_diagonal(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        M  = tr['M']
+        for i in range(16):
+            self.assertAlmostEqual(tr['entropy'][i], M[i][i], places=9)
+
+    # ── all_mutual ────────────────────────────────────────────────────────────
+
+    def test_all_mutual_returns_four_rules(self):
+        am = self.all_mutual('ГОРА')
+        self.assertEqual(set(am.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_mutual_each_has_period(self):
+        am = self.all_mutual('ГОРА')
+        for rule, tr in am.items():
+            self.assertIn('period', tr)
+
+    # ── build_mutual_data ─────────────────────────────────────────────────────
+
+    def test_build_mutual_data_keys(self):
+        data = self.build_mutual_data(['ГОРА', 'ТУМАН'])
+        for k in ('words','width','per_rule','ranking','max_h','min_h'):
+            self.assertIn(k, data)
+
+    def test_build_mutual_data_per_rule_has_all_words(self):
+        words = ['ГОРА', 'ТУМАН', 'МАТ']
+        data  = self.build_mutual_data(words)
+        for rule in ('xor','xor3','and','or'):
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    def test_build_mutual_data_ranking_descending(self):
+        data = self.build_mutual_data(['ГОРА', 'ТУМАН', 'МАТ'])
+        for rule in ('xor3',):
+            rank = data['ranking'][rule]
+            vals = [h for _, h in rank]
+            self.assertEqual(vals, sorted(vals, reverse=True))
+
+    # ── mutual_dict ───────────────────────────────────────────────────────────
+
+    def test_mutual_dict_json_serialisable(self):
+        import json
+        d = self.mutual_dict('ГОРА')
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(s, str)
+
+    def test_mutual_dict_has_rules_key(self):
+        d = self.mutual_dict('ГОРА')
+        self.assertIn('rules', d)
+        self.assertEqual(set(d['rules'].keys()), {'xor','xor3','and','or'})
+
+    def test_mutual_dict_rule_keys(self):
+        d = self.mutual_dict('ТУМАН')
+        for rule, rd in d['rules'].items():
+            for k in ('period','mean_entropy','max_mi','max_mi_pair','entropy','mi_by_dist'):
+                self.assertIn(k, rd)
+
+    def test_mutual_dict_max_mi_pair_list(self):
+        d = self.mutual_dict('ТУМАН')
+        pair = d['rules']['xor3']['max_mi_pair']
+        self.assertIsInstance(pair, list)
+        self.assertEqual(len(pair), 2)
+
+    # ── viewer assertions ─────────────────────────────────────────────────────
+
+    def test_viewer_has_mi_mat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-mat', content)
+
+    def test_viewer_has_mi_dist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-dist', content)
+
+    def test_viewer_has_mi_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-stats', content)
+
+    def test_viewer_has_mi_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-hmap', content)
+
+    def test_viewer_has_mi_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('miRun', content)
+
+    def test_viewer_has_mi_step(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('miStep', content)
+
+    def test_viewer_has_mi_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('miOrbit', content)
+
+    def test_viewer_has_solan_mutual_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_mutual', content)
+
+    def test_viewer_has_mi_cell_mi(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('miCellMI', content)
+
+    def test_viewer_has_mi_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-word', content)
 
 
 if __name__ == "__main__":
