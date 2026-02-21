@@ -4296,6 +4296,247 @@ class TestSolanMutual(unittest.TestCase):
         self.assertIn('miEntropy', content)
 
 
+class TestSolanSpacetime(unittest.TestCase):
+    """Tests for solan_spacetime.py and the viewer Space-time section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spacetime import (
+            spacetime, value_to_rgb,
+            st_spatial_entropy, st_temporal_entropy, st_activity,
+            st_dict, all_st, build_st_data,
+            _ALL_RULES, _DEFAULT_WIDTH,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.spacetime          = staticmethod(spacetime)
+        cls.value_to_rgb       = staticmethod(value_to_rgb)
+        cls.st_spatial_entropy = staticmethod(st_spatial_entropy)
+        cls.st_temporal_entropy= staticmethod(st_temporal_entropy)
+        cls.st_activity        = staticmethod(st_activity)
+        cls.st_dict            = staticmethod(st_dict)
+        cls.all_st             = staticmethod(all_st)
+        cls.build_st_data      = staticmethod(build_st_data)
+        cls.ALL_RULES          = _ALL_RULES
+        cls.W                  = _DEFAULT_WIDTH
+        cls.LEXICON            = list(LEXICON)
+
+    # ── spacetime() ───────────────────────────────────────────────────────────
+
+    def test_st_keys(self):
+        d = self.spacetime('ГОРА', 'xor')
+        for k in ['word', 'rule', 'width', 'transient', 'period',
+                  'extra_periods', 'n_steps', 'grid']:
+            self.assertIn(k, d)
+
+    def test_st_word_upper(self):
+        d = self.spacetime('гора', 'xor')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_st_transient_period_gora_xor(self):
+        d = self.spacetime('ГОРА', 'xor')
+        self.assertEqual(d['transient'], 2)
+        self.assertEqual(d['period'],    1)
+
+    def test_st_transient_period_tuman_xor3(self):
+        d = self.spacetime('ТУМАН', 'xor3')
+        self.assertEqual(d['transient'], 0)
+        self.assertEqual(d['period'],    8)
+
+    def test_st_n_steps(self):
+        extra = 2
+        d = self.spacetime('ТУМАН', 'xor3', extra_periods=extra)
+        expected = d['transient'] + d['period'] * (1 + extra)
+        self.assertEqual(d['n_steps'], expected)
+        self.assertEqual(len(d['grid']), expected)
+
+    def test_st_grid_row_width(self):
+        d = self.spacetime('ГОРА', 'xor3')
+        for row in d['grid']:
+            self.assertEqual(len(row), self.W)
+
+    def test_st_grid_q6_range(self):
+        d = self.spacetime('ТУМАН', 'xor3')
+        for row in d['grid']:
+            for v in row:
+                self.assertGreaterEqual(v, 0)
+                self.assertLessEqual(v, 63)
+
+    def test_st_grid_row0_is_ic(self):
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        word = 'ГОРА'
+        d    = self.spacetime(word, 'xor3')
+        ic   = pad_to(encode_word(word), self.W)
+        self.assertEqual(d['grid'][0], ic)
+
+    def test_st_attractor_cyclic(self):
+        # grid[T] through grid[T+P-1] forms the attractor cycle
+        # so grid[T] == grid[T+P] when extra_periods >= 1
+        d = self.spacetime('ТУМАН', 'xor3', extra_periods=1)
+        T = d['transient']
+        P = d['period']
+        if len(d['grid']) > T + P:
+            self.assertEqual(d['grid'][T], d['grid'][T + P])
+
+    def test_st_step_consistency(self):
+        from projects.hexglyph.solan_ca import step as ca_step
+        d = self.spacetime('ГОРА', 'xor3', extra_periods=0)
+        for t in range(len(d['grid']) - 1):
+            expected = ca_step(d['grid'][t][:], 'xor3')
+            self.assertEqual(d['grid'][t + 1], expected)
+
+    # ── value_to_rgb() ────────────────────────────────────────────────────────
+
+    def test_vrgb_output_range(self):
+        for v in range(64):
+            r, g, b = self.value_to_rgb(v)
+            for ch in [r, g, b]:
+                self.assertGreaterEqual(ch, 0)
+                self.assertLessEqual(ch, 255)
+
+    def test_vrgb_different_values_differ(self):
+        # Most adjacent values should produce different colours
+        diffs = sum(
+            1 for v in range(62)
+            if self.value_to_rgb(v) != self.value_to_rgb(v + 1)
+        )
+        self.assertGreater(diffs, 50)
+
+    # ── st_spatial_entropy() ──────────────────────────────────────────────────
+
+    def test_sse_length(self):
+        d   = self.spacetime('ТУМАН', 'xor3')
+        se  = self.st_spatial_entropy(d['grid'])
+        self.assertEqual(len(se), d['n_steps'])
+
+    def test_sse_non_negative(self):
+        d  = self.spacetime('ГОРА', 'xor')
+        se = self.st_spatial_entropy(d['grid'])
+        for v in se:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_sse_uniform_zero(self):
+        # All-zeros row → entropy = 0
+        se = self.st_spatial_entropy([[0] * 16])
+        self.assertAlmostEqual(se[0], 0.0, places=8)
+
+    def test_sse_diverse_positive(self):
+        d  = self.spacetime('ТУМАН', 'xor3')
+        se = self.st_spatial_entropy(d['grid'])
+        self.assertGreater(max(se), 0.0)
+
+    # ── st_temporal_entropy() ─────────────────────────────────────────────────
+
+    def test_ste_length(self):
+        d  = self.spacetime('ТУМАН', 'xor3')
+        te = self.st_temporal_entropy(d['grid'], self.W)
+        self.assertEqual(len(te), self.W)
+
+    def test_ste_non_negative(self):
+        d  = self.spacetime('ТУМАН', 'xor3')
+        te = self.st_temporal_entropy(d['grid'], self.W)
+        for v in te:
+            self.assertGreaterEqual(v, 0.0)
+
+    # ── st_activity() ─────────────────────────────────────────────────────────
+
+    def test_sact_length(self):
+        d   = self.spacetime('ТУМАН', 'xor3')
+        act = self.st_activity(d['grid'])
+        self.assertEqual(len(act), d['n_steps'] - 1)
+
+    def test_sact_non_negative(self):
+        d   = self.spacetime('ГОРА', 'xor')
+        act = self.st_activity(d['grid'])
+        for v in act:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_sact_period1_attractor_zero(self):
+        # XOR ГОРА: attractor is all-zeros (period=1) → no change on attractor
+        d   = self.spacetime('ГОРА', 'xor', extra_periods=1)
+        T   = d['transient']
+        act = self.st_activity(d['grid'])
+        for v in act[T:]:
+            self.assertAlmostEqual(v, 0.0, places=8)
+
+    # ── st_dict() ─────────────────────────────────────────────────────────────
+
+    def test_sd_keys(self):
+        d = self.st_dict('ТУМАН', 'xor3')
+        for k in ['word', 'rule', 'width', 'transient', 'period',
+                  'grid', 'spatial_entropy', 'temporal_entropy', 'activity',
+                  'mean_spatial_h', 'mean_temporal_h',
+                  'transient_activity', 'attractor_activity',
+                  'ic_entropy', 'attractor_entropy']:
+            self.assertIn(k, d)
+
+    def test_sd_ic_entropy_non_negative(self):
+        for rule in self.ALL_RULES:
+            d = self.st_dict('ГОРА', rule)
+            self.assertGreaterEqual(d['ic_entropy'], 0.0)
+
+    def test_sd_attractor_entropy_zeros_is_zero(self):
+        # XOR → all-zeros attractor → entropy = 0
+        d = self.st_dict('ГОРА', 'xor')
+        self.assertAlmostEqual(d['attractor_entropy'], 0.0, places=6)
+
+    def test_sd_spatial_entropy_length(self):
+        d = self.st_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['spatial_entropy']), d['n_steps'])
+
+    def test_sd_temporal_entropy_length(self):
+        d = self.st_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['temporal_entropy']), self.W)
+
+    def test_sd_activity_length(self):
+        d = self.st_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['activity']), d['n_steps'] - 1)
+
+    # ── all_st() ─────────────────────────────────────────────────────────────
+
+    def test_ast_all_rules(self):
+        d = self.all_st('ТУМАН')
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    # ── build_st_data() ───────────────────────────────────────────────────────
+
+    def test_bsd_keys(self):
+        d = self.build_st_data(['ГОРА', 'ВОДА'])
+        for k in ['words', 'per_rule', 'ranking']:
+            self.assertIn(k, d)
+
+    def test_bsd_ranking_sorted(self):
+        d = self.build_st_data(['ГОРА', 'ВОДА', 'МИР'])
+        for rule in self.ALL_RULES:
+            vals = [x[1] for x in d['ranking'][rule]]
+            self.assertEqual(vals, sorted(vals, reverse=True))
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_st_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('st-canvas', content)
+
+    def test_viewer_has_st_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('st-stats', content)
+
+    def test_viewer_has_st_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('st-btn', content)
+
+    def test_viewer_has_hsv_to_rgb(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hsvToRgb', content)
+
+    def test_viewer_has_st_spatial_h(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('stSpatialH', content)
+
+    def test_viewer_has_draw_spacetime(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('drawSpacetime', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

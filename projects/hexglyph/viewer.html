@@ -4156,6 +4156,189 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Пространство-время Q6 — кимограф эволюции</h2>
+<p class="meta">Полная эволюция от НУ → переходный процесс → аттрактор · цвет = значение Q6 (0–63) через HSV-оттенок · пунктирная линия = начало аттрактора · правый столбец = пространственная энтропия H(t) · H=0 → однородное состояние</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="st-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="st-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <label style="color:#aaa;font-size:12px">доп.периодов =
+    <select id="st-extra"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="0">0</option>
+      <option value="1" selected>1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+    </select>
+  </label>
+  <label style="color:#aaa;font-size:12px">масштаб =
+    <select id="st-scale"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="10">10px</option>
+      <option value="14" selected>14px</option>
+      <option value="20">20px</option>
+    </select>
+  </label>
+  <button id="st-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Кимограф</button>
+</div>
+<canvas id="st-canvas" style="display:block;margin-bottom:6px"></canvas>
+<div id="st-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-bottom:6px"></div>
+<script>
+(function(){
+  var ST_COLS={xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+
+  function stStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function stOrbitInfo(cells0,rule){
+    var seen={},c=cells0.slice(),t=0;
+    for(;;){
+      var key=c.join(',');
+      if(key in seen) return {transient:seen[key],period:t-seen[key]};
+      seen[key]=t; c=stStep(c,rule); t++;
+    }
+  }
+
+  function hsvToRgb(h,s,v){
+    var i=Math.floor(h*6),f=h*6-i;
+    var p=v*(1-s),q=v*(1-(f*s)),tt=v*(1-((1-f)*s));
+    var r,g,b;
+    switch(i%6){
+      case 0:r=v;g=tt;b=p;break; case 1:r=q;g=v;b=p;break;
+      case 2:r=p;g=v;b=tt;break; case 3:r=p;g=q;b=v;break;
+      case 4:r=tt;g=p;b=v;break; case 5:r=v;g=p;b=q;break;
+      default:r=0;g=0;b=0;
+    }
+    return [Math.round(r*255),Math.round(g*255),Math.round(b*255)];
+  }
+
+  function stValueRgb(v){
+    return hsvToRgb(v/63,0.85,0.78);
+  }
+
+  function stSpatialH(row){
+    var counts={},n=row.length;
+    for(var i=0;i<n;i++) counts[row[i]]=(counts[row[i]]||0)+1;
+    var h=0;
+    for(var k in counts){var p=counts[k]/n; if(p>0) h-=p*Math.log2(p);}
+    return Math.max(0,h);
+  }
+
+  function drawSpacetime(canvas,grid,transient,period,scale,rule){
+    var N=grid[0].length, T=grid.length;
+    var entW=60, padL=30, padT=2;
+    var W=padL+N*scale+entW+4, H=padT+T*scale+4;
+    canvas.width=W; canvas.height=H;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,W,H);
+
+    var maxH=Math.log2(N);
+
+    for(var t=0;t<T;t++){
+      var y=padT+t*scale;
+      // row label
+      ctx.fillStyle='#444'; ctx.font='9px monospace'; ctx.textAlign='right';
+      ctx.fillText(t,padL-3,y+scale-2);
+
+      for(var i=0;i<N;i++){
+        var rgb=stValueRgb(grid[t][i]);
+        ctx.fillStyle='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')';
+        ctx.fillRect(padL+i*scale,y,scale-1,scale-1);
+      }
+
+      // entropy bar
+      var h=stSpatialH(grid[t]);
+      var bW=Math.round((h/Math.max(maxH,1))*entW);
+      var c=ST_COLS[rule]||'#ccc';
+      ctx.fillStyle=c;
+      ctx.fillRect(padL+N*scale+2,y,bW,scale-2);
+    }
+
+    // attractor boundary
+    if(transient>0){
+      var yT=padT+transient*scale;
+      ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1;
+      ctx.setLineDash([3,2]);
+      ctx.beginPath(); ctx.moveTo(padL,yT); ctx.lineTo(padL+N*scale,yT); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='8px monospace'; ctx.textAlign='left';
+      ctx.fillText('T='+transient,padL+N*scale+2,yT+6);
+    }
+  }
+
+  function stRun(){
+    if(!window.encL||!window.padL) return;
+    var word=(document.getElementById('st-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('st-rule').value||'xor3';
+    var extra=parseInt(document.getElementById('st-extra').value||'1',10);
+    var scale=parseInt(document.getElementById('st-scale').value||'14',10);
+    var canvas=document.getElementById('st-canvas');
+    var statsDiv=document.getElementById('st-stats');
+
+    var cells=window.padL(window.encL(word),16);
+    var info=stOrbitInfo(cells.slice(),rule);
+    var T=info.transient, P=Math.max(info.period,1);
+    var nSteps=T+P*(1+extra);
+
+    var grid=[], c=cells.slice();
+    for(var t=0;t<nSteps;t++){grid.push(c.slice());c=stStep(c,rule);}
+
+    drawSpacetime(canvas,grid,T,P,scale,rule);
+
+    var icH=stSpatialH(grid[0]);
+    var atH=0;
+    for(var t2=T;t2<T+P;t2++) atH+=stSpatialH(grid[t2]);
+    atH/=P;
+
+    statsDiv.innerHTML='<span style="color:'+ST_COLS[rule]+'">'+rule.toUpperCase()+'</span>'
+      +'  T='+T+'  P='+P
+      +'  H(IC)='+icH.toFixed(3)
+      +'  H(аттр)='+atH.toFixed(3);
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('st-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.text=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn   =document.getElementById('st-btn');
+    var ruleEl=document.getElementById('st-rule');
+    var wordEl=document.getElementById('st-word');
+    var extEl =document.getElementById('st-extra');
+    var scEl  =document.getElementById('st-scale');
+    if(btn)    btn.addEventListener('click',stRun);
+    if(ruleEl) ruleEl.addEventListener('change',stRun);
+    if(wordEl) wordEl.addEventListener('change',stRun);
+    if(extEl)  extEl.addEventListener('change',stRun);
+    if(scEl)   scEl.addEventListener('change',stRun);
+    setTimeout(function(){if(window.encL) stRun();},1050);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Transfer Entropy CA Q6 — направленный поток информации</h2>
 <p class="meta">T(X→Y) = H(Y_t | Y_{t-1}) − H(Y_t | Y_{t-1}, X_{t-1}) · суммируется по 6 бит-плоскостям Q6 · ненулевые значения указывают на причинные связи между клетками · для XOR/AND/OR с периодом 1 (ноль/все-единицы) TE=0 повсюду · максимум при XOR3 ТУМАН (период 8)</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
