@@ -14772,6 +14772,268 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Phonetic Bit-Plane Analysis (solan_bitplane)</h2>
+<p style="color:#888;font-size:13px">
+  Each Q6 value encodes 6 phonetic bits: T(1) B(2) L(4) R(8) D1(16) D2(32).
+  The 6 bit planes form independent binary CA trajectories with their own periods.
+  <br>
+  Grid: rows = 6 bits (T…D2), columns = orbit steps. Black=0, colored=1.
+  Heatmap: 6×6 Pearson coupling matrix (+1=green, −1=red, 0=grey).
+  <br>
+  ★ МАТ XOR3: D1 plane frozen uniform_1 — D1=1 at every cell, every step.
+  &nbsp;★ ТУМАН XOR3: T≡B (r=1.0) — apical/bilabial features perfectly coupled.
+  &nbsp;★ ГОРА XOR3: T frozen, B≡L≡R — triple coupling of place features.
+</p>
+<label style="color:#aaa">Слово:
+  <select id="bp-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="bp-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="bp-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="bp-grid" width="500" height="120"
+  style="background:#0a0a0a;border:1px solid #222;display:inline-block"></canvas>
+&nbsp;&nbsp;
+<canvas id="bp-heat" width="160" height="120"
+  style="background:#0a0a0a;border:1px solid #222;display:inline-block"></canvas>
+<div id="bp-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BIT_NAMES=['T','B','L','R','D1','D2'];
+  // Colors for each bit
+  var BIT_COLS=['#4fc3f7','#80deea','#a5d6a7','#ffcc80','#ce93d8','#f48fb1'];
+
+  function bpStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function bpOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=bpStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=bpStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=bpStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function getBitPlane(orbit,b){
+    return orbit.map(function(state){return state.map(function(v){return (v>>b)&1;});});
+  }
+
+  function planePeriod(plane){
+    var seen={};
+    for(var t=0;t<plane.length;t++){
+      var k=plane[t].join(',');
+      if(k in seen) return t-seen[k];
+      seen[k]=t;
+    }
+    return plane.length;
+  }
+
+  function frozenType(plane){
+    if(planePeriod(plane)>1) return 'active';
+    var row=plane[0];
+    if(row.every(function(v){return v===0;})) return 'uniform_0';
+    if(row.every(function(v){return v===1;})) return 'uniform_1';
+    return 'patterned';
+  }
+
+  function pearson(a,b){
+    var n=a.length; if(n===0) return null;
+    var mx=0,my=0;
+    for(var i=0;i<n;i++){mx+=a[i];my+=b[i];}
+    mx/=n; my/=n;
+    var num=0,da=0,db=0;
+    for(var i=0;i<n;i++){num+=(a[i]-mx)*(b[i]-my);da+=(a[i]-mx)*(a[i]-mx);db+=(b[i]-my)*(b[i]-my);}
+    da=Math.sqrt(da); db=Math.sqrt(db);
+    if(da<1e-9||db<1e-9) return null;
+    return num/(da*db);
+  }
+
+  function bpRun(){
+    var word=(document.getElementById('bp-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('bp-rule').value;
+    if(!window.encL||!window.padL){
+      document.getElementById('bp-info').textContent='(данные не загружены)';return;
+    }
+    var lw=window.LEXW||16;
+    var raw=window.encL(word);
+    if(!raw||!raw.length){document.getElementById('bp-info').textContent='(нет символов)';return;}
+    var ic=window.padL(raw,lw);
+    var orbit=bpOrbit(ic,rule);
+    var P=orbit.length, N=lw;
+
+    // Extract 6 bit planes
+    var planes=[];
+    for(var b=0;b<6;b++) planes.push(getBitPlane(orbit,b));
+
+    // Frozen types
+    var ftypes=planes.map(frozenType);
+
+    // Flattened for correlation
+    var flats=planes.map(function(pl){
+      var f=[];
+      pl.forEach(function(row){row.forEach(function(v){f.push(v);});});
+      return f;
+    });
+
+    // 6×6 coupling matrix
+    var cmat=[];
+    for(var b1=0;b1<6;b1++){
+      cmat.push([]);
+      for(var b2=0;b2<6;b2++){
+        cmat[b1].push(b1===b2?1.0:pearson(flats[b1],flats[b2]));
+      }
+    }
+
+    // Find coupled/anti-coupled pairs
+    var coupled=[],anti=[];
+    for(var b1=0;b1<6;b1++) for(var b2=b1+1;b2<6;b2++){
+      var r=cmat[b1][b2];
+      if(r===null) continue;
+      if(r>0.9999) coupled.push([b1,b2]);
+      else if(r<-0.9999) anti.push([b1,b2]);
+    }
+
+    // ── Draw bit-plane grid ──────────────────────────────────────────────────
+    var gv=document.getElementById('bp-grid');
+    var gc=gv.getContext('2d');
+    var cellW=Math.min(Math.floor((580)/Math.max(P,1)),30);
+    var cellH=16;
+    gv.width=Math.max(200,P*cellW+80);
+    gv.height=6*cellH+40;
+    gc.clearRect(0,0,gv.width,gv.height);
+
+    for(var b=0;b<6;b++){
+      var by=20+b*cellH;
+      // Label
+      gc.fillStyle='#888'; gc.font='9px monospace'; gc.textAlign='right';
+      gc.fillText(BIT_NAMES[b],52,by+cellH-3);
+      // Cells
+      for(var t=0;t<P;t++){
+        var bx=60+t*cellW;
+        var rowOnes=planes[b][t].reduce(function(a,v){return a+v;},0);
+        var frac=rowOnes/N;
+        if(ftypes[b]==='uniform_0'||ftypes[b]==='uniform_1'){
+          gc.fillStyle=ftypes[b]==='uniform_1'?BIT_COLS[b]:'#111';
+          gc.globalAlpha=1.0;
+        } else if(ftypes[b]==='active'){
+          gc.globalAlpha=0.3+0.7*frac;
+          gc.fillStyle=BIT_COLS[b];
+        } else {
+          gc.globalAlpha=0.5+0.5*frac;
+          gc.fillStyle='#aaa';
+        }
+        gc.fillRect(bx+1,by+1,cellW-2,cellH-2);
+        gc.globalAlpha=1.0;
+        // Step label (bottom)
+        if(b===5){gc.fillStyle='#444';gc.font='8px monospace';gc.textAlign='center';gc.fillText('t'+t,bx+cellW/2,gv.height-2);}
+      }
+      // Period label
+      gc.globalAlpha=1.0;
+      gc.fillStyle='#555'; gc.font='8px monospace'; gc.textAlign='left';
+      gc.fillText('p='+planePeriod(planes[b]),60+P*cellW+4,by+cellH-3);
+    }
+    // Bit label header
+    gc.fillStyle='#555'; gc.font='9px monospace'; gc.textAlign='left';
+    gc.fillText('bit\\t',2,12);
+
+    // ── Draw coupling heatmap ────────────────────────────────────────────────
+    var hv=document.getElementById('bp-heat');
+    var hc=hv.getContext('2d');
+    var cSize=20;
+    hv.width=6*cSize+50; hv.height=6*cSize+50;
+    hc.clearRect(0,0,hv.width,hv.height);
+
+    // Labels
+    for(var b=0;b<6;b++){
+      hc.fillStyle='#888'; hc.font='8px monospace'; hc.textAlign='center';
+      hc.fillText(BIT_NAMES[b],32+b*cSize+cSize/2,12);
+      hc.textAlign='right';
+      hc.fillText(BIT_NAMES[b],28,30+b*cSize+cSize/2+3);
+    }
+
+    for(var b1=0;b1<6;b1++){
+      for(var b2=0;b2<6;b2++){
+        var r=cmat[b1][b2];
+        var hx=32+b2*cSize, hy=18+b1*cSize;
+        var fillC;
+        if(r===null){
+          fillC='#222';
+        } else if(r>0.999){
+          fillC=BIT_COLS[b1];
+        } else if(r<-0.999){
+          fillC='#ef5350';
+        } else {
+          var v=Math.round((r+1)/2*160+40);
+          fillC='rgb('+v+','+v+','+v+')';
+        }
+        hc.fillStyle=fillC;
+        hc.fillRect(hx+1,hy+1,cSize-2,cSize-2);
+        if(r!==null && Math.abs(r)>0.1 && b1!==b2){
+          hc.fillStyle='#000'; hc.font='6px monospace'; hc.textAlign='center';
+          hc.fillText(r.toFixed(1),hx+cSize/2,hy+cSize/2+2);
+        }
+      }
+    }
+
+    // ── Info ─────────────────────────────────────────────────────────────────
+    var lines=[
+      'P='+P+'  rule='+rule+'  word='+word,
+      'frozen_types  = ['+ftypes.map(function(f,b){return BIT_NAMES[b]+':'+f;}).join('  ')+']',
+      'coupled (+1)  = ['+coupled.map(function(p){return BIT_NAMES[p[0]]+'='+BIT_NAMES[p[1]];}).join('  ')+']',
+      'anti    (-1)  = ['+anti.map(function(p){return BIT_NAMES[p[0]]+'≠'+BIT_NAMES[p[1]];}).join('  ')+']',
+    ];
+    document.getElementById('bp-info').textContent=lines.join('\n');
+  }
+
+  (function(){
+    var sel=document.getElementById('bp-word');
+    var words=window.LEXICON_ARR||['ТУМАН','ГОРА','МАТ','БОЛТ'];
+    words.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='ТУМАН') o.selected=true;
+      sel.appendChild(o);
+    });
+  })();
+
+  document.getElementById('bp-btn').addEventListener('click',bpRun);
+  document.getElementById('bp-word').addEventListener('change',bpRun);
+  document.getElementById('bp-rule').addEventListener('change',bpRun);
+  setTimeout(function(){if(window.encL&&window.LEXICON_ARR) bpRun();},10500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

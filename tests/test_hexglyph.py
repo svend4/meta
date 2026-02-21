@@ -18912,5 +18912,351 @@ class TestSolanSemantic(unittest.TestCase):
         self.assertIn('self_nearest', content)
 
 
+class TestSolanBitplane(unittest.TestCase):
+    """Tests for solan_bitplane.py — phonetic bit-plane analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_bitplane import (
+            get_bit_plane, plane_period, frozen_type, cell_activity,
+            plane_hamming, coupling_matrix, bitplane_summary,
+            all_bitplane, build_bitplane_data, bitplane_dict,
+        )
+        cls.get_bit_plane    = staticmethod(get_bit_plane)
+        cls.plane_period     = staticmethod(plane_period)
+        cls.frozen_type      = staticmethod(frozen_type)
+        cls.cell_activity    = staticmethod(cell_activity)
+        cls.plane_hamming    = staticmethod(plane_hamming)
+        cls.coupling_matrix  = staticmethod(coupling_matrix)
+        cls.bitplane_summary = staticmethod(bitplane_summary)
+        cls.all_bitplane     = staticmethod(all_bitplane)
+        cls.build_data       = staticmethod(build_bitplane_data)
+        cls.bitplane_dict    = staticmethod(bitplane_dict)
+
+        # Precomputed summaries
+        cls.s_tuman_xor3 = bitplane_summary('ТУМАН', 'xor3', 16)
+        cls.s_mat_xor3   = bitplane_summary('МАТ',   'xor3', 16)
+        cls.s_gora_xor3  = bitplane_summary('ГОРА',  'xor3', 16)
+        cls.s_rota_xor3  = bitplane_summary('РОТА',  'xor3', 16)
+        cls.s_dobro_xor3 = bitplane_summary('ДОБРО', 'xor3', 16)
+
+    # ── get_bit_plane ─────────────────────────────────────────────────────────
+
+    def test_bit0_of_63_is_1(self):
+        # 63 = 0b111111 → bit0 = 1
+        plane = self.get_bit_plane([[63, 0]], 0)
+        self.assertEqual(plane[0][0], 1)
+        self.assertEqual(plane[0][1], 0)
+
+    def test_bit5_of_63_is_1(self):
+        plane = self.get_bit_plane([[63]], 5)
+        self.assertEqual(plane[0][0], 1)
+
+    def test_bit5_of_31_is_0(self):
+        # 31 = 0b011111 → bit5 = 0
+        plane = self.get_bit_plane([[31]], 5)
+        self.assertEqual(plane[0][0], 0)
+
+    def test_bit_plane_shape(self):
+        orbit = [[i for i in range(16)]] * 4
+        plane = self.get_bit_plane(orbit, 0)
+        self.assertEqual(len(plane), 4)
+        self.assertTrue(all(len(row) == 16 for row in plane))
+
+    def test_all_zero_orbit_all_bits_zero(self):
+        orbit = [[0] * 8] * 3
+        for b in range(6):
+            plane = self.get_bit_plane(orbit, b)
+            self.assertTrue(all(v == 0 for row in plane for v in row))
+
+    def test_all_63_orbit_all_bits_one(self):
+        orbit = [[63] * 8] * 3
+        for b in range(6):
+            plane = self.get_bit_plane(orbit, b)
+            self.assertTrue(all(v == 1 for row in plane for v in row))
+
+    # ── plane_period ──────────────────────────────────────────────────────────
+
+    def test_frozen_plane_period_is_1(self):
+        plane = [(0,) * 8] * 5  # same state repeated
+        self.assertEqual(self.plane_period(plane), 1)
+
+    def test_alternating_plane_period_is_2(self):
+        plane = [(0, 1)] * 1 + [(1, 0)] * 1 + [(0, 1)] * 1
+        self.assertEqual(self.plane_period(plane), 2)
+
+    def test_plane_period_divides_orbit_period(self):
+        P = self.s_tuman_xor3['period']
+        for b in range(6):
+            pp = self.s_tuman_xor3['bit_periods'][b]
+            self.assertEqual(P % pp, 0,
+                             f"plane period {pp} does not divide P={P} for bit{b}")
+
+    def test_plane_period_tuman_xor3_all_8(self):
+        # All 6 bit planes of ТУМАН XOR3 have period 8
+        for b in range(6):
+            self.assertEqual(self.s_tuman_xor3['bit_periods'][b], 8)
+
+    def test_plane_period_mat_d1_is_1(self):
+        self.assertEqual(self.s_mat_xor3['bit_periods'][4], 1)
+
+    def test_plane_period_gora_t_is_1(self):
+        self.assertEqual(self.s_gora_xor3['bit_periods'][0], 1)
+
+    # ── frozen_type ───────────────────────────────────────────────────────────
+
+    def test_frozen_type_uniform_1(self):
+        plane = [(1, 1, 1)] * 3
+        self.assertEqual(self.frozen_type(plane), 'uniform_1')
+
+    def test_frozen_type_uniform_0(self):
+        plane = [(0, 0, 0)] * 3
+        self.assertEqual(self.frozen_type(plane), 'uniform_0')
+
+    def test_frozen_type_patterned(self):
+        plane = [(0, 1, 0)] * 3  # frozen but not uniform
+        self.assertEqual(self.frozen_type(plane), 'patterned')
+
+    def test_frozen_type_active(self):
+        plane = [(0, 1), (1, 0), (0, 1)]
+        self.assertEqual(self.frozen_type(plane), 'active')
+
+    def test_mat_d1_frozen_type_uniform_1(self):
+        self.assertEqual(self.s_mat_xor3['frozen_types'][4], 'uniform_1')
+
+    def test_gora_t_frozen_type_uniform_1(self):
+        self.assertEqual(self.s_gora_xor3['frozen_types'][0], 'uniform_1')
+
+    # ── cell_activity ─────────────────────────────────────────────────────────
+
+    def test_cell_activity_all_0(self):
+        plane = [(0, 0)] * 4
+        act = self.cell_activity(plane)
+        self.assertEqual(act, [0.0, 0.0])
+
+    def test_cell_activity_all_1(self):
+        plane = [(1, 1)] * 4
+        act = self.cell_activity(plane)
+        self.assertEqual(act, [1.0, 1.0])
+
+    def test_cell_activity_half(self):
+        plane = [(1, 0), (0, 1), (1, 0), (0, 1)]
+        act = self.cell_activity(plane)
+        self.assertAlmostEqual(act[0], 0.5)
+        self.assertAlmostEqual(act[1], 0.5)
+
+    def test_mat_d1_activity_all_ones(self):
+        act = self.s_mat_xor3['cell_activity'][4]
+        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in act))
+
+    # ── plane_hamming ─────────────────────────────────────────────────────────
+
+    def test_plane_hamming_frozen_is_all_zero(self):
+        plane = [(0, 1, 0)] * 5
+        hd = self.plane_hamming(plane)
+        self.assertEqual(hd, [0] * 5)
+
+    def test_plane_hamming_length_equals_period(self):
+        hd = self.s_tuman_xor3['plane_hamming'][0]
+        self.assertEqual(len(hd), self.s_tuman_xor3['period'])
+
+    def test_mat_d1_hamming_all_zero(self):
+        hd = self.s_mat_xor3['plane_hamming'][4]
+        self.assertEqual(hd, [0] * self.s_mat_xor3['period'])
+
+    def test_tuman_t_and_b_hamming_identical(self):
+        # T and B planes have identical Hamming sequences in ТУМАН XOR3
+        hd0 = self.s_tuman_xor3['plane_hamming'][0]
+        hd1 = self.s_tuman_xor3['plane_hamming'][1]
+        self.assertEqual(hd0, hd1)
+
+    # ── coupling_matrix ───────────────────────────────────────────────────────
+
+    def test_coupling_matrix_diagonal_is_1(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mat = self.coupling_matrix(orbit)
+        for b in range(6):
+            self.assertAlmostEqual(mat[b][b], 1.0, places=9)
+
+    def test_coupling_matrix_symmetric(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mat = self.coupling_matrix(orbit)
+        for b1 in range(6):
+            for b2 in range(6):
+                r1, r2 = mat[b1][b2], mat[b2][b1]
+                if r1 is None or r2 is None:
+                    self.assertIsNone(r1)
+                    self.assertIsNone(r2)
+                else:
+                    self.assertAlmostEqual(r1, r2, places=12)
+
+    def test_coupling_matrix_constant_plane_gives_none(self):
+        # МАТ XOR3 D1 is constant → coupling with D1 should be None off-diag
+        mat = self.s_mat_xor3['coupling']
+        for b2 in range(6):
+            if b2 == 4:
+                continue  # diagonal
+            self.assertIsNone(mat[4][b2])
+            self.assertIsNone(mat[b2][4])
+
+    # ── bitplane_summary keys & structure ─────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'bit_periods', 'frozen_types', 'n_active',
+            'n_frozen_uniform', 'n_frozen_patterned',
+            'frozen_uniform_bits', 'frozen_bit_values',
+            'coupling', 'coupled_pairs', 'anti_coupled_pairs',
+            'cell_activity', 'plane_hamming',
+        }
+        self.assertTrue(required.issubset(self.s_tuman_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['word'], 'ТУМАН')
+
+    def test_summary_n_cells(self):
+        self.assertEqual(self.s_tuman_xor3['n_cells'], 16)
+
+    def test_bit_periods_length_6(self):
+        self.assertEqual(len(self.s_tuman_xor3['bit_periods']), 6)
+
+    def test_frozen_types_length_6(self):
+        self.assertEqual(len(self.s_tuman_xor3['frozen_types']), 6)
+
+    def test_cell_activity_length_6(self):
+        self.assertEqual(len(self.s_tuman_xor3['cell_activity']), 6)
+
+    def test_plane_hamming_length_6(self):
+        self.assertEqual(len(self.s_tuman_xor3['plane_hamming']), 6)
+
+    # ── frozen uniform bits ───────────────────────────────────────────────────
+
+    def test_mat_n_frozen_uniform_is_1(self):
+        self.assertEqual(self.s_mat_xor3['n_frozen_uniform'], 1)
+
+    def test_mat_frozen_uniform_bits_contains_d1(self):
+        self.assertIn(4, self.s_mat_xor3['frozen_uniform_bits'])
+
+    def test_mat_frozen_bit_value_d1_is_1(self):
+        self.assertEqual(self.s_mat_xor3['frozen_bit_values'][4], 1)
+
+    def test_gora_n_frozen_uniform_is_1(self):
+        self.assertEqual(self.s_gora_xor3['n_frozen_uniform'], 1)
+
+    def test_gora_frozen_uniform_bits_contains_t(self):
+        self.assertIn(0, self.s_gora_xor3['frozen_uniform_bits'])
+
+    def test_gora_frozen_bit_value_t_is_1(self):
+        self.assertEqual(self.s_gora_xor3['frozen_bit_values'][0], 1)
+
+    def test_tuman_no_frozen_planes(self):
+        self.assertEqual(self.s_tuman_xor3['n_frozen_uniform'], 0)
+        self.assertEqual(self.s_tuman_xor3['n_frozen_patterned'], 0)
+
+    # ── n_active ──────────────────────────────────────────────────────────────
+
+    def test_n_active_tuman_xor3_is_6(self):
+        self.assertEqual(self.s_tuman_xor3['n_active'], 6)
+
+    def test_n_active_mat_xor3_is_5(self):
+        self.assertEqual(self.s_mat_xor3['n_active'], 5)
+
+    def test_n_active_gora_xor3_is_5(self):
+        self.assertEqual(self.s_gora_xor3['n_active'], 5)
+
+    def test_n_active_plus_frozen_equals_6(self):
+        s = self.s_mat_xor3
+        total = s['n_active'] + s['n_frozen_uniform'] + s['n_frozen_patterned']
+        self.assertEqual(total, 6)
+
+    # ── coupled / anti-coupled pairs ──────────────────────────────────────────
+
+    def test_tuman_coupled_pairs_contains_t_b(self):
+        self.assertIn((0, 1), self.s_tuman_xor3['coupled_pairs'])
+
+    def test_mat_coupled_pairs_contains_t_b(self):
+        self.assertIn((0, 1), self.s_mat_xor3['coupled_pairs'])
+
+    def test_mat_coupled_pairs_contains_t_l(self):
+        self.assertIn((0, 2), self.s_mat_xor3['coupled_pairs'])
+
+    def test_gora_coupled_pairs_contains_b_l(self):
+        self.assertIn((1, 2), self.s_gora_xor3['coupled_pairs'])
+
+    def test_gora_coupled_pairs_contains_l_r(self):
+        self.assertIn((2, 3), self.s_gora_xor3['coupled_pairs'])
+
+    def test_rota_has_maximum_coupling(self):
+        # РОТА XOR3: T=B=L=R all coupled (6 pairs among 4 planes)
+        cp = self.s_rota_xor3['coupled_pairs']
+        # All pairs of {T,B,L,R} = (0,1),(0,2),(0,3),(1,2),(1,3),(2,3)
+        for pair in [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)]:
+            self.assertIn(pair, cp)
+
+    def test_dobro_has_anti_coupling(self):
+        # ДОБРО XOR3: L != D1 (bit2 != bit4)
+        acp = self.s_dobro_xor3['anti_coupled_pairs']
+        self.assertIn((2, 4), acp)
+
+    def test_coupled_pairs_are_sorted(self):
+        for b1, b2 in self.s_tuman_xor3['coupled_pairs']:
+            self.assertLess(b1, b2)
+
+    # ── bitplane_dict serialisation ───────────────────────────────────────────
+
+    def test_bitplane_dict_serialisable(self):
+        import json
+        d = self.bitplane_dict(self.s_tuman_xor3)
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIn('ТУМАН', s)
+
+    def test_bitplane_dict_coupling_matrix_no_none_as_string(self):
+        import json
+        d = self.bitplane_dict(self.s_mat_xor3)
+        mat = d['coupling_matrix']
+        # None should be preserved as JSON null, not as string 'None'
+        s = json.dumps(mat)
+        self.assertNotIn('"None"', s)
+
+    def test_all_bitplane_has_four_rules(self):
+        d = self.all_bitplane('ТУМАН', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_bp_grid(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bp-grid', content)
+
+    def test_viewer_has_bp_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bp-heat', content)
+
+    def test_viewer_has_bp_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bpRun', content)
+
+    def test_viewer_has_frozen_type(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('frozenType', content)
+
+    def test_viewer_has_pearson(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pearson', content)
+
+    def test_viewer_has_bp_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bpOrbit', content)
+
+    def test_viewer_has_bit_names(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn("'T','B','L','R','D1','D2'", content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
