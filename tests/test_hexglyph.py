@@ -7576,6 +7576,210 @@ class TestSolanChPlane(unittest.TestCase):
         self.assertIn('C-H плоскость Q6', content)
 
 
+class TestSolanWperm(unittest.TestCase):
+    """Tests for solan_wperm.py and the viewer WPE section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import (
+            ordinal_pattern, window_weight, wpe, nwpe,
+            spatial_wpe, spatial_pe, wpe_dict, all_wpe,
+            build_wpe_data,
+        )
+        cls.ordinal_pattern = staticmethod(ordinal_pattern)
+        cls.window_weight   = staticmethod(window_weight)
+        cls.wpe             = staticmethod(wpe)
+        cls.nwpe            = staticmethod(nwpe)
+        cls.spatial_wpe     = staticmethod(spatial_wpe)
+        cls.spatial_pe      = staticmethod(spatial_pe)
+        cls.wpe_dict        = staticmethod(wpe_dict)
+        cls.all_wpe         = staticmethod(all_wpe)
+        cls.build_wpe_data  = staticmethod(build_wpe_data)
+
+    # ── ordinal_pattern ────────────────────────────────────────────────
+
+    def test_ordinal_pattern_ascending(self):
+        self.assertEqual(self.ordinal_pattern([1, 2, 3]), (0, 1, 2))
+
+    def test_ordinal_pattern_descending(self):
+        self.assertEqual(self.ordinal_pattern([3, 2, 1]), (2, 1, 0))
+
+    def test_ordinal_pattern_ties_stable(self):
+        # ties broken by index: [2,2,1] → 1 is lowest, then first 2, then second 2
+        self.assertEqual(self.ordinal_pattern([2, 2, 1]), (1, 2, 0))
+
+    def test_ordinal_pattern_length_2(self):
+        pat = self.ordinal_pattern([5, 3])
+        self.assertEqual(len(pat), 2)
+        self.assertIn(pat, [(0, 1), (1, 0)])
+
+    # ── window_weight ──────────────────────────────────────────────────
+
+    def test_window_weight_constant_is_zero(self):
+        self.assertAlmostEqual(self.window_weight([4, 4, 4]), 0.0)
+
+    def test_window_weight_single_is_zero(self):
+        self.assertAlmostEqual(self.window_weight([7]), 0.0)
+
+    def test_window_weight_two_elements(self):
+        # [0, 2]: mean=1, var = ((0-1)²+(2-1)²)/(2-1) = 2
+        self.assertAlmostEqual(self.window_weight([0, 2]), 2.0)
+
+    def test_window_weight_nonneg(self):
+        self.assertGreaterEqual(self.window_weight([1, 5, 3, 7]), 0.0)
+
+    # ── wpe / nwpe ─────────────────────────────────────────────────────
+
+    def test_wpe_constant_series_is_zero(self):
+        self.assertAlmostEqual(self.wpe([3] * 20, 3), 0.0)
+
+    def test_wpe_too_short_is_zero(self):
+        self.assertAlmostEqual(self.wpe([1, 2], 3), 0.0)
+
+    def test_nwpe_range(self):
+        import random; random.seed(0)
+        s = [random.randint(0, 63) for _ in range(50)]
+        v = self.nwpe(s, 3)
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_nwpe_constant_is_zero(self):
+        self.assertAlmostEqual(self.nwpe([5] * 30, 3), 0.0)
+
+    def test_nwpe_uniform_random_high(self):
+        # Long i.i.d. uniform series should give high nWPE
+        import random; random.seed(42)
+        s = [random.randint(0, 63) for _ in range(500)]
+        self.assertGreater(self.nwpe(s, 3), 0.7)
+
+    # ── Fixed-point attractors (P=1) → nWPE = 0 ───────────────────────
+
+    def test_tuman_xor_nwpe_zero(self):
+        profile = self.spatial_wpe('ТУМАН', 'xor', 16, 3)
+        self.assertTrue(all(v == 0.0 for v in profile))
+
+    def test_gora_or_nwpe_zero(self):
+        # OR fixed-point → all cells constant → WPE = 0
+        profile = self.spatial_wpe('ГОРА', 'or', 16, 3)
+        self.assertTrue(all(v == 0.0 for v in profile))
+
+    # ── ГОРА AND (P=2, alternating) → nWPE = nPE ─────────────────────
+
+    def test_gora_and_wpe_equals_pe(self):
+        # Equal variance on both ordinal patterns → WPE = PE
+        w_prof = self.spatial_wpe('ГОРА', 'and', 16, 3)
+        p_prof = self.spatial_pe('ГОРА', 'and', 16, 3)
+        for w, p in zip(w_prof, p_prof):
+            self.assertAlmostEqual(w, p, places=6)
+
+    # ── ТУМАН XOR3 (P=8) → nWPE < nPE (slightly) ─────────────────────
+
+    def test_tuman_xor3_mean_nwpe_positive(self):
+        d = self.wpe_dict('ТУМАН', 'xor3', 16, 3)
+        self.assertGreater(d['mean_nwpe'], 0.0)
+
+    def test_tuman_xor3_mean_npe_positive(self):
+        d = self.wpe_dict('ТУМАН', 'xor3', 16, 3)
+        self.assertGreater(d['mean_npe'], 0.0)
+
+    def test_tuman_xor3_delta_small(self):
+        d = self.wpe_dict('ТУМАН', 'xor3', 16, 3)
+        # |ΔWPE| should be small (< 0.3)
+        self.assertLess(abs(d['mean_delta']), 0.3)
+
+    # ── wpe_dict structure ─────────────────────────────────────────────
+
+    def test_wpe_dict_keys(self):
+        d = self.wpe_dict('ТУМАН', 'xor3', 16, 3)
+        for k in ('word', 'rule', 'period', 'm', 'wpe_profile',
+                  'pe_profile', 'delta', 'mean_nwpe', 'mean_npe',
+                  'mean_delta', 'std_wpe', 'max_nwpe', 'min_nwpe'):
+            self.assertIn(k, d)
+
+    def test_wpe_dict_profile_length(self):
+        d = self.wpe_dict('ГОРА', 'xor3', 16, 3)
+        self.assertEqual(len(d['wpe_profile']), 16)
+        self.assertEqual(len(d['pe_profile']), 16)
+        self.assertEqual(len(d['delta']), 16)
+
+    def test_wpe_dict_delta_consistent(self):
+        d = self.wpe_dict('ТУМАН', 'xor3', 16, 3)
+        for w, p, dv in zip(d['wpe_profile'], d['pe_profile'], d['delta']):
+            self.assertAlmostEqual(dv, w - p, places=6)
+
+    def test_wpe_dict_nwpe_in_range(self):
+        d = self.wpe_dict('ТУМАН', 'xor3', 16, 3)
+        for v in d['wpe_profile']:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_wpe_dict_std_nonneg(self):
+        d = self.wpe_dict('ТУМАН', 'xor3', 16, 3)
+        self.assertGreaterEqual(d['std_wpe'], 0.0)
+
+    def test_wpe_dict_max_ge_min(self):
+        d = self.wpe_dict('ТУМАН', 'xor3', 16, 3)
+        self.assertGreaterEqual(d['max_nwpe'], d['min_nwpe'])
+
+    def test_wpe_dict_xor_fixed_point_zero(self):
+        d = self.wpe_dict('ТУМАН', 'xor', 16, 3)
+        self.assertAlmostEqual(d['mean_nwpe'], 0.0)
+        self.assertAlmostEqual(d['mean_npe'], 0.0)
+
+    # ── all_wpe ────────────────────────────────────────────────────────
+
+    def test_all_wpe_has_four_rules(self):
+        result = self.all_wpe('ТУМАН', 16, 3)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_wpe_values_are_dicts(self):
+        result = self.all_wpe('ГОРА', 16, 3)
+        for rule, d in result.items():
+            self.assertIsInstance(d, dict)
+            self.assertIn('mean_nwpe', d)
+
+    # ── build_wpe_data ─────────────────────────────────────────────────
+
+    def test_build_wpe_data_structure(self):
+        data = self.build_wpe_data(['ТУМАН', 'ГОРА'], 16, 3)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_wpe_data_words_uppercase(self):
+        data = self.build_wpe_data(['туман'], 16, 3)
+        self.assertIn('ТУМАН', data['words'])
+
+    def test_build_wpe_data_entry_keys(self):
+        data = self.build_wpe_data(['ТУМАН'], 16, 3)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'mean_nwpe', 'mean_npe', 'mean_delta',
+                  'std_wpe', 'max_nwpe', 'min_nwpe'):
+            self.assertIn(k, entry)
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_wpe_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wpe-cell', content)
+
+    def test_viewer_has_wpe_delta(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wpe-delta', content)
+
+    def test_viewer_has_wpe_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wpe-stats', content)
+
+    def test_viewer_has_wpe_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wpeRun', content)
+
+    def test_viewer_has_wpe_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Взвешенная энтропия перестановок Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
