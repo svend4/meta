@@ -9573,6 +9573,178 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>First-Return Map Q6 — x(t)→x(t+1) клеток аттрактора</h2>
+<p class="meta">RM(i)={(x_t, x_{t+1 mod P})} на решётке 64×64 · ТУМАН XOR: 1 точка на диагонали · ГОРА AND: 2 точки вне диагонали, прыжок=46 · ТУМАН XOR3: 46 пар, mean_Δx≈20</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="ret-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="ret-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="ret-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<div style="display:flex;gap:10px;align-items:flex-start">
+  <canvas id="ret-map" width="270" height="270"
+    style="border:1px solid #1a1a1a;flex-shrink:0"></canvas>
+  <div style="flex:1">
+    <canvas id="ret-hist" width="248" height="130"
+      style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+    <div id="ret-stats"
+      style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+  </div>
+</div>
+<script>
+(function(){
+  function retStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function retOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=retStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=retStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=retStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  function retRun(){
+    var word=(document.getElementById('ret-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('ret-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length, grid=retOrbit(ic,rule), P=grid.length;
+    var col=RCOL[rule]||'#4fc3f7';
+    /* Build aggregate return map and jump histogram */
+    var agg={}, jhist=new Array(64).fill(0);
+    var totJump=0, maxJump=0, diagCnt=0;
+    for(var i=0;i<N;i++){
+      for(var t=0;t<P;t++){
+        var x=grid[t][i], y=grid[(t+1)%P][i];
+        var key=x+','+y;
+        agg[key]=(agg[key]||0)+1;
+        var jmp=Math.abs(y-x);
+        jhist[jmp]++;
+        totJump+=jmp;
+        if(jmp>maxJump) maxJump=jmp;
+        if(x===y) diagCnt++;
+      }
+    }
+    var totalPairs=N*P;
+    var meanJump=totalPairs?totJump/totalPairs:0;
+    var nDistinct=Object.keys(agg).length;
+    /* ── Return map scatter canvas ────────────────────────────────── */
+    var mc=document.getElementById('ret-map');
+    var mx=mc.getContext('2d');
+    var MW=mc.width,MH=mc.height;
+    mx.fillStyle='#0a0a0a'; mx.fillRect(0,0,MW,MH);
+    var MARGIN=20,SZ=MW-MARGIN*2,CELL=SZ/64;
+    /* Diagonal reference */
+    mx.strokeStyle='#1e1e1e'; mx.lineWidth=0.5;
+    mx.beginPath(); mx.moveTo(MARGIN,MARGIN); mx.lineTo(MW-MARGIN,MH-MARGIN); mx.stroke();
+    /* Axis labels */
+    mx.fillStyle='#444'; mx.font='8px monospace'; mx.textAlign='center';
+    mx.fillText('x(t)',MW/2,MH-4);
+    mx.save(); mx.translate(8,MH/2); mx.rotate(-Math.PI/2);
+    mx.fillText('x(t+1)',0,0); mx.restore();
+    [0,16,32,48,63].forEach(function(v){
+      mx.fillStyle='#333'; mx.textAlign='center';
+      mx.fillText(v,MARGIN+v*CELL,MH-9);
+      mx.fillText(v,12,MH-MARGIN-v*CELL+3);
+    });
+    /* Compute max count for colour scaling */
+    var maxCnt=Math.max.apply(null,Object.values(agg));
+    /* Draw dots */
+    Object.keys(agg).forEach(function(k){
+      var parts=k.split(','), x=parseInt(parts[0]), y=parseInt(parts[1]);
+      var cnt=agg[k];
+      var t=cnt/maxCnt;
+      /* Blend: dark → rule colour */
+      var r1=parseInt(col.slice(1,3),16)||0x4f;
+      var g1=parseInt(col.slice(3,5),16)||0xc3;
+      var b1=parseInt(col.slice(5,7),16)||0xf7;
+      var ri=Math.round(0x1a+t*(r1-0x1a));
+      var gi=Math.round(0x1a+t*(g1-0x1a));
+      var bi=Math.round(0x1a+t*(b1-0x1a));
+      mx.fillStyle='rgb('+ri+','+gi+','+bi+')';
+      var px=MARGIN+x*CELL, py=MH-MARGIN-y*CELL;
+      var ds=Math.max(CELL*0.85,2);
+      mx.fillRect(px-ds/2,py-ds/2,ds,ds);
+    });
+    /* ── Jump histogram canvas ────────────────────────────────────── */
+    var hc=document.getElementById('ret-hist');
+    var hx=hc.getContext('2d');
+    var HW=hc.width,HH=hc.height;
+    hx.fillStyle='#0a0a0a'; hx.fillRect(0,0,HW,HH);
+    var maxH=Math.max.apply(null,jhist);
+    if(maxH>0){
+      var bw=Math.max(Math.floor((HW-30)/64)-1,2);
+      for(var j=0;j<64;j++){
+        if(!jhist[j]) continue;
+        var bh=Math.round(jhist[j]/maxH*(HH-22));
+        var bx=20+j*(bw+1);
+        hx.fillStyle=col; hx.globalAlpha=0.8;
+        hx.fillRect(bx,HH-16-bh,bw,bh);
+        hx.globalAlpha=1;
+      }
+    }
+    hx.fillStyle='#333'; hx.strokeStyle='#333';
+    hx.beginPath(); hx.moveTo(20,HH-16); hx.lineTo(HW-4,HH-16); hx.stroke();
+    hx.fillStyle='#555'; hx.font='8px monospace'; hx.textAlign='center';
+    [0,16,32,48,63].forEach(function(v){hx.fillText(v,20+v*(bw+1)+bw/2,HH-4);});
+    hx.fillStyle='#666'; hx.textAlign='left'; hx.fillText('|Δx|',2,HH-16);
+    /* Stats */
+    document.getElementById('ret-stats').innerHTML=
+      'P='+P+
+      '  distinct='+nDistinct+
+      '  mean_\u0394x='+meanJump.toFixed(2)+
+      '  max_\u0394x='+maxJump+
+      '  diag='+diagCnt+'('+Math.round(100*diagCnt/totalPairs)+'%)';
+  }
+  window.retRun=retRun;
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('ret-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('ret-btn');
+    var wordEl=document.getElementById('ret-word');
+    var ruleEl=document.getElementById('ret-rule');
+    if(btn)    btn.addEventListener('click',retRun);
+    if(wordEl) wordEl.addEventListener('change',retRun);
+    if(ruleEl) ruleEl.addEventListener('change',retRun);
+    setTimeout(function(){if(window.encL) retRun();},2850);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">

@@ -8853,6 +8853,245 @@ class TestSolanLZ(unittest.TestCase):
         self.assertIn('LZ76 Q6', content)
 
 
+class TestSolanReturn(unittest.TestCase):
+    """Tests for solan_return.py and the viewer First-Return Map section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import (
+            return_map, map_stats, aggregate_map, jump_histogram,
+            return_dict, all_return, build_return_data,
+        )
+        cls.return_map        = staticmethod(return_map)
+        cls.map_stats         = staticmethod(map_stats)
+        cls.aggregate_map     = staticmethod(aggregate_map)
+        cls.jump_histogram    = staticmethod(jump_histogram)
+        cls.return_dict       = staticmethod(return_dict)
+        cls.all_return        = staticmethod(all_return)
+        cls.build_return_data = staticmethod(build_return_data)
+
+    # ── return_map() ───────────────────────────────────────────────────
+
+    def test_return_map_empty(self):
+        self.assertEqual(self.return_map([]), [])
+
+    def test_return_map_single(self):
+        # Single element: (x_0, x_0) circular
+        self.assertEqual(self.return_map([5]), [(5, 5)])
+
+    def test_return_map_two_elements(self):
+        self.assertEqual(self.return_map([47, 1]), [(47, 1), (1, 47)])
+
+    def test_return_map_length(self):
+        s = [1, 2, 3, 4, 5]
+        self.assertEqual(len(self.return_map(s)), 5)
+
+    def test_return_map_circular_last_pair(self):
+        s = [1, 2, 3]
+        pairs = self.return_map(s)
+        self.assertEqual(pairs[-1], (3, 1))   # wraps to first element
+
+    def test_return_map_first_pair(self):
+        s = [10, 20, 30]
+        pairs = self.return_map(s)
+        self.assertEqual(pairs[0], (10, 20))
+
+    # ── map_stats() ────────────────────────────────────────────────────
+
+    def test_map_stats_empty(self):
+        d = self.map_stats([])
+        self.assertEqual(d['n_pairs'], 0)
+        self.assertEqual(d['n_distinct'], 0)
+
+    def test_map_stats_single(self):
+        d = self.map_stats([(5, 5)])
+        self.assertEqual(d['n_distinct'], 1)
+        self.assertEqual(d['diagonal_count'], 1)
+        self.assertEqual(d['mean_jump'], 0.0)
+
+    def test_map_stats_alternating(self):
+        pairs = [(47, 1), (1, 47)]
+        d = self.map_stats(pairs)
+        self.assertEqual(d['n_distinct'], 2)
+        self.assertEqual(d['diagonal_count'], 0)
+        self.assertAlmostEqual(d['mean_jump'], 46.0)
+        self.assertEqual(d['max_jump'], 46)
+
+    def test_map_stats_diagonal_count(self):
+        pairs = [(1, 2), (3, 3), (4, 5), (6, 6)]
+        d = self.map_stats(pairs)
+        self.assertEqual(d['diagonal_count'], 2)
+
+    def test_map_stats_mean_jump(self):
+        pairs = [(0, 10), (10, 0)]    # jumps: 10, 10
+        d = self.map_stats(pairs)
+        self.assertAlmostEqual(d['mean_jump'], 10.0)
+
+    # ── Fixed-point attractors ─────────────────────────────────────────
+
+    def test_tuman_xor_one_diagonal_point(self):
+        d = self.return_dict('ТУМАН', 'xor', 16)
+        self.assertEqual(d['n_distinct'], 1)
+        self.assertEqual(d['diag_pairs'], d['total_pairs'])   # all on diagonal
+        self.assertAlmostEqual(d['mean_jump'], 0.0)
+
+    def test_gora_or_one_diagonal_point(self):
+        d = self.return_dict('ГОРА', 'or', 16)
+        self.assertEqual(d['n_distinct'], 1)
+        self.assertAlmostEqual(d['mean_jump'], 0.0)
+
+    # ── ГОРА AND (P=2, alternating 47↔1) ─────────────────────────────
+
+    def test_gora_and_two_points_off_diagonal(self):
+        d = self.return_dict('ГОРА', 'and', 16)
+        self.assertEqual(d['n_distinct'], 2)
+        self.assertEqual(d['diag_pairs'], 0)
+
+    def test_gora_and_mean_jump_46(self):
+        d = self.return_dict('ГОРА', 'and', 16)
+        self.assertAlmostEqual(d['mean_jump'], 46.0, places=4)
+
+    def test_gora_and_max_jump_46(self):
+        d = self.return_dict('ГОРА', 'and', 16)
+        self.assertEqual(d['max_jump'], 46)
+
+    def test_gora_and_total_pairs(self):
+        d = self.return_dict('ГОРА', 'and', 16)
+        self.assertEqual(d['total_pairs'], 16 * 2)   # P=2 × 16 cells
+
+    def test_gora_and_jump_hist_peak_at_46(self):
+        hist = self.jump_histogram('ГОРА', 'and', 16)
+        self.assertEqual(hist[46], 32)   # all 16×2 pairs have jump=46
+        self.assertEqual(hist[0], 0)
+
+    # ── ТУМАН XOR3 (P=8) ──────────────────────────────────────────────
+
+    def test_tuman_xor3_distinct_gt_2(self):
+        d = self.return_dict('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['n_distinct'], 2)
+
+    def test_tuman_xor3_total_pairs(self):
+        d = self.return_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['total_pairs'], 16 * 8)   # P=8 × 16 cells
+
+    def test_tuman_xor3_mean_jump_positive(self):
+        d = self.return_dict('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['mean_jump'], 0)
+
+    def test_tuman_xor3_max_jump_le_63(self):
+        d = self.return_dict('ТУМАН', 'xor3', 16)
+        self.assertLessEqual(d['max_jump'], 63)
+
+    def test_tuman_xor3_some_diagonal(self):
+        # XOR3 has some self-loops
+        d = self.return_dict('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['diag_pairs'], 0)
+
+    # ── aggregate_map ──────────────────────────────────────────────────
+
+    def test_aggregate_map_tuman_xor_keys(self):
+        agg = self.aggregate_map('ТУМАН', 'xor', 16)
+        self.assertEqual(set(agg.keys()), {(0, 0)})
+
+    def test_aggregate_map_gora_and_keys(self):
+        agg = self.aggregate_map('ГОРА', 'and', 16)
+        self.assertEqual(set(agg.keys()), {(47, 1), (1, 47)})
+
+    def test_aggregate_map_gora_and_counts(self):
+        agg = self.aggregate_map('ГОРА', 'and', 16)
+        self.assertEqual(agg[(47, 1)], 16)
+        self.assertEqual(agg[(1, 47)], 16)
+
+    # ── jump_histogram ─────────────────────────────────────────────────
+
+    def test_jump_histogram_length(self):
+        hist = self.jump_histogram('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(hist), 64)
+
+    def test_jump_histogram_sum_equals_total_pairs(self):
+        hist = self.jump_histogram('ТУМАН', 'xor3', 16)
+        d    = self.return_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(sum(hist), d['total_pairs'])
+
+    def test_jump_histogram_nonneg(self):
+        hist = self.jump_histogram('ГОРА', 'xor3', 16)
+        self.assertTrue(all(v >= 0 for v in hist))
+
+    # ── return_dict structure ──────────────────────────────────────────
+
+    def test_return_dict_keys(self):
+        d = self.return_dict('ТУМАН', 'xor3', 16)
+        for k in ('word', 'rule', 'period', 'cell_maps', 'agg_map',
+                  'jump_hist', 'n_distinct', 'mean_jump', 'max_jump',
+                  'diag_pairs', 'total_pairs'):
+            self.assertIn(k, d)
+
+    def test_return_dict_cell_maps_length(self):
+        d = self.return_dict('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['cell_maps']), 16)
+
+    def test_return_dict_word_uppercase(self):
+        d = self.return_dict('туман', 'xor3', 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_return_dict_diag_le_total(self):
+        d = self.return_dict('ТУМАН', 'xor3', 16)
+        self.assertLessEqual(d['diag_pairs'], d['total_pairs'])
+
+    # ── all_return ─────────────────────────────────────────────────────
+
+    def test_all_return_has_four_rules(self):
+        result = self.all_return('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_return_values_are_dicts(self):
+        result = self.all_return('ГОРА', 16)
+        for rule, d in result.items():
+            self.assertIsInstance(d, dict)
+            self.assertIn('n_distinct', d)
+
+    # ── build_return_data ──────────────────────────────────────────────
+
+    def test_build_return_data_structure(self):
+        data = self.build_return_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_return_data_entry_keys(self):
+        data = self.build_return_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'n_distinct', 'mean_jump', 'max_jump',
+                  'diag_pairs', 'total_pairs'):
+            self.assertIn(k, entry)
+
+    def test_build_return_data_words_uppercase(self):
+        data = self.build_return_data(['туман'], 16)
+        self.assertIn('ТУМАН', data['words'])
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_ret_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ret-map', content)
+
+    def test_viewer_has_ret_hist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ret-hist', content)
+
+    def test_viewer_has_ret_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ret-stats', content)
+
+    def test_viewer_has_ret_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('retRun', content)
+
+    def test_viewer_has_ret_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('First-Return Map Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
