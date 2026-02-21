@@ -5710,6 +5710,282 @@ class TestSolanPortrait(unittest.TestCase):
         self.assertIn('радарный отпечаток', content)
 
 
+class TestSolanCoarse(unittest.TestCase):
+    """Tests for solan_coarse.py and the viewer Coarse-Graining section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import (
+            coarsen, dequantize, coarse_step,
+            commutator_traj, coarse_orbit,
+            coarse_dict, all_coarse, build_coarse_data,
+            _DEFAULT_LEVELS,
+        )
+        cls.coarsen         = staticmethod(coarsen)
+        cls.dequantize      = staticmethod(dequantize)
+        cls.coarse_step     = staticmethod(coarse_step)
+        cls.commutator_traj = staticmethod(commutator_traj)
+        cls.coarse_orbit    = staticmethod(coarse_orbit)
+        cls.coarse_dict     = staticmethod(coarse_dict)
+        cls.all_coarse      = staticmethod(all_coarse)
+        cls.build_coarse_data = staticmethod(build_coarse_data)
+        cls.DEFAULT_LEVELS  = _DEFAULT_LEVELS
+
+    # ── coarsen ───────────────────────────────────────────────────────────────
+
+    def test_coarsen_k2_lower_half(self):
+        self.assertEqual(self.coarsen(0, 2), 0)
+        self.assertEqual(self.coarsen(31, 2), 0)
+
+    def test_coarsen_k2_upper_half(self):
+        self.assertEqual(self.coarsen(32, 2), 1)
+        self.assertEqual(self.coarsen(63, 2), 1)
+
+    def test_coarsen_k64_identity(self):
+        for v in [0, 10, 32, 63]:
+            self.assertEqual(self.coarsen(v, 64), v)
+
+    def test_coarsen_k3_bins(self):
+        self.assertEqual(self.coarsen(0, 3), 0)
+        self.assertEqual(self.coarsen(21, 3), 0)   # 21*3//64 = 0
+        self.assertEqual(self.coarsen(22, 3), 1)   # 22*3//64 = 1
+        self.assertEqual(self.coarsen(63, 3), 2)
+
+    def test_coarsen_result_in_range(self):
+        for k in [2, 3, 4, 8, 16, 64]:
+            for v in [0, 15, 31, 32, 48, 63]:
+                self.assertGreaterEqual(self.coarsen(v, k), 0)
+                self.assertLess(self.coarsen(v, k), k)
+
+    def test_coarsen_monotone(self):
+        for k in [2, 4, 8]:
+            vals = [self.coarsen(v, k) for v in range(64)]
+            self.assertEqual(vals, sorted(vals))
+
+    # ── dequantize ────────────────────────────────────────────────────────────
+
+    def test_dequantize_k2(self):
+        self.assertEqual(self.dequantize(0, 2), 0)
+        self.assertEqual(self.dequantize(1, 2), 63)
+
+    def test_dequantize_k64_identity(self):
+        for i in [0, 10, 32, 63]:
+            self.assertEqual(self.dequantize(i, 64), i)
+
+    def test_dequantize_k1(self):
+        self.assertEqual(self.dequantize(0, 1), 0)
+
+    def test_dequantize_k3_midpoint(self):
+        self.assertEqual(self.dequantize(1, 3), 32)
+
+    def test_dequantize_result_in_range(self):
+        for k in [2, 3, 4, 8, 16, 64]:
+            for i in range(k):
+                v = self.dequantize(i, k)
+                self.assertGreaterEqual(v, 0)
+                self.assertLessEqual(v, 63)
+
+    # ── coarse_step ───────────────────────────────────────────────────────────
+
+    def test_coarse_step_length(self):
+        cells = [0, 1, 0, 1, 1, 0, 1, 0,
+                 1, 0, 1, 0, 0, 1, 0, 1]
+        out = self.coarse_step(cells, 'xor3', 2)
+        self.assertEqual(len(out), 16)
+
+    def test_coarse_step_output_in_range(self):
+        cells = [self.coarsen(v, 4) for v in range(16)]
+        for k in [2, 4, 8]:
+            out = self.coarse_step(cells, 'xor3', k)
+            for v in out:
+                self.assertGreaterEqual(v, 0)
+                self.assertLess(v, k)
+
+    def test_coarse_step_k64_matches_q6(self):
+        from projects.hexglyph.solan_ca import step
+        cells = list(range(16))
+        q6 = step(cells[:], 'xor3')
+        cg = self.coarse_step(cells, 'xor3', 64)
+        self.assertEqual(cg, q6)
+
+    # ── commutator_traj ───────────────────────────────────────────────────────
+
+    def test_ctraj_length(self):
+        traj = self.commutator_traj('ТУМАН', 'xor3', 3, n_steps=10)
+        self.assertEqual(len(traj), 11)
+
+    def test_ctraj_first_is_zero(self):
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            traj = self.commutator_traj('ТУМАН', rule, 3, n_steps=5)
+            self.assertEqual(traj[0], 0.0)
+
+    def test_ctraj_values_in_unit_interval(self):
+        traj = self.commutator_traj('ГОРА', 'xor3', 4, n_steps=10)
+        for d in traj:
+            self.assertGreaterEqual(d, 0.0)
+            self.assertLessEqual(d, 1.0)
+
+    def test_ctraj_k2_exact_xor(self):
+        traj = self.commutator_traj('ТУМАН', 'xor', 2, n_steps=10)
+        self.assertTrue(all(d == 0.0 for d in traj))
+
+    def test_ctraj_k2_exact_xor3(self):
+        traj = self.commutator_traj('ТУМАН', 'xor3', 2, n_steps=10)
+        self.assertTrue(all(d == 0.0 for d in traj))
+
+    def test_ctraj_k2_exact_and(self):
+        traj = self.commutator_traj('ТУМАН', 'and', 2, n_steps=10)
+        self.assertTrue(all(d == 0.0 for d in traj))
+
+    def test_ctraj_k2_exact_or(self):
+        traj = self.commutator_traj('ТУМАН', 'or', 2, n_steps=10)
+        self.assertTrue(all(d == 0.0 for d in traj))
+
+    def test_ctraj_k64_exact(self):
+        traj = self.commutator_traj('ТУМАН', 'xor3', 64, n_steps=10)
+        self.assertTrue(all(d == 0.0 for d in traj))
+
+    # ── coarse_orbit ──────────────────────────────────────────────────────────
+
+    def test_corbit_keys(self):
+        d = self.coarse_orbit('ТУМАН', 'xor3', 3)
+        for key in ('transient', 'period', 'entropy', 'entropy_norm', 'n_unique'):
+            self.assertIn(key, d)
+
+    def test_corbit_period_positive(self):
+        d = self.coarse_orbit('ТУМАН', 'xor3', 3)
+        self.assertGreaterEqual(d['period'], 1)
+
+    def test_corbit_entropy_nonneg(self):
+        """No -0.0 or negative entropy."""
+        for word in ['ГОРА', 'ТУМАН', 'ВОДА']:
+            for k in [2, 3, 4]:
+                d = self.coarse_orbit(word, 'and', k)
+                self.assertGreaterEqual(d['entropy'], 0.0)
+
+    def test_corbit_entropy_norm_in_unit(self):
+        d = self.coarse_orbit('ТУМАН', 'xor3', 4)
+        self.assertGreaterEqual(d['entropy_norm'], 0.0)
+        self.assertLessEqual(d['entropy_norm'], 1.0)
+
+    def test_corbit_n_unique_le_period(self):
+        d = self.coarse_orbit('ТУМАН', 'xor3', 8)
+        self.assertLessEqual(d['n_unique'], d['period'])
+
+    def test_corbit_k64_period_matches_q6(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cells = pad_to(encode_word('ТУМАН'), 16)
+        q6_t, q6_p = find_orbit(cells[:], 'xor3')
+        d = self.coarse_orbit('ТУМАН', 'xor3', 64)
+        self.assertEqual(d['period'], max(q6_p, 1))
+
+    # ── coarse_dict ───────────────────────────────────────────────────────────
+
+    def test_cdict_keys(self):
+        d = self.coarse_dict('ТУМАН', 'xor3')
+        for key in ('word', 'rule', 'levels', 'n_steps',
+                    'q6_period', 'q6_transient',
+                    'by_level', 'exact_levels', 'max_inconsistency'):
+            self.assertIn(key, d)
+
+    def test_cdict_word_upper(self):
+        d = self.coarse_dict('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_cdict_exact_levels_contains_2_and_64(self):
+        d = self.coarse_dict('ТУМАН', 'xor3')
+        self.assertIn(2, d['exact_levels'])
+        self.assertIn(64, d['exact_levels'])
+
+    def test_cdict_by_level_keys(self):
+        d = self.coarse_dict('ГОРА', 'xor3', levels=[2, 4])
+        for k in [2, 4]:
+            bl = d['by_level'][k]
+            for sub in ('commutator', 'max_commutator', 'mean_commutator',
+                        'is_exact', 'transient', 'period', 'entropy_norm', 'n_unique'):
+                self.assertIn(sub, bl)
+
+    def test_cdict_is_exact_k2(self):
+        d = self.coarse_dict('ТУМАН', 'xor3')
+        self.assertTrue(d['by_level'][2]['is_exact'])
+
+    def test_cdict_is_exact_k64(self):
+        d = self.coarse_dict('ТУМАН', 'xor3')
+        self.assertTrue(d['by_level'][64]['is_exact'])
+
+    def test_cdict_max_inconsistency_keys(self):
+        levels = [2, 3, 4]
+        d = self.coarse_dict('ТУМАН', 'xor3', levels=levels)
+        self.assertEqual(set(d['max_inconsistency'].keys()), set(levels))
+
+    def test_cdict_commutator_length(self):
+        d = self.coarse_dict('ТУМАН', 'xor3', levels=[3], n_steps=15)
+        self.assertEqual(len(d['by_level'][3]['commutator']), 16)
+
+    # ── all_coarse ────────────────────────────────────────────────────────────
+
+    def test_all_coarse_rules(self):
+        d = self.all_coarse('ГОРА', levels=[2, 4])
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_coarse_each_is_dict(self):
+        d = self.all_coarse('ГОРА', levels=[2])
+        for rule, cd in d.items():
+            self.assertIn('by_level', cd)
+
+    # ── build_coarse_data ─────────────────────────────────────────────────────
+
+    def test_bcd_keys(self):
+        d = self.build_coarse_data(['ГОРА', 'ВОДА'], levels=[2, 3])
+        for key in ('words', 'levels', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_bcd_per_rule_has_all_rules(self):
+        d = self.build_coarse_data(['ГОРА'], levels=[2])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_bcd_word_entry_keys(self):
+        d = self.build_coarse_data(['ГОРА'], levels=[2, 3])
+        entry = d['per_rule']['xor3']['ГОРА']
+        for key in ('q6_period', 'exact_levels', 'max_inc_3', 'max_inc_4'):
+            self.assertIn(key, entry)
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_cg_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cg-hmap', content)
+
+    def test_viewer_has_cg_bars(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cg-bars', content)
+
+    def test_viewer_has_cg_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cg-stats', content)
+
+    def test_viewer_has_cg_coarsen(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cgCoarsen', content)
+
+    def test_viewer_has_cg_dequant(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cgDequant', content)
+
+    def test_viewer_has_cg_comm_traj(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cgCommTraj', content)
+
+    def test_viewer_has_cg_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cgRun', content)
+
+    def test_viewer_has_coarse_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Огрубление Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

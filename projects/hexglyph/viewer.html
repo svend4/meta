@@ -7007,6 +7007,158 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Огрубление Q6 — коммутатор и ренормгруппа</h2>
+<p class="meta">Для каждого уровня огрубления k ∈ {2,3,4,8,16,64}: δ(t) = |coarsen(CA^t(IC)) − CA_k^t(coarsen(IC))| · k=2 всегда точно (MSB) · k=64 тождественно · k=3 может нарушать симметрию · тепловая карта δ(t) по шагам</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="cg-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="cg-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <button id="cg-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Огрубить</button>
+</div>
+<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+  <canvas id="cg-hmap"  style="display:block"></canvas>
+  <canvas id="cg-bars"  style="display:block"></canvas>
+</div>
+<div id="cg-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"></div>
+<script>
+(function(){
+  var CG_COLS={xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+  var CG_RGB={xor:[255,85,85],xor3:[68,221,221],and:[119,221,119],or:[255,170,0]};
+  var CG_LEVELS=[2,3,4,8,16,64];
+  var CG_STEPS=20;
+
+  function cgStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function cgCoarsen(v,k){return Math.min(Math.floor(v*k/64),k-1);}
+
+  function cgDequant(i,k){return k<=1?0:Math.round(i*63/(k-1));}
+
+  function cgCoarseStep(cells,rule,k){
+    var dq=cells.map(function(v){return cgDequant(v,k);});
+    var st=cgStep(dq,rule);
+    return st.map(function(v){return cgCoarsen(v,k);});
+  }
+
+  function cgCommTraj(ic,rule,k){
+    var N=ic.length,denom=Math.max(k-1,1)*N;
+    var pathA=ic.slice();
+    var pathB=ic.map(function(v){return cgCoarsen(v,k);});
+    var deltas=[0];
+    for(var t=0;t<CG_STEPS;t++){
+      pathA=cgStep(pathA,rule);
+      pathB=cgCoarseStep(pathB,rule,k);
+      var caC=pathA.map(function(v){return cgCoarsen(v,k);});
+      var err=0;for(var i=0;i<N;i++) err+=Math.abs(caC[i]-pathB[i]);
+      deltas.push(err/denom);
+    }
+    return deltas;
+  }
+
+  function cgRun(){
+    if(!window.encL||!window.padL) return;
+    var word=(document.getElementById('cg-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('cg-rule').value||'xor3';
+    var N=16;
+    var col=CG_COLS[rule]||'#ccc';
+    var rgb=CG_RGB[rule]||[200,200,200];
+
+    var ic=window.padL(window.encL(word),N);
+    var trajs=CG_LEVELS.map(function(k){return cgCommTraj(ic,rule,k);});
+
+    // ── heatmap ───────────────────────────────────────────────────────────────
+    var ROWS=CG_LEVELS.length,COLS=CG_STEPS+1;
+    var CW=18,CH=22,PAD_L=30,PAD_T=6;
+    var hc=document.getElementById('cg-hmap');
+    hc.width=PAD_L+COLS*CW+4;hc.height=PAD_T+ROWS*CH+16;
+    var hx=hc.getContext('2d');
+    hx.fillStyle='#0e0e0e';hx.fillRect(0,0,hc.width,hc.height);
+
+    for(var ri=0;ri<ROWS;ri++){
+      var k=CG_LEVELS[ri];
+      var y0=PAD_T+ri*CH;
+      // row label
+      hx.fillStyle='#666';hx.font='9px monospace';hx.textAlign='right';
+      hx.fillText('k='+k,PAD_L-3,y0+CH-5);
+      // cells
+      for(var ci=0;ci<COLS;ci++){
+        var v=trajs[ri][ci];
+        var alpha=Math.min(1,v*2.5);
+        hx.fillStyle='rgb('+Math.round(rgb[0]*alpha+14*(1-alpha))+','+
+          Math.round(rgb[1]*alpha+14*(1-alpha))+','+
+          Math.round(rgb[2]*alpha+14*(1-alpha))+')';
+        hx.fillRect(PAD_L+ci*CW,y0,CW-1,CH-2);
+        // mark exact (v=0) with dot
+        if(v===0){hx.fillStyle='rgba(255,255,255,0.2)';hx.beginPath();hx.arc(PAD_L+ci*CW+CW/2,y0+CH/2,2,0,2*Math.PI);hx.fill();}
+      }
+    }
+    // t-axis
+    hx.fillStyle='#555';hx.font='8px monospace';hx.textAlign='center';
+    for(var ci=0;ci<=CG_STEPS;ci+=5) hx.fillText(ci,PAD_L+ci*CW+CW/2,hc.height-2);
+
+    // ── max-δ bar chart ───────────────────────────────────────────────────────
+    var BW=140,BH=PAD_T+ROWS*CH+16;
+    var bc=document.getElementById('cg-bars');
+    bc.width=BW;bc.height=BH;
+    var bx=bc.getContext('2d');
+    bx.fillStyle='#0e0e0e';bx.fillRect(0,0,BW,BH);
+    for(var ri=0;ri<ROWS;ri++){
+      var maxD=Math.max.apply(null,trajs[ri]);
+      var y0=PAD_T+ri*CH;
+      bx.fillStyle='#1a1a1a';bx.fillRect(0,y0,BW-4,CH-2);
+      bx.fillStyle=col;bx.fillRect(0,y0,Math.round(maxD*(BW-4)),CH-2);
+      bx.fillStyle='#ccc';bx.font='9px monospace';bx.textAlign='left';
+      bx.fillText(maxD.toFixed(3),Math.round(maxD*(BW-4))+2,y0+CH-5);
+    }
+    bx.fillStyle='#555';bx.font='8px monospace';bx.textAlign='center';
+    bx.fillText('max δ',BW/2,BH-2);
+
+    // stats
+    var exactK=CG_LEVELS.filter(function(_,ri){return Math.max.apply(null,trajs[ri])===0;});
+    document.getElementById('cg-stats').innerHTML=
+      '<span style="color:'+col+'">'+rule.toUpperCase()+'</span> '
+      +' точные уровни: k∈{'+exactK.join(',')+'}'
+      +'  k=3: max-δ='+trajs[1].reduce(function(m,v){return Math.max(m,v);},0).toFixed(4);
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('cg-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');o.value=o.text=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('cg-btn');
+    var wordEl=document.getElementById('cg-word');
+    var ruleEl=document.getElementById('cg-rule');
+    if(btn)    btn.addEventListener('click',cgRun);
+    if(wordEl) wordEl.addEventListener('change',cgRun);
+    if(ruleEl) ruleEl.addEventListener('change',cgRun);
+    setTimeout(function(){if(window.encL) cgRun();},1400);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
