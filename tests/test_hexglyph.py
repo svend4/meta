@@ -15224,6 +15224,411 @@ class TestSolanConfig(unittest.TestCase):
         self.assertIn('ALL_CFGS', content)
 
 
+
+class TestSolanBoundary(unittest.TestCase):
+    """Tests for solan_boundary.py — Spatial XOR-Boundary Analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_boundary import (
+            boundary_step, boundary_orbit, boundary_period,
+            period_compressed, n_active_boundaries, n_zero_boundaries,
+            boundary_vocab_nz, boundary_vocab_all, boundary_uniform,
+            boundary_bit_constraints, boundary_summary,
+            all_boundary, build_boundary_data,
+        )
+        cls.boundary_step          = staticmethod(boundary_step)
+        cls.boundary_orbit         = staticmethod(boundary_orbit)
+        cls.boundary_period        = staticmethod(boundary_period)
+        cls.period_compressed      = staticmethod(period_compressed)
+        cls.n_active_boundaries    = staticmethod(n_active_boundaries)
+        cls.n_zero_boundaries      = staticmethod(n_zero_boundaries)
+        cls.boundary_vocab_nz      = staticmethod(boundary_vocab_nz)
+        cls.boundary_vocab_all     = staticmethod(boundary_vocab_all)
+        cls.boundary_uniform       = staticmethod(boundary_uniform)
+        cls.boundary_bit_constraints = staticmethod(boundary_bit_constraints)
+        cls.boundary_summary       = staticmethod(boundary_summary)
+        cls.all_boundary           = staticmethod(all_boundary)
+        cls.build_boundary_data    = staticmethod(build_boundary_data)
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.LEXICON = list(LEXICON)
+
+    # ── boundary_step ─────────────────────────────────────────────────────────
+
+    def test_boundary_step_returns_tuple(self):
+        result = self.boundary_step((47, 1, 47, 1))
+        self.assertIsInstance(result, tuple)
+
+    def test_boundary_step_length_preserved(self):
+        result = self.boundary_step((47, 1, 47, 1))
+        self.assertEqual(len(result), 4)
+
+    def test_boundary_step_uniform_zero(self):
+        # Uniform state: all cells equal → all boundaries = 0
+        self.assertEqual(self.boundary_step((0, 0, 0, 0)), (0, 0, 0, 0))
+
+    def test_boundary_step_uniform_63(self):
+        self.assertEqual(self.boundary_step((63, 63, 63, 63)), (0, 0, 0, 0))
+
+    def test_boundary_step_alternating_47_1(self):
+        # 47 XOR 1 = 46
+        result = self.boundary_step((47, 1, 47, 1))
+        self.assertEqual(result, (46, 46, 46, 46))
+
+    def test_boundary_step_xor_values_in_range(self):
+        result = self.boundary_step((10, 20, 30, 40))
+        self.assertTrue(all(0 <= v <= 63 for v in result))
+
+    def test_boundary_step_periodic_wrap(self):
+        # Last cell XOR with first cell (periodic)
+        state = (47, 1)
+        result = self.boundary_step(state)
+        # cell 0: 47^1=46, cell 1: 1^47=46
+        self.assertEqual(result, (46, 46))
+
+    # ── boundary_orbit ────────────────────────────────────────────────────────
+
+    def test_boundary_orbit_returns_list(self):
+        self.assertIsInstance(self.boundary_orbit('ГОРА', 'and'), list)
+
+    def test_boundary_orbit_length_equals_period(self):
+        result = self.boundary_orbit('ГОРА', 'and')
+        self.assertEqual(len(result), 2)
+
+    def test_boundary_orbit_tuman_xor_all_zero(self):
+        b = self.boundary_orbit('ТУМАН', 'xor')
+        self.assertEqual(len(b), 1)
+        self.assertTrue(all(v == 0 for v in b[0]))
+
+    def test_boundary_orbit_gora_or_all_zero(self):
+        b = self.boundary_orbit('ГОРА', 'or')
+        self.assertEqual(len(b), 1)
+        self.assertTrue(all(v == 0 for v in b[0]))
+
+    def test_boundary_orbit_gora_and_constant_46(self):
+        b = self.boundary_orbit('ГОРА', 'and')
+        for row in b:
+            self.assertTrue(all(v == 46 for v in row))
+
+    def test_boundary_orbit_elements_are_tuples(self):
+        b = self.boundary_orbit('ГОРА', 'xor3')
+        self.assertIsInstance(b[0], tuple)
+
+    def test_boundary_orbit_values_in_range(self):
+        b = self.boundary_orbit('ТУМАН', 'xor3')
+        self.assertTrue(all(0 <= v <= 63 for row in b for v in row))
+
+    def test_boundary_orbit_case_insensitive(self):
+        self.assertEqual(
+            self.boundary_orbit('гора', 'and'),
+            self.boundary_orbit('ГОРА', 'and'),
+        )
+
+    # ── boundary_period ───────────────────────────────────────────────────────
+
+    def test_boundary_period_returns_int(self):
+        self.assertIsInstance(self.boundary_period('ГОРА', 'and'), int)
+
+    def test_boundary_period_gora_and_is_1(self):
+        self.assertEqual(self.boundary_period('ГОРА', 'and'), 1)
+
+    def test_boundary_period_tuman_xor_is_1(self):
+        self.assertEqual(self.boundary_period('ТУМАН', 'xor'), 1)
+
+    def test_boundary_period_gora_xor3_is_2(self):
+        self.assertEqual(self.boundary_period('ГОРА', 'xor3'), 2)
+
+    def test_boundary_period_tuman_xor3_is_8(self):
+        self.assertEqual(self.boundary_period('ТУМАН', 'xor3'), 8)
+
+    def test_boundary_period_divides_orbit_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word, rule in [('ГОРА', 'and'), ('ГОРА', 'xor3'), ('ТУМАН', 'xor3')]:
+            P  = word_trajectory(word, rule)['period']
+            bp = self.boundary_period(word, rule)
+            self.assertEqual(P % bp, 0,
+                             f'{word} {rule}: P={P} not divisible by b_period={bp}')
+
+    # ── period_compressed ─────────────────────────────────────────────────────
+
+    def test_period_compressed_returns_bool(self):
+        self.assertIsInstance(self.period_compressed('ГОРА', 'and'), bool)
+
+    def test_period_compressed_gora_and_true(self):
+        self.assertTrue(self.period_compressed('ГОРА', 'and'))
+
+    def test_period_compressed_tuman_xor_false(self):
+        self.assertFalse(self.period_compressed('ТУМАН', 'xor'))
+
+    def test_period_compressed_gora_xor3_false(self):
+        self.assertFalse(self.period_compressed('ГОРА', 'xor3'))
+
+    def test_period_compressed_tuman_xor3_false(self):
+        self.assertFalse(self.period_compressed('ТУМАН', 'xor3'))
+
+    # ── n_active_boundaries ───────────────────────────────────────────────────
+
+    def test_n_active_boundaries_returns_list(self):
+        self.assertIsInstance(self.n_active_boundaries('ГОРА', 'and'), list)
+
+    def test_n_active_boundaries_length_equals_period(self):
+        result = self.n_active_boundaries('ГОРА', 'and')
+        self.assertEqual(len(result), 2)
+
+    def test_n_active_boundaries_tuman_xor_zero(self):
+        self.assertEqual(self.n_active_boundaries('ТУМАН', 'xor'), [0])
+
+    def test_n_active_boundaries_gora_or_zero(self):
+        self.assertEqual(self.n_active_boundaries('ГОРА', 'or'), [0])
+
+    def test_n_active_boundaries_gora_and_max(self):
+        # All 16 adjacent pairs differ → n_active = 16
+        self.assertEqual(self.n_active_boundaries('ГОРА', 'and'), [16, 16])
+
+    def test_n_active_boundaries_gora_xor3_max(self):
+        self.assertEqual(self.n_active_boundaries('ГОРА', 'xor3'), [16, 16])
+
+    def test_n_active_boundaries_tuman_xor3_values(self):
+        result = self.n_active_boundaries('ТУМАН', 'xor3')
+        self.assertEqual(result, [15, 16, 16, 16, 16, 16, 16, 13])
+
+    def test_n_active_boundaries_non_negative(self):
+        result = self.n_active_boundaries('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 0 for v in result))
+
+    def test_n_active_plus_zero_equals_n(self):
+        na = self.n_active_boundaries('ТУМАН', 'xor3')
+        nz = self.n_zero_boundaries('ТУМАН', 'xor3')
+        for a, z in zip(na, nz):
+            self.assertEqual(a + z, 16)
+
+    # ── n_zero_boundaries ─────────────────────────────────────────────────────
+
+    def test_n_zero_boundaries_returns_list(self):
+        self.assertIsInstance(self.n_zero_boundaries('ГОРА', 'and'), list)
+
+    def test_n_zero_boundaries_tuman_xor_all_zero(self):
+        self.assertEqual(self.n_zero_boundaries('ТУМАН', 'xor'), [16])
+
+    def test_n_zero_boundaries_gora_and_none(self):
+        self.assertEqual(self.n_zero_boundaries('ГОРА', 'and'), [0, 0])
+
+    def test_n_zero_boundaries_tuman_xor3(self):
+        result = self.n_zero_boundaries('ТУМАН', 'xor3')
+        self.assertEqual(result, [1, 0, 0, 0, 0, 0, 0, 3])
+
+    # ── boundary_vocab_nz ─────────────────────────────────────────────────────
+
+    def test_boundary_vocab_nz_returns_list(self):
+        self.assertIsInstance(self.boundary_vocab_nz('ГОРА', 'and'), list)
+
+    def test_boundary_vocab_nz_tuman_xor_empty(self):
+        self.assertEqual(self.boundary_vocab_nz('ТУМАН', 'xor'), [])
+
+    def test_boundary_vocab_nz_gora_or_empty(self):
+        self.assertEqual(self.boundary_vocab_nz('ГОРА', 'or'), [])
+
+    def test_boundary_vocab_nz_gora_and_single(self):
+        # 47 XOR 1 = 46
+        self.assertEqual(self.boundary_vocab_nz('ГОРА', 'and'), [46])
+
+    def test_boundary_vocab_nz_gora_xor3(self):
+        self.assertEqual(self.boundary_vocab_nz('ГОРА', 'xor3'), [14, 30, 32, 48])
+
+    def test_boundary_vocab_nz_tuman_xor3_size(self):
+        self.assertEqual(len(self.boundary_vocab_nz('ТУМАН', 'xor3')), 15)
+
+    def test_boundary_vocab_nz_sorted(self):
+        v = self.boundary_vocab_nz('ТУМАН', 'xor3')
+        self.assertEqual(v, sorted(v))
+
+    # ── boundary_vocab_all ────────────────────────────────────────────────────
+
+    def test_boundary_vocab_all_includes_zero_for_uniform(self):
+        v = self.boundary_vocab_all('ТУМАН', 'xor')
+        self.assertIn(0, v)
+
+    def test_boundary_vocab_all_tuman_xor3_size(self):
+        # 15 non-zero + 1 zero value
+        self.assertEqual(len(self.boundary_vocab_all('ТУМАН', 'xor3')), 16)
+
+    def test_boundary_vocab_all_tuman_xor3_has_zero(self):
+        self.assertIn(0, self.boundary_vocab_all('ТУМАН', 'xor3'))
+
+    def test_boundary_vocab_all_sorted(self):
+        v = self.boundary_vocab_all('ТУМАН', 'xor3')
+        self.assertEqual(v, sorted(v))
+
+    # ── boundary_uniform ──────────────────────────────────────────────────────
+
+    def test_boundary_uniform_returns_bool(self):
+        self.assertIsInstance(self.boundary_uniform('ГОРА', 'and'), bool)
+
+    def test_boundary_uniform_tuman_xor_true(self):
+        self.assertTrue(self.boundary_uniform('ТУМАН', 'xor'))
+
+    def test_boundary_uniform_gora_or_true(self):
+        self.assertTrue(self.boundary_uniform('ГОРА', 'or'))
+
+    def test_boundary_uniform_gora_and_true(self):
+        # Anti-phase orbit → constant boundary
+        self.assertTrue(self.boundary_uniform('ГОРА', 'and'))
+
+    def test_boundary_uniform_gora_xor3_false(self):
+        self.assertFalse(self.boundary_uniform('ГОРА', 'xor3'))
+
+    def test_boundary_uniform_tuman_xor3_false(self):
+        self.assertFalse(self.boundary_uniform('ТУМАН', 'xor3'))
+
+    # ── boundary_bit_constraints ──────────────────────────────────────────────
+
+    def test_boundary_bit_constraints_returns_list(self):
+        self.assertIsInstance(self.boundary_bit_constraints('ТУМАН', 'xor3'), list)
+
+    def test_boundary_bit_constraints_tuman_xor3(self):
+        # b0=b1 from coact constraint
+        self.assertIn((0, 1), self.boundary_bit_constraints('ТУМАН', 'xor3'))
+
+    def test_boundary_bit_constraints_tuman_xor3_only_01(self):
+        # Only (0,1) constraint for ТУМАН XOR3
+        self.assertEqual(self.boundary_bit_constraints('ТУМАН', 'xor3'), [(0, 1)])
+
+    def test_boundary_bit_constraints_gora_xor3(self):
+        # b1=b2=b3 in boundary values
+        c = self.boundary_bit_constraints('ГОРА', 'xor3')
+        self.assertIn((1, 2), c)
+        self.assertIn((1, 3), c)
+        self.assertIn((2, 3), c)
+
+    def test_boundary_bit_constraints_elements_are_tuples(self):
+        c = self.boundary_bit_constraints('ТУМАН', 'xor3')
+        if c:
+            self.assertIsInstance(c[0], tuple)
+            self.assertEqual(len(c[0]), 2)
+
+    def test_boundary_bit_constraints_indices_in_range(self):
+        for word, rule in [('ГОРА', 'xor3'), ('ТУМАН', 'xor3'), ('ГОРА', 'and')]:
+            for b1, b2 in self.boundary_bit_constraints(word, rule):
+                self.assertGreaterEqual(b1, 0)
+                self.assertLess(b2, 6)
+                self.assertLess(b1, b2)
+
+    # ── boundary_summary ──────────────────────────────────────────────────────
+
+    def test_boundary_summary_returns_dict(self):
+        self.assertIsInstance(self.boundary_summary('ГОРА', 'and'), dict)
+
+    def test_boundary_summary_required_keys(self):
+        d = self.boundary_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'b_period', 'period_compressed',
+                    'n_active', 'n_zero', 'mean_n_active',
+                    'max_n_active', 'min_n_active',
+                    'vocab_nz', 'vocab_nz_size',
+                    'vocab_all', 'uniform',
+                    'bit_constraints', 'b_orbit'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_boundary_summary_gora_and_compressed(self):
+        d = self.boundary_summary('ГОРА', 'and')
+        self.assertTrue(d['period_compressed'])
+        self.assertEqual(d['b_period'], 1)
+        self.assertEqual(d['period'], 2)
+
+    def test_boundary_summary_tuman_xor3_constraint(self):
+        d = self.boundary_summary('ТУМАН', 'xor3')
+        self.assertIn((0, 1), d['bit_constraints'])
+
+    def test_boundary_summary_gora_or_zero_vocab(self):
+        d = self.boundary_summary('ГОРА', 'or')
+        self.assertEqual(d['vocab_nz_size'], 0)
+        self.assertTrue(d['uniform'])
+
+    def test_boundary_summary_word_upper(self):
+        d = self.boundary_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_boundary_summary_n_active_consistent(self):
+        d = self.boundary_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['n_active'], [15, 16, 16, 16, 16, 16, 16, 13])
+
+    def test_boundary_summary_mean_n_active_tuman_xor3(self):
+        d = self.boundary_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_n_active'], 15.5)
+
+    # ── all_boundary ──────────────────────────────────────────────────────────
+
+    def test_all_boundary_returns_dict(self):
+        self.assertIsInstance(self.all_boundary('ГОРА'), dict)
+
+    def test_all_boundary_four_rules(self):
+        d = self.all_boundary('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_boundary_data ───────────────────────────────────────────────────
+
+    def test_build_boundary_data_returns_dict(self):
+        self.assertIsInstance(self.build_boundary_data(['ГОРА']), dict)
+
+    def test_build_boundary_data_top_keys(self):
+        d = self.build_boundary_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_boundary_data_rule_keys(self):
+        d = self.build_boundary_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_boundary_data_gora_and_compressed(self):
+        d = self.build_boundary_data(['ГОРА'])
+        self.assertTrue(d['per_rule']['and']['ГОРА']['period_compressed'])
+
+    def test_build_boundary_data_word_uppercase(self):
+        d = self.build_boundary_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_boundary_data_known_fields(self):
+        d   = self.build_boundary_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'b_period', 'period_compressed',
+                    'n_active', 'mean_n_active', 'max_n_active', 'min_n_active',
+                    'vocab_nz_size', 'vocab_nz', 'uniform', 'bit_constraints'):
+            self.assertIn(key, rec)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_bound_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bound-map', content)
+
+    def test_viewer_has_bound_nact(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bound-nact', content)
+
+    def test_viewer_has_bound_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bound-info', content)
+
+    def test_viewer_has_bn_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bn-word', content)
+
+    def test_viewer_has_bn_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bn-btn', content)
+
+    def test_viewer_has_bn_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bnRun', content)
+
+    def test_viewer_has_bn_boundary_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bnBoundary', content)
+
+    def test_viewer_has_bound_color_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('boundColor', content)
+
+
 class TestSolanCell(unittest.TestCase):
     """Tests for solan_cell.py — Per-Cell Temporal Analysis."""
 

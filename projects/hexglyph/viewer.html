@@ -13129,6 +13129,198 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Spatial XOR-Boundary Analysis (solan_boundary)</h2>
+<p style="color:#888;font-size:13px">
+  B[t][i] = orbit[t][i] ⊕ orbit[t][(i+1)%N].  Zero = same neighbours (no boundary).
+  Heatmap: colour hue = boundary type; brightness = popcount (number of differing bits).
+  ★ ГОРА AND: b_period=1 &lt; P=2 (boundary orbit compressed — pattern is constant
+  despite oscillating values).
+</p>
+<label style="color:#aaa">Слово:
+  <select id="bn-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="bn-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="bn-btn"
+  style="background:#1a1a2a;color:#aaf;border:1px solid #333366;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="bound-map" width="530" height="220"
+  style="background:#0a0a0a;display:block;border:1px solid #222"></canvas>
+<canvas id="bound-nact" width="530" height="50"
+  style="background:#0a0a0a;display:block;border:1px solid #222;margin-top:4px"></canvas>
+<div id="bound-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+
+  function bnStep(cells,rule){
+    var N=cells.length, out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function bnOrbit(ic,rule){
+    var seen={}, t=0, cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key], period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=bnStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.slice()); cur=bnStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=bnStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function popcount(v){
+    var c=0; for(var b=0;b<6;b++) if((v>>b)&1) c++; return c;
+  }
+
+  /* Colour for boundary value: 0 → dark, non-zero → hue by type, bright by count */
+  function boundColor(v){
+    if(v===0) return '#0a0a0a';
+    var pc=popcount(v);
+    var h=Math.round(v/63*300);
+    var l=22+pc*8; // 1 diff → 30%, 6 diff → 70%
+    return 'hsl('+h+',85%,'+l+'%)';
+  }
+
+  /* Compute boundary pattern for one step */
+  function bnBoundary(state){
+    var N=state.length, out=[];
+    for(var i=0;i<N;i++) out.push(state[i]^state[(i+1)%N]);
+    return out;
+  }
+
+  /* Detect period of boundary orbit */
+  function bnBPeriod(b_orbit){
+    var P=b_orbit.length;
+    for(var period=1;period<=P;period++){
+      var ok=true;
+      for(var t=0;t<P;t++){
+        var b1=b_orbit[t], b2=b_orbit[t%period];
+        if(b1.join(',')!==b2.join(',')){ ok=false; break; }
+      }
+      if(ok) return period;
+    }
+    return P;
+  }
+
+  function bnRun(){
+    var wEl=document.getElementById('bn-word');
+    var rEl=document.getElementById('bn-rule');
+    var info=document.getElementById('bound-info');
+    if(!window.encL){if(info) info.textContent='Ожидание…'; return;}
+    var word=(wEl?wEl.value:'ТУМАН').toUpperCase();
+    var rule=rEl?rEl.value:'xor3';
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=bnOrbit(ic,rule);
+    var P=grid.length;
+
+    /* Build boundary orbit */
+    var b_grid=grid.map(function(s){return bnBoundary(s);});
+    var b_period=bnBPeriod(b_grid);
+    var compressed=(b_period<P);
+
+    /* Per-step n_active */
+    var n_active=b_grid.map(function(b){return b.filter(function(v){return v!==0;}).length;});
+    var mean_na=n_active.reduce(function(a,x){return a+x;},0)/P;
+
+    /* Boundary vocab */
+    var vocab_set={};
+    b_grid.forEach(function(b){b.forEach(function(v){if(v!==0) vocab_set[v]=true;});});
+    var vocab_nz=Object.keys(vocab_set).map(Number).sort(function(a,b){return a-b;});
+
+    /* ── Boundary heatmap ──────────────────────────────── */
+    var mc=document.getElementById('bound-map');
+    var mx=mc.getContext('2d');
+    var MW=mc.width, MH=mc.height;
+    mx.fillStyle='#0a0a0a'; mx.fillRect(0,0,MW,MH);
+    var cellW=Math.floor(MW/N);
+    var rowH=Math.max(1,Math.floor(MH/Math.min(P,MH)));
+    var visRows=Math.floor(MH/rowH);
+    for(var t=0;t<Math.min(P,visRows);t++){
+      for(var i=0;i<N;i++){
+        var v=b_grid[t][i];
+        mx.fillStyle=boundColor(v);
+        mx.fillRect(i*cellW, t*rowH, cellW-1, rowH-1);
+      }
+    }
+    mx.fillStyle='#555'; mx.font='10px monospace';
+    mx.fillText('t=0',2,10);
+    if(P>1) mx.fillText('t='+(Math.min(P,visRows)-1),2,Math.min(P,visRows)*rowH-3);
+
+    /* ── n_active bar chart ──────────────────────────── */
+    var nc=document.getElementById('bound-nact');
+    var nx=nc.getContext('2d');
+    var NW=nc.width, NH=nc.height;
+    nx.fillStyle='#0a0a0a'; nx.fillRect(0,0,NW,NH);
+    var col=BCOL[rule]||'#80deea';
+    var barW=Math.max(1,Math.floor((NW-4)/P));
+    for(var t=0;t<P;t++){
+      var bh=N>0?Math.round((n_active[t]/N)*(NH-8)):0;
+      nx.fillStyle=col;
+      nx.fillRect(2+t*barW, NH-4-bh, barW-1, bh);
+    }
+    nx.fillStyle='#555'; nx.font='10px monospace';
+    nx.fillText('n_active/step',2,10);
+    nx.fillText('max='+N,NW-50,10);
+
+    /* ── Info text ─────────────────────────────────── */
+    var lines=[
+      'Слово: '+word+'  Правило: '+rule.toUpperCase()+'  P='+P+'  N='+N,
+      'b_period='+b_period+(compressed?' ★COMPRESSED (b_period < P)':''),
+      'n_active='+JSON.stringify(n_active),
+      'mean_n_active='+mean_na.toFixed(2)+'  max='+Math.max.apply(null,n_active),
+      'vocab_nz ('+vocab_nz.length+'): ['+vocab_nz.slice(0,12).join(',')+
+        (vocab_nz.length>12?'…':'')+']',
+    ];
+    if(info) info.textContent=lines.join('\n');
+  }
+
+  /* Populate word selector */
+  var sel=document.getElementById('bn-word');
+  if(sel && window.LEXICON_ARR){
+    window.LEXICON_ARR.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='ГОРА') o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+  var btn=document.getElementById('bn-btn');
+  var wEl=document.getElementById('bn-word');
+  var rEl=document.getElementById('bn-rule');
+  if(btn) btn.addEventListener('click',bnRun);
+  if(wEl) wEl.addEventListener('change',bnRun);
+  if(rEl) rEl.addEventListener('change',bnRun);
+  setTimeout(function(){if(window.encL) bnRun();},6500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
