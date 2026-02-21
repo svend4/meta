@@ -19258,5 +19258,288 @@ class TestSolanBitplane(unittest.TestCase):
         self.assertIn("'T','B','L','R','D1','D2'", content)
 
 
+class TestSolanProfile(unittest.TestCase):
+    """Tests for solan_profile.py — statistical moment profile."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_profile import (
+            _step_moments, profile_summary, all_profile,
+            build_profile_data, profile_dict,
+        )
+        cls._step_moments    = staticmethod(_step_moments)
+        cls.profile_summary  = staticmethod(profile_summary)
+        cls.all_profile      = staticmethod(all_profile)
+        cls.build_data       = staticmethod(build_profile_data)
+        cls.profile_dict     = staticmethod(profile_dict)
+
+        # Precomputed summaries
+        cls.s_mat_xor3    = profile_summary('МАТ',    'xor3', 16)
+        cls.s_tundra_xor3 = profile_summary('ТУНДРА', 'xor3', 16)
+        cls.s_tuman_xor3  = profile_summary('ТУМАН',  'xor3', 16)
+        cls.s_gora_xor3   = profile_summary('ГОРА',   'xor3', 16)
+        cls.s_duga_xor3   = profile_summary('ДУГА',   'xor3', 16)
+
+    # ── _step_moments basics ──────────────────────────────────────────────────
+
+    def test_uniform_state_var_is_zero(self):
+        p = self._step_moments([42] * 16)
+        self.assertAlmostEqual(p['var'], 0.0, places=9)
+
+    def test_uniform_state_skew_is_zero(self):
+        p = self._step_moments([10] * 8)
+        self.assertAlmostEqual(p['skewness'], 0.0, places=9)
+
+    def test_uniform_state_kurt_is_zero(self):
+        p = self._step_moments([10] * 8)
+        self.assertAlmostEqual(p['kurtosis'], 0.0, places=9)
+
+    def test_uniform_state_mode_count_is_N(self):
+        p = self._step_moments([7] * 16)
+        self.assertEqual(p['mode_count'], 16)
+        self.assertAlmostEqual(p['mode_fraction'], 1.0, places=9)
+
+    def test_two_value_state_range(self):
+        p = self._step_moments([0] * 8 + [10] * 8)
+        self.assertEqual(p['range'], 10)
+
+    def test_two_value_state_mean(self):
+        p = self._step_moments([0] * 8 + [10] * 8)
+        self.assertAlmostEqual(p['mean'], 5.0, places=9)
+
+    def test_n_distinct_counts_unique(self):
+        p = self._step_moments([1, 2, 3, 1, 2, 3, 1, 2])
+        self.assertEqual(p['n_distinct'], 3)
+
+    def test_mode_is_most_common(self):
+        p = self._step_moments([5, 5, 5, 7, 8, 9, 10, 5])
+        self.assertEqual(p['mode'], 5)
+        self.assertEqual(p['mode_count'], 4)
+
+    # ── profile_summary required keys ─────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'spatial_profiles', 'spatial_mean', 'spatial_var',
+            'spatial_skewness', 'spatial_kurtosis', 'spatial_range',
+            'mode_vals', 'mode_counts', 'mode_fractions', 'n_distinct',
+            'max_mode_fraction', 'max_mode_fraction_step',
+            'max_skew_abs', 'max_skew_abs_step',
+            'max_kurtosis', 'max_kurtosis_step',
+            'min_var', 'min_var_step',
+            'max_range', 'max_range_step',
+            'mean_spatial_mean', 'mean_spatial_var',
+            'dominant_mode_val', 'dominant_mode_n',
+            'temporal_mean', 'temporal_var',
+            'max_temporal_var_cell', 'max_temporal_var',
+        }
+        self.assertTrue(required.issubset(self.s_mat_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_mat_xor3['word'], 'МАТ')
+
+    def test_summary_rule_preserved(self):
+        self.assertEqual(self.s_mat_xor3['rule'], 'xor3')
+
+    def test_summary_period(self):
+        self.assertEqual(self.s_mat_xor3['period'], 8)
+        self.assertEqual(self.s_gora_xor3['period'], 2)
+
+    # ── spatial_profiles length ───────────────────────────────────────────────
+
+    def test_spatial_profiles_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['spatial_profiles']), P)
+
+    def test_spatial_mean_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['spatial_mean']), P)
+
+    def test_mode_fractions_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['mode_fractions']), P)
+
+    # ── МАТ XOR3 known values ─────────────────────────────────────────────────
+
+    def test_mat_max_mode_fraction(self):
+        # 14/16 cells = 0.875 at t=1
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_mode_fraction'], 0.875, places=4)
+
+    def test_mat_max_mode_fraction_step(self):
+        self.assertEqual(self.s_mat_xor3['max_mode_fraction_step'], 1)
+
+    def test_mat_mode_at_t1_is_23(self):
+        self.assertEqual(self.s_mat_xor3['mode_vals'][1], 23)
+
+    def test_mat_mode_count_at_t1_is_14(self):
+        self.assertEqual(self.s_mat_xor3['mode_counts'][1], 14)
+
+    def test_mat_max_skew_abs(self):
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_skew_abs'], 2.518, places=2)
+
+    def test_mat_max_skew_step(self):
+        self.assertEqual(self.s_mat_xor3['max_skew_abs_step'], 1)
+
+    def test_mat_max_kurtosis(self):
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_kurtosis'], 4.756, places=2)
+
+    def test_mat_max_kurtosis_step(self):
+        self.assertEqual(self.s_mat_xor3['max_kurtosis_step'], 1)
+
+    def test_mat_dominant_mode_is_23(self):
+        self.assertEqual(self.s_mat_xor3['dominant_mode_val'], 23)
+
+    def test_mat_dominant_mode_n(self):
+        # Value 23 is mode at 6 of 8 steps
+        self.assertEqual(self.s_mat_xor3['dominant_mode_n'], 6)
+
+    # ── ТУНДРА XOR3 known values ──────────────────────────────────────────────
+
+    def test_tundra_max_skew_abs(self):
+        self.assertAlmostEqual(
+            self.s_tundra_xor3['max_skew_abs'], 3.057, places=2)
+
+    def test_tundra_max_skew_step(self):
+        self.assertEqual(self.s_tundra_xor3['max_skew_abs_step'], 2)
+
+    def test_tundra_max_kurtosis(self):
+        self.assertAlmostEqual(
+            self.s_tundra_xor3['max_kurtosis'], 8.41, places=1)
+
+    def test_tundra_max_kurtosis_step(self):
+        self.assertEqual(self.s_tundra_xor3['max_kurtosis_step'], 2)
+
+    # ── ДУГА XOR3 — most uniform ──────────────────────────────────────────────
+
+    def test_duga_min_var_is_small(self):
+        # ДУГА XOR3 has smallest non-zero variance (~32.19)
+        self.assertLess(self.s_duga_xor3['min_var'], 35.0)
+
+    def test_duga_min_var_is_positive(self):
+        self.assertGreater(self.s_duga_xor3['min_var'], 0.0)
+
+    # ── Structural invariants ─────────────────────────────────────────────────
+
+    def test_mode_fractions_in_valid_range(self):
+        N = self.s_mat_xor3['n_cells']
+        for mf in self.s_mat_xor3['mode_fractions']:
+            self.assertGreaterEqual(mf, 1.0 / N - 1e-9)
+            self.assertLessEqual(mf, 1.0 + 1e-9)
+
+    def test_n_distinct_in_valid_range(self):
+        N = self.s_mat_xor3['n_cells']
+        for nd in self.s_mat_xor3['n_distinct']:
+            self.assertGreaterEqual(nd, 1)
+            self.assertLessEqual(nd, N)
+
+    def test_mean_spatial_mean_consistent(self):
+        sm = self.s_mat_xor3['spatial_mean']
+        expected = sum(sm) / len(sm)
+        self.assertAlmostEqual(
+            self.s_mat_xor3['mean_spatial_mean'], expected, places=3)
+
+    def test_mean_spatial_var_consistent(self):
+        sv = self.s_mat_xor3['spatial_var']
+        expected = sum(sv) / len(sv)
+        self.assertAlmostEqual(
+            self.s_mat_xor3['mean_spatial_var'], expected, places=3)
+
+    def test_max_mode_fraction_is_max_of_list(self):
+        mf_list = self.s_mat_xor3['mode_fractions']
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_mode_fraction'], max(mf_list), places=9)
+
+    def test_max_skew_abs_is_max_of_abs_skewness(self):
+        sk_list = self.s_mat_xor3['spatial_skewness']
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_skew_abs'], max(abs(v) for v in sk_list),
+            places=4)
+
+    def test_max_range_consistent(self):
+        rg = self.s_mat_xor3['spatial_range']
+        self.assertEqual(self.s_mat_xor3['max_range'], max(rg))
+
+    # ── Temporal moments ──────────────────────────────────────────────────────
+
+    def test_temporal_mean_length_equals_n_cells(self):
+        N = self.s_mat_xor3['n_cells']
+        self.assertEqual(len(self.s_mat_xor3['temporal_mean']), N)
+
+    def test_temporal_var_length_equals_n_cells(self):
+        N = self.s_mat_xor3['n_cells']
+        self.assertEqual(len(self.s_mat_xor3['temporal_var']), N)
+
+    def test_temporal_var_p1_is_zero(self):
+        # P=1 orbit (XOR fixed point): all cells constant → temporal_var=0
+        s = self.profile_summary('ТУМАН', 'xor', 16)
+        self.assertEqual(s['period'], 1)
+        for tv in s['temporal_var']:
+            self.assertAlmostEqual(tv, 0.0, places=9)
+
+    def test_max_temporal_var_cell_is_valid_index(self):
+        N = self.s_mat_xor3['n_cells']
+        self.assertIn(self.s_mat_xor3['max_temporal_var_cell'], range(N))
+
+    def test_max_temporal_var_matches_cell(self):
+        cell = self.s_mat_xor3['max_temporal_var_cell']
+        tv_list = self.s_mat_xor3['temporal_var']
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_temporal_var'], tv_list[cell], places=3)
+
+    # ── all_profile / build_data ──────────────────────────────────────────────
+
+    def test_all_profile_has_four_rules(self):
+        d = self.all_profile('ТУМАН', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_data_word_list(self):
+        data = self.build_data(['МАТ', 'ГОРА'], 16)
+        self.assertEqual(data['words'], ['МАТ', 'ГОРА'])
+
+    def test_build_data_has_all_rules(self):
+        data = self.build_data(['МАТ'], 16)
+        self.assertEqual(set(data['data']['МАТ'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── profile_dict ──────────────────────────────────────────────────────────
+
+    def test_profile_dict_serialisable(self):
+        import json
+        d = self.profile_dict(self.s_mat_xor3)
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIn('МАТ', s)
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_pf_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pf-canvas', content)
+
+    def test_viewer_has_pf_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pfRun', content)
+
+    def test_viewer_has_pf_moments(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pfMoments', content)
+
+    def test_viewer_has_pf_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pfOrbit', content)
+
+    def test_viewer_has_pf_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pf-info', content)
+
+    def test_viewer_has_mode_frac_label(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mode_frac', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

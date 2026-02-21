@@ -15034,6 +15034,214 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Statistical Moment Profile (solan_profile)</h2>
+<p style="color:#888;font-size:13px">
+  At each orbit step the N=16 cell values form a distribution. Moments: mean (line),
+  variance (blue fill), skewness (orange bars below), mode fraction (green bars above).
+  <br>
+  ★ МАТ XOR3 t=1: 14/16 cells collapse to value 23 (mode_fraction=0.875, skew=+2.52, kurt=4.76).
+  &nbsp;★ ТУНДРА XOR3 t=2: extreme negative skew −3.06 and kurtosis 8.41 (outlier cell at v=3).
+</p>
+<label style="color:#aaa">Слово:
+  <select id="pf-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="pf-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="pf-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="pf-canvas" width="600" height="220"
+  style="background:#0a0a0a;border:1px solid #222"></canvas>
+<div id="pf-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  function pfStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function pfOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=pfStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=pfStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=pfStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function pfMoments(vals){
+    var N=vals.length;
+    var mu=vals.reduce(function(a,b){return a+b;},0)/N;
+    var var_=vals.reduce(function(a,v){return a+(v-mu)*(v-mu);},0)/N;
+    var std=Math.sqrt(var_);
+    var skew=0,kurt=0;
+    if(std>1e-9){
+      skew=vals.reduce(function(a,v){var z=(v-mu)/std;return a+z*z*z;},0)/N;
+      kurt=vals.reduce(function(a,v){var z=(v-mu)/std;return a+z*z*z*z;},0)/N-3;
+    }
+    var sorted=vals.slice().sort(function(a,b){return a-b;});
+    var minv=sorted[0],maxv=sorted[sorted.length-1];
+    // mode
+    var cnt={},best=-1,bestv=vals[0];
+    vals.forEach(function(v){cnt[v]=(cnt[v]||0)+1;if(cnt[v]>best){best=cnt[v];bestv=v;}});
+    return {mean:mu,var:var_,std:std,skew:skew,kurt:kurt,
+            range:maxv-minv,minv:minv,maxv:maxv,
+            mode:bestv,mode_count:best,mode_frac:best/N};
+  }
+
+  function pfRun(){
+    var word=(document.getElementById('pf-word').value||'МАТ').toUpperCase();
+    var rule=document.getElementById('pf-rule').value;
+    if(!window.encL||!window.padL){
+      document.getElementById('pf-info').textContent='(данные не загружены)';return;
+    }
+    var lw=window.LEXW||16;
+    var raw=window.encL(word);
+    if(!raw||!raw.length){document.getElementById('pf-info').textContent='(нет символов)';return;}
+    var ic=window.padL(raw,lw);
+    var orbit=pfOrbit(ic,rule);
+    var P=orbit.length;
+    var profiles=orbit.map(function(state){return pfMoments(state);});
+
+    var cv=document.getElementById('pf-canvas');
+    var ctx=cv.getContext('2d');
+    var barW=Math.min(Math.floor(560/Math.max(P,1)),80);
+    cv.width=Math.max(500,P*barW+60);
+    cv.height=220;
+    ctx.clearRect(0,0,cv.width,cv.height);
+
+    var TOP=20, BOT=180, H=BOT-TOP, MID=TOP+H/2;
+    // Axis
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(40,BOT); ctx.lineTo(cv.width-10,BOT); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(40,MID); ctx.lineTo(cv.width-10,MID); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(40,TOP); ctx.lineTo(cv.width-10,TOP); ctx.stroke();
+    ctx.fillStyle='#444'; ctx.font='9px monospace'; ctx.textAlign='right';
+    ctx.fillText('63',38,TOP+4); ctx.fillText('32',38,MID+4); ctx.fillText('0',38,BOT+4);
+
+    for(var t=0;t<P;t++){
+      var p=profiles[t];
+      var bx=42+t*barW;
+      var bw=barW-3;
+
+      // Variance fill (blue, from mean-std to mean+std)
+      var my_pix=BOT-(p.mean/63)*H;
+      var sy_top=BOT-((p.mean+p.std)/63)*H;
+      var sy_bot=BOT-((p.mean-p.std)/63)*H;
+      ctx.globalAlpha=0.25;
+      ctx.fillStyle='#4fc3f7';
+      ctx.fillRect(bx,Math.max(TOP,sy_top),bw,Math.min(BOT,sy_bot)-Math.max(TOP,sy_top));
+      ctx.globalAlpha=1.0;
+
+      // Mode fraction bar (top area, green)
+      var mfh=Math.round(p.mode_frac*30);
+      ctx.globalAlpha=0.7;
+      var mfc=p.mode_frac>0.7?'#ffd54f':p.mode_frac>0.4?'#a5d6a7':'#4caf50';
+      ctx.fillStyle=mfc;
+      ctx.fillRect(bx,TOP-mfh-2,bw,mfh);
+      ctx.globalAlpha=1.0;
+
+      // Skewness indicator (orange below BOT)
+      var skh=Math.min(Math.abs(p.skew)*6,25);
+      ctx.globalAlpha=0.7;
+      ctx.fillStyle=p.skew>0?'#ff8a65':'#ce93d8';
+      ctx.fillRect(bx,BOT+2,bw,skh);
+      ctx.globalAlpha=1.0;
+
+      // Mean line (white dot)
+      ctx.fillStyle='#fff';
+      ctx.beginPath();
+      ctx.arc(bx+bw/2, Math.max(TOP+3,Math.min(BOT-3,my_pix)),3,0,2*Math.PI);
+      ctx.fill();
+
+      // Min/max ticks
+      var maxy=BOT-(p.maxv/63)*H; var miny=BOT-(p.minv/63)*H;
+      ctx.strokeStyle='#555'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(bx+bw*0.3,maxy); ctx.lineTo(bx+bw*0.7,maxy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx+bw*0.3,miny); ctx.lineTo(bx+bw*0.7,miny); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx+bw/2,maxy); ctx.lineTo(bx+bw/2,miny); ctx.stroke();
+
+      // Step label
+      ctx.fillStyle='#555'; ctx.font='9px monospace'; ctx.textAlign='center';
+      ctx.fillText('t'+t,bx+bw/2,cv.height-6);
+      // Mean label
+      ctx.fillStyle='#888';
+      ctx.fillText(p.mean.toFixed(0),bx+bw/2,Math.max(TOP+10,Math.min(BOT-3,my_pix-5)));
+    }
+
+    // Legend
+    ctx.font='9px monospace'; ctx.textAlign='left';
+    ctx.fillStyle='#4fc3f7'; ctx.fillRect(42,cv.height-18,9,9);
+    ctx.fillStyle='#888'; ctx.fillText('±std',53,cv.height-10);
+    ctx.fillStyle='#4caf50'; ctx.fillRect(90,cv.height-18,9,9);
+    ctx.fillStyle='#888'; ctx.fillText('mode_frac↑',101,cv.height-10);
+    ctx.fillStyle='#ff8a65'; ctx.fillRect(175,cv.height-18,9,9);
+    ctx.fillStyle='#888'; ctx.fillText('skew+↓',186,cv.height-10);
+    ctx.fillStyle='#ce93d8'; ctx.fillRect(240,cv.height-18,9,9);
+    ctx.fillStyle='#888'; ctx.fillText('skew-↓',251,cv.height-10);
+
+    // Info
+    var maxMF=profiles.reduce(function(a,p,i){return p.mode_frac>a.v?{v:p.mode_frac,t:i}:a;},{v:-1,t:0});
+    var maxSK=profiles.reduce(function(a,p,i){return Math.abs(p.skew)>Math.abs(a.v)?{v:p.skew,t:i}:a;},{v:0,t:0});
+    var maxKU=profiles.reduce(function(a,p,i){return p.kurt>a.v?{v:p.kurt,t:i}:a;},{v:-99,t:0});
+    var lines=[
+      'P='+P+'  rule='+rule+'  word='+word,
+      'max_mode_frac = '+maxMF.v.toFixed(4)+' at t='+maxMF.t+
+        '  (mode='+profiles[maxMF.t].mode+'  '+profiles[maxMF.t].mode_count+'/'+lw+' cells)',
+      'max|skewness| = '+Math.abs(maxSK.v).toFixed(4)+' at t='+maxSK.t,
+      'max_kurtosis  = '+maxKU.v.toFixed(4)+' at t='+maxKU.t,
+      'moments: '+profiles.map(function(p,t){
+        return 't'+t+'(μ='+p.mean.toFixed(1)+' σ²='+p.var.toFixed(0)+')';
+      }).join('  '),
+    ];
+    document.getElementById('pf-info').textContent=lines.join('\n');
+  }
+
+  (function(){
+    var sel=document.getElementById('pf-word');
+    var words=window.LEXICON_ARR||['МАТ','ТУНДРА','ТУМАН','ГОРА'];
+    words.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='МАТ') o.selected=true;
+      sel.appendChild(o);
+    });
+  })();
+
+  document.getElementById('pf-btn').addEventListener('click',pfRun);
+  document.getElementById('pf-word').addEventListener('change',pfRun);
+  document.getElementById('pf-rule').addEventListener('change',pfRun);
+  setTimeout(function(){if(window.encL&&window.LEXICON_ARR) pfRun();},11000);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
