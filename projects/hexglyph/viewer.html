@@ -5477,6 +5477,234 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Сеть информационного потока Q6 — PageRank и СКС аттрактора</h2>
+<p class="meta">Граф TE[i→j] на периодическом аттракторе · узлы = клетки CA (16) на окружности · толщина дуги ∝ TE[i→j] · размер узла ∝ PageRank · тёплый=источник (net_flow&gt;0) / холодный=сток · СКС = сильно связные компоненты (алгоритм Тарьяна) · XOR/AND/OR с P=1: TE=0 → тривиальная сеть</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="net-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="net-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <button id="net-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Сеть</button>
+</div>
+<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+  <canvas id="net-graph" style="display:block"></canvas>
+  <canvas id="net-bars"  style="display:block"></canvas>
+</div>
+<div id="net-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"></div>
+<script>
+(function(){
+  var NET_COLS={xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+
+  function netStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function netOrbit(cells0,rule){
+    var seen={},c=cells0.slice(),t=0;
+    for(;;){var key=c.join(',');if(key in seen) return {T:seen[key],P:t-seen[key]};seen[key]=t;c=netStep(c,rule);t++;}
+  }
+
+  function netGrid(cells,rule){
+    var info=netOrbit(cells.slice(),rule);
+    var T=info.T,P=Math.max(info.P,1);
+    var c=cells.slice();
+    for(var i=0;i<T;i++) c=netStep(c,rule);
+    var grid=[];
+    for(var i=0;i<P;i++){grid.push(c.slice());c=netStep(c,rule);}
+    return {grid:grid,T:T,P:P};
+  }
+
+  function netH(counts){
+    var total=0;
+    Object.values(counts).forEach(function(v){total+=v;});
+    if(!total) return 0;
+    return -Object.values(counts).reduce(function(h,v){var p=v/total;return h+(p>0?p*Math.log2(p):0);},0);
+  }
+
+  function netCellTE(orbit,i,j){
+    var P=orbit.length;
+    var yy={},y={},xyy={},xy={};
+    for(var t=0;t<P;t++){
+      var xt=orbit[t][i],yt=orbit[t][j],yt1=orbit[(t+1)%P][j];
+      var k1=yt+','+yt1; yy[k1]=(yy[k1]||0)+1; y[yt]=(y[yt]||0)+1;
+      var k2=xt+','+yt+','+yt1; xyy[k2]=(xyy[k2]||0)+1;
+      var k3=xt+','+yt;         xy[k3]=(xy[k3]||0)+1;
+    }
+    var Hyy=netH(yy),Hy=netH(y),Hxyy=netH(xyy),Hxy=netH(xy);
+    return Math.max(0,(Hyy-Hy)-(Hxyy-Hxy));
+  }
+
+  function netTEMatrix(orbit,N){
+    var mat=Array.from({length:N},function(){return new Array(N).fill(0);});
+    for(var j=0;j<N;j++) for(var i=0;i<N;i++) mat[i][j]=netCellTE(orbit,i,j);
+    return mat;
+  }
+
+  function netPageRank(mat,N){
+    var damp=0.85,iters=80;
+    var trans=mat.map(function(row){
+      var s=row.reduce(function(a,b){return a+b;},0);
+      return s>0?row.map(function(v){return v/s;}):new Array(N).fill(1/N);
+    });
+    var pr=new Array(N).fill(1/N),base=(1-damp)/N;
+    for(var k=0;k<iters;k++){
+      var np=new Array(N).fill(base);
+      for(var i=0;i<N;i++) for(var j=0;j<N;j++) np[j]+=damp*pr[i]*trans[i][j];
+      pr=np;
+    }
+    return pr;
+  }
+
+  function netSCC(mat,N){
+    var idx=new Array(N).fill(-1),low=new Array(N).fill(0),onSt=new Array(N).fill(false);
+    var st=[],cnt=[0],sccs=[];
+    function connect(v){
+      idx[v]=low[v]=cnt[0]++;st.push(v);onSt[v]=true;
+      for(var w=0;w<N;w++){
+        if(mat[v][w]>0){
+          if(idx[w]<0){connect(w);low[v]=Math.min(low[v],low[w]);}
+          else if(onSt[w]) low[v]=Math.min(low[v],idx[w]);
+        }
+      }
+      if(low[v]===idx[v]){
+        var scc=[];
+        do{var w2=st.pop();onSt[w2]=false;scc.push(w2);}while(w2!==v);
+        sccs.push(scc);
+      }
+    }
+    for(var v=0;v<N;v++) if(idx[v]<0) connect(v);
+    return sccs.sort(function(a,b){return b.length-a.length;});
+  }
+
+  function netRun(){
+    if(!window.encL||!window.padL) return;
+    var word=(document.getElementById('net-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('net-rule').value||'xor3';
+    var N=16;
+    var cells=window.padL(window.encL(word),N);
+    var res=netGrid(cells,rule);
+    var orbit=res.grid,P=res.P;
+    var col=NET_COLS[rule]||'#ccc';
+
+    var te=netTEMatrix(orbit,N);
+    var totalTE=te.reduce(function(s,row){return s+row.reduce(function(a,b){return a+b;},0);},0);
+    var maxTE=0;
+    for(var i=0;i<N;i++) for(var j=0;j<N;j++) if(te[i][j]>maxTE) maxTE=te[i][j];
+
+    var inW=new Array(N).fill(0),outW=new Array(N).fill(0);
+    for(var i=0;i<N;i++) for(var j=0;j<N;j++){inW[j]+=te[i][j];outW[i]+=te[i][j];}
+    var nfW=inW.map(function(iw,i){return outW[i]-iw;});
+    var maxAbsNF=nfW.reduce(function(m,v){return Math.max(m,Math.abs(v));},1e-9);
+
+    var pr=netPageRank(te,N);
+    var maxPR=pr.reduce(function(m,v){return Math.max(m,v);},1e-9);
+    var sccs=netSCC(te,N);
+    var nSCCs=sccs.length,bigSCC=sccs[0]?sccs[0].length:0;
+
+    // circular graph
+    var GS=320,gc=document.getElementById('net-graph');
+    gc.width=GS;gc.height=GS;
+    var gx=gc.getContext('2d');
+    gx.fillStyle='#0e0e0e';gx.fillRect(0,0,GS,GS);
+    var cx=GS/2,cy=GS/2,Rc=GS*0.36;
+    var pos=[];
+    for(var i=0;i<N;i++){var a=(2*Math.PI*i/N)-Math.PI/2;pos.push([cx+Rc*Math.cos(a),cy+Rc*Math.sin(a)]);}
+    if(maxTE>1e-6){
+      for(var i=0;i<N;i++){
+        for(var j=0;j<N;j++){
+          if(i===j||te[i][j]<1e-4) continue;
+          var str=te[i][j]/maxTE;
+          gx.globalAlpha=str*0.65;gx.strokeStyle=col;gx.lineWidth=Math.max(0.5,str*2.5);
+          var xi=pos[i][0],yi=pos[i][1],xj=pos[j][0],yj=pos[j][1];
+          var mx=(xi+xj)/2*0.82+cx*0.18,my=(yi+yj)/2*0.82+cy*0.18;
+          gx.beginPath();gx.moveTo(xi,yi);gx.quadraticCurveTo(mx,my,xj,yj);gx.stroke();
+          var dx=xj-mx,dy=yj-my,len=Math.sqrt(dx*dx+dy*dy)||1,aS=3*str+1;
+          var ux=dx/len,uy=dy/len;
+          gx.beginPath();
+          gx.moveTo(xj-ux*aS+uy*aS*0.5,yj-uy*aS-ux*aS*0.5);
+          gx.lineTo(xj,yj);
+          gx.lineTo(xj-ux*aS-uy*aS*0.5,yj-uy*aS+ux*aS*0.5);
+          gx.stroke();
+        }
+      }
+    }
+    gx.globalAlpha=1;
+    for(var i=0;i<N;i++){
+      var nfr=nfW[i]/maxAbsNF;
+      var nr=5+(pr[i]/maxPR)*9;
+      var nc=nfr>0.05?'rgba(255,120,50,0.92)':nfr<-0.05?'rgba(60,140,255,0.92)':'rgba(130,130,130,0.85)';
+      gx.beginPath();gx.arc(pos[i][0],pos[i][1],nr,0,2*Math.PI);
+      gx.fillStyle=nc;gx.fill();
+      gx.strokeStyle='rgba(255,255,255,0.35)';gx.lineWidth=0.5;gx.stroke();
+      gx.fillStyle='#fff';gx.font='8px monospace';gx.textAlign='center';
+      gx.fillText(i,pos[i][0],pos[i][1]+3);
+    }
+
+    // bar chart out/in
+    var BW=200,BH=GS,bh=Math.floor((BH-10)/N);
+    var bc=document.getElementById('net-bars');
+    bc.width=BW;bc.height=BH;
+    var bx=bc.getContext('2d');
+    bx.fillStyle='#0e0e0e';bx.fillRect(0,0,BW,BH);
+    var maxB=Math.max(outW.reduce(function(m,v){return Math.max(m,v);},0),inW.reduce(function(m,v){return Math.max(m,v);},0),1e-9);
+    for(var i=0;i<N;i++){
+      var y0=5+i*bh;
+      bx.fillStyle='rgba(255,120,50,0.75)';
+      bx.fillRect(0,y0,Math.round(outW[i]/maxB*(BW/2-4)),bh-2);
+      bx.fillStyle='rgba(60,140,255,0.75)';
+      bx.fillRect(BW/2,y0,Math.round(inW[i]/maxB*(BW/2-4)),bh-2);
+      bx.fillStyle='#888';bx.font='8px monospace';bx.textAlign='left';
+      bx.fillText(i,2,y0+bh-2);
+    }
+    bx.fillStyle='#555';bx.font='8px monospace';bx.textAlign='center';
+    bx.fillText('out',BW/4,BH-1);bx.fillText('in',BW*3/4,BH-1);
+
+    var topSrc=nfW.map(function(v,i){return[i,v];}).sort(function(a,b){return b[1]-a[1];}).slice(0,3).map(function(x){return x[0];});
+    var topSnk=nfW.map(function(v,i){return[i,v];}).sort(function(a,b){return a[1]-b[1];}).slice(0,3).map(function(x){return x[0];});
+    document.getElementById('net-stats').innerHTML=
+      '<span style="color:'+col+'">'+rule.toUpperCase()+'</span>'
+      +' P='+P+' total_TE='+totalTE.toFixed(2)
+      +' SCCs='+nSCCs+' largest='+bigSCC
+      +' <span style="color:#f84">sources=['+topSrc+']</span>'
+      +' <span style="color:#48f">sinks=['+topSnk+']</span>';
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('net-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');o.value=o.text=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('net-btn');
+    var wordEl=document.getElementById('net-word');
+    var ruleEl=document.getElementById('net-rule');
+    if(btn)    btn.addEventListener('click',netRun);
+    if(wordEl) wordEl.addEventListener('change',netRun);
+    if(ruleEl) ruleEl.addEventListener('change',netRun);
+    setTimeout(function(){if(window.encL) netRun();},1250);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Ляпунов CA Q6 — расходимость траекторий</h2>
 <p class="meta">Однобитовые возмущения начального состояния (96 вариантов) → среднее Хэмминг-расстояние d(t) между оригинальной и возмущённой траекториями · пик = «максимальная чувствительность» · ↓ = сходится к 0</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">

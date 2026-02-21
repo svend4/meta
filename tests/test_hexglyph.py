@@ -5179,6 +5179,317 @@ class TestSolanSymbolic(unittest.TestCase):
         self.assertIn('бинарная грамматика', content)
 
 
+class TestSolanNetwork(unittest.TestCase):
+    """Tests for solan_network.py and the viewer Network section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import (
+            in_weights, out_weights, net_flow,
+            pagerank, hits, tarjan_scc,
+            network_dict, all_network, build_network_data,
+            _ALL_RULES, _DEFAULT_WIDTH,
+        )
+        cls.in_weights     = staticmethod(in_weights)
+        cls.out_weights    = staticmethod(out_weights)
+        cls.net_flow       = staticmethod(net_flow)
+        cls.pagerank       = staticmethod(pagerank)
+        cls.hits           = staticmethod(hits)
+        cls.tarjan_scc     = staticmethod(tarjan_scc)
+        cls.network_dict   = staticmethod(network_dict)
+        cls.all_network    = staticmethod(all_network)
+        cls.build_network  = staticmethod(build_network_data)
+        cls.ALL_RULES      = _ALL_RULES
+        cls.W              = _DEFAULT_WIDTH
+
+    # ── in_weights / out_weights / net_flow ──────────────────────────────────
+
+    def _zero_mat(self, n=4):
+        return [[0.0] * n for _ in range(n)]
+
+    def _diag_mat(self, vals):
+        n = len(vals)
+        m = [[0.0] * n for _ in range(n)]
+        for i, v in enumerate(vals):
+            m[i][i] = v
+        return m
+
+    def test_iw_zero_matrix(self):
+        m = self._zero_mat()
+        self.assertEqual(self.in_weights(m), [0.0, 0.0, 0.0, 0.0])
+
+    def test_ow_zero_matrix(self):
+        m = self._zero_mat()
+        self.assertEqual(self.out_weights(m), [0.0, 0.0, 0.0, 0.0])
+
+    def test_iw_ow_sum_equal(self):
+        # total in == total out for any matrix
+        m = [[1.0, 2.0], [3.0, 4.0]]
+        self.assertAlmostEqual(sum(self.in_weights(m)), sum(self.out_weights(m)))
+
+    def test_nf_diag_matrix(self):
+        # diagonal: each node sends only to itself → net_flow = 0 for all
+        m = self._diag_mat([1.0, 2.0, 3.0])
+        nf = self.net_flow(m)
+        for v in nf:
+            self.assertAlmostEqual(v, 0.0, places=8)
+
+    def test_nf_asymmetric(self):
+        # 0→1 strong, 1→0 weak → node 0 is net source, node 1 is net sink
+        m = [[0.0, 5.0], [1.0, 0.0]]
+        nf = self.net_flow(m)
+        self.assertGreater(nf[0], 0.0)   # node 0: out>in → source
+        self.assertLess(nf[1], 0.0)      # node 1: in>out → sink
+
+    def test_nf_global_sum_zero(self):
+        # total net flow always sums to 0 (out_total == in_total)
+        m = [[0.5, 1.5, 2.0], [0.3, 0.0, 0.7], [1.0, 0.0, 0.0]]
+        nf = self.net_flow(m)
+        self.assertAlmostEqual(sum(nf), 0.0, places=8)
+
+    # ── pagerank ─────────────────────────────────────────────────────────────
+
+    def test_pr_length(self):
+        m = self._zero_mat(4)
+        pr = self.pagerank(m)
+        self.assertEqual(len(pr), 4)
+
+    def test_pr_sums_to_one(self):
+        m = [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]
+        pr = self.pagerank(m)
+        self.assertAlmostEqual(sum(pr), 1.0, places=6)
+
+    def test_pr_uniform_zero_matrix(self):
+        # zero matrix → dangling nodes → uniform PR
+        m = self._zero_mat(4)
+        pr = self.pagerank(m)
+        for v in pr:
+            self.assertAlmostEqual(v, 0.25, places=5)
+
+    def test_pr_non_negative(self):
+        m = [[0.0, 2.0, 0.0, 1.0],
+             [0.0, 0.0, 3.0, 0.0],
+             [1.0, 0.0, 0.0, 2.0],
+             [0.0, 1.0, 0.0, 0.0]]
+        pr = self.pagerank(m)
+        for v in pr:
+            self.assertGreaterEqual(v, 0.0)
+
+    # ── hits ─────────────────────────────────────────────────────────────────
+
+    def test_hits_lengths(self):
+        m = [[0.0, 1.0], [1.0, 0.0]]
+        hs, as_ = self.hits(m)
+        self.assertEqual(len(hs), 2)
+        self.assertEqual(len(as_), 2)
+
+    def test_hits_non_negative(self):
+        m = [[0.0, 2.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]
+        hs, as_ = self.hits(m)
+        for v in hs + as_:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_hits_normalised(self):
+        m = [[0.0, 1.0, 0.5], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]
+        hs, as_ = self.hits(m)
+        self.assertAlmostEqual(sum(hs), 1.0, places=6)
+        self.assertAlmostEqual(sum(as_), 1.0, places=6)
+
+    # ── tarjan_scc ───────────────────────────────────────────────────────────
+
+    def test_scc_isolated_nodes(self):
+        # zero matrix → each node its own SCC
+        m = self._zero_mat(4)
+        sccs = self.tarjan_scc(m)
+        self.assertEqual(len(sccs), 4)
+        for s in sccs:
+            self.assertEqual(len(s), 1)
+
+    def test_scc_cycle_is_one_scc(self):
+        # 0→1→2→0 cycle → one SCC of size 3
+        m = [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]
+        sccs = self.tarjan_scc(m)
+        self.assertEqual(len(sccs), 1)
+        self.assertEqual(len(sccs[0]), 3)
+
+    def test_scc_two_components(self):
+        # {0,1} → cycle; {2} isolated
+        m = [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+        sccs = self.tarjan_scc(m)
+        self.assertEqual(len(sccs), 2)
+        sizes = sorted(len(s) for s in sccs)
+        self.assertEqual(sizes, [1, 2])
+
+    def test_scc_largest_first(self):
+        # sorted by size descending
+        m = [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+        sccs = self.tarjan_scc(m)
+        sizes = [len(s) for s in sccs]
+        self.assertEqual(sizes, sorted(sizes, reverse=True))
+
+    def test_scc_all_nodes_covered(self):
+        m = [[0.0, 1.0, 0.5], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]
+        sccs = self.tarjan_scc(m)
+        nodes = sorted(n for scc in sccs for n in scc)
+        self.assertEqual(nodes, [0, 1, 2])
+
+    # ── network_dict ─────────────────────────────────────────────────────────
+
+    def test_nd_keys(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        for k in ['word', 'rule', 'width', 'period', 'transient',
+                  'te_mat', 'in_weight', 'out_weight', 'net_flow',
+                  'total_te', 'pagerank', 'hub_score', 'auth_score',
+                  'sccs', 'n_sccs', 'largest_scc',
+                  'top_sources', 'top_sinks', 'top_pr']:
+            self.assertIn(k, d)
+
+    def test_nd_word_upper(self):
+        d = self.network_dict('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_nd_te_mat_shape(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['te_mat']), self.W)
+        for row in d['te_mat']:
+            self.assertEqual(len(row), self.W)
+
+    def test_nd_te_non_negative(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        for row in d['te_mat']:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+
+    def test_nd_total_te_xor_zero(self):
+        # period-1 all-zeros → TE = 0 everywhere
+        d = self.network_dict('ТУМАН', 'xor')
+        self.assertAlmostEqual(d['total_te'], 0.0, places=6)
+
+    def test_nd_total_te_xor3_positive(self):
+        # XOR3 period-8 → non-trivial TE
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertGreater(d['total_te'], 0.0)
+
+    def test_nd_pr_sums_to_one(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertAlmostEqual(sum(d['pagerank']), 1.0, places=5)
+
+    def test_nd_pr_length(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['pagerank']), self.W)
+
+    def test_nd_pr_xor_uniform(self):
+        # XOR (TE=0) → all weights equal → uniform PageRank = 1/N
+        d = self.network_dict('ТУМАН', 'xor')
+        for v in d['pagerank']:
+            self.assertAlmostEqual(v, 1.0 / self.W, places=5)
+
+    def test_nd_nf_global_sum_zero(self):
+        # sum of net_flow must always be 0
+        for rule in self.ALL_RULES:
+            d = self.network_dict('ТУМАН', rule)
+            self.assertAlmostEqual(sum(d['net_flow']), 0.0, places=6,
+                                   msg=f'rule={rule}')
+
+    def test_nd_nf_length(self):
+        d = self.network_dict('ГОРА', 'xor3')
+        self.assertEqual(len(d['net_flow']), self.W)
+
+    def test_nd_sccs_xor_16_isolated(self):
+        # XOR (TE=0) → 16 isolated SCCs
+        d = self.network_dict('ТУМАН', 'xor')
+        self.assertEqual(d['n_sccs'], self.W)
+        self.assertEqual(d['largest_scc'], 1)
+
+    def test_nd_sccs_xor3_one_component(self):
+        # XOR3 period-8 → fully connected network → 1 SCC of size 16
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertEqual(d['n_sccs'], 1)
+        self.assertEqual(d['largest_scc'], self.W)
+
+    def test_nd_top_sources_length(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['top_sources']), 3)
+
+    def test_nd_top_sinks_length(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['top_sinks']), 3)
+
+    def test_nd_top_pr_length(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['top_pr']), 3)
+
+    def test_nd_top_sources_are_valid_indices(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        for idx in d['top_sources']:
+            self.assertIn(idx, range(self.W))
+
+    def test_nd_hub_auth_lengths(self):
+        d = self.network_dict('ТУМАН', 'xor3')
+        self.assertEqual(len(d['hub_score']), self.W)
+        self.assertEqual(len(d['auth_score']), self.W)
+
+    def test_nd_period_matches_orbit(self):
+        from projects.hexglyph.solan_ca import find_orbit
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in self.ALL_RULES:
+                cells = pad_to(encode_word(word), self.W)
+                _, p  = find_orbit(cells[:], rule)
+                d     = self.network_dict(word, rule)
+                self.assertEqual(d['period'], max(p, 1))
+
+    # ── all_network ───────────────────────────────────────────────────────────
+
+    def test_an_all_rules(self):
+        d = self.all_network('ТУМАН')
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    # ── build_network_data ────────────────────────────────────────────────────
+
+    def test_bnd_keys(self):
+        d = self.build_network(['ГОРА', 'ВОДА'])
+        for k in ['words', 'per_rule', 'ranking']:
+            self.assertIn(k, d)
+
+    def test_bnd_ranking_sorted(self):
+        d = self.build_network(['ГОРА', 'ВОДА', 'МИР'])
+        for rule in self.ALL_RULES:
+            vals = [x[1] for x in d['ranking'][rule]]
+            self.assertEqual(vals, sorted(vals, reverse=True))
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_net_graph(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('net-graph', content)
+
+    def test_viewer_has_net_bars(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('net-bars', content)
+
+    def test_viewer_has_net_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('net-btn', content)
+
+    def test_viewer_has_net_page_rank(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('netPageRank', content)
+
+    def test_viewer_has_net_scc(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('netSCC', content)
+
+    def test_viewer_has_net_te_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('netTEMatrix', content)
+
+    def test_viewer_has_network_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('PageRank', content)
+        self.assertIn('СКС', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
