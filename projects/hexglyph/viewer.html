@@ -13874,6 +13874,244 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Perturbation Sensitivity / Lyapunov (solan_lyapunov)</h2>
+<p style="color:#888;font-size:13px">
+  Single-bit perturbation of the initial condition: tracks
+  <em>d(t)</em> = number of cells that differ between the original and
+  perturbed evolutions.&nbsp; Left: mean d(t) over all N×6 perturbations.&nbsp;
+  Right: perturbation cone (which cells are affected at each step for centre cell).
+  <br>Modes: <span style="color:#5f5">Absorbs</span> (d=0 at t=1) ·
+  <span style="color:#5cc">Stabilizes</span> (d=0 at t&gt;1) ·
+  <span style="color:#fa5">Plateau</span> (d→const) ·
+  <span style="color:#f55">Periodic</span> (d oscillates ★never converges)
+</p>
+<label style="color:#aaa">Слово:
+  <select id="lv-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="lv-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="lv-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+  <canvas id="lyap-heat" width="330" height="200"
+    style="background:#0a0a0a;border:1px solid #222"></canvas>
+  <canvas id="lyap-cone" width="196" height="200"
+    style="background:#0a0a0a;border:1px solid #222"></canvas>
+</div>
+<div id="lyap-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  var MCOL={absorbs:'#66ff66',stabilizes:'#4fc3f7',plateau:'#ffd54f',periodic:'#ff5555'};
+
+  function lvStep(cells,rule){
+    var N=cells.length, out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function lvOrbitIC(ic,rule){
+    var seen={}, t=0, cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key]; cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=lvStep(cur,rule);
+        return cur;
+      }
+      seen[key]=t++; cur=lvStep(cur,rule);
+      if(t>2000) return ic.slice();
+    }
+  }
+
+  function lvPerturbProfile(ic,j,bit,rule,T){
+    var ic2=ic.slice(); ic2[j]^=(1<<bit);
+    var cur=ic.slice(), cur2=ic2.slice(), prof=[];
+    for(var t=0;t<T;t++){
+      var d=0; for(var i=0;i<ic.length;i++) if(cur[i]!==cur2[i]) d++;
+      prof.push(d); cur=lvStep(cur,rule); cur2=lvStep(cur2,rule);
+    }
+    return prof;
+  }
+
+  function lvMeanProfile(ic,rule,T){
+    var N=ic.length, all=[], total=N*6;
+    for(var j=0;j<N;j++) for(var bit=0;bit<6;bit++)
+      all.push(lvPerturbProfile(ic,j,bit,rule,T));
+    var mean=[];
+    for(var t=0;t<T;t++){
+      var s=0; for(var k=0;k<total;k++) s+=all[k][t];
+      mean.push(s/total);
+    }
+    return mean;
+  }
+
+  function lvCone(ic,j,rule,T){
+    var N=ic.length, agg=[];
+    for(var t=0;t<T;t++) agg.push(new Array(N).fill(0));
+    for(var bit=0;bit<6;bit++){
+      var ic2=ic.slice(); ic2[j]^=(1<<bit);
+      var cur=ic.slice(), cur2=ic2.slice();
+      for(var t=0;t<T;t++){
+        for(var i=0;i<N;i++) if(cur[i]!==cur2[i]) agg[t][i]++;
+        cur=lvStep(cur,rule); cur2=lvStep(cur2,rule);
+      }
+    }
+    return agg.map(function(row){return row.map(function(v){return v/6;});});
+  }
+
+  function lvDetectPeriod(mean){
+    var n=mean.length;
+    for(var p=2;p<=16;p++){
+      if(n<2*p) continue;
+      var ok=true;
+      for(var t=0;t<n-p;t++) if(Math.abs(mean[t]-mean[t+p])>0.1){ok=false;break;}
+      if(ok) return p;
+    }
+    return null;
+  }
+
+  function lvMode(mean,T){
+    if(mean.length>1 && mean[1]<0.1) return 'absorbs';
+    for(var t=0;t<mean.length;t++) if(mean[t]<0.1) return 'stabilizes';
+    var tail=mean.slice(Math.min(8,Math.floor(T/2)));
+    if(lvDetectPeriod(tail)) return 'periodic';
+    var last=mean.slice(Math.floor(3*T/4));
+    if(last.length && Math.max.apply(null,last)-Math.min.apply(null,last)<0.5) return 'plateau';
+    return 'periodic';
+  }
+
+  function lvRun(){
+    var wEl=document.getElementById('lv-word');
+    var rEl=document.getElementById('lv-rule');
+    var info=document.getElementById('lyap-info');
+    if(!window.encL){if(info) info.textContent='Ожидание…'; return;}
+    var word=(wEl?wEl.value:'ТУМАН').toUpperCase();
+    var rule=rEl?rEl.value:'xor3';
+    var rawIC=window.encL(word);
+    var ic=lvOrbitIC(rawIC,rule);
+    var N=ic.length, T=Math.min(32,N*2);
+    var col=BCOL[rule]||'#80deea';
+    var mean=lvMeanProfile(ic,rule,T);
+    var mode=lvMode(mean,T);
+    var mc=MCOL[mode]||'#ccc';
+    var maxMean=Math.max.apply(null,mean)||1;
+    var tConv=null;
+    for(var t=0;t<mean.length;t++) if(mean[t]<0.1){tConv=t;break;}
+    var fconv=0;
+    for(var j=0;j<N;j++) for(var bit=0;bit<6;bit++){
+      var p=lvPerturbProfile(ic,j,bit,rule,T);
+      if(p[T-1]<1) fconv++;
+    }
+    fconv/=(N*6);
+    var per=lvDetectPeriod(mean.slice(8));
+
+    /* ── Mean_d bar chart ──────────────────────────────── */
+    var hc=document.getElementById('lyap-heat');
+    var hx=hc.getContext('2d');
+    var HW=hc.width, HH=hc.height, padB=20, padL=38, padT=14;
+    hx.fillStyle='#0a0a0a'; hx.fillRect(0,0,HW,HH);
+    var bars=Math.min(T,24);
+    var bw=Math.floor((HW-padL-4)/bars);
+    hx.font='9px monospace'; hx.fillStyle='#555';
+    hx.fillText('mean d(t)',padL,padT-2);
+    hx.fillStyle=mc; hx.fillText(mode.toUpperCase(),padL+60,padT-2);
+    for(var t=0;t<bars;t++){
+      var frac=mean[t]/maxMean;
+      var bh=Math.round(frac*(HH-padB-padT-4));
+      hx.fillStyle=col; hx.globalAlpha=0.8;
+      hx.fillRect(padL+t*bw, HH-padB-bh, bw-1, bh);
+      hx.globalAlpha=1;
+      if(tConv===t){
+        hx.fillStyle='#5f5'; hx.fillRect(padL+t*bw,HH-padB-bh-4,bw-1,3);
+      }
+      hx.fillStyle='#555'; hx.font='8px monospace';
+      hx.fillText(t, padL+t*bw+1, HH-padB+10);
+      if(bw>=14){
+        hx.fillStyle='#aaa'; hx.font='8px monospace';
+        hx.fillText(mean[t].toFixed(1), padL+t*bw+1, HH-padB-bh-3);
+      }
+    }
+    /* Y-axis */
+    hx.fillStyle='#444';
+    for(var v=0;v<=N;v+=4){
+      var y=HH-padB-Math.round((v/maxMean)*(HH-padB-padT-4));
+      hx.fillRect(padL-3,y,3,1);
+      hx.fillStyle='#444'; hx.font='8px monospace';
+      hx.fillText(v,0,y+3);
+    }
+
+    /* ── Perturbation cone ──────────────────────────────── */
+    var cc=document.getElementById('lyap-cone');
+    var cx=cc.getContext('2d');
+    var CW=cc.width, CH=cc.height;
+    cx.fillStyle='#0a0a0a'; cx.fillRect(0,0,CW,CH);
+    var cT=Math.min(T,16), cN=N;
+    var cellW=Math.floor(CW/cN), rowH=Math.floor((CH-14)/cT);
+    var cone=lvCone(ic, Math.floor(N/2), rule, cT);
+    for(var t=0;t<cT;t++){
+      for(var i=0;i<cN;i++){
+        var v=cone[t][i];
+        if(v>0){
+          var a=Math.min(1, v);
+          cx.globalAlpha=a; cx.fillStyle=col;
+          cx.fillRect(i*cellW, 14+t*rowH, cellW-1, rowH-1);
+          cx.globalAlpha=1;
+        }
+      }
+    }
+    cx.fillStyle='#555'; cx.font='9px monospace';
+    cx.fillText('cone cell='+(N>>1),2,10);
+
+    /* ── Info ─────────────────────────────────────────────── */
+    var lines=[
+      'Слово: '+word+'  Правило: '+rule.toUpperCase()+'  N='+N+'  T='+T,
+      'MODE: '+mode.toUpperCase()+(per?' period_d='+per:'')+
+        (tConv!==null?' t_converge='+tConv:''),
+      'max_mean_d='+maxMean.toFixed(2)+' @t='+mean.indexOf(maxMean)+
+        '  fconv='+fconv.toFixed(2),
+      'mean_d: ['+mean.slice(0,Math.min(8,bars)).map(function(v){return v.toFixed(1);}).join(', ')+(bars>8?', …':'')  +']',
+    ];
+    if(info) info.textContent=lines.join('\n');
+  }
+
+  /* Populate word selector */
+  var sel=document.getElementById('lv-word');
+  if(sel && window.LEXICON_ARR){
+    window.LEXICON_ARR.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='ТУМАН') o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+  document.getElementById('lv-btn').addEventListener('click',lvRun);
+  document.getElementById('lv-word').addEventListener('change',lvRun);
+  document.getElementById('lv-rule').addEventListener('change',lvRun);
+  setTimeout(function(){if(window.encL) lvRun();},8500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

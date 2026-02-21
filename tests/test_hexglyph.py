@@ -16369,6 +16369,341 @@ class TestSolanHamming(unittest.TestCase):
         self.assertIn('hmMobility', content)
 
 
+class TestSolanLyapunov(unittest.TestCase):
+    """Tests for solan_lyapunov.py — Perturbation Sensitivity & Lyapunov Analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import (
+            perturb_profile, perturb_all_profiles, mean_d_profile,
+            detect_period, classify_mode, perturbation_cone,
+            lyapunov_mode_summary, all_lyapunov, build_mode_data,
+        )
+        cls.perturb_profile      = staticmethod(perturb_profile)
+        cls.perturb_all_profiles = staticmethod(perturb_all_profiles)
+        cls.mean_d_profile       = staticmethod(mean_d_profile)
+        cls.detect_period        = staticmethod(detect_period)
+        cls.classify_mode        = staticmethod(classify_mode)
+        cls.perturbation_cone    = staticmethod(perturbation_cone)
+        cls.lyapunov_summary     = staticmethod(lyapunov_mode_summary)
+        cls.all_lyapunov         = staticmethod(all_lyapunov)
+        cls.build_lyapunov_data  = staticmethod(build_mode_data)
+
+    # ── perturb_profile ───────────────────────────────────────────────────────
+
+    def test_perturb_profile_returns_list(self):
+        self.assertIsInstance(
+            self.perturb_profile([0]*16, 0, 0, 'xor', 8), list)
+
+    def test_perturb_profile_length_T(self):
+        self.assertEqual(len(self.perturb_profile([0]*16, 0, 0, 'xor', 10)), 10)
+
+    def test_perturb_profile_initial_d_is_1(self):
+        prof = self.perturb_profile([0]*16, 0, 0, 'xor', 8)
+        self.assertEqual(prof[0], 1)
+
+    def test_perturb_profile_gora_or_absorbs(self):
+        # ГОРА OR orbit = all-63s: 63 OR x = 63 for any x → d=0 after step 1
+        prof = self.perturb_profile([63]*16, 0, 0, 'or', 8)
+        self.assertEqual(prof[0], 1)
+        self.assertEqual(prof[1], 0)
+
+    def test_perturb_profile_tuman_xor_converges_at_8(self):
+        prof = self.perturb_profile([0]*16, 0, 0, 'xor', 12)
+        self.assertEqual(prof[8], 0)
+
+    def test_perturb_profile_nonneg(self):
+        prof = self.perturb_profile([0]*16, 3, 2, 'xor3', 16)
+        self.assertTrue(all(d >= 0 for d in prof))
+
+    def test_perturb_profile_le_n(self):
+        prof = self.perturb_profile([0]*16, 3, 2, 'xor3', 16)
+        self.assertTrue(all(d <= 16 for d in prof))
+
+    # ── perturb_all_profiles ──────────────────────────────────────────────────
+
+    def test_perturb_all_profiles_count_n6(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 8)
+        self.assertEqual(len(profs), 96)  # N * 6 = 16 * 6
+
+    def test_perturb_all_profiles_each_length_T(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 8)
+        self.assertTrue(all(len(p) == 8 for p in profs))
+
+    def test_perturb_all_profiles_first_d_always_1(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 4)
+        self.assertTrue(all(p[0] == 1 for p in profs))
+
+    # ── mean_d_profile ────────────────────────────────────────────────────────
+
+    def test_mean_d_profile_returns_list(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 8)
+        self.assertIsInstance(self.mean_d_profile(profs), list)
+
+    def test_mean_d_profile_length(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 10)
+        self.assertEqual(len(self.mean_d_profile(profs)), 10)
+
+    def test_mean_d_profile_first_is_1(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 8)
+        m = self.mean_d_profile(profs)
+        self.assertAlmostEqual(m[0], 1.0)
+
+    def test_mean_d_profile_tuman_xor(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 10)
+        m = self.mean_d_profile(profs)
+        # Known values: [1, 2, 2, 4, 2, 4, 4, 8, 0, 0]
+        self.assertAlmostEqual(m[7], 8.0)
+        self.assertAlmostEqual(m[8], 0.0)
+
+    # ── detect_period ─────────────────────────────────────────────────────────
+
+    def test_detect_period_none_for_aperiodic(self):
+        self.assertIsNone(self.detect_period([1, 2, 3, 4, 5, 6, 7, 8]))
+
+    def test_detect_period_simple(self):
+        seq = [1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0]
+        self.assertEqual(self.detect_period(seq), 3)
+
+    def test_detect_period_period_8(self):
+        seq = [1.0, 3.0, 3.0, 5.0, 3.0, 9.0, 5.0, 11.0] * 3
+        self.assertEqual(self.detect_period(seq), 8)
+
+    def test_detect_period_constant(self):
+        # All-zero sequence is period-2 (trivially periodic)
+        result = self.detect_period([0.0] * 16)
+        self.assertIsNotNone(result)
+
+    # ── classify_mode ─────────────────────────────────────────────────────────
+
+    def test_classify_mode_absorbs(self):
+        prof = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.assertEqual(self.classify_mode(prof), 'absorbs')
+
+    def test_classify_mode_stabilizes(self):
+        prof = [1.0, 2.0, 2.0, 4.0, 2.0, 4.0, 4.0, 8.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0]
+        self.assertEqual(self.classify_mode(prof), 'stabilizes')
+
+    def test_classify_mode_plateau(self):
+        prof = [1.0, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0] + [4.0] * 24
+        self.assertEqual(self.classify_mode(prof), 'plateau')
+
+    def test_classify_mode_periodic(self):
+        base = [1.0, 3.0, 3.0, 5.0, 3.0, 9.0, 5.0, 11.0]
+        prof = base * 4
+        self.assertEqual(self.classify_mode(prof), 'periodic')
+
+    # ── perturbation_cone ─────────────────────────────────────────────────────
+
+    def test_perturbation_cone_returns_list_of_lists(self):
+        cone = self.perturbation_cone([0]*16, 0, 'xor', T=8)
+        self.assertIsInstance(cone, list)
+        self.assertIsInstance(cone[0], list)
+
+    def test_perturbation_cone_shape(self):
+        cone = self.perturbation_cone([0]*16, 0, 'xor', T=8)
+        self.assertEqual(len(cone), 8)
+        self.assertEqual(len(cone[0]), 16)
+
+    def test_perturbation_cone_binary(self):
+        cone = self.perturbation_cone([0]*16, 0, 'xor', T=8)
+        self.assertTrue(all(v in (0, 1) for row in cone for v in row))
+
+    def test_perturbation_cone_t0_single_cell(self):
+        # At t=0, only the perturbed cell j=8 is affected
+        cone = self.perturbation_cone([0]*16, 8, 'xor', T=4)
+        self.assertEqual(sum(cone[0]), 1)
+        self.assertEqual(cone[0][8], 1)
+
+    def test_perturbation_cone_xor_t1_neighbors(self):
+        # XOR: cell j affected at t=0; neighbors j±1 affected at t=1
+        cone = self.perturbation_cone([0]*16, 8, 'xor', T=4)
+        self.assertEqual(cone[1][7], 1)
+        self.assertEqual(cone[1][9], 1)
+        self.assertEqual(cone[1][8], 0)  # centre not affected at t=1 for XOR
+
+    # ── lyapunov_summary ──────────────────────────────────────────────────────
+
+    def test_lyapunov_summary_returns_dict(self):
+        self.assertIsInstance(self.lyapunov_summary('ГОРА', 'and'), dict)
+
+    def test_lyapunov_summary_required_keys(self):
+        d = self.lyapunov_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'period_orbit', 'n_cells', 'T',
+                    'mean_d', 'max_mean_d', 't_max_mean_d',
+                    't_converge', 'fraction_converged', 'plateau_d',
+                    'mode', 'period_d', 'cone_centre',
+                    'absorbs', 'stabilizes', 'is_plateau', 'is_periodic'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_lyapunov_summary_word_upper(self):
+        d = self.lyapunov_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_lyapunov_summary_n_cells(self):
+        d = self.lyapunov_summary('ГОРА', 'and')
+        self.assertEqual(d['n_cells'], 16)
+
+    def test_lyapunov_summary_tuman_and_absorbs(self):
+        d = self.lyapunov_summary('ТУМАН', 'and')
+        self.assertEqual(d['mode'], 'absorbs')
+        self.assertTrue(d['absorbs'])
+        self.assertAlmostEqual(d['t_converge'], 1)
+        self.assertAlmostEqual(d['fraction_converged'], 1.0)
+
+    def test_lyapunov_summary_gora_or_absorbs(self):
+        d = self.lyapunov_summary('ГОРА', 'or')
+        self.assertEqual(d['mode'], 'absorbs')
+        self.assertAlmostEqual(d['t_converge'], 1)
+
+    def test_lyapunov_summary_tuman_xor_stabilizes(self):
+        d = self.lyapunov_summary('ТУМАН', 'xor')
+        self.assertEqual(d['mode'], 'stabilizes')
+        self.assertTrue(d['stabilizes'])
+        self.assertAlmostEqual(d['max_mean_d'], 8.0)
+        self.assertEqual(d['t_max_mean_d'], 7)
+        self.assertEqual(d['t_converge'], 8)
+        self.assertAlmostEqual(d['fraction_converged'], 1.0)
+
+    def test_lyapunov_summary_tuman_xor_max_d(self):
+        d = self.lyapunov_summary('ТУМАН', 'xor')
+        self.assertAlmostEqual(d['max_mean_d'], 8.0)
+
+    def test_lyapunov_summary_gora_and_plateau(self):
+        d = self.lyapunov_summary('ГОРА', 'and')
+        self.assertEqual(d['mode'], 'plateau')
+        self.assertTrue(d['is_plateau'])
+        self.assertAlmostEqual(d['max_mean_d'], 4.0, places=1)
+        self.assertAlmostEqual(d['fraction_converged'], 0.5, places=1)
+
+    def test_lyapunov_summary_gora_and_plateau_d(self):
+        d = self.lyapunov_summary('ГОРА', 'and')
+        self.assertAlmostEqual(d['plateau_d'], 4.0, places=1)
+
+    def test_lyapunov_summary_tuman_xor3_periodic(self):
+        d = self.lyapunov_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['mode'], 'periodic')
+        self.assertTrue(d['is_periodic'])
+        self.assertAlmostEqual(d['max_mean_d'], 11.0)
+        self.assertEqual(d['t_max_mean_d'], 7)
+        self.assertAlmostEqual(d['fraction_converged'], 0.0)
+
+    def test_lyapunov_summary_tuman_xor3_period_d(self):
+        d = self.lyapunov_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['period_d'], 8)
+
+    def test_lyapunov_summary_gora_xor3_same_as_tuman(self):
+        dt = self.lyapunov_summary('ТУМАН', 'xor3')
+        dg = self.lyapunov_summary('ГОРА', 'xor3')
+        self.assertEqual(dt['mode'], dg['mode'])
+        self.assertAlmostEqual(dt['max_mean_d'], dg['max_mean_d'])
+        self.assertEqual(dt['period_d'], dg['period_d'])
+
+    def test_lyapunov_summary_mode_flags_exclusive(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.lyapunov_summary(word, rule)
+                flags = [d['absorbs'], d['stabilizes'],
+                         d['is_plateau'], d['is_periodic']]
+                self.assertEqual(sum(flags), 1,
+                    f"Exactly one mode flag should be set for {word}/{rule}")
+
+    def test_lyapunov_summary_cone_shape(self):
+        d = self.lyapunov_summary('ТУМАН', 'xor3')
+        cone = d['cone_centre']
+        self.assertIsInstance(cone, list)
+        self.assertGreater(len(cone), 0)
+        self.assertEqual(len(cone[0]), 16)
+
+    def test_lyapunov_summary_mean_d_starts_at_1(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.lyapunov_summary(word, rule)
+                self.assertAlmostEqual(d['mean_d'][0], 1.0,
+                    msg=f"mean_d[0] should be 1.0 for {word}/{rule}")
+
+    # ── all_lyapunov ──────────────────────────────────────────────────────────
+
+    def test_all_lyapunov_returns_dict(self):
+        self.assertIsInstance(self.all_lyapunov('ГОРА'), dict)
+
+    def test_all_lyapunov_four_rules(self):
+        d = self.all_lyapunov('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_lyapunov_data ───────────────────────────────────────────────────
+
+    def test_build_lyapunov_data_returns_dict(self):
+        self.assertIsInstance(self.build_lyapunov_data(['ГОРА']), dict)
+
+    def test_build_lyapunov_data_top_keys(self):
+        d = self.build_lyapunov_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_lyapunov_data_four_rules(self):
+        d = self.build_lyapunov_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_lyapunov_data_word_uppercase(self):
+        d = self.build_lyapunov_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_lyapunov_data_known_mode(self):
+        d = self.build_lyapunov_data(['ТУМАН'])
+        self.assertEqual(d['per_rule']['xor']['ТУМАН']['mode'], 'stabilizes')
+
+    def test_build_lyapunov_data_fields_present(self):
+        d   = self.build_lyapunov_data(['ГОРА'])
+        rec = d['per_rule']['and']['ГОРА']
+        for key in ('period_orbit', 'mean_d', 'max_mean_d', 't_max_mean_d',
+                    't_converge', 'fraction_converged', 'plateau_d',
+                    'mode', 'period_d', 'absorbs', 'stabilizes',
+                    'is_plateau', 'is_periodic'):
+            self.assertIn(key, rec)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_lyap_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyap-heat', content)
+
+    def test_viewer_has_lyap_cone(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyap-cone', content)
+
+    def test_viewer_has_lyap_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyap-info', content)
+
+    def test_viewer_has_lv_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lv-word', content)
+
+    def test_viewer_has_lv_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lv-btn', content)
+
+    def test_viewer_has_lv_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lvRun', content)
+
+    def test_viewer_has_lv_mean_profile_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lvMeanProfile', content)
+
+    def test_viewer_has_lv_cone_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lvCone', content)
+
+    def test_viewer_has_lv_mode_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lvMode', content)
+
+
 class TestSolanBoundary(unittest.TestCase):
     """Tests for solan_boundary.py — Spatial XOR-Boundary Analysis."""
 
