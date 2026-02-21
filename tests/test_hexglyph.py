@@ -4296,6 +4296,251 @@ class TestSolanMutual(unittest.TestCase):
         self.assertIn('miEntropy', content)
 
 
+class TestSolanTransfer(unittest.TestCase):
+    """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import (
+            get_orbit, bit_te, cell_te,
+            te_matrix, te_asymmetry, te_dict, all_te,
+            build_te_data, _ALL_RULES, _DEFAULT_WIDTH,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.get_orbit    = staticmethod(get_orbit)
+        cls.bit_te       = staticmethod(bit_te)
+        cls.cell_te      = staticmethod(cell_te)
+        cls.te_matrix    = staticmethod(te_matrix)
+        cls.te_asymmetry = staticmethod(te_asymmetry)
+        cls.te_dict      = staticmethod(te_dict)
+        cls.all_te       = staticmethod(all_te)
+        cls.build_te_data= staticmethod(build_te_data)
+        cls.ALL_RULES    = _ALL_RULES
+        cls.W            = _DEFAULT_WIDTH
+        cls.LEXICON      = list(LEXICON)
+
+    # ── get_orbit() ───────────────────────────────────────────────────────────
+
+    def test_go_length_xor3_tuman(self):
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        self.assertEqual(len(orbit), 8)
+
+    def test_go_length_period1(self):
+        orbit = self.get_orbit('ГОРА', 'xor')   # period=1 → len=1
+        self.assertEqual(len(orbit), 1)
+
+    def test_go_state_width(self):
+        orbit = self.get_orbit('ГОРА', 'xor3')
+        for state in orbit:
+            self.assertEqual(len(state), self.W)
+
+    def test_go_q6_range(self):
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        for state in orbit:
+            for v in state:
+                self.assertGreaterEqual(v, 0)
+                self.assertLessEqual(v, 63)
+
+    def test_go_periodic(self):
+        # Last step should cycle back to first
+        from projects.hexglyph.solan_ca import step
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        last  = list(orbit[-1])
+        nxt   = step(last, 'xor3')
+        self.assertEqual(tuple(nxt), orbit[0])
+
+    # ── bit_te() ──────────────────────────────────────────────────────────────
+
+    def test_bte_constant_series_zero(self):
+        y = [0, 0, 0, 0]
+        x = [1, 0, 1, 0]
+        self.assertAlmostEqual(self.bit_te(y, x), 0.0, places=8)
+
+    def test_bte_non_negative(self):
+        import random
+        rng = random.Random(7)
+        for _ in range(30):
+            P = rng.choice([2, 4, 6, 8])
+            y = [rng.randint(0, 1) for _ in range(P)]
+            x = [rng.randint(0, 1) for _ in range(P)]
+            self.assertGreaterEqual(self.bit_te(y, x), 0.0)
+
+    def test_bte_period1_zero(self):
+        # period-1 series → only one transition → TE=0
+        self.assertAlmostEqual(self.bit_te([1], [0]), 0.0, places=8)
+
+    def test_bte_known_nonzero(self):
+        # period-6: y repeats with shorter effective period than orbit
+        # y=[0,1,0,0,1,0], x=[1,1,0,1,1,0]
+        y = [0, 1, 0, 0, 1, 0]
+        x = [1, 1, 0, 1, 1, 0]
+        # H(Y_t|Y_{t-1}) > 0 because y={0→1, 1→0, 0→0, 0→1, 1→0, 0→0}
+        # from y_{t-1}=0: y_t ∈ {1,0,1,0} → non-trivial
+        te = self.bit_te(y, x)
+        self.assertGreaterEqual(te, 0.0)
+
+    # ── cell_te() ─────────────────────────────────────────────────────────────
+
+    def test_cte_non_negative(self):
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        for j in range(0, self.W, 4):
+            for i in range(0, self.W, 4):
+                self.assertGreaterEqual(self.cell_te(orbit, i, j), 0.0)
+
+    def test_cte_period1_zero(self):
+        orbit = self.get_orbit('ГОРА', 'xor')  # P=1, all-zeros
+        te = self.cell_te(orbit, 0, 1)
+        self.assertAlmostEqual(te, 0.0, places=8)
+
+    def test_cte_self_zero(self):
+        # Self-TE is always 0: I(Y_t; Y_{t-1} | Y_{t-1}) = 0
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        for i in range(self.W):
+            self.assertAlmostEqual(self.cell_te(orbit, i, i), 0.0, places=8)
+
+    # ── te_matrix() ───────────────────────────────────────────────────────────
+
+    def test_tem_dimensions(self):
+        mat = self.te_matrix('ГОРА', 'xor3')
+        self.assertEqual(len(mat), self.W)
+        for row in mat:
+            self.assertEqual(len(row), self.W)
+
+    def test_tem_non_negative(self):
+        mat = self.te_matrix('ТУМАН', 'xor3')
+        for row in mat:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+
+    def test_tem_period1_all_zero(self):
+        mat = self.te_matrix('ГОРА', 'xor')   # period-1 → all 0
+        for row in mat:
+            for v in row:
+                self.assertAlmostEqual(v, 0.0, places=8)
+
+    def test_tem_xor3_tuman_has_nonzero(self):
+        mat = self.te_matrix('ТУМАН', 'xor3')
+        max_te = max(mat[i][j] for i in range(self.W) for j in range(self.W))
+        self.assertGreater(max_te, 0.0)
+
+    def test_tem_diagonal_zero(self):
+        mat = self.te_matrix('ТУМАН', 'xor3')
+        for i in range(self.W):
+            self.assertAlmostEqual(mat[i][i], 0.0, places=8)
+
+    # ── te_asymmetry() ────────────────────────────────────────────────────────
+
+    def test_ta_antisymmetric(self):
+        mat  = self.te_matrix('ТУМАН', 'xor3')
+        asym = self.te_asymmetry(mat)
+        for i in range(self.W):
+            for j in range(self.W):
+                self.assertAlmostEqual(asym[i][j], -asym[j][i], places=8)
+
+    def test_ta_dimensions(self):
+        mat  = self.te_matrix('ГОРА', 'xor3')
+        asym = self.te_asymmetry(mat)
+        self.assertEqual(len(asym), self.W)
+        for row in asym:
+            self.assertEqual(len(row), self.W)
+
+    # ── te_dict() ─────────────────────────────────────────────────────────────
+
+    def test_td_keys(self):
+        d = self.te_dict('ТУМАН', 'xor3')
+        for k in ['word', 'rule', 'width', 'period', 'matrix',
+                  'max_te', 'mean_te', 'self_te', 'right_te', 'left_te',
+                  'asymmetry', 'mean_right', 'mean_left', 'lr_asymmetry']:
+            self.assertIn(k, d)
+
+    def test_td_word_upper(self):
+        d = self.te_dict('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_td_period_tuman_xor3(self):
+        d = self.te_dict('ТУМАН', 'xor3')
+        self.assertEqual(d['period'], 8)
+
+    def test_td_max_te_non_negative(self):
+        for rule in self.ALL_RULES:
+            d = self.te_dict('ТУМАН', rule)
+            self.assertGreaterEqual(d['max_te'], 0.0)
+
+    def test_td_self_te_all_zero(self):
+        d = self.te_dict('ТУМАН', 'xor3')
+        for v in d['self_te']:
+            self.assertAlmostEqual(v, 0.0, places=8)
+
+    def test_td_lr_asymmetry_symmetric_word(self):
+        # lr_asymmetry = mean_right - mean_left; should be a float
+        d = self.te_dict('ТУМАН', 'xor3')
+        self.assertAlmostEqual(
+            d['lr_asymmetry'],
+            d['mean_right'] - d['mean_left'],
+            places=6,
+        )
+
+    def test_td_period1_max_te_zero(self):
+        d = self.te_dict('ГОРА', 'xor')
+        self.assertAlmostEqual(d['max_te'], 0.0, places=8)
+
+    def test_td_xor3_tuman_max_te_positive(self):
+        d = self.te_dict('ТУМАН', 'xor3')
+        self.assertGreater(d['max_te'], 0.0)
+
+    def test_td_matrix_matches_te_matrix(self):
+        d   = self.te_dict('ГОРА', 'xor3')
+        mat = self.te_matrix('ГОРА', 'xor3')
+        for i in range(self.W):
+            for j in range(self.W):
+                self.assertAlmostEqual(d['matrix'][i][j], mat[i][j], places=8)
+
+    # ── all_te() ──────────────────────────────────────────────────────────────
+
+    def test_ate_all_rules(self):
+        d = self.all_te('ТУМАН')
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    # ── build_te_data() ───────────────────────────────────────────────────────
+
+    def test_btd_keys(self):
+        d = self.build_te_data(['ГОРА', 'ВОДА'])
+        for k in ['words', 'per_rule', 'ranking']:
+            self.assertIn(k, d)
+
+    def test_btd_ranking_sorted(self):
+        d = self.build_te_data(['ГОРА', 'ВОДА', 'МИР'])
+        for rule in self.ALL_RULES:
+            vals = [x[1] for x in d['ranking'][rule]]
+            self.assertEqual(vals, sorted(vals, reverse=True))
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_te_matrix_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('te-matrix-canvas', content)
+
+    def test_viewer_has_te_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('te-stats', content)
+
+    def test_viewer_has_te_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('te-btn', content)
+
+    def test_viewer_has_bit_te(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bitTE', content)
+
+    def test_viewer_has_cell_te(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cellTE', content)
+
+    def test_viewer_has_te_build_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('teBuildMatrix', content)
+
+
 class TestSolanBasin(unittest.TestCase):
     """Tests for solan_basin.py and the viewer Basin section."""
 

@@ -4156,6 +4156,223 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Transfer Entropy CA Q6 — направленный поток информации</h2>
+<p class="meta">T(X→Y) = H(Y_t | Y_{t-1}) − H(Y_t | Y_{t-1}, X_{t-1}) · суммируется по 6 бит-плоскостям Q6 · ненулевые значения указывают на причинные связи между клетками · для XOR/AND/OR с периодом 1 (ноль/все-единицы) TE=0 повсюду · максимум при XOR3 ТУМАН (период 8)</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="te-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="te-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <button id="te-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    TE-матрица</button>
+  <button id="te-asym-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Асимметрия</button>
+</div>
+<canvas id="te-matrix-canvas" style="display:block;margin-bottom:6px"></canvas>
+<div id="te-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-bottom:6px"></div>
+<script>
+(function(){
+  var TE_COLS = {xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+  var N_BITS  = 6;
+
+  function teStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function teOrbitStates(cells0,rule){
+    var seen={},c=cells0.slice(),t=0;
+    for(;;){
+      var key=c.join(',');
+      if(key in seen){
+        var T=seen[key], P=t-T;
+        P=Math.max(P,1);
+        var c2=cells0.slice();
+        for(var s=0;s<T;s++) c2=teStep(c2,rule);
+        var states=[];
+        for(var s=0;s<P;s++){states.push(c2.slice());c2=teStep(c2,rule);}
+        return states;
+      }
+      seen[key]=t; c=teStep(c,rule); t++;
+    }
+  }
+
+  function teH(counts){
+    var total=0;
+    for(var k in counts) total+=counts[k];
+    if(total===0) return 0;
+    var h=0;
+    for(var k in counts){
+      if(counts[k]>0){var p=counts[k]/total; h-=p*Math.log2(p);}
+    }
+    return h;
+  }
+
+  function bitTE(yBits, xBits){
+    var P=yBits.length;
+    if(P<2) return 0;
+    var cy1={}, cy1yt={}, cy1x1={}, cy1x1yt={};
+    for(var t=0;t<P;t++){
+      var yt=yBits[t], yt1=yBits[(t-1+P)%P], xt1=xBits[(t-1+P)%P];
+      var k1=yt1, k2=yt1+','+yt, k3=yt1+','+xt1, k4=yt1+','+xt1+','+yt;
+      cy1[k1]=(cy1[k1]||0)+1;
+      cy1yt[k2]=(cy1yt[k2]||0)+1;
+      cy1x1[k3]=(cy1x1[k3]||0)+1;
+      cy1x1yt[k4]=(cy1x1yt[k4]||0)+1;
+    }
+    var te=(teH(cy1yt)-teH(cy1))-(teH(cy1x1yt)-teH(cy1x1));
+    return Math.max(0,te);
+  }
+
+  function cellTE(orbit, i, j){
+    var total=0;
+    for(var b=0;b<N_BITS;b++){
+      var yb=orbit.map(function(s){return (s[j]>>b)&1;});
+      var xb=orbit.map(function(s){return (s[i]>>b)&1;});
+      total+=bitTE(yb,xb);
+    }
+    return total;
+  }
+
+  function teBuildMatrix(word,rule){
+    var cells=window.padL(window.encL(word.toUpperCase()),16);
+    var orbit=teOrbitStates(cells,rule);
+    var N=cells.length, mat=[];
+    for(var i=0;i<N;i++){
+      mat.push([]);
+      for(var j=0;j<N;j++) mat[i].push(cellTE(orbit,i,j));
+    }
+    return {mat:mat, period:orbit.length};
+  }
+
+  function teAsymMatrix(mat){
+    var N=mat.length, out=[];
+    for(var i=0;i<N;i++){
+      out.push([]);
+      for(var j=0;j<N;j++) out[i].push(mat[i][j]-mat[j][i]);
+    }
+    return out;
+  }
+
+  var _teShowAsym = false;
+
+  function drawTEMatrix(canvas, mat, vmax, rule, asym){
+    var N=mat.length;
+    var cell=16, pad=3, left=22, top=22;
+    var W=left+N*cell+pad, H=top+N*cell+pad;
+    canvas.width=W; canvas.height=H;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,W,H);
+
+    var col=TE_COLS[rule]||'#ccc';
+    for(var i=0;i<N;i++){
+      for(var j=0;j<N;j++){
+        var v=mat[i][j];
+        var alpha, r,g,b_c;
+        if(asym){
+          // diverging: blue negative, col positive
+          if(v>=0){
+            var a=Math.min(1,v/Math.max(vmax,0.001));
+            r=Math.round(68+(255-68)*a);g=Math.round(221-(221)*a);b_c=Math.round(221-(221)*a);
+          }else{
+            var a=Math.min(1,-v/Math.max(vmax,0.001));
+            r=Math.round(68-(68)*a);g=Math.round(221-(221)*a);b_c=Math.round(221+(255-221)*a);
+          }
+        }else{
+          var a=vmax>0?Math.min(1,v/vmax):0;
+          r=Math.round(0x1c+(parseInt(col.slice(1,3),16)-0x1c)*a);
+          g=Math.round(0x1c+(parseInt(col.slice(3,5),16)-0x1c)*a);
+          b_c=Math.round(0x1c+(parseInt(col.slice(5,7),16)-0x1c)*a);
+        }
+        ctx.fillStyle='rgb('+r+','+g+','+b_c+')';
+        ctx.fillRect(left+j*cell,top+i*cell,cell-1,cell-1);
+      }
+      // row label
+      ctx.fillStyle='#555'; ctx.font='9px monospace'; ctx.textAlign='right';
+      ctx.fillText(i,left-2,top+i*cell+11);
+    }
+    // col labels
+    for(var j2=0;j2<N;j2+=3){
+      ctx.fillStyle='#555'; ctx.font='9px monospace'; ctx.textAlign='center';
+      ctx.fillText(j2,left+j2*cell+7,top-5);
+    }
+  }
+
+  function teRun(asym){
+    if(!window.encL||!window.padL) return;
+    _teShowAsym=!!asym;
+    var word=(document.getElementById('te-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('te-rule').value||'xor3';
+    var canvas=document.getElementById('te-matrix-canvas');
+    var statsDiv=document.getElementById('te-stats');
+
+    var res=teBuildMatrix(word,rule);
+    var mat=res.mat, period=res.period, N=mat.length;
+    var dispMat=mat;
+    if(asym) dispMat=teAsymMatrix(mat);
+
+    var vmax=0;
+    for(var i=0;i<N;i++) for(var j=0;j<N;j++){
+      var v=Math.abs(dispMat[i][j]);
+      if(v>vmax) vmax=v;
+    }
+    drawTEMatrix(canvas,dispMat,vmax,rule,!!asym);
+
+    // Stats
+    var rightTE=0,leftTE=0,selfTE=0,allOff=0,cnt=0;
+    for(var i2=0;i2<N;i2++){
+      rightTE+=mat[(i2+1)%N][i2];
+      leftTE +=mat[(i2-1+N)%N][i2];
+      selfTE +=mat[i2][i2];
+      for(var j2=0;j2<N;j2++) if(i2!==j2){allOff+=mat[i2][j2];cnt++;}
+    }
+    statsDiv.innerHTML='<span style="color:'+TE_COLS[rule]+'">'+rule.toUpperCase()+'</span>'
+      +'  P='+period
+      +'  max='+vmax.toFixed(4)
+      +'  ср.R='+( rightTE/N).toFixed(4)
+      +'  ср.L='+(leftTE/N).toFixed(4)
+      +'  ср.ТЕ='+(cnt>0?allOff/cnt:0).toFixed(4)
+      +(asym?'  [асимметрия  i→j − j→i]':'');
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('te-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.text=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn    =document.getElementById('te-btn');
+    var asymBtn=document.getElementById('te-asym-btn');
+    var ruleEl =document.getElementById('te-rule');
+    var wordEl =document.getElementById('te-word');
+    if(btn)     btn.addEventListener('click',function(){teRun(false);});
+    if(asymBtn) asymBtn.addEventListener('click',function(){teRun(true);});
+    if(ruleEl)  ruleEl.addEventListener('change',function(){teRun(_teShowAsym);});
+    if(wordEl)  wordEl.addEventListener('change',function(){teRun(_teShowAsym);});
+    setTimeout(function(){if(window.encL) teRun(false);},1100);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Бассейн аттрактора CA Q6 — профиль устойчивости</h2>
 <p class="meta">Для каждого k = 0..max_k: случайно переворачивается ровно k бит из 96 (16 клеток × 6 бит) → доля выборок, попавших в тот же аттрактор · k=0 ≡ 1.0 (само слово) · XOR: глобальный бассейн «ноль» → доля ≈ 1.0 · XOR3: узкие частные бассейны → резкий обрыв · пунктир = порог 50%</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
