@@ -20152,5 +20152,283 @@ class TestSolanRun(unittest.TestCase):
         self.assertIn('solan_run', content)
 
 
+class TestSolanCross(unittest.TestCase):
+    """Tests for solan_cross.py — pairwise cell Q6 cross-correlation."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_cross import (
+            pearson, cross_corr_matrix, cross_summary,
+            all_cross, build_cross_data, cross_dict,
+        )
+        cls.pearson            = staticmethod(pearson)
+        cls.cross_corr_matrix  = staticmethod(cross_corr_matrix)
+        cls.cross_summary      = staticmethod(cross_summary)
+        cls.all_cross          = staticmethod(all_cross)
+        cls.build_data         = staticmethod(build_cross_data)
+        cls.cross_dict         = staticmethod(cross_dict)
+
+        # Precomputed summaries
+        cls.s_mat_xor3   = cross_summary('МАТ',    'xor3', 16)
+        cls.s_tuman_xor3 = cross_summary('ТУМАН',  'xor3', 16)
+        cls.s_gora_xor3  = cross_summary('ГОРА',   'xor3', 16)
+        cls.s_rabota_xor3= cross_summary('РАБОТА', 'xor3', 16)
+        cls.s_mat_xor    = cross_summary('МАТ',    'xor',  16)
+
+    # ── pearson() unit tests ──────────────────────────────────────────────────
+
+    def test_pearson_identical_sequences(self):
+        self.assertAlmostEqual(self.pearson([1, 2, 3, 4], [1, 2, 3, 4]), 1.0)
+
+    def test_pearson_opposite_sequences(self):
+        self.assertAlmostEqual(self.pearson([1, 2, 3, 4], [4, 3, 2, 1]), -1.0)
+
+    def test_pearson_constant_returns_none(self):
+        self.assertIsNone(self.pearson([5, 5, 5], [1, 2, 3]))
+
+    def test_pearson_both_constant_returns_none(self):
+        self.assertIsNone(self.pearson([3, 3], [7, 7]))
+
+    def test_pearson_range(self):
+        import random
+        random.seed(42)
+        xs = [random.randint(0, 63) for _ in range(20)]
+        ys = [random.randint(0, 63) for _ in range(20)]
+        r = self.pearson(xs, ys)
+        if r is not None:
+            self.assertGreaterEqual(r, -1.0 - 1e-9)
+            self.assertLessEqual(r,    1.0 + 1e-9)
+
+    def test_pearson_scaled_same_pattern(self):
+        # Scaling doesn't affect Pearson correlation
+        xs = [1, 2, 3, 4]
+        ys = [10, 20, 30, 40]
+        self.assertAlmostEqual(self.pearson(xs, ys), 1.0)
+
+    def test_pearson_offset_same_pattern(self):
+        # Offset doesn't affect Pearson correlation
+        xs = [1, 2, 3]
+        ys = [101, 102, 103]
+        self.assertAlmostEqual(self.pearson(xs, ys), 1.0)
+
+    def test_pearson_single_element_returns_none(self):
+        self.assertIsNone(self.pearson([5], [5]))
+
+    # ── cross_corr_matrix structure ───────────────────────────────────────────
+
+    def test_matrix_shape(self):
+        mat = self.cross_corr_matrix('МАТ', 'xor3', 16)
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 16)
+
+    def test_matrix_diagonal_is_one_or_none(self):
+        mat = self.cross_corr_matrix('МАТ', 'xor3', 16)
+        for i in range(16):
+            v = mat[i][i]
+            self.assertTrue(v is None or abs(v - 1.0) < 1e-9)
+
+    def test_matrix_symmetry(self):
+        mat = self.cross_corr_matrix('ТУМАН', 'xor3', 16)
+        for i in range(16):
+            for j in range(16):
+                ri = mat[i][j]
+                rj = mat[j][i]
+                if ri is None or rj is None:
+                    self.assertIsNone(ri); self.assertIsNone(rj)
+                else:
+                    self.assertAlmostEqual(ri, rj, places=10)
+
+    def test_matrix_xor_all_none_offdiag(self):
+        # XOR: P=1, all cells constant → all off-diagonal r = None
+        mat = self.cross_corr_matrix('МАТ', 'xor', 16)
+        for i in range(16):
+            for j in range(16):
+                if i != j:
+                    self.assertIsNone(mat[i][j])
+
+    # ── cross_summary structure ───────────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells', 'matrix',
+            'n_sync_pairs', 'n_antisync_pairs', 'sync_pairs', 'antisync_pairs',
+            'max_r', 'max_r_pair', 'min_r', 'min_r_pair',
+            'mean_abs_r', 'n_defined',
+            'spatial_decay', 'n_frozen_cells', 'frozen_cells',
+        }
+        self.assertTrue(required.issubset(self.s_mat_xor3.keys()))
+
+    def test_summary_word_rule_preserved(self):
+        self.assertEqual(self.s_mat_xor3['word'], 'МАТ')
+        self.assertEqual(self.s_mat_xor3['rule'], 'xor3')
+
+    def test_summary_n_defined_correct(self):
+        # For N=16, C(16,2) = 120 off-diagonal pairs (upper triangle)
+        s = self.s_mat_xor3
+        self.assertEqual(s['n_defined'], 120)
+
+    def test_summary_xor_n_defined_zero(self):
+        # XOR: P=1 → all frozen → no defined pairs
+        self.assertEqual(self.s_mat_xor['n_defined'], 0)
+
+    def test_summary_sync_pairs_subset_of_defined(self):
+        s = self.s_mat_xor3
+        self.assertLessEqual(s['n_sync_pairs'], s['n_defined'])
+
+    def test_summary_antisync_pairs_subset(self):
+        s = self.s_mat_xor3
+        self.assertLessEqual(s['n_antisync_pairs'], s['n_defined'])
+
+    def test_summary_spatial_decay_length(self):
+        s = self.s_mat_xor3
+        # N=16 → lags 1..8 → length 8
+        self.assertEqual(len(s['spatial_decay']), 16 // 2)
+
+    def test_summary_mean_abs_r_non_negative(self):
+        self.assertGreaterEqual(self.s_mat_xor3['mean_abs_r'], 0.0)
+
+    def test_summary_max_r_ge_min_r(self):
+        s = self.s_mat_xor3
+        if s['max_r'] is not None and s['min_r'] is not None:
+            self.assertGreaterEqual(s['max_r'], s['min_r'])
+
+    def test_summary_n_sync_matches_list(self):
+        s = self.s_mat_xor3
+        self.assertEqual(s['n_sync_pairs'], len(s['sync_pairs']))
+
+    def test_summary_n_antisync_matches_list(self):
+        s = self.s_mat_xor3
+        self.assertEqual(s['n_antisync_pairs'], len(s['antisync_pairs']))
+
+    def test_summary_frozen_cells_no_defined_corr(self):
+        s = self.s_mat_xor
+        self.assertEqual(s['n_frozen_cells'], 16)
+        self.assertEqual(s['n_defined'], 0)
+
+    # ── МАТ XOR3 known values ────────────────────────────────────────────────
+
+    def test_mat_xor3_sync_pair_0_15(self):
+        self.assertIn((0, 15), self.s_mat_xor3['sync_pairs'])
+
+    def test_mat_xor3_sync_pair_7_8(self):
+        self.assertIn((7, 8), self.s_mat_xor3['sync_pairs'])
+
+    def test_mat_xor3_r_0_15_is_one(self):
+        r = self.s_mat_xor3['matrix'][0][15]
+        self.assertIsNotNone(r)
+        self.assertAlmostEqual(r, 1.0, places=9)
+
+    def test_mat_xor3_r_7_8_is_one(self):
+        r = self.s_mat_xor3['matrix'][7][8]
+        self.assertIsNotNone(r)
+        self.assertAlmostEqual(r, 1.0, places=9)
+
+    def test_mat_xor3_max_r(self):
+        self.assertAlmostEqual(self.s_mat_xor3['max_r'], 1.0, places=5)
+
+    def test_mat_xor3_n_sync_at_least_2(self):
+        self.assertGreaterEqual(self.s_mat_xor3['n_sync_pairs'], 2)
+
+    def test_mat_xor3_no_frozen_cells(self):
+        self.assertEqual(self.s_mat_xor3['n_frozen_cells'], 0)
+
+    # ── ГОРА XOR3 (P=2) — all pairs ±1 ──────────────────────────────────────
+
+    def test_gora_all_abs_r_is_one(self):
+        # P=2 → only 2 time steps → Pearson always ±1 or None
+        s = self.s_gora_xor3
+        mat = s['matrix']
+        for i in range(16):
+            for j in range(16):
+                r = mat[i][j]
+                if r is not None:
+                    self.assertAlmostEqual(abs(r), 1.0, places=9,
+                                           msg=f'|r({i},{j})|={abs(r)} ≠ 1')
+
+    def test_gora_sync_plus_antisync_equals_total(self):
+        s = self.s_gora_xor3
+        # All 120 pairs should be ±1
+        self.assertEqual(s['n_sync_pairs'] + s['n_antisync_pairs'], 120)
+
+    def test_gora_mean_abs_r_is_one(self):
+        self.assertAlmostEqual(self.s_gora_xor3['mean_abs_r'], 1.0, places=9)
+
+    # ── all_cross ─────────────────────────────────────────────────────────────
+
+    def test_all_cross_has_four_rules(self):
+        ar = self.all_cross('ТУМАН', 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, ar)
+
+    def test_all_cross_each_is_dict(self):
+        ar = self.all_cross('ТУМАН', 16)
+        for d in ar.values():
+            self.assertIsInstance(d, dict)
+            self.assertIn('n_sync_pairs', d)
+
+    # ── build_cross_data ──────────────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        words = ['МАТ', 'ГОРА']
+        d = self.build_data(words, 16)
+        self.assertIn('words', d)
+        self.assertIn('data',  d)
+
+    def test_build_data_nested(self):
+        d = self.build_data(['МАТ'], 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, d['data']['МАТ'])
+
+    # ── cross_dict ────────────────────────────────────────────────────────────
+
+    def test_cross_dict_json_serialisable(self):
+        import json
+        cd = self.cross_dict(self.s_mat_xor3)
+        out = json.dumps(cd)
+        self.assertIsInstance(out, str)
+
+    def test_cross_dict_sync_pairs_are_lists(self):
+        cd = self.cross_dict(self.s_mat_xor3)
+        self.assertIsInstance(cd['sync_pairs'], list)
+        if cd['sync_pairs']:
+            self.assertIsInstance(cd['sync_pairs'][0], list)
+
+    def test_cross_dict_matrix_no_python_none(self):
+        # cross_dict replaces None with the string 'null'
+        cd = self.cross_dict(self.s_mat_xor)  # XOR: all None
+        for row in cd['matrix']:
+            for v in row:
+                self.assertNotEqual(type(v).__name__, 'NoneType')
+
+    # ── Viewer HTML assertions ────────────────────────────────────────────────
+
+    def test_viewer_has_cr_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cr-canvas', content)
+
+    def test_viewer_has_cr_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('crRun', content)
+
+    def test_viewer_has_cr_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('crOrbit', content)
+
+    def test_viewer_has_cr_pearson(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('crPearson', content)
+
+    def test_viewer_has_cr_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cr-info', content)
+
+    def test_viewer_has_solan_cross_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_cross', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

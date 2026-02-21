@@ -15613,6 +15613,222 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Pairwise Cell Q6 Cross-Correlation (solan_cross)</h2>
+<p style="color:#888;font-size:13px">
+  N×N Pearson correlation matrix between each pair of cells' temporal Q6-value sequences.
+  Warm=positive, cool=negative, grey dot=undefined (frozen cell).
+  r=+1 means same relative fluctuation pattern; r=−1 means opposite.
+  <br>
+  ★ МАТ XOR3: pairs (0,15) and (7,8) have r=+1.000 — mirror-symmetric ring structure.
+  &nbsp;★ P=2 words: every pair is exactly ±1 (only 2 time steps, trivially binary).
+  &nbsp;★ XOR rule: P=1, all cells frozen → entire matrix undefined.
+</p>
+<label style="color:#aaa">Слово:
+  <select id="cr-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="cr-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="cr-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="cr-canvas" width="480" height="480"
+  style="background:#0a0a0a;border:1px solid #222"></canvas>
+<div id="cr-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  function crStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function crOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=crStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=crStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=crStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function crPearson(xs,ys){
+    var n=xs.length;
+    if(n<2) return null;
+    var mx=0,my=0;
+    for(var i=0;i<n;i++){mx+=xs[i];my+=ys[i];}
+    mx/=n; my/=n;
+    var num=0,dx2=0,dy2=0;
+    for(var i=0;i<n;i++){
+      num+=(xs[i]-mx)*(ys[i]-my);
+      dx2+=(xs[i]-mx)*(xs[i]-mx);
+      dy2+=(ys[i]-my)*(ys[i]-my);
+    }
+    if(dx2<1e-20||dy2<1e-20) return null;
+    return num/Math.sqrt(dx2*dy2);
+  }
+
+  // Map r ∈ [-1,1] → RGB color; null → grey dot
+  function rToColor(r){
+    if(r===null) return null;
+    var t=Math.max(-1,Math.min(1,r));
+    var R,G,B;
+    if(t>=0){
+      // 0→white → 1→orange
+      R=Math.round(255); G=Math.round(255-t*95); B=Math.round(255-t*255);
+    } else {
+      // 0→white → -1→blue
+      t=-t;
+      R=Math.round(255-t*180); G=Math.round(255-t*140); B=255;
+    }
+    return 'rgb('+R+','+G+','+B+')';
+  }
+
+  function crRun(){
+    var word=(document.getElementById('cr-word').value||'МАТ').toUpperCase();
+    var rule=document.getElementById('cr-rule').value;
+    if(!window.encL||!window.padL){
+      document.getElementById('cr-info').textContent='(данные не загружены)';return;
+    }
+    var lw=window.LEXW||16;
+    var raw=window.encL(word);
+    if(!raw||!raw.length){document.getElementById('cr-info').textContent='(нет символов)';return;}
+    var ic=window.padL(raw,lw);
+    var orbit=crOrbit(ic,rule);
+    var P=orbit.length,N=lw;
+
+    // Build sequences
+    var seqs=[];
+    for(var i=0;i<N;i++){
+      var s=[];
+      for(var t=0;t<P;t++) s.push(orbit[t][i]);
+      seqs.push(s);
+    }
+
+    // Cross-correlation matrix
+    var mat=[];
+    for(var i=0;i<N;i++){
+      var row=[];
+      for(var j=0;j<N;j++){
+        if(i===j){
+          var v2=0,mu=0;
+          for(var t=0;t<P;t++) mu+=seqs[i][t];
+          mu/=P;
+          for(var t=0;t<P;t++) v2+=(seqs[i][t]-mu)*(seqs[i][t]-mu);
+          row.push(v2>1e-20?1.0:null);
+        } else {
+          row.push(crPearson(seqs[i],seqs[j]));
+        }
+      }
+      mat.push(row);
+    }
+
+    // Draw heatmap
+    var cv=document.getElementById('cr-canvas');
+    var ctx=cv.getContext('2d');
+    var W=cv.width,H=cv.height;
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
+
+    var PAD=30,CELL=Math.floor((Math.min(W,H)-PAD*2)/N);
+    var OX=PAD,OY=PAD;
+
+    for(var i=0;i<N;i++){
+      for(var j=0;j<N;j++){
+        var x=OX+j*CELL,y=OY+i*CELL;
+        var r=mat[i][j];
+        var col=rToColor(r);
+        if(col===null){
+          // frozen/undefined: dim dot
+          ctx.fillStyle='#1a1a1a'; ctx.fillRect(x,y,CELL-1,CELL-1);
+          ctx.fillStyle='#333'; ctx.beginPath();
+          ctx.arc(x+CELL/2,y+CELL/2,2,0,Math.PI*2); ctx.fill();
+        } else {
+          var alpha=Math.min(1,Math.max(0.15,0.15+0.85*Math.abs(r)));
+          ctx.globalAlpha=alpha;
+          ctx.fillStyle=col; ctx.fillRect(x,y,CELL-1,CELL-1);
+          ctx.globalAlpha=1;
+          // Mark sync/antisync
+          if(Math.abs(r)>=1-1e-9&&i!==j){
+            ctx.fillStyle=r>0?'rgba(255,200,0,0.9)':'rgba(60,100,255,0.9)';
+            ctx.fillRect(x+CELL*0.35,y+CELL*0.35,CELL*0.3,CELL*0.3);
+          }
+        }
+      }
+    }
+
+    // Axis labels
+    ctx.fillStyle='#444'; ctx.font='9px monospace'; ctx.textAlign='center';
+    for(var i=0;i<N;i+=4){
+      ctx.fillText(i,OX+i*CELL+CELL/2,OY-6);
+      ctx.fillText(i,OX-12,OY+i*CELL+CELL*0.65);
+    }
+
+    // Summary stats
+    var syncPairs=[],antiPairs=[],offVals=[];
+    for(var i=0;i<N;i++){
+      for(var j=i+1;j<N;j++){
+        var r=mat[i][j];
+        if(r===null) continue;
+        offVals.push(Math.abs(r));
+        if(r>=1-1e-9)  syncPairs.push('('+i+','+j+')');
+        if(r<=-1+1e-9) antiPairs.push('('+i+','+j+')');
+      }
+    }
+    var meanAbsR=offVals.length>0?offVals.reduce(function(a,v){return a+v;},0)/offVals.length:0;
+    var maxR=offVals.length>0?Math.max.apply(null,offVals):0;
+
+    var lines=[
+      'P='+P+'  rule='+rule+'  word='+word+'  n_defined='+offVals.length+' pairs',
+      'mean|r|='+meanAbsR.toFixed(4)+'  max|r|='+maxR.toFixed(4),
+      'sync pairs (r≈+1): '+syncPairs.length+'  '+syncPairs.slice(0,8).join(' '),
+      'anti pairs (r≈-1): '+antiPairs.length+'  '+antiPairs.slice(0,8).join(' '),
+    ];
+    document.getElementById('cr-info').textContent=lines.join('\n');
+  }
+
+  (function(){
+    var sel=document.getElementById('cr-word');
+    var words=window.LEXICON_ARR||['МАТ','РАБОТА','ТУМАН','ГОРА'];
+    words.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='МАТ') o.selected=true;
+      sel.appendChild(o);
+    });
+  })();
+
+  document.getElementById('cr-btn').addEventListener('click',crRun);
+  document.getElementById('cr-word').addEventListener('change',crRun);
+  document.getElementById('cr-rule').addEventListener('change',crRun);
+  setTimeout(function(){if(window.encL&&window.LEXICON_ARR) crRun();},12500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
