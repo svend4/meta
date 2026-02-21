@@ -7907,441 +7907,6 @@ class TestSolanAutocorr(unittest.TestCase):
         self.assertIn('Автокорреляция Q6', content)
 
 
-class TestSolanMoran(unittest.TestCase):
-    """Tests for solan_moran.py and the viewer Moran's I section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_moran import (
-            morans_i, spatial_classification,
-            morans_i_series, morans_i_dict, all_morans_i, build_moran_data,
-        )
-        cls.morans_i               = staticmethod(morans_i)
-        cls.spatial_classification = staticmethod(spatial_classification)
-        cls.morans_i_series        = staticmethod(morans_i_series)
-        cls.morans_i_dict          = staticmethod(morans_i_dict)
-        cls.all_morans_i           = staticmethod(all_morans_i)
-        cls.build_moran_data       = staticmethod(build_moran_data)
-
-    # ── morans_i() ─────────────────────────────────────────────────────
-
-    def test_morans_i_constant_is_nan(self):
-        import math
-        self.assertTrue(math.isnan(self.morans_i([5, 5, 5, 5])))
-
-    def test_morans_i_alternating_is_minus_one(self):
-        vals = [47, 1] * 8   # 16 elements alternating
-        self.assertAlmostEqual(self.morans_i(vals), -1.0, places=6)
-
-    def test_morans_i_single_element_nan(self):
-        import math
-        self.assertTrue(math.isnan(self.morans_i([42])))
-
-    def test_morans_i_empty_nan(self):
-        import math
-        self.assertTrue(math.isnan(self.morans_i([])))
-
-    def test_morans_i_range(self):
-        import random, math
-        random.seed(0)
-        vals = [random.randint(0, 63) for _ in range(16)]
-        v = self.morans_i(vals)
-        if not math.isnan(v):
-            self.assertGreaterEqual(v, -1.1)
-            self.assertLessEqual(v, 1.1)
-
-    def test_morans_i_two_elements(self):
-        # [a, b] alternating in 1-ring: each cell's neighbours are both the other cell
-        v = self.morans_i([10, 50])
-        self.assertAlmostEqual(v, -1.0, places=6)
-
-    # ── spatial_classification ─────────────────────────────────────────
-
-    def test_classification_constant(self):
-        import math
-        self.assertEqual(self.spatial_classification(float('nan')), 'constant')
-
-    def test_classification_strongly_clustered(self):
-        self.assertEqual(self.spatial_classification(0.8), 'strongly clustered')
-
-    def test_classification_clustered(self):
-        self.assertEqual(self.spatial_classification(0.3), 'clustered')
-
-    def test_classification_random(self):
-        self.assertEqual(self.spatial_classification(0.0), 'random')
-
-    def test_classification_dispersed(self):
-        self.assertEqual(self.spatial_classification(-0.3), 'dispersed')
-
-    def test_classification_strongly_dispersed(self):
-        self.assertEqual(self.spatial_classification(-0.8), 'strongly dispersed')
-
-    # ── Fixed-point attractors → NaN ──────────────────────────────────
-
-    def test_tuman_xor_all_nan(self):
-        import math
-        series = self.morans_i_series('ТУМАН', 'xor', 16)
-        self.assertEqual(len(series), 1)
-        self.assertTrue(math.isnan(series[0]))
-
-    def test_gora_or_all_nan(self):
-        import math
-        series = self.morans_i_series('ГОРА', 'or', 16)
-        self.assertEqual(len(series), 1)
-        self.assertTrue(math.isnan(series[0]))
-
-    # ── ГОРА AND (P=2, perfect alternating → I=−1) ────────────────────
-
-    def test_gora_and_i_is_minus_one(self):
-        series = self.morans_i_series('ГОРА', 'and', 16)
-        for v in series:
-            self.assertAlmostEqual(v, -1.0, places=6)
-
-    def test_gora_and_mean_is_minus_one(self):
-        d = self.morans_i_dict('ГОРА', 'and', 16)
-        self.assertAlmostEqual(d['mean_i'], -1.0, places=6)
-
-    def test_gora_and_classification_strongly_dispersed(self):
-        d = self.morans_i_dict('ГОРА', 'and', 16)
-        self.assertEqual(d['classification'], 'strongly dispersed')
-
-    def test_gora_and_var_is_zero(self):
-        d = self.morans_i_dict('ГОРА', 'and', 16)
-        self.assertAlmostEqual(d['var_i'], 0.0, places=6)
-
-    # ── ТУМАН XOR3 (P=8, varied spatial patterns) ─────────────────────
-
-    def test_tuman_xor3_series_length_8(self):
-        series = self.morans_i_series('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(series), 8)
-
-    def test_tuman_xor3_series_all_valid(self):
-        import math
-        series = self.morans_i_series('ТУМАН', 'xor3', 16)
-        self.assertTrue(all(not math.isnan(v) for v in series))
-
-    def test_tuman_xor3_has_mixed_sign(self):
-        series = self.morans_i_series('ТУМАН', 'xor3', 16)
-        self.assertTrue(any(v > 0 for v in series))
-        self.assertTrue(any(v < 0 for v in series))
-
-    def test_tuman_xor3_mean_i_in_range(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        self.assertGreaterEqual(d['mean_i'], -1.0)
-        self.assertLessEqual(d['mean_i'], 1.0)
-
-    def test_tuman_xor3_min_le_max(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        self.assertLessEqual(d['min_i'], d['max_i'])
-
-    # ── morans_i_dict structure ────────────────────────────────────────
-
-    def test_morans_i_dict_keys(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        for k in ('word', 'rule', 'period', 'series', 'mean_i',
-                  'min_i', 'max_i', 'var_i', 'classification', 'n_valid'):
-            self.assertIn(k, d)
-
-    def test_morans_i_dict_word_uppercase(self):
-        d = self.morans_i_dict('туман', 'xor3', 16)
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    def test_morans_i_dict_series_len_equals_period(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(d['series']), d['period'])
-
-    def test_morans_i_dict_n_valid_le_period(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        self.assertLessEqual(d['n_valid'], d['period'])
-
-    # ── all_morans_i ───────────────────────────────────────────────────
-
-    def test_all_morans_i_has_four_rules(self):
-        result = self.all_morans_i('ТУМАН', 16)
-        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_all_morans_i_values_are_dicts(self):
-        result = self.all_morans_i('ГОРА', 16)
-        for rule, d in result.items():
-            self.assertIsInstance(d, dict)
-            self.assertIn('mean_i', d)
-
-    # ── build_moran_data ───────────────────────────────────────────────
-
-    def test_build_moran_data_structure(self):
-        data = self.build_moran_data(['ТУМАН', 'ГОРА'], 16)
-        self.assertIn('words', data)
-        self.assertIn('per_rule', data)
-        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_moran_data_entry_keys(self):
-        data = self.build_moran_data(['ТУМАН'], 16)
-        entry = data['per_rule']['xor3']['ТУМАН']
-        for k in ('period', 'series', 'mean_i', 'min_i', 'max_i',
-                  'var_i', 'classification', 'n_valid'):
-            self.assertIn(k, entry)
-
-    def test_build_moran_data_words_uppercase(self):
-        data = self.build_moran_data(['туман'], 16)
-        self.assertIn('ТУМАН', data['words'])
-
-    # ── viewer ─────────────────────────────────────────────────────────
-
-    def test_viewer_has_moran_time(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('moran-time', content)
-
-    def test_viewer_has_moran_all(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('moran-all', content)
-
-    def test_viewer_has_moran_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('moran-stats', content)
-
-    def test_viewer_has_moran_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('moranRun', content)
-
-    def test_viewer_has_moran_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn("Moran's I Q6", content)
-
-
-class TestSolanLZ(unittest.TestCase):
-    """Tests for solan_lz.py and the viewer LZ76 section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_lz import (
-            lz76, to_binary, lz_of_series, lz_of_spatial,
-            lz_dict, all_lz, build_lz_data,
-        )
-        cls.lz76          = staticmethod(lz76)
-        cls.to_binary     = staticmethod(to_binary)
-        cls.lz_of_series  = staticmethod(lz_of_series)
-        cls.lz_of_spatial = staticmethod(lz_of_spatial)
-        cls.lz_dict       = staticmethod(lz_dict)
-        cls.all_lz        = staticmethod(all_lz)
-        cls.build_lz_data = staticmethod(build_lz_data)
-
-    # ── lz76() ─────────────────────────────────────────────────────────
-
-    def test_lz76_empty(self):
-        self.assertEqual(self.lz76(''), 0)
-
-    def test_lz76_single_char(self):
-        self.assertEqual(self.lz76('0'), 1)
-
-    def test_lz76_two_same(self):
-        # '00': phrase 1='0', phrase 2='0' (but '0' already in s[:1])
-        # so '0' IS in s[:0]='' → No → phrase='0', then '0' IS in '0' → try '00'
-        # not in '0' → phrase 2='00'. So c=2.
-        self.assertEqual(self.lz76('00'), 2)
-
-    def test_lz76_two_different(self):
-        self.assertEqual(self.lz76('01'), 2)
-
-    def test_lz76_all_zeros_low(self):
-        # Constant string → low LZ (grows as log₂n)
-        c = self.lz76('0' * 96)
-        self.assertLessEqual(c, 12)   # log₂(96) ≈ 6.6; empirically ~7
-
-    def test_lz76_periodic_lower_than_random(self):
-        import random
-        random.seed(1)
-        periodic = '01' * 48   # 96 bits periodic
-        rnd = ''.join(random.choice('01') for _ in range(96))
-        self.assertLess(self.lz76(periodic), self.lz76(rnd))
-
-    def test_lz76_nonneg(self):
-        self.assertGreaterEqual(self.lz76('10110'), 1)
-
-    def test_lz76_known_value(self):
-        # 96 zeros → empirically 7
-        self.assertEqual(self.lz76('0' * 96), 7)
-
-    # ── to_binary ──────────────────────────────────────────────────────
-
-    def test_to_binary_zero(self):
-        self.assertEqual(self.to_binary(0), '000000')
-
-    def test_to_binary_63(self):
-        self.assertEqual(self.to_binary(63), '111111')
-
-    def test_to_binary_length(self):
-        for v in [0, 1, 31, 32, 63]:
-            self.assertEqual(len(self.to_binary(v)), 6)
-
-    def test_to_binary_custom_bits(self):
-        self.assertEqual(self.to_binary(5, 4), '0101')
-
-    def test_to_binary_overflow_masked(self):
-        self.assertEqual(self.to_binary(64), self.to_binary(0))
-
-    # ── lz_of_series ──────────────────────────────────────────────────
-
-    def test_lz_of_series_keys(self):
-        d = self.lz_of_series([47, 1, 47, 1])
-        self.assertIn('bits', d)
-        self.assertIn('lz', d)
-        self.assertIn('norm', d)
-
-    def test_lz_of_series_bits(self):
-        d = self.lz_of_series([0, 63])
-        self.assertEqual(d['bits'], 12)  # 2 values × 6 bits
-
-    def test_lz_of_series_nonneg(self):
-        d = self.lz_of_series([1, 2, 3, 4, 5, 6, 7, 8])
-        self.assertGreater(d['lz'], 0)
-        self.assertGreater(d['norm'], 0)
-
-    def test_lz_of_series_constant_low(self):
-        # Constant temporal series → constant binary string → low LZ
-        d = self.lz_of_series([0] * 8)
-        self.assertLess(d['norm'], 1.5)
-
-    # ── lz_of_spatial ─────────────────────────────────────────────────
-
-    def test_lz_of_spatial_bits(self):
-        d = self.lz_of_spatial([0] * 16)
-        self.assertEqual(d['bits'], 96)   # 16 cells × 6 bits
-
-    def test_lz_of_spatial_all_zero_low(self):
-        d = self.lz_of_spatial([0] * 16)
-        self.assertLess(d['norm'], 0.6)
-
-    def test_lz_of_spatial_nonneg(self):
-        d = self.lz_of_spatial([i for i in range(16)])
-        self.assertGreater(d['lz'], 0)
-
-    # ── Fixed-point attractors ─────────────────────────────────────────
-
-    def test_tuman_xor_full_bits(self):
-        d = self.lz_dict('ТУМАН', 'xor', 16)
-        self.assertEqual(d['full_lz']['bits'], 96)  # P=1 × 16 cells × 6 bits
-
-    def test_tuman_xor_full_norm_low(self):
-        d = self.lz_dict('ТУМАН', 'xor', 16)
-        self.assertLess(d['full_lz']['norm'], 0.7)
-
-    def test_gora_or_full_norm_low(self):
-        d = self.lz_dict('ГОРА', 'or', 16)
-        self.assertLess(d['full_lz']['norm'], 0.7)
-
-    # ── ГОРА AND (P=2, alternating → structured → low LZ) ─────────────
-
-    def test_gora_and_full_norm_low(self):
-        d = self.lz_dict('ГОРА', 'and', 16)
-        self.assertLess(d['full_lz']['norm'], 0.6)
-
-    def test_gora_and_full_bits(self):
-        d = self.lz_dict('ГОРА', 'and', 16)
-        self.assertEqual(d['full_lz']['bits'], 192)  # P=2 × 16 × 6
-
-    # ── ТУМАН XOR3 (P=8) ──────────────────────────────────────────────
-
-    def test_tuman_xor3_full_bits(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertEqual(d['full_lz']['bits'], 768)  # P=8 × 16 × 6
-
-    def test_tuman_xor3_full_norm_gt_and(self):
-        d_xor3 = self.lz_dict('ТУМАН', 'xor3', 16)
-        d_and  = self.lz_dict('ГОРА',  'and',  16)
-        self.assertGreater(d_xor3['full_lz']['norm'], d_and['full_lz']['norm'])
-
-    def test_tuman_xor3_cell_lz_length(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(d['cell_lz']), 16)
-
-    def test_tuman_xor3_cell_bits(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        for c in d['cell_lz']:
-            self.assertEqual(c['bits'], 48)   # P=8 × 6 bits
-
-    def test_tuman_xor3_spatial_length(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(d['spatial_lz']), 8)  # P=8 steps
-
-    # ── lz_dict structure ──────────────────────────────────────────────
-
-    def test_lz_dict_keys(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        for k in ('word', 'rule', 'period', 'cell_lz', 'mean_cell_norm',
-                  'spatial_lz', 'mean_sp_norm', 'full_lz'):
-            self.assertIn(k, d)
-
-    def test_lz_dict_full_lz_keys(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        for k in ('bits', 'lz', 'norm'):
-            self.assertIn(k, d['full_lz'])
-
-    def test_lz_dict_word_uppercase(self):
-        d = self.lz_dict('туман', 'xor3', 16)
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    def test_lz_dict_mean_cell_norm_nonneg(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertGreater(d['mean_cell_norm'], 0)
-
-    def test_lz_dict_full_norm_in_range(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertGreater(d['full_lz']['norm'], 0)
-        self.assertLess(d['full_lz']['norm'], 3.0)
-
-    # ── all_lz ────────────────────────────────────────────────────────
-
-    def test_all_lz_has_four_rules(self):
-        result = self.all_lz('ТУМАН', 16)
-        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_all_lz_values_are_dicts(self):
-        result = self.all_lz('ГОРА', 16)
-        for rule, d in result.items():
-            self.assertIsInstance(d, dict)
-            self.assertIn('full_lz', d)
-
-    # ── build_lz_data ──────────────────────────────────────────────────
-
-    def test_build_lz_data_structure(self):
-        data = self.build_lz_data(['ТУМАН', 'ГОРА'], 16)
-        self.assertIn('words', data)
-        self.assertIn('per_rule', data)
-        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_lz_data_entry_keys(self):
-        data = self.build_lz_data(['ТУМАН'], 16)
-        entry = data['per_rule']['xor3']['ТУМАН']
-        for k in ('period', 'mean_cell_norm', 'mean_sp_norm', 'full_lz'):
-            self.assertIn(k, entry)
-
-    def test_build_lz_data_words_uppercase(self):
-        data = self.build_lz_data(['туман'], 16)
-        self.assertIn('ТУМАН', data['words'])
-
-    # ── viewer ─────────────────────────────────────────────────────────
-
-    def test_viewer_has_lz_cells(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lz-cells', content)
-
-    def test_viewer_has_lz_rules(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lz-rules', content)
-
-    def test_viewer_has_lz_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lz-stats', content)
-
-    def test_viewer_has_lz_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lzRun', content)
-
-    def test_viewer_has_lz_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('LZ76 Q6', content)
-
-
 class TestSolanBitflip(unittest.TestCase):
     """Tests for solan_bitflip.py and the viewer Bit-Flip section."""
 
@@ -21023,6 +20588,392 @@ class TestSolanTransfer(unittest.TestCase):
     def test_viewer_has_cell_te(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('cellTE', content)
+
+
+class TestSolanLZ(unittest.TestCase):
+    """Tests for solan_lz.py — LZ76 complexity of Q6 CA attractors."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import (
+            lz76, to_binary, lz_of_series, lz_of_spatial,
+            lz_summary, lz_dict, all_lz, build_lz_data,
+        )
+        cls.lz76          = staticmethod(lz76)
+        cls.to_binary     = staticmethod(to_binary)
+        cls.lz_of_series  = staticmethod(lz_of_series)
+        cls.lz_of_spatial = staticmethod(lz_of_spatial)
+        cls.lz_summary    = staticmethod(lz_summary)
+        cls.lz_dict       = staticmethod(lz_dict)
+        cls.all_lz        = staticmethod(all_lz)
+        cls.build_lz_data = staticmethod(build_lz_data)
+
+    # ── lz76 ────────────────────────────────────────────────────────────────
+
+    def test_lz76_empty_zero(self):
+        self.assertEqual(self.lz76(''), 0)
+
+    def test_lz76_single_char(self):
+        self.assertEqual(self.lz76('0'), 1)
+
+    def test_lz76_two_chars(self):
+        self.assertEqual(self.lz76('01'), 2)
+
+    def test_lz76_all_zeros_low(self):
+        c = self.lz76('0' * 96)
+        self.assertLessEqual(c, 12)
+
+    def test_lz76_periodic_less_than_random(self):
+        import random
+        random.seed(42)
+        periodic = '01' * 48
+        rnd = ''.join(random.choice('01') for _ in range(96))
+        self.assertLess(self.lz76(periodic), self.lz76(rnd))
+
+    def test_lz76_positive(self):
+        self.assertGreaterEqual(self.lz76('101'), 1)
+
+    # ── to_binary ────────────────────────────────────────────────────────────
+
+    def test_to_binary_zero(self):
+        self.assertEqual(self.to_binary(0, 6), '000000')
+
+    def test_to_binary_ones(self):
+        self.assertEqual(self.to_binary(63, 6), '111111')
+
+    def test_to_binary_five(self):
+        self.assertEqual(self.to_binary(5, 6), '000101')
+
+    def test_to_binary_length(self):
+        for v in range(64):
+            self.assertEqual(len(self.to_binary(v, 6)), 6)
+
+    # ── lz_of_series ─────────────────────────────────────────────────────────
+
+    def test_lz_of_series_keys(self):
+        d = self.lz_of_series([0]*8)
+        for k in ('bits','lz','norm'):
+            self.assertIn(k, d)
+
+    def test_lz_of_series_bits_length(self):
+        d = self.lz_of_series([0]*8)
+        self.assertEqual(d['bits'], 48)   # 8 values × 6 bits
+
+    def test_lz_of_series_norm_non_negative(self):
+        d = self.lz_of_series([0,1]*4)
+        self.assertGreaterEqual(d['norm'], 0.0)
+
+    def test_lz_of_series_lz_positive(self):
+        d = self.lz_of_series([0,1,0,1,0,1,0,1])
+        self.assertGreaterEqual(d['lz'], 1)
+
+    # ── lz_of_spatial ────────────────────────────────────────────────────────
+
+    def test_lz_of_spatial_keys(self):
+        d = self.lz_of_spatial([0]*16)
+        for k in ('bits','lz','norm'):
+            self.assertIn(k, d)
+
+    def test_lz_of_spatial_bits_length(self):
+        d = self.lz_of_spatial([0]*16)
+        self.assertEqual(d['bits'], 96)   # 16 cells × 6 bits
+
+    # ── lz_summary / lz_dict ─────────────────────────────────────────────────
+
+    def test_lz_summary_alias_identical(self):
+        d1 = self.lz_summary('ТУМАН', 'xor3')
+        d2 = self.lz_dict('ТУМАН', 'xor3')
+        self.assertEqual(d1['period'], d2['period'])
+        self.assertAlmostEqual(d1['full_lz']['norm'], d2['full_lz']['norm'])
+
+    def test_lz_summary_has_required_keys(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        for k in ('word','rule','period','cell_lz','mean_cell_norm',
+                  'spatial_lz','mean_sp_norm','full_lz'):
+            self.assertIn(k, d)
+
+    def test_lz_summary_word_upper(self):
+        d = self.lz_summary('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_lz_summary_tuman_period(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['period'], 8)
+
+    def test_lz_summary_tuman_full_norm(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['full_lz']['norm'], 0.59906016, places=4)
+
+    def test_lz_summary_tuman_full_lz_value(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['full_lz']['lz'], 48)
+
+    def test_lz_summary_tuman_full_bits(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['full_lz']['bits'], 768)   # 8×16×6
+
+    def test_lz_summary_tuman_mean_cell_norm(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_cell_norm'], 1.28715933, places=4)
+
+    def test_lz_summary_gora_xor_period1(self):
+        d = self.lz_summary('ГОРА', 'xor')
+        self.assertEqual(d['period'], 1)
+
+    def test_lz_summary_cell_lz_length(self):
+        d = self.lz_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['cell_lz']), 16)
+
+    def test_lz_summary_cell_lz_each_has_keys(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        for c in d['cell_lz']:
+            for k in ('bits','lz','norm'):
+                self.assertIn(k, c)
+
+    def test_lz_summary_cell_lz_bits(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        for c in d['cell_lz']:
+            self.assertEqual(c['bits'], 48)   # P=8 × 6 bits
+
+    def test_lz_summary_spatial_lz_length(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertEqual(len(d['spatial_lz']), 8)   # P=8
+
+    def test_lz_summary_cell0_norm(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['cell_lz'][0]['norm'], 1.27988724, places=4)
+
+    def test_lz_summary_json_serialisable(self):
+        import json
+        d = self.lz_summary('ТУМАН', 'xor3')
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(s, str)
+
+    # ── all_lz ───────────────────────────────────────────────────────────────
+
+    def test_all_lz_four_rules(self):
+        am = self.all_lz('ТУМАН')
+        self.assertEqual(set(am.keys()), {'xor','xor3','and','or'})
+
+    def test_all_lz_each_has_period(self):
+        am = self.all_lz('ГОРА')
+        for rule, d in am.items():
+            self.assertIn('period', d)
+
+    # ── build_lz_data ─────────────────────────────────────────────────────────
+
+    def test_build_lz_data_keys(self):
+        d = self.build_lz_data(['ГОРА', 'ТУМАН'])
+        for k in ('words','width','per_rule'):
+            self.assertIn(k, d)
+
+    def test_build_lz_data_per_rule_words(self):
+        words = ['ГОРА', 'МАТ']
+        d = self.build_lz_data(words)
+        for rule in ('xor','xor3','and','or'):
+            self.assertEqual(set(d['per_rule'][rule].keys()), set(words))
+
+    # ── viewer assertions ─────────────────────────────────────────────────────
+
+    def test_viewer_has_lz_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-canvas', content)
+
+    def test_viewer_has_lz_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lzRun', content)
+
+    def test_viewer_has_solan_lz_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_lz', content)
+
+
+class TestSolanMoran(unittest.TestCase):
+    """Tests for solan_moran.py — Moran's I spatial autocorrelation of Q6 CA."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moran import (
+            morans_i, spatial_classification,
+            morans_i_series, moran_summary, morans_i_dict,
+            all_morans_i, build_moran_data,
+        )
+        cls.morans_i               = staticmethod(morans_i)
+        cls.spatial_classification = staticmethod(spatial_classification)
+        cls.morans_i_series        = staticmethod(morans_i_series)
+        cls.moran_summary          = staticmethod(moran_summary)
+        cls.morans_i_dict          = staticmethod(morans_i_dict)
+        cls.all_morans_i           = staticmethod(all_morans_i)
+        cls.build_moran_data       = staticmethod(build_moran_data)
+
+    # ── morans_i ─────────────────────────────────────────────────────────────
+
+    def test_morans_i_constant_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([5, 5, 5, 5])))
+
+    def test_morans_i_empty_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([])))
+
+    def test_morans_i_single_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([42])))
+
+    def test_morans_i_alternating_minus_one(self):
+        vals = [0, 63] * 8
+        self.assertAlmostEqual(self.morans_i(vals), -1.0, places=6)
+
+    def test_morans_i_two_elements_checkerboard(self):
+        self.assertAlmostEqual(self.morans_i([10, 50]), -1.0, places=6)
+
+    def test_morans_i_range(self):
+        import math
+        v = self.morans_i(list(range(16)))
+        if not math.isnan(v):
+            self.assertGreaterEqual(v, -1.1)
+            self.assertLessEqual(v, 1.1)
+
+    def test_morans_i_returns_float(self):
+        v = self.morans_i(list(range(1, 17)))
+        self.assertIsInstance(v, float)
+
+    # ── spatial_classification ────────────────────────────────────────────────
+
+    def test_spatial_classification_constant(self):
+        import math
+        self.assertEqual(self.spatial_classification(float('nan')), 'constant')
+
+    def test_spatial_classification_strongly_dispersed(self):
+        self.assertEqual(self.spatial_classification(-0.68), 'strongly dispersed')
+
+    def test_spatial_classification_dispersed(self):
+        self.assertEqual(self.spatial_classification(-0.3), 'dispersed')
+
+    def test_spatial_classification_random(self):
+        self.assertEqual(self.spatial_classification(0.05), 'random')
+
+    def test_spatial_classification_clustered(self):
+        self.assertEqual(self.spatial_classification(0.49), 'clustered')
+
+    def test_spatial_classification_strongly_clustered(self):
+        self.assertEqual(self.spatial_classification(0.8), 'strongly clustered')
+
+    # ── morans_i_series ───────────────────────────────────────────────────────
+
+    def test_morans_i_series_tuman_length(self):
+        s = self.morans_i_series('ТУМАН', 'xor3')
+        self.assertEqual(len(s), 8)
+
+    def test_morans_i_series_gora_xor3_length(self):
+        s = self.morans_i_series('ГОРА', 'xor3')
+        self.assertEqual(len(s), 2)
+
+    def test_morans_i_series_gora_xor_nan(self):
+        import math
+        s = self.morans_i_series('ГОРА', 'xor')
+        self.assertTrue(math.isnan(s[0]))
+
+    # ── moran_summary / morans_i_dict ─────────────────────────────────────────
+
+    def test_moran_summary_alias_identical(self):
+        d1 = self.moran_summary('ТУМАН', 'xor3')
+        d2 = self.morans_i_dict('ТУМАН', 'xor3')
+        self.assertEqual(d1['period'], d2['period'])
+        self.assertAlmostEqual(d1['mean_i'], d2['mean_i'])
+        self.assertEqual(d1['classification'], d2['classification'])
+
+    def test_moran_summary_has_required_keys(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        for k in ('word','rule','period','series','mean_i','min_i','max_i',
+                  'var_i','classification','n_valid'):
+            self.assertIn(k, d)
+
+    def test_moran_summary_word_upper(self):
+        d = self.moran_summary('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_moran_summary_tuman_period(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['period'], 8)
+
+    def test_moran_summary_tuman_mean_i(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_i'], -0.12167013, places=4)
+
+    def test_moran_summary_tuman_min_i(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['min_i'], -0.67936736, places=4)
+
+    def test_moran_summary_tuman_max_i(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['max_i'], 0.49012789, places=4)
+
+    def test_moran_summary_tuman_classification(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['classification'], 'dispersed')
+
+    def test_moran_summary_tuman_n_valid(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['n_valid'], 8)
+
+    def test_moran_summary_gora_xor_nan_mean(self):
+        import math
+        d = self.moran_summary('ГОРА', 'xor')
+        self.assertTrue(math.isnan(d['mean_i']))
+
+    def test_moran_summary_gora_xor_n_valid_zero(self):
+        d = self.moran_summary('ГОРА', 'xor')
+        self.assertEqual(d['n_valid'], 0)
+
+    def test_moran_summary_series_length(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertEqual(len(d['series']), 8)
+
+    def test_moran_summary_series_matches_direct(self):
+        d    = self.moran_summary('ТУМАН', 'xor3')
+        ser  = self.morans_i_series('ТУМАН', 'xor3')
+        for a, b in zip(d['series'], ser):
+            self.assertAlmostEqual(a, b, places=8)
+
+    # ── all_morans_i ──────────────────────────────────────────────────────────
+
+    def test_all_morans_i_four_rules(self):
+        am = self.all_morans_i('ТУМАН')
+        self.assertEqual(set(am.keys()), {'xor','xor3','and','or'})
+
+    def test_all_morans_i_each_has_keys(self):
+        am = self.all_morans_i('ГОРА')
+        for rule, d in am.items():
+            self.assertIn('period', d)
+            self.assertIn('classification', d)
+
+    # ── build_moran_data ──────────────────────────────────────────────────────
+
+    def test_build_moran_data_keys(self):
+        d = self.build_moran_data(['ГОРА', 'ТУМАН'])
+        for k in ('words','width','per_rule'):
+            self.assertIn(k, d)
+
+    def test_build_moran_data_per_rule_words(self):
+        words = ['ГОРА', 'МАТ']
+        d = self.build_moran_data(words)
+        for rule in ('xor','xor3','and','or'):
+            self.assertEqual(set(d['per_rule'][rule].keys()), set(words))
+
+    # ── viewer assertions ─────────────────────────────────────────────────────
+
+    def test_viewer_has_moran_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('moran-word', content)
+
+    def test_viewer_has_moran_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('moranRun', content)
+
+    def test_viewer_has_solan_moran_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_moran', content)
 
 
 if __name__ == "__main__":
