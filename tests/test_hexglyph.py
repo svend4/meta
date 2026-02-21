@@ -9383,6 +9383,284 @@ class TestSolanPhase(unittest.TestCase):
         self.assertIn('anti-phase', content)
 
 
+class TestSolanBalance(unittest.TestCase):
+    """Tests for solan_balance.py and the viewer Bit Balance section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_balance import (
+            bit_balance, bit_flip_freq, classify_bit,
+            bit_profile, cell_balance_stats, all_cell_balance_stats,
+            aggregate_balance, balance_plane_points, count_classes,
+            balance_summary, all_balance, build_balance_data,
+        )
+        cls.bit_balance            = staticmethod(bit_balance)
+        cls.bit_flip_freq          = staticmethod(bit_flip_freq)
+        cls.classify_bit           = staticmethod(classify_bit)
+        cls.bit_profile            = staticmethod(bit_profile)
+        cls.cell_balance_stats     = staticmethod(cell_balance_stats)
+        cls.all_cell_balance_stats = staticmethod(all_cell_balance_stats)
+        cls.aggregate_balance      = staticmethod(aggregate_balance)
+        cls.balance_plane_points   = staticmethod(balance_plane_points)
+        cls.count_classes          = staticmethod(count_classes)
+        cls.balance_summary        = staticmethod(balance_summary)
+        cls.all_balance            = staticmethod(all_balance)
+        cls.build_balance_data     = staticmethod(build_balance_data)
+
+    # ── bit_balance() ─────────────────────────────────────────────────
+
+    def test_bit_balance_empty(self):
+        bal = self.bit_balance([])
+        self.assertEqual(len(bal), 6)
+        self.assertTrue(all(v == 0.0 for v in bal))
+
+    def test_bit_balance_all_zero(self):
+        bal = self.bit_balance([0, 0, 0])
+        self.assertTrue(all(v == 0.0 for v in bal))
+
+    def test_bit_balance_all_63(self):
+        bal = self.bit_balance([63, 63, 63])
+        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in bal))
+
+    def test_bit_balance_alternating_bit0(self):
+        # 1=0b000001 alternates with 0=0b000000 → b0 balance=0.5
+        bal = self.bit_balance([1, 0, 1, 0])
+        self.assertAlmostEqual(bal[0], 0.5, places=9)
+        self.assertAlmostEqual(bal[1], 0.0, places=9)
+
+    def test_bit_balance_gora_and_cell(self):
+        # 47=0b101111, 1=0b000001; series [47, 1]
+        bal = self.bit_balance([47, 1])
+        # bit 0: both have bit 0 = 1 → balance = 1.0
+        self.assertAlmostEqual(bal[0], 1.0, places=9)
+        # bit 1: 47 has bit 1=1, 1 has bit 1=0 → balance = 0.5
+        self.assertAlmostEqual(bal[1], 0.5, places=9)
+        # bit 4: 47 has bit 4=0, 1 has bit 4=0 → balance = 0.0
+        self.assertAlmostEqual(bal[4], 0.0, places=9)
+
+    def test_bit_balance_range(self):
+        for series in [[0, 63, 32, 15, 47], [48, 51, 43]]:
+            bal = self.bit_balance(series)
+            for v in bal:
+                self.assertGreaterEqual(v, 0.0)
+                self.assertLessEqual(v, 1.0)
+
+    # ── bit_flip_freq() ───────────────────────────────────────────────
+
+    def test_bit_flip_freq_constant(self):
+        freq = self.bit_flip_freq([7, 7, 7])
+        self.assertTrue(all(f == 0.0 for f in freq))
+
+    def test_bit_flip_freq_gora_and(self):
+        freq = self.bit_flip_freq([47, 1])
+        self.assertAlmostEqual(freq[0], 0.0, places=9)   # b0 never flips
+        self.assertAlmostEqual(freq[1], 1.0, places=9)   # b1 always flips
+
+    # ── classify_bit() ────────────────────────────────────────────────
+
+    def test_classify_frozen_off(self):
+        self.assertEqual(self.classify_bit(0.0, 0.0), 'FROZEN_OFF')
+
+    def test_classify_frozen_on(self):
+        self.assertEqual(self.classify_bit(1.0, 0.0), 'FROZEN_ON')
+
+    def test_classify_strict_alt(self):
+        self.assertEqual(self.classify_bit(0.5, 1.0), 'STRICT_ALT')
+
+    def test_classify_oscillating(self):
+        self.assertEqual(self.classify_bit(0.5, 0.5), 'OSCILLATING')
+
+    def test_classify_dc_bias(self):
+        self.assertEqual(self.classify_bit(0.75, 0.5), 'DC_BIAS')
+
+    def test_classify_eps_boundary(self):
+        # Slightly off from frozen → still frozen within eps
+        self.assertEqual(self.classify_bit(0.01, 0.01), 'FROZEN_OFF')
+
+    # ── ТУМАН XOR (P=1, all=0) ────────────────────────────────────────
+
+    def test_tuman_xor_all_frozen_off(self):
+        d = self.balance_summary('ТУМАН', 'xor', 16)
+        self.assertEqual(d['class_counts'].get('FROZEN_OFF', 0), 96)
+        self.assertEqual(d['total_frozen_bits'], 96)
+
+    def test_tuman_xor_agg_balance_zero(self):
+        agg = self.aggregate_balance('ТУМАН', 'xor', 16)
+        self.assertTrue(all(v == 0.0 for v in agg['balance']))
+
+    def test_tuman_xor_agg_flip_zero(self):
+        agg = self.aggregate_balance('ТУМАН', 'xor', 16)
+        self.assertTrue(all(v == 0.0 for v in agg['flip']))
+
+    # ── ГОРА AND (P=2, anti-phase) ────────────────────────────────────
+
+    def test_gora_and_b0_frozen_on(self):
+        agg = self.aggregate_balance('ГОРА', 'and', 16)
+        self.assertAlmostEqual(agg['balance'][0], 1.0, places=6)
+        self.assertAlmostEqual(agg['flip'][0], 0.0, places=6)
+        self.assertEqual(agg['class'][0], 'FROZEN_ON')
+
+    def test_gora_and_b4_frozen_off(self):
+        agg = self.aggregate_balance('ГОРА', 'and', 16)
+        self.assertAlmostEqual(agg['balance'][4], 0.0, places=6)
+        self.assertAlmostEqual(agg['flip'][4], 0.0, places=6)
+        self.assertEqual(agg['class'][4], 'FROZEN_OFF')
+
+    def test_gora_and_b1_b2_b3_b5_strict_alt(self):
+        agg = self.aggregate_balance('ГОРА', 'and', 16)
+        for b in [1, 2, 3, 5]:
+            self.assertAlmostEqual(agg['balance'][b], 0.5, places=6)
+            self.assertAlmostEqual(agg['flip'][b], 1.0, places=6)
+            self.assertEqual(agg['class'][b], 'STRICT_ALT')
+
+    def test_gora_and_total_frozen_32(self):
+        # b0 FROZEN_ON (16 cells) + b4 FROZEN_OFF (16 cells) = 32
+        d = self.balance_summary('ГОРА', 'and', 16)
+        self.assertEqual(d['total_frozen_bits'], 32)
+
+    def test_gora_and_class_counts(self):
+        cls = self.count_classes('ГОРА', 'and', 16)
+        self.assertEqual(cls.get('FROZEN_ON', 0), 16)    # b0 × 16 cells
+        self.assertEqual(cls.get('FROZEN_OFF', 0), 16)   # b4 × 16 cells
+        self.assertEqual(cls.get('STRICT_ALT', 0), 64)   # b1,2,3,5 × 16 cells
+
+    # ── ГОРА XOR3 (P=2, 4 clusters) ──────────────────────────────────
+
+    def test_gora_xor3_b0_agg_frozen_on(self):
+        agg = self.aggregate_balance('ГОРА', 'xor3', 16)
+        self.assertAlmostEqual(agg['balance'][0], 1.0, places=6)
+        self.assertEqual(agg['class'][0], 'FROZEN_ON')
+
+    def test_gora_xor3_b4_agg_strict_alt(self):
+        agg = self.aggregate_balance('ГОРА', 'xor3', 16)
+        self.assertAlmostEqual(agg['flip'][4], 1.0, places=6)
+        self.assertEqual(agg['class'][4], 'STRICT_ALT')
+
+    def test_gora_xor3_per_cell_b0_all_frozen_on(self):
+        css = self.all_cell_balance_stats('ГОРА', 'xor3', 16)
+        for cs in css:
+            b0 = cs['profile'][0]
+            self.assertAlmostEqual(b0['balance'], 1.0, places=6)
+            self.assertEqual(b0['class'], 'FROZEN_ON')
+
+    def test_gora_xor3_total_frozen_48(self):
+        d = self.balance_summary('ГОРА', 'xor3', 16)
+        self.assertEqual(d['total_frozen_bits'], 48)
+
+    # ── ТУМАН XOR3 (P=8) — hidden frozen bits ─────────────────────────
+
+    def test_tuman_xor3_agg_balance_near_half(self):
+        agg = self.aggregate_balance('ТУМАН', 'xor3', 16)
+        for b in range(6):
+            self.assertGreater(agg['balance'][b], 0.3)
+            self.assertLess(agg['balance'][b], 0.7)
+
+    def test_tuman_xor3_cell0_b2_frozen_off(self):
+        css = self.all_cell_balance_stats('ТУМАН', 'xor3', 16)
+        b2 = css[0]['profile'][2]
+        self.assertAlmostEqual(b2['balance'], 0.0, places=6)
+        self.assertEqual(b2['class'], 'FROZEN_OFF')
+
+    def test_tuman_xor3_cell0_b5_frozen_on(self):
+        css = self.all_cell_balance_stats('ТУМАН', 'xor3', 16)
+        b5 = css[0]['profile'][5]
+        self.assertAlmostEqual(b5['balance'], 1.0, places=6)
+        self.assertEqual(b5['class'], 'FROZEN_ON')
+
+    def test_tuman_xor3_cell1_b4_frozen_on(self):
+        css = self.all_cell_balance_stats('ТУМАН', 'xor3', 16)
+        b4 = css[1]['profile'][4]
+        self.assertAlmostEqual(b4['balance'], 1.0, places=6)
+        self.assertEqual(b4['class'], 'FROZEN_ON')
+
+    def test_tuman_xor3_has_frozen_bits(self):
+        d = self.balance_summary('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['total_frozen_bits'], 0)
+
+    # ── balance_plane_points() ────────────────────────────────────────
+
+    def test_balance_plane_96_points(self):
+        pts = self.balance_plane_points('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(pts), 16 * 6)   # N × 6 bits
+
+    def test_balance_plane_point_keys(self):
+        pts = self.balance_plane_points('ГОРА', 'and', 16)
+        self.assertIn('cell', pts[0])
+        self.assertIn('bit', pts[0])
+        self.assertIn('balance', pts[0])
+        self.assertIn('flip', pts[0])
+        self.assertIn('class', pts[0])
+
+    def test_balance_plane_balance_range(self):
+        pts = self.balance_plane_points('ТУМАН', 'xor3', 16)
+        for p in pts:
+            self.assertGreaterEqual(p['balance'], 0.0)
+            self.assertLessEqual(p['balance'], 1.0)
+
+    # ── balance_summary() structure ───────────────────────────────────
+
+    def test_balance_summary_keys(self):
+        d = self.balance_summary('ГОРА', 'and', 16)
+        for k in ('word', 'rule', 'period', 'agg_balance', 'agg_flip',
+                  'agg_class', 'class_counts', 'total_frozen_bits',
+                  'max_frozen_per_cell', 'most_active_bit',
+                  'least_active_bit', 'cell_stats', 'n_points'):
+            self.assertIn(k, d)
+
+    def test_balance_summary_n_points_96(self):
+        d = self.balance_summary('ТУМАН', 'and', 16)
+        self.assertEqual(d['n_points'], 96)
+
+    def test_balance_summary_word_uppercase(self):
+        d = self.balance_summary('гора', 'and', 16)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    # ── all_balance() ─────────────────────────────────────────────────
+
+    def test_all_balance_four_rules(self):
+        result = self.all_balance('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_balance_data() ──────────────────────────────────────────
+
+    def test_build_balance_data_no_cell_stats(self):
+        data = self.build_balance_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        self.assertNotIn('cell_stats', entry)
+
+    def test_build_balance_data_has_agg(self):
+        data = self.build_balance_data(['ТУМАН'], 16)
+        entry = data['per_rule']['and']['ТУМАН']
+        self.assertIn('agg_balance', entry)
+        self.assertIn('agg_flip', entry)
+
+    # ── Viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_bl_scatter(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bl-scatter', content)
+
+    def test_viewer_has_bl_bars(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bl-bars', content)
+
+    def test_viewer_has_bl_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bl-stats', content)
+
+    def test_viewer_has_bl_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('blRun', content)
+
+    def test_viewer_has_balance_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Bit Balance', content)
+
+    def test_viewer_has_frozen_on(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('FROZEN_ON', content)
+
+
 class TestSolanRuns(unittest.TestCase):
     """Tests for solan_runs.py and the viewer Run-Length section."""
 

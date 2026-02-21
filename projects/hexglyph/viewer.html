@@ -10494,6 +10494,209 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Bit Balance × Flip Analysis Q6 — баланс и волатильность каждого бита</h2>
+<p class="meta">balance_b = доля времени бит b=1 · flip_b = доля шагов где бит b меняется · ГОРА AND: b0=(1,0) FROZEN_ON · b4=(0,0) FROZEN_OFF · b1,2,3,5=(0.5,1) STRICT_ALT</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="bl-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="bl-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="and" selected>AND</option>
+    <option value="xor3">XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="bl-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="bl-scatter" width="530" height="160"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="bl-bars" width="530" height="70"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="bl-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  /* 6 distinct bit colors */
+  var BIT_COLS=['#4fc3f7','#81c784','#ffb74d','#e57373','#ce93d8','#fff176'];
+  function blStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function blOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=blStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=blStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=blStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function classifyBit(bal,flip,eps){
+    eps=eps||0.04;
+    if(flip<eps){
+      if(bal<eps)       return 'FROZEN_OFF';
+      if(bal>1-eps)     return 'FROZEN_ON';
+      return 'DC_BIAS';
+    }
+    if(Math.abs(bal-0.5)<eps && flip>1-eps) return 'STRICT_ALT';
+    if(Math.abs(bal-0.5)<eps)               return 'OSCILLATING';
+    return 'DC_BIAS';
+  }
+  var CLS_COL={'FROZEN_OFF':'#555','FROZEN_ON':'#eee','STRICT_ALT':'#ffd54f',
+               'OSCILLATING':'#81c784','DC_BIAS':'#ce93d8'};
+  function blRun(){
+    var word=(document.getElementById('bl-word').value||'ГОРА').toUpperCase();
+    var rule=document.getElementById('bl-rule').value||'and';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length, grid=blOrbit(ic,rule), P=grid.length;
+    /* Per-cell, per-bit balance and flip */
+    var pts=[];   /* {cell,bit,bal,flip,cls} */
+    var aggBal=new Array(6).fill(0), aggFlip=new Array(6).fill(0);
+    var clsCounts={FROZEN_OFF:0,FROZEN_ON:0,STRICT_ALT:0,OSCILLATING:0,DC_BIAS:0};
+    for(var i=0;i<N;i++){
+      var series=[];
+      for(var t=0;t<P;t++) series.push(grid[t][i]);
+      for(var b=0;b<6;b++){
+        /* balance */
+        var bal=series.filter(function(v){return (v>>(b))&1;}).length/P;
+        /* flip */
+        var flipCnt=0;
+        for(var t=0;t<P;t++){
+          if(((series[t]^series[(t+1)%P])>>(b))&1) flipCnt++;
+        }
+        var flip=flipCnt/P;
+        var cls=classifyBit(bal,flip);
+        aggBal[b]+=bal; aggFlip[b]+=flip;
+        clsCounts[cls]=(clsCounts[cls]||0)+1;
+        pts.push({cell:i,bit:b,bal:bal,flip:flip,cls:cls});
+      }
+    }
+    for(var b=0;b<6;b++){aggBal[b]/=N; aggFlip[b]/=N;}
+    /* ── Scatter plot ────────────────────────────────────────────────── */
+    var sc=document.getElementById('bl-scatter');
+    var sx=sc.getContext('2d');
+    var SW=sc.width,SH=sc.height;
+    sx.fillStyle='#0a0a0a'; sx.fillRect(0,0,SW,SH);
+    var PAD=28;
+    var IW=SW-PAD*2, IH=SH-PAD*2;
+    /* grid lines */
+    sx.strokeStyle='#1a1a1a'; sx.lineWidth=0.5;
+    [0,0.25,0.5,0.75,1].forEach(function(v){
+      var x=PAD+v*IW, y=PAD+(1-v)*IH;
+      sx.beginPath(); sx.moveTo(x,PAD); sx.lineTo(x,PAD+IH); sx.stroke();
+      sx.beginPath(); sx.moveTo(PAD,y); sx.lineTo(PAD+IW,y); sx.stroke();
+    });
+    /* axes */
+    sx.strokeStyle='#333'; sx.lineWidth=1;
+    sx.beginPath(); sx.moveTo(PAD,PAD); sx.lineTo(PAD,PAD+IH); sx.stroke();
+    sx.beginPath(); sx.moveTo(PAD,PAD+IH); sx.lineTo(PAD+IW,PAD+IH); sx.stroke();
+    /* axis labels */
+    sx.fillStyle='#555'; sx.font='9px monospace'; sx.textAlign='center';
+    sx.fillText('balance →',PAD+IW/2,SH-3);
+    sx.save(); sx.translate(10,PAD+IH/2); sx.rotate(-Math.PI/2);
+    sx.fillText('flip ↑',0,0); sx.restore();
+    [0,0.5,1].forEach(function(v){
+      sx.fillStyle='#444'; sx.textAlign='center';
+      sx.fillText(v.toFixed(1),PAD+v*IW,PAD+IH+10);
+      sx.textAlign='right';
+      sx.fillText(v.toFixed(1),PAD-3,PAD+(1-v)*IH+4);
+    });
+    /* points */
+    pts.forEach(function(p){
+      var px=PAD+p.bal*IW, py=PAD+(1-p.flip)*IH;
+      sx.fillStyle=BIT_COLS[p.bit];
+      sx.globalAlpha=0.7;
+      sx.beginPath(); sx.arc(px,py,3,0,Math.PI*2); sx.fill();
+      sx.globalAlpha=1;
+    });
+    /* aggregate per-bit (larger markers) */
+    for(var b=0;b<6;b++){
+      var px=PAD+aggBal[b]*IW, py=PAD+(1-aggFlip[b])*IH;
+      sx.fillStyle=BIT_COLS[b];
+      sx.strokeStyle='#fff'; sx.lineWidth=1.5;
+      sx.beginPath(); sx.arc(px,py,6,0,Math.PI*2);
+      sx.fill(); sx.stroke();
+      sx.fillStyle='#000'; sx.font='bold 7px sans-serif'; sx.textAlign='center';
+      sx.fillText('b'+b,px,py+3);
+    }
+    /* ── Bar chart ───────────────────────────────────────────────────── */
+    var bc=document.getElementById('bl-bars');
+    var bx=bc.getContext('2d');
+    var BW=bc.width,BH=bc.height;
+    bx.fillStyle='#0a0a0a'; bx.fillRect(0,0,BW,BH);
+    var BPAD=20, bw=Math.floor((BW-BPAD*2)/6)-4;
+    if(bw<4) bw=4;
+    for(var b=0;b<6;b++){
+      var bx2=BPAD+b*(bw+4);
+      /* balance bar (solid) */
+      var bh=Math.round(aggBal[b]*(BH-BPAD-4));
+      bx.fillStyle=BIT_COLS[b]; bx.globalAlpha=0.8;
+      bx.fillRect(bx2,BH-BPAD-bh,bw/2,bh);
+      /* flip bar (outline) */
+      var fh=Math.round(aggFlip[b]*(BH-BPAD-4));
+      bx.globalAlpha=1;
+      bx.strokeStyle=BIT_COLS[b]; bx.lineWidth=1;
+      bx.strokeRect(bx2+bw/2,BH-BPAD-fh,bw/2,fh);
+      bx.globalAlpha=1;
+      bx.fillStyle='#555'; bx.font='8px monospace'; bx.textAlign='center';
+      bx.fillText('b'+b,bx2+bw/2,BH-4);
+    }
+    bx.fillStyle='#444'; bx.font='8px monospace'; bx.textAlign='left';
+    bx.fillText('■ balance  □ flip',BPAD,10);
+    bx.strokeStyle='#333'; bx.lineWidth=0.5;
+    bx.beginPath(); bx.moveTo(BPAD,BH-BPAD); bx.lineTo(BW-4,BH-BPAD); bx.stroke();
+    /* ── Stats ──────────────────────────────────────────────────────── */
+    var frozen=(clsCounts.FROZEN_OFF||0)+(clsCounts.FROZEN_ON||0);
+    document.getElementById('bl-stats').innerHTML=
+      'P='+P+
+      '  frozen='+frozen+'/'+pts.length+
+      (clsCounts.FROZEN_OFF?' (off:'+clsCounts.FROZEN_OFF+')':'')+
+      (clsCounts.FROZEN_ON?' (on:'+clsCounts.FROZEN_ON+')':'')+
+      (clsCounts.STRICT_ALT?' · strict_alt='+clsCounts.STRICT_ALT:'')+
+      (clsCounts.OSCILLATING?' · osc='+clsCounts.OSCILLATING:'')+
+      (clsCounts.DC_BIAS?' · dc_bias='+clsCounts.DC_BIAS:'')+
+      '  agg_bal=['+aggBal.map(function(v){return v.toFixed(2);}).join(',')+']';
+  }
+  window.blRun=blRun;
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('bl-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0413\u041e\u0420\u0410') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('bl-btn');
+    var wordEl=document.getElementById('bl-word');
+    var ruleEl=document.getElementById('bl-rule');
+    if(btn)    btn.addEventListener('click',blRun);
+    if(wordEl) wordEl.addEventListener('change',blRun);
+    if(ruleEl) ruleEl.addEventListener('change',blRun);
+    setTimeout(function(){if(window.encL) blRun();},3600);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
