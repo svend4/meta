@@ -9934,6 +9934,187 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Run-Length (Плато) Q6 — анализ серий одинаковых значений клеток</h2>
+<p class="meta">Плато = последовательные шаги с x_t=x_{t+1} · ГОРА AND: ни одного плато (pf=0) · ТУМАН XOR3: клетки 0,15 имеют плато длиной 4 (pf=0.5); зеркальная симметрия кольца</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="rle-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="rle-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="rle-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="rle-bar" width="530" height="70"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="rle-heat" width="530" height="100"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="rle-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  function rleStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function rleOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=rleStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=rleStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=rleStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function runLengths(series){
+    if(!series.length) return [];
+    var runs=[],cur=series[0],cnt=1;
+    for(var i=1;i<series.length;i++){
+      if(series[i]===cur) cnt++;
+      else{ runs.push(cnt); cur=series[i]; cnt=1; }
+    }
+    runs.push(cnt); return runs;
+  }
+  function plateauFrac(series){
+    var P=series.length;
+    if(!P) return 0;
+    var cnt=0;
+    for(var t=0;t<P;t++) if(series[t]===series[(t+1)%P]) cnt++;
+    return cnt/P;
+  }
+  var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  function rleRun(){
+    var word=(document.getElementById('rle-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('rle-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length, grid=rleOrbit(ic,rule), P=grid.length;
+    var col=RCOL[rule]||'#4fc3f7';
+    /* Per-cell stats */
+    var maxRuns=[],pfrs=[],allRL=[];
+    var changeMat=[];  // changeMat[i][t] = 1 if changed from prev step
+    for(var i=0;i<N;i++){
+      var series=[];
+      for(var t=0;t<P;t++) series.push(grid[t][i]);
+      var rl=runLengths(series);
+      maxRuns.push(Math.max.apply(null,rl));
+      pfrs.push(plateauFrac(series));
+      rl.forEach(function(r){allRL.push(r);});
+      var row=[];
+      for(var t=0;t<P;t++)
+        row.push(series[t]!==series[(t-1+P)%P]?1:0);
+      changeMat.push(row);
+    }
+    /* ── Max-run bar chart ──────────────────────────────────────────── */
+    var bc=document.getElementById('rle-bar');
+    var bx=bc.getContext('2d');
+    var BW=bc.width,BH=bc.height;
+    bx.fillStyle='#0a0a0a'; bx.fillRect(0,0,BW,BH);
+    var maxMR=Math.max.apply(null,maxRuns)||1;
+    var MARG=18,bw=Math.floor((BW-MARG*2)/N)-1;
+    if(bw<2) bw=2;
+    for(var i=0;i<N;i++){
+      var bh2=Math.round(maxRuns[i]/maxMR*(BH-MARG-4));
+      var bx2=MARG+i*(bw+1);
+      bx.fillStyle=col; bx.globalAlpha=0.85;
+      bx.fillRect(bx2,BH-MARG-bh2,bw,bh2);
+      bx.globalAlpha=1;
+    }
+    bx.strokeStyle='#333'; bx.lineWidth=0.5;
+    bx.beginPath(); bx.moveTo(MARG,BH-MARG); bx.lineTo(BW-4,BH-MARG); bx.stroke();
+    bx.fillStyle='#555'; bx.font='8px monospace'; bx.textAlign='left';
+    bx.fillText('max_run',2,12);
+    bx.textAlign='right'; bx.fillText(maxMR,BW-4,12);
+    /* Cell labels */
+    bx.fillStyle='#444'; bx.textAlign='center';
+    for(var i=0;i<N;i+=4)
+      bx.fillText(i,MARG+i*(bw+1)+bw/2,BH-4);
+    /* ── Change-matrix heat map ─────────────────────────────────────── */
+    var hc=document.getElementById('rle-heat');
+    var hx=hc.getContext('2d');
+    var HW=hc.width,HH=hc.height;
+    hx.fillStyle='#0a0a0a'; hx.fillRect(0,0,HW,HH);
+    var rowH=Math.floor(HH/N);
+    var colW=Math.floor(HW/Math.max(P,1));
+    if(rowH<1) rowH=1;
+    if(colW<1) colW=1;
+    var r1=parseInt(col.slice(1,3),16)||0x4f;
+    var g1=parseInt(col.slice(3,5),16)||0xc3;
+    var b1=parseInt(col.slice(5,7),16)||0xf7;
+    for(var i=0;i<N;i++){
+      for(var t=0;t<P;t++){
+        if(changeMat[i][t]===0){
+          /* plateau: bright rule colour */
+          hx.fillStyle='rgb('+r1+','+g1+','+b1+')';
+          hx.globalAlpha=0.9;
+        } else {
+          /* transition: dark */
+          hx.fillStyle='#1c1c2a';
+          hx.globalAlpha=1;
+        }
+        hx.fillRect(t*colW, i*rowH, colW, rowH);
+      }
+    }
+    hx.globalAlpha=1;
+    /* Axis labels */
+    hx.fillStyle='#444'; hx.font='7px monospace'; hx.textAlign='right';
+    hx.fillText('cell',HW-2,7);
+    hx.fillStyle='#333'; hx.textAlign='center';
+    for(var t=0;t<P;t+=Math.max(1,Math.floor(P/8)))
+      hx.fillText('t'+t,t*colW+colW/2,HH-1);
+    /* ── Stats ──────────────────────────────────────────────────────── */
+    function avg(a){return a.length?a.reduce(function(x,y){return x+y;})/a.length:0;}
+    var pfMean=avg(pfrs),maxRL=Math.max.apply(null,allRL);
+    var uniqRL=[...new Set(allRL)].sort(function(a,b){return a-b;});
+    document.getElementById('rle-stats').innerHTML=
+      'P='+P+'  N='+N+
+      '  global_max_run='+maxRL+
+      '  mean_pf='+pfMean.toFixed(3)+
+      '  run_values=['+uniqRL.join(',')+']'+
+      '  heat: '+col+'■</font> plateau  <span style="color:#444">■</span> transition';
+  }
+  window.rleRun=rleRun;
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('rle-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('rle-btn');
+    var wordEl=document.getElementById('rle-word');
+    var ruleEl=document.getElementById('rle-rule');
+    if(btn)    btn.addEventListener('click',rleRun);
+    if(wordEl) wordEl.addEventListener('change',rleRun);
+    if(ruleEl) ruleEl.addEventListener('change',rleRun);
+    setTimeout(function(){if(window.encL) rleRun();},3150);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">

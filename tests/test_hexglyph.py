@@ -8853,6 +8853,281 @@ class TestSolanLZ(unittest.TestCase):
         self.assertIn('LZ76 Q6', content)
 
 
+class TestSolanRuns(unittest.TestCase):
+    """Tests for solan_runs.py and the viewer Run-Length section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_runs import (
+            run_lengths, plateau_fraction, run_entropy,
+            cell_run_stats, all_cell_stats, change_matrix,
+            run_summary, all_run_summaries, build_run_data,
+        )
+        cls.run_lengths      = staticmethod(run_lengths)
+        cls.plateau_fraction = staticmethod(plateau_fraction)
+        cls.run_entropy      = staticmethod(run_entropy)
+        cls.cell_run_stats   = staticmethod(cell_run_stats)
+        cls.all_cell_stats   = staticmethod(all_cell_stats)
+        cls.change_matrix    = staticmethod(change_matrix)
+        cls.run_summary      = staticmethod(run_summary)
+        cls.all_run_summaries = staticmethod(all_run_summaries)
+        cls.build_run_data   = staticmethod(build_run_data)
+
+    # ── run_lengths() ──────────────────────────────────────────────────
+
+    def test_run_lengths_empty(self):
+        self.assertEqual(self.run_lengths([]), [])
+
+    def test_run_lengths_single(self):
+        self.assertEqual(self.run_lengths([5]), [1])
+
+    def test_run_lengths_all_same(self):
+        self.assertEqual(self.run_lengths([3, 3, 3, 3]), [4])
+
+    def test_run_lengths_alternating(self):
+        self.assertEqual(self.run_lengths([1, 2, 1, 2]), [1, 1, 1, 1])
+
+    def test_run_lengths_with_plateau(self):
+        self.assertEqual(self.run_lengths([48, 51, 43, 43, 43, 43, 40, 48]),
+                         [1, 1, 4, 1, 1])
+
+    def test_run_lengths_sum_equals_length(self):
+        series = [1, 2, 2, 3, 3, 3, 4]
+        rl = self.run_lengths(series)
+        self.assertEqual(sum(rl), len(series))
+
+    def test_run_lengths_nondecreasing_then_decreasing(self):
+        rl = self.run_lengths([0, 0, 1, 1, 1, 2])
+        self.assertEqual(rl, [2, 3, 1])
+
+    # ── plateau_fraction() ────────────────────────────────────────────
+
+    def test_plateau_frac_empty(self):
+        self.assertEqual(self.plateau_fraction([]), 0.0)
+
+    def test_plateau_frac_constant(self):
+        # Circular: every x_t == x_{t+1 mod 1} → pf = 1.0
+        self.assertAlmostEqual(self.plateau_fraction([0]), 1.0)
+
+    def test_plateau_frac_alternating_zero(self):
+        # [47, 1, 47, 1]: circular pairs all ≠ → pf = 0
+        self.assertAlmostEqual(self.plateau_fraction([47, 1, 47, 1]), 0.0)
+
+    def test_plateau_frac_xor3_cell0(self):
+        # [48, 51, 43, 43, 43, 43, 40, 48]: 4 circular matches → pf=0.5
+        series = [48, 51, 43, 43, 43, 43, 40, 48]
+        self.assertAlmostEqual(self.plateau_fraction(series), 0.5)
+
+    def test_plateau_frac_range(self):
+        for series in [[1, 2, 3], [0, 0, 0], [1, 1, 2]]:
+            pf = self.plateau_fraction(series)
+            self.assertGreaterEqual(pf, 0.0)
+            self.assertLessEqual(pf, 1.0)
+
+    def test_plateau_frac_circular_wrap(self):
+        # [1, 2, 1]: t=2 wraps → x[2]=1, x[0]=1 → match → 1/3
+        self.assertAlmostEqual(self.plateau_fraction([1, 2, 1]), 1/3, places=6)
+
+    # ── run_entropy() ─────────────────────────────────────────────────
+
+    def test_run_entropy_empty(self):
+        self.assertEqual(self.run_entropy([]), 0.0)
+
+    def test_run_entropy_uniform_all_ones(self):
+        # All runs length 1 → entropy = 0
+        self.assertAlmostEqual(self.run_entropy([1, 1, 1, 1]), 0.0, places=6)
+
+    def test_run_entropy_single_run(self):
+        # One run of length P → entropy = 0
+        self.assertAlmostEqual(self.run_entropy([8]), 0.0, places=6)
+
+    def test_run_entropy_nonneg(self):
+        for rl in [[1, 1, 4, 1, 1], [2, 3, 1], [1, 2, 3]]:
+            self.assertGreaterEqual(self.run_entropy(rl), 0.0)
+
+    def test_run_entropy_with_plateau(self):
+        # [1, 1, 4, 1, 1]: has two distinct run lengths → entropy > 0
+        self.assertGreater(self.run_entropy([1, 1, 4, 1, 1]), 0.0)
+
+    # ── cell_run_stats() ──────────────────────────────────────────────
+
+    def test_cell_run_stats_empty(self):
+        d = self.cell_run_stats([])
+        self.assertEqual(d['max_run'], 0)
+        self.assertEqual(d['n_runs'], 0)
+
+    def test_cell_run_stats_constant(self):
+        d = self.cell_run_stats([0, 0, 0])
+        self.assertEqual(d['max_run'], 3)
+        self.assertEqual(d['n_runs'], 1)
+
+    def test_cell_run_stats_alternating(self):
+        d = self.cell_run_stats([47, 1])
+        self.assertEqual(d['max_run'], 1)
+        self.assertAlmostEqual(d['plateau_frac'], 0.0)
+
+    def test_cell_run_stats_keys(self):
+        d = self.cell_run_stats([1, 2, 3])
+        for k in ('runs', 'n_runs', 'max_run', 'mean_run',
+                  'plateau_frac', 'run_entropy'):
+            self.assertIn(k, d)
+
+    def test_cell_run_stats_xor3_cell0(self):
+        series = [48, 51, 43, 43, 43, 43, 40, 48]
+        d = self.cell_run_stats(series)
+        self.assertEqual(d['max_run'], 4)
+        self.assertEqual(d['runs'], [1, 1, 4, 1, 1])
+        self.assertAlmostEqual(d['plateau_frac'], 0.5, places=4)
+
+    # ── ТУМАН XOR (P=1, fixed) ────────────────────────────────────────
+
+    def test_tuman_xor_max_run_one(self):
+        d = self.run_summary('ТУМАН', 'xor', 16)
+        self.assertEqual(d['global_max_run'], 1)
+
+    def test_tuman_xor_plateau_frac_one(self):
+        d = self.run_summary('ТУМАН', 'xor', 16)
+        self.assertAlmostEqual(d['pf_stats']['mean'], 1.0)
+
+    # ── ГОРА AND (P=2, alternating) ───────────────────────────────────
+
+    def test_gora_and_max_run_one(self):
+        d = self.run_summary('ГОРА', 'and', 16)
+        self.assertEqual(d['global_max_run'], 1)
+
+    def test_gora_and_plateau_frac_zero(self):
+        d = self.run_summary('ГОРА', 'and', 16)
+        self.assertAlmostEqual(d['pf_stats']['mean'], 0.0)
+        self.assertAlmostEqual(d['pf_stats']['max'], 0.0)
+
+    def test_gora_and_all_run_lengths_are_one(self):
+        d = self.run_summary('ГОРА', 'and', 16)
+        self.assertTrue(all(r == 1 for r in d['all_run_lengths']))
+
+    # ── ТУМАН XOR3 (P=8) ──────────────────────────────────────────────
+
+    def test_tuman_xor3_global_max_run(self):
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['global_max_run'], 4)
+
+    def test_tuman_xor3_mean_pf_low(self):
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        # 14/128 ≈ 0.109 from solan_return
+        self.assertAlmostEqual(d['pf_stats']['mean'], 14/128, places=3)
+
+    def test_tuman_xor3_max_pf_half(self):
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        # cell 0 and 15 have pf=0.5 (max)
+        self.assertAlmostEqual(d['pf_stats']['max'], 0.5, places=4)
+
+    def test_tuman_xor3_min_pf_zero(self):
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(d['pf_stats']['min'], 0.0, places=4)
+
+    def test_tuman_xor3_run_values_include_4(self):
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        self.assertIn(4, d['all_run_lengths'])
+
+    def test_tuman_xor3_run_values_include_1(self):
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        self.assertIn(1, d['all_run_lengths'])
+
+    # ── change_matrix() ───────────────────────────────────────────────
+
+    def test_change_matrix_shape(self):
+        mat = self.change_matrix('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 8)   # P=8
+
+    def test_change_matrix_binary(self):
+        mat = self.change_matrix('ТУМАН', 'xor3', 16)
+        for row in mat:
+            for v in row:
+                self.assertIn(v, (0, 1))
+
+    def test_change_matrix_tuman_xor_all_zero(self):
+        # Fixed point: x_t always same → no changes
+        mat = self.change_matrix('ТУМАН', 'xor', 16)
+        for row in mat:
+            self.assertTrue(all(v == 0 for v in row))
+
+    def test_change_matrix_gora_and_all_one(self):
+        # Alternating: every step is a change (circularly)
+        mat = self.change_matrix('ГОРА', 'and', 16)
+        for row in mat:
+            self.assertTrue(all(v == 1 for v in row))
+
+    def test_change_matrix_sum_equals_transitions(self):
+        # Sum over all cells × steps = number of transition steps
+        mat = self.change_matrix('ТУМАН', 'xor3', 16)
+        total_changes = sum(v for row in mat for v in row)
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        # Transitions = total_pairs - plateau_pairs
+        total_pairs = 16 * d['period']
+        plateau_pairs = round(d['pf_stats']['mean'] * total_pairs)
+        self.assertEqual(total_changes, total_pairs - plateau_pairs)
+
+    # ── run_summary structure ──────────────────────────────────────────
+
+    def test_run_summary_keys(self):
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        for k in ('word', 'rule', 'period', 'cell_stats',
+                  'max_run_stats', 'pf_stats', 'entropy_stats',
+                  'global_max_run', 'global_mean_run', 'all_run_lengths'):
+            self.assertIn(k, d)
+
+    def test_run_summary_word_uppercase(self):
+        d = self.run_summary('туман', 'xor3', 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_run_summary_all_run_lengths_sum(self):
+        d = self.run_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(sum(d['all_run_lengths']), 16 * d['period'])
+
+    # ── all_run_summaries ──────────────────────────────────────────────
+
+    def test_all_run_summaries_four_rules(self):
+        result = self.all_run_summaries('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_run_data ─────────────────────────────────────────────────
+
+    def test_build_run_data_structure(self):
+        data = self.build_run_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+
+    def test_build_run_data_entry_keys(self):
+        data = self.build_run_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'global_max_run', 'global_mean_run',
+                  'max_run_stats', 'pf_stats', 'entropy_stats'):
+            self.assertIn(k, entry)
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_rle_bar(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rle-bar', content)
+
+    def test_viewer_has_rle_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rle-heat', content)
+
+    def test_viewer_has_rle_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rle-stats', content)
+
+    def test_viewer_has_rle_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rleRun', content)
+
+    def test_viewer_has_runs_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Run-Length', content)
+
+
 class TestSolanMoments(unittest.TestCase):
     """Tests for solan_moments.py and the viewer Temporal Moments section."""
 
