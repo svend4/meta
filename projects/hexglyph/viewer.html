@@ -7725,6 +7725,217 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Мультимасштабная энтропия Q6 (MSE) — сложность по шкалам</h2>
+<p class="meta">Для каждой шкалы τ=1..6: огрублённый ряд y_j^(τ)=(1/τ)Σ x_i, затем Sample Entropy SampEn(m=2, r=0.15σ) · CI = среднее по шкалам · τ* = шкала пика · постоянные → SampEn≈0; P=8 XOR3 → осциллирующий профиль</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="mse-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="mse-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="mse-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="mse-profile" width="530" height="200"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="mse-cell"    width="530" height="90"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="mse-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA helpers ─────────────────────────────────────────────────── */
+  function mseStep(cells,rule){
+    var n=cells.length,out=[];
+    for(var i=0;i<n;i++){
+      var l=cells[(i-1+n)%n],c=cells[i],r=cells[(i+1)%n];
+      if(rule==='xor')       out.push((l^r)&63);
+      else if(rule==='xor3') out.push((l^c^r)&63);
+      else if(rule==='and')  out.push((l&r)&63);
+      else                   out.push((l|r)&63);
+    }
+    return out;
+  }
+  function mseOrbit(ic,rule,minLen){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=Math.max(t-trans,1);
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=mseStep(cur,rule);
+        var rep=Math.max(1,Math.ceil(minLen/period));
+        var rows=[];
+        for(var i=0;i<period*rep;i++){
+          rows.push(cur.slice());
+          cur=mseStep(cur,rule);
+        }
+        return {rows:rows,period:period};
+      }
+      seen[key]=t++;
+      cur=mseStep(cur,rule);
+    }
+    return {rows:[ic.slice()],period:1};
+  }
+  /* ── Sample Entropy ─────────────────────────────────────────────── */
+  function cgSeries(seq,tau){
+    var n=seq.length,cg=[];
+    for(var j=0;j<Math.floor(n/tau);j++){
+      var s=0;
+      for(var k=0;k<tau;k++) s+=seq[j*tau+k];
+      cg.push(s/tau);
+    }
+    return cg;
+  }
+  function sampEn(series,m,r){
+    var n=series.length;
+    if(n<m+2) return NaN;
+    function countT(len){
+      var lim=n-len,count=0;
+      for(var i=0;i<lim;i++){
+        for(var j=0;j<lim;j++){
+          if(i===j) continue;
+          var ok=true;
+          for(var k=0;k<len;k++){if(Math.abs(series[i+k]-series[j+k])>r){ok=false;break;}}
+          if(ok) count++;
+        }
+      }
+      return count;
+    }
+    var B=countT(m); if(B===0) return NaN;
+    var A=countT(m+1); if(A===0) return Infinity;
+    return Math.max(0,-Math.log(A/B));
+  }
+  function mseCellProfile(seq,maxTau){
+    var n=seq.length,m=2;
+    var mu=seq.reduce(function(a,b){return a+b;},0)/n;
+    var sigma=Math.sqrt(seq.reduce(function(a,b){return a+(b-mu)*(b-mu);},0)/n);
+    var r=0.15*sigma;
+    var prof=[];
+    for(var tau=1;tau<=maxTau;tau++){
+      var cg=cgSeries(seq,tau);
+      prof.push(cg.length>=10?sampEn(cg,m,r):NaN);
+    }
+    return prof;
+  }
+  /* ── Main render ────────────────────────────────────────────────── */
+  window.mseRun=function(){
+    var word=(document.getElementById('mse-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('mse-rule').value||'xor3';
+    var MAX_TAU=6,MIN_LEN=100;
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var res=mseOrbit(ic,rule,MIN_LEN);
+    var rows=res.rows,P=res.period,N=rows[0].length;
+    var cellProfs=[],meanProf=[];
+    for(var i=0;i<N;i++){
+      var seq=[];
+      for(var t=0;t<rows.length;t++) seq.push(rows[t][i]);
+      cellProfs.push(mseCellProfile(seq,MAX_TAU));
+    }
+    for(var ti=0;ti<MAX_TAU;ti++){
+      var vals=[];
+      for(var i=0;i<N;i++){var v=cellProfs[i][ti]; if(!isNaN(v)&&isFinite(v)) vals.push(v);}
+      meanProf.push(vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:NaN);
+    }
+    var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    var col=RCOL[rule]||'#4fc3f7';
+    var validMean=meanProf.filter(function(v){return !isNaN(v)&&isFinite(v);});
+    var seMax=validMean.length?Math.max.apply(null,validMean):1; seMax=Math.max(seMax,0.001);
+    var CI=validMean.length?validMean.reduce(function(a,b){return a+b;},0)/validMean.length:0;
+    var peakIdx=0;
+    for(var i=1;i<meanProf.length;i++) if(!isNaN(meanProf[i])&&meanProf[i]>(meanProf[peakIdx]||0)) peakIdx=i;
+    /* ── Profile line chart ─────────────────────────────────────── */
+    var pc=document.getElementById('mse-profile');
+    var cx=pc.getContext('2d');
+    var W=pc.width,H=pc.height;
+    cx.fillStyle='#0d0d0d'; cx.fillRect(0,0,W,H);
+    var X0=58,YBASE=H-32,XEND=W-16,YMAXP=H-52;
+    var WPLOT=XEND-X0,HPLOT=YBASE-YMAXP;
+    [0,0.25,0.5,0.75,1.0].forEach(function(f){
+      var y=YBASE-f*HPLOT;
+      cx.strokeStyle='#222'; cx.lineWidth=0.5;
+      cx.beginPath(); cx.moveTo(X0,y); cx.lineTo(XEND,y); cx.stroke();
+      cx.fillStyle='#555'; cx.font='9px monospace'; cx.textAlign='right';
+      cx.fillText((f*seMax).toFixed(3),X0-4,y+3);
+    });
+    for(var tau=1;tau<=MAX_TAU;tau++){
+      var x=X0+(tau-1)*WPLOT/(MAX_TAU-1);
+      cx.fillStyle='#666'; cx.font='9px monospace'; cx.textAlign='center';
+      cx.fillText('\u03c4='+tau,x,YBASE+14);
+    }
+    cx.strokeStyle=col; cx.lineWidth=2;
+    cx.beginPath(); var started=false;
+    for(var ti=0;ti<MAX_TAU;ti++){
+      var v=meanProf[ti]; if(isNaN(v)||!isFinite(v)) continue;
+      var x=X0+ti*WPLOT/(MAX_TAU-1), y=YBASE-(v/seMax)*HPLOT;
+      if(!started){cx.moveTo(x,y);started=true;} else cx.lineTo(x,y);
+    }
+    cx.stroke();
+    for(var ti=0;ti<MAX_TAU;ti++){
+      var v=meanProf[ti]; if(isNaN(v)||!isFinite(v)) continue;
+      var x=X0+ti*WPLOT/(MAX_TAU-1), y=YBASE-(v/seMax)*HPLOT;
+      cx.beginPath(); cx.arc(x,y,4,0,Math.PI*2);
+      cx.fillStyle=ti===peakIdx?'#fff':col; cx.fill();
+      cx.fillStyle='#ccc'; cx.font='9px monospace'; cx.textAlign='center';
+      cx.fillText(v.toFixed(3),x,y-9);
+    }
+    cx.fillStyle='#777'; cx.textAlign='left'; cx.font='9px monospace'; cx.fillText('SE',2,H/2);
+    /* ── Per-cell τ=1 bars ──────────────────────────────────────── */
+    var hc=document.getElementById('mse-cell');
+    var hx=hc.getContext('2d');
+    var CW=hc.width,CH=hc.height;
+    hx.fillStyle='#0d0d0d'; hx.fillRect(0,0,CW,CH);
+    var CellW=Math.floor((CW-44)/N);
+    var cell1max=0;
+    for(var i=0;i<N;i++){var v=cellProfs[i][0]; if(!isNaN(v)&&isFinite(v)&&v>cell1max) cell1max=v;}
+    cell1max=Math.max(cell1max,0.001);
+    for(var i=0;i<N;i++){
+      var v=cellProfs[i][0], frac=(!isNaN(v)&&isFinite(v))?v/cell1max:0;
+      hx.globalAlpha=0.2+0.8*frac; hx.fillStyle=col;
+      var bh=Math.round(frac*(CH-34));
+      hx.fillRect(42+i*CellW,CH-18-bh,CellW-2,bh);
+      hx.globalAlpha=1;
+      hx.fillStyle='#ccc'; hx.font='8px monospace'; hx.textAlign='center';
+      hx.fillText(i,42+i*CellW+CellW/2,CH-4);
+      if(!isNaN(v)&&v>0.005) hx.fillText(v.toFixed(2),42+i*CellW+CellW/2,CH-18-bh-3);
+    }
+    hx.fillStyle='#777'; hx.textAlign='left'; hx.font='9px monospace'; hx.fillText('SE\u03c4=1',2,CH/2);
+    /* Stats */
+    document.getElementById('mse-stats').innerHTML=
+      'P='+P+'  CI='+CI.toFixed(4)+
+      '  \u03c4*='+(peakIdx+1)+
+      '  peak_SE='+(!isNaN(meanProf[peakIdx])?meanProf[peakIdx].toFixed(4):'—')+
+      '  SE(\u03c4=1)='+(!isNaN(meanProf[0])?meanProf[0].toFixed(4):'—');
+  };
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('mse-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('mse-btn');
+    var wordEl=document.getElementById('mse-word');
+    var ruleEl=document.getElementById('mse-rule');
+    if(btn)    btn.addEventListener('click',mseRun);
+    if(wordEl) wordEl.addEventListener('change',mseRun);
+    if(ruleEl) ruleEl.addEventListener('change',mseRun);
+    setTimeout(function(){if(window.encL) mseRun();},1900);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Блочная энтропия Q6 — H_n, скорость энтропии, избыточность</h2>
 <p class="meta">H_n = −Σ P(x) log₂ P(x) для n-граммного распределения всех клеток аттрактора (бинаризация порог=32) · h_n = H_{n+1} − H_n — условная энтропия (убывает) · E ≈ H_{max_n} — избыточная энтропия (сложность) · n* — насыщение контекста</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">

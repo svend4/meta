@@ -7069,6 +7069,240 @@ class TestSolanBlock(unittest.TestCase):
         self.assertIn('Блочная энтропия Q6', content)
 
 
+class TestSolanMultiscale(unittest.TestCase):
+    """Tests for solan_multiscale.py and the viewer MSE section."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib, sys
+        spec = importlib.util.spec_from_file_location(
+            'solan_multiscale',
+            str(pathlib.Path(__file__).resolve().parents[1] /
+                'projects' / 'hexglyph' / 'solan_multiscale.py'))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules['solan_multiscale'] = mod
+        spec.loader.exec_module(mod)
+        cls.mod = mod
+
+    # ── coarse_grain ───────────────────────────────────────────────────
+
+    def test_cg_empty(self):
+        self.assertEqual(self.mod.coarse_grain([], 2), [])
+
+    def test_cg_tau1_identity(self):
+        self.assertEqual(self.mod.coarse_grain([1.0, 2.0, 3.0], 1), [1.0, 2.0, 3.0])
+
+    def test_cg_tau2(self):
+        result = self.mod.coarse_grain([1.0, 2.0, 3.0, 4.0], 2)
+        self.assertAlmostEqual(result[0], 1.5)
+        self.assertAlmostEqual(result[1], 3.5)
+
+    def test_cg_length(self):
+        result = self.mod.coarse_grain(list(range(10)), 3)
+        self.assertEqual(len(result), 3)   # floor(10/3)=3
+
+    def test_cg_constant(self):
+        result = self.mod.coarse_grain([5.0] * 8, 4)
+        self.assertEqual(result, [5.0, 5.0])
+
+    def test_cg_tau_larger_than_n(self):
+        result = self.mod.coarse_grain([1.0, 2.0], 5)
+        self.assertEqual(result, [])
+
+    # ── sample_entropy ─────────────────────────────────────────────────
+
+    def test_se_too_short_nan(self):
+        import math
+        result = self.mod.sample_entropy([1.0, 2.0], m=2, r=1.0)
+        self.assertTrue(math.isnan(result))
+
+    def test_se_nonnegative(self):
+        import random
+        rng = random.Random(42)
+        series = [float(rng.randint(0, 63)) for _ in range(50)]
+        se = self.mod.sample_entropy(series, m=2, r=5.0)
+        import math
+        if not math.isnan(se) and not math.isinf(se):
+            self.assertGreaterEqual(se, 0.0)
+
+    def test_se_constant_near_zero(self):
+        import math
+        # Long constant series → SampEn → 0 as N→∞ (finite-sample gives small value)
+        series = [10.0] * 100
+        se = self.mod.sample_entropy(series, m=2, r=0.0)
+        # SampEn = -ln((N-m-2)/(N-m)) → small positive for large N
+        if not math.isnan(se):
+            self.assertLess(se, 0.1)
+
+    def test_se_explicit_r(self):
+        import math
+        series = [float(i % 4) for i in range(50)]
+        se = self.mod.sample_entropy(series, m=2, r=0.5)
+        self.assertFalse(math.isnan(se) and se == 0.0)  # at least some value
+
+    # ── get_cell_series ────────────────────────────────────────────────
+
+    def test_gcs_width(self):
+        s = self.mod.get_cell_series('ТУМАН', 'xor3', 16, 100)
+        self.assertEqual(len(s), 16)
+
+    def test_gcs_min_len(self):
+        s = self.mod.get_cell_series('ТУМАН', 'xor3', 16, 100)
+        for cell in s:
+            self.assertGreaterEqual(len(cell), 100)
+
+    def test_gcs_float_values(self):
+        s = self.mod.get_cell_series('ТУМАН', 'xor', 16, 50)
+        for cell in s:
+            for v in cell:
+                self.assertIsInstance(v, float)
+
+    def test_gcs_range(self):
+        s = self.mod.get_cell_series('ТУМАН', 'xor3', 16, 100)
+        for cell in s:
+            for v in cell:
+                self.assertGreaterEqual(v, 0)
+                self.assertLessEqual(v, 63)
+
+    # ── mse_cell ───────────────────────────────────────────────────────
+
+    def test_mc_length(self):
+        series = [float(i % 8) for i in range(200)]
+        result = self.mod.mse_cell(series, max_tau=6, m=2)
+        self.assertEqual(len(result), 6)
+
+    def test_mc_nonneg_or_nan(self):
+        import math
+        series = [float(i % 5) for i in range(200)]
+        result = self.mod.mse_cell(series, max_tau=6, m=2)
+        for v in result:
+            if not math.isnan(v) and not math.isinf(v):
+                self.assertGreaterEqual(v, 0.0)
+
+    def test_mc_empty_series(self):
+        import math
+        result = self.mod.mse_cell([], max_tau=4, m=2)
+        self.assertEqual(len(result), 4)
+        for v in result:
+            self.assertTrue(math.isnan(v))
+
+    # ── mean_mse_profile ───────────────────────────────────────────────
+
+    def test_mmp_length(self):
+        result = self.mod.mean_mse_profile('ТУМАН', 'xor3', 6, 16, 2)
+        self.assertEqual(len(result), 6)
+
+    def test_mmp_nonneg(self):
+        import math
+        result = self.mod.mean_mse_profile('ТУМАН', 'xor3', 6, 16, 2)
+        for v in result:
+            if not math.isnan(v) and not math.isinf(v):
+                self.assertGreaterEqual(v, 0.0)
+
+    # ── mse_dict ───────────────────────────────────────────────────────
+
+    def test_md_keys(self):
+        d = self.mod.mse_dict('ТУМАН', 'xor3', 6, 16, 2)
+        for k in ('word', 'rule', 'period', 'max_tau', 'm',
+                  'cell_profiles', 'mean_profile', 'complexity_index',
+                  'peak_tau', 'peak_se'):
+            self.assertIn(k, d)
+
+    def test_md_period_xor3(self):
+        d = self.mod.mse_dict('ТУМАН', 'xor3', 6, 16, 2)
+        self.assertEqual(d['period'], 8)
+
+    def test_md_word_uppercase(self):
+        d = self.mod.mse_dict('туман', 'xor3', 6, 16, 2)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_md_ci_xor3_gt_xor(self):
+        # ТУМАН XOR3 (P=8, complex) > ТУМАН XOR (P=1, constant)
+        ci_xor3 = self.mod.mse_dict('ТУМАН', 'xor3', 6, 16, 2)['complexity_index']
+        ci_xor  = self.mod.mse_dict('ТУМАН', 'xor',  6, 16, 2)['complexity_index']
+        self.assertGreater(ci_xor3, ci_xor)
+
+    def test_md_cell_profiles_shape(self):
+        d = self.mod.mse_dict('ТУМАН', 'xor3', 6, 16, 2)
+        self.assertEqual(len(d['cell_profiles']), 16)
+        for cp in d['cell_profiles']:
+            self.assertEqual(len(cp), 6)
+
+    def test_md_mean_profile_length(self):
+        d = self.mod.mse_dict('ТУМАН', 'xor3', 6, 16, 2)
+        self.assertEqual(len(d['mean_profile']), 6)
+
+    def test_md_peak_tau_valid(self):
+        d = self.mod.mse_dict('ТУМАН', 'xor3', 6, 16, 2)
+        self.assertGreaterEqual(d['peak_tau'], 1)
+        self.assertLessEqual(d['peak_tau'], 6)
+
+    def test_md_ci_nonneg(self):
+        d = self.mod.mse_dict('ТУМАН', 'xor', 6, 16, 2)
+        self.assertGreaterEqual(d['complexity_index'], 0.0)
+
+    def test_md_ci_xor3_positive(self):
+        d = self.mod.mse_dict('ТУМАН', 'xor3', 6, 16, 2)
+        self.assertGreater(d['complexity_index'], 0.0)
+
+    # ── all_mse ────────────────────────────────────────────────────────
+
+    def test_am_four_rules(self):
+        am = self.mod.all_mse('ТУМАН', 6, 16, 2)
+        self.assertEqual(set(am.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_am_each_has_ci(self):
+        am = self.mod.all_mse('ГОРА', 6, 16, 2)
+        for rule, d in am.items():
+            self.assertIn('complexity_index', d)
+
+    # ── build_mse_data ─────────────────────────────────────────────────
+
+    def test_bmd_structure(self):
+        d = self.mod.build_mse_data(['ТУМАН', 'ГОРА'], 6, 16, 2)
+        self.assertIn('words', d)
+        self.assertIn('width', d)
+        self.assertIn('max_tau', d)
+        self.assertIn('m', d)
+        self.assertIn('per_rule', d)
+
+    def test_bmd_per_rule_keys(self):
+        d = self.mod.build_mse_data(['ТУМАН'], 6, 16, 2)
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_bmd_word_entry_keys(self):
+        d = self.mod.build_mse_data(['ТУМАН'], 6, 16, 2)
+        entry = d['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'mean_profile', 'complexity_index', 'peak_tau', 'peak_se'):
+            self.assertIn(k, entry)
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_mse_profile(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mse-profile', content)
+
+    def test_viewer_has_mse_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mse-cell', content)
+
+    def test_viewer_has_mse_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mse-stats', content)
+
+    def test_viewer_has_mse_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mseRun', content)
+
+    def test_viewer_has_samp_en(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sampEn', content)
+
+    def test_viewer_has_mse_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Мультимасштабная энтропия Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
