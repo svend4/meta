@@ -15224,6 +15224,407 @@ class TestSolanConfig(unittest.TestCase):
         self.assertIn('ALL_CFGS', content)
 
 
+class TestSolanCell(unittest.TestCase):
+    """Tests for solan_cell.py — Per-Cell Temporal Analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cell import (
+            cell_series, cell_vocab, cell_hist, cell_vocab_size,
+            cell_is_frozen, cell_transitions, cell_mean, cell_var,
+            frozen_cells, spatial_variance, cell_summary,
+            orbit_cell_matrix, cell_agg, all_cell, build_cell_data,
+        )
+        cls.cell_series       = staticmethod(cell_series)
+        cls.cell_vocab        = staticmethod(cell_vocab)
+        cls.cell_hist         = staticmethod(cell_hist)
+        cls.cell_vocab_size   = staticmethod(cell_vocab_size)
+        cls.cell_is_frozen    = staticmethod(cell_is_frozen)
+        cls.cell_transitions  = staticmethod(cell_transitions)
+        cls.cell_mean         = staticmethod(cell_mean)
+        cls.cell_var          = staticmethod(cell_var)
+        cls.frozen_cells      = staticmethod(frozen_cells)
+        cls.spatial_variance  = staticmethod(spatial_variance)
+        cls.cell_summary      = staticmethod(cell_summary)
+        cls.orbit_cell_matrix = staticmethod(orbit_cell_matrix)
+        cls.cell_agg          = staticmethod(cell_agg)
+        cls.all_cell          = staticmethod(all_cell)
+        cls.build_cell_data   = staticmethod(build_cell_data)
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.LEXICON = list(LEXICON)
+
+    # ── cell_series ──────────────────────────────────────────────────────────
+
+    def test_cell_series_returns_list(self):
+        result = self.cell_series('ГОРА', 'and', 0)
+        self.assertIsInstance(result, list)
+
+    def test_cell_series_length_equals_period(self):
+        result = self.cell_series('ГОРА', 'and', 0)
+        self.assertEqual(len(result), 2)  # ГОРА AND has P=2
+
+    def test_cell_series_gora_and_cell0(self):
+        self.assertEqual(self.cell_series('ГОРА', 'and', 0), [47, 1])
+
+    def test_cell_series_gora_and_cell1(self):
+        self.assertEqual(self.cell_series('ГОРА', 'and', 1), [1, 47])
+
+    def test_cell_series_tuman_xor_cell0(self):
+        result = self.cell_series('ТУМАН', 'xor', 0)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], 0)
+
+    def test_cell_series_all_values_in_range(self):
+        result = self.cell_series('ТУМАН', 'xor3', 0)
+        self.assertTrue(all(0 <= v <= 63 for v in result))
+
+    def test_cell_series_case_insensitive(self):
+        self.assertEqual(
+            self.cell_series('гора', 'and', 0),
+            self.cell_series('ГОРА', 'and', 0),
+        )
+
+    # ── cell_vocab ───────────────────────────────────────────────────────────
+
+    def test_cell_vocab_returns_list(self):
+        self.assertIsInstance(self.cell_vocab('ГОРА', 'and', 0), list)
+
+    def test_cell_vocab_sorted(self):
+        v = self.cell_vocab('ГОРА', 'and', 0)
+        self.assertEqual(v, sorted(v))
+
+    def test_cell_vocab_gora_and_cell0(self):
+        self.assertEqual(self.cell_vocab('ГОРА', 'and', 0), [1, 47])
+
+    def test_cell_vocab_tuman_xor_cell0(self):
+        self.assertEqual(self.cell_vocab('ТУМАН', 'xor', 0), [0])
+
+    def test_cell_vocab_gora_or_cell0(self):
+        self.assertEqual(self.cell_vocab('ГОРА', 'or', 0), [63])
+
+    # ── cell_vocab_size ──────────────────────────────────────────────────────
+
+    def test_cell_vocab_size_returns_int(self):
+        self.assertIsInstance(self.cell_vocab_size('ГОРА', 'and', 0), int)
+
+    def test_cell_vocab_size_gora_and_cell0(self):
+        self.assertEqual(self.cell_vocab_size('ГОРА', 'and', 0), 2)
+
+    def test_cell_vocab_size_tuman_xor_cell0(self):
+        self.assertEqual(self.cell_vocab_size('ТУМАН', 'xor', 0), 1)
+
+    def test_cell_vocab_size_gora_xor3_cell0(self):
+        self.assertEqual(self.cell_vocab_size('ГОРА', 'xor3', 0), 2)
+
+    # ── cell_is_frozen ───────────────────────────────────────────────────────
+
+    def test_cell_is_frozen_returns_bool(self):
+        self.assertIsInstance(self.cell_is_frozen('ГОРА', 'and', 0), bool)
+
+    def test_cell_is_frozen_tuman_xor_true(self):
+        self.assertTrue(self.cell_is_frozen('ТУМАН', 'xor', 0))
+
+    def test_cell_is_frozen_gora_or_true(self):
+        self.assertTrue(self.cell_is_frozen('ГОРА', 'or', 0))
+
+    def test_cell_is_frozen_gora_and_false(self):
+        self.assertFalse(self.cell_is_frozen('ГОРА', 'and', 0))
+
+    def test_cell_is_frozen_tuman_xor3_false(self):
+        self.assertFalse(self.cell_is_frozen('ТУМАН', 'xor3', 0))
+
+    # ── cell_transitions ─────────────────────────────────────────────────────
+
+    def test_cell_transitions_returns_int(self):
+        self.assertIsInstance(self.cell_transitions('ГОРА', 'and', 0), int)
+
+    def test_cell_transitions_gora_and_cell0(self):
+        self.assertEqual(self.cell_transitions('ГОРА', 'and', 0), 2)
+
+    def test_cell_transitions_tuman_xor_cell0(self):
+        self.assertEqual(self.cell_transitions('ТУМАН', 'xor', 0), 0)
+
+    def test_cell_transitions_le_period(self):
+        s = self.cell_series('ТУМАН', 'xor3', 0)
+        P = len(s)
+        tc = self.cell_transitions('ТУМАН', 'xor3', 0)
+        self.assertLessEqual(tc, P)
+
+    def test_cell_transitions_frozen_is_zero(self):
+        self.assertEqual(self.cell_transitions('ТУМАН', 'xor', 5), 0)
+
+    # ── cell_mean / cell_var ─────────────────────────────────────────────────
+
+    def test_cell_mean_returns_float(self):
+        self.assertIsInstance(self.cell_mean('ГОРА', 'and', 0), float)
+
+    def test_cell_mean_gora_and_cell0(self):
+        self.assertAlmostEqual(self.cell_mean('ГОРА', 'and', 0), 24.0)
+
+    def test_cell_mean_tuman_xor_cell0(self):
+        self.assertAlmostEqual(self.cell_mean('ТУМАН', 'xor', 0), 0.0)
+
+    def test_cell_mean_gora_or_cell0(self):
+        self.assertAlmostEqual(self.cell_mean('ГОРА', 'or', 0), 63.0)
+
+    def test_cell_var_returns_float(self):
+        self.assertIsInstance(self.cell_var('ГОРА', 'and', 0), float)
+
+    def test_cell_var_gora_and_cell0(self):
+        self.assertAlmostEqual(self.cell_var('ГОРА', 'and', 0), 529.0)
+
+    def test_cell_var_frozen_is_zero(self):
+        self.assertAlmostEqual(self.cell_var('ТУМАН', 'xor', 0), 0.0)
+
+    # ── frozen_cells ─────────────────────────────────────────────────────────
+
+    def test_frozen_cells_returns_list(self):
+        self.assertIsInstance(self.frozen_cells('ГОРА', 'and'), list)
+
+    def test_frozen_cells_tuman_xor_all_frozen(self):
+        self.assertEqual(len(self.frozen_cells('ТУМАН', 'xor')), 16)
+
+    def test_frozen_cells_gora_and_none_frozen(self):
+        self.assertEqual(self.frozen_cells('ГОРА', 'and'), [])
+
+    def test_frozen_cells_gora_or_all_frozen(self):
+        self.assertEqual(len(self.frozen_cells('ГОРА', 'or')), 16)
+
+    def test_frozen_cells_tuman_xor3_none_frozen(self):
+        self.assertEqual(self.frozen_cells('ТУМАН', 'xor3'), [])
+
+    def test_frozen_cells_indices_in_range(self):
+        fc = self.frozen_cells('ТУМАН', 'xor')
+        self.assertTrue(all(0 <= i < 16 for i in fc))
+
+    # ── spatial_variance ─────────────────────────────────────────────────────
+
+    def test_spatial_variance_returns_list(self):
+        self.assertIsInstance(self.spatial_variance('ГОРА', 'and'), list)
+
+    def test_spatial_variance_length_equals_period(self):
+        sv = self.spatial_variance('ГОРА', 'and')
+        self.assertEqual(len(sv), 2)
+
+    def test_spatial_variance_tuman_xor_zero(self):
+        self.assertEqual(self.spatial_variance('ТУМАН', 'xor'), [0.0])
+
+    def test_spatial_variance_gora_and_constant(self):
+        sv = self.spatial_variance('ГОРА', 'and')
+        self.assertEqual(sv, [529.0, 529.0])
+
+    def test_spatial_variance_gora_xor3(self):
+        sv = self.spatial_variance('ГОРА', 'xor3')
+        self.assertAlmostEqual(sv[0], 308.75)
+        self.assertAlmostEqual(sv[1], 164.75)
+
+    def test_spatial_variance_non_negative(self):
+        sv = self.spatial_variance('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 0 for v in sv))
+
+    # ── cell_summary ─────────────────────────────────────────────────────────
+
+    def test_cell_summary_returns_dict(self):
+        self.assertIsInstance(self.cell_summary('ГОРА', 'and', 0), dict)
+
+    def test_cell_summary_required_keys(self):
+        d = self.cell_summary('ГОРА', 'and', 0)
+        for key in ('word', 'rule', 'cell_idx', 'period', 'series',
+                    'vocab', 'vocab_size', 'is_frozen', 'frozen_val',
+                    'transitions', 'mean', 'var'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_cell_summary_gora_and_cell0_values(self):
+        d = self.cell_summary('ГОРА', 'and', 0)
+        self.assertEqual(d['vocab_size'], 2)
+        self.assertFalse(d['is_frozen'])
+        self.assertEqual(d['transitions'], 2)
+        self.assertAlmostEqual(d['mean'], 24.0)
+        self.assertAlmostEqual(d['var'], 529.0)
+        self.assertIsNone(d['frozen_val'])
+
+    def test_cell_summary_frozen_val_set_when_frozen(self):
+        d = self.cell_summary('ТУМАН', 'xor', 0)
+        self.assertTrue(d['is_frozen'])
+        self.assertEqual(d['frozen_val'], 0)
+
+    def test_cell_summary_word_upper(self):
+        d = self.cell_summary('гора', 'and', 0)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_cell_summary_cell_idx_correct(self):
+        d = self.cell_summary('ГОРА', 'and', 3)
+        self.assertEqual(d['cell_idx'], 3)
+
+    # ── orbit_cell_matrix ────────────────────────────────────────────────────
+
+    def test_orbit_cell_matrix_returns_list(self):
+        self.assertIsInstance(self.orbit_cell_matrix('ГОРА', 'and'), list)
+
+    def test_orbit_cell_matrix_length(self):
+        result = self.orbit_cell_matrix('ГОРА', 'and')
+        self.assertEqual(len(result), 16)
+
+    def test_orbit_cell_matrix_each_item_is_dict(self):
+        result = self.orbit_cell_matrix('ГОРА', 'and')
+        self.assertIsInstance(result[0], dict)
+
+    def test_orbit_cell_matrix_cell_idx_sequential(self):
+        result = self.orbit_cell_matrix('ГОРА', 'and')
+        for i, d in enumerate(result):
+            self.assertEqual(d['cell_idx'], i)
+
+    # ── cell_agg ─────────────────────────────────────────────────────────────
+
+    def test_cell_agg_returns_dict(self):
+        self.assertIsInstance(self.cell_agg('ГОРА', 'and'), dict)
+
+    def test_cell_agg_required_keys(self):
+        d = self.cell_agg('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'n_cells', 'n_frozen',
+                    'vocab_sizes', 'mean_vocab_size', 'max_vocab_size',
+                    'transitions', 'mean_transitions', 'max_transitions',
+                    'spatial_variance', 'mean_spatial_var', 'max_spatial_var',
+                    'uniform_spatial'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_cell_agg_tuman_xor_all_frozen(self):
+        d = self.cell_agg('ТУМАН', 'xor')
+        self.assertEqual(d['n_frozen'], 16)
+        self.assertAlmostEqual(d['mean_vocab_size'], 1.0)
+        self.assertAlmostEqual(d['mean_transitions'], 0.0)
+        self.assertTrue(d['uniform_spatial'])
+
+    def test_cell_agg_gora_or_all_frozen(self):
+        d = self.cell_agg('ГОРА', 'or')
+        self.assertEqual(d['n_frozen'], 16)
+
+    def test_cell_agg_gora_and_none_frozen(self):
+        d = self.cell_agg('ГОРА', 'and')
+        self.assertEqual(d['n_frozen'], 0)
+        self.assertAlmostEqual(d['mean_vocab_size'], 2.0)
+        self.assertTrue(d['uniform_spatial'])
+
+    def test_cell_agg_tuman_xor3_no_frozen(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertEqual(d['n_frozen'], 0)
+
+    def test_cell_agg_tuman_xor3_mean_vocab(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_vocab_size'], 5.25)
+
+    def test_cell_agg_tuman_xor3_mean_transitions(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_transitions'], 7.125)
+
+    def test_cell_agg_tuman_xor3_max_vocab(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertEqual(d['max_vocab_size'], 7)
+
+    def test_cell_agg_tuman_xor3_min_vocab(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertEqual(d['min_vocab_size'], 3)
+
+    def test_cell_agg_tuman_xor3_max_transitions(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertEqual(d['max_transitions'], 8)
+
+    def test_cell_agg_n_cells_equals_width(self):
+        d = self.cell_agg('ГОРА', 'xor3')
+        self.assertEqual(d['n_cells'], 16)
+
+    def test_cell_agg_vocab_sizes_length(self):
+        d = self.cell_agg('ГОРА', 'and')
+        self.assertEqual(len(d['vocab_sizes']), 16)
+
+    def test_cell_agg_gora_and_spatial_var_constant(self):
+        d = self.cell_agg('ГОРА', 'and')
+        sv = d['spatial_variance']
+        self.assertEqual(sv, [529.0, 529.0])
+
+    def test_cell_agg_word_upper(self):
+        d = self.cell_agg('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    # ── build_cell_data ───────────────────────────────────────────────────────
+
+    def test_build_cell_data_returns_dict(self):
+        self.assertIsInstance(self.build_cell_data(['ГОРА']), dict)
+
+    def test_build_cell_data_top_keys(self):
+        d = self.build_cell_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_cell_data_rule_keys(self):
+        d = self.build_cell_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_cell_data_word_uppercase(self):
+        d = self.build_cell_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_cell_data_gora_and_n_frozen(self):
+        d = self.build_cell_data(['ГОРА'])
+        self.assertEqual(d['per_rule']['and']['ГОРА']['n_frozen'], 0)
+
+    def test_build_cell_data_known_fields(self):
+        d   = self.build_cell_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'n_frozen', 'vocab_sizes', 'mean_vocab_size',
+                    'max_vocab_size', 'transitions', 'mean_transitions',
+                    'max_transitions', 'mean_spatial_var', 'max_spatial_var',
+                    'min_spatial_var', 'uniform_spatial'):
+            self.assertIn(key, rec)
+
+    # ── all_cell ──────────────────────────────────────────────────────────────
+
+    def test_all_cell_returns_dict(self):
+        self.assertIsInstance(self.all_cell('ГОРА'), dict)
+
+    def test_all_cell_four_rules(self):
+        d = self.all_cell('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_cell_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cell-map', content)
+
+    def test_viewer_has_cell_var(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cell-var', content)
+
+    def test_viewer_has_cell_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cell-info', content)
+
+    def test_viewer_has_cl_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cl-word', content)
+
+    def test_viewer_has_cl_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cl-rule', content)
+
+    def test_viewer_has_cl_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cl-btn', content)
+
+    def test_viewer_has_cl_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('clRun', content)
+
+    def test_viewer_has_cell_hue_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cellHue', content)
+
+    def test_viewer_has_cl_orbit_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('clOrbit', content)
+
+
 class TestSolanWidth(unittest.TestCase):
     """Tests for solan_width.py — Period vs. Ring Width Scaling."""
 
