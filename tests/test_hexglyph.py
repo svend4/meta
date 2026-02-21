@@ -7780,6 +7780,231 @@ class TestSolanWperm(unittest.TestCase):
         self.assertIn('Взвешенная энтропия перестановок Q6', content)
 
 
+class TestSolanFourier(unittest.TestCase):
+    """Tests for solan_fourier.py and the viewer Fourier/PSD section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_fourier import (
+            dft1, power_spectrum, spectral_entropy,
+            normalised_spectral_entropy, spectral_flatness,
+            dominant_harmonic, cell_fourier, fourier_profile,
+            fourier_dict, all_fourier, build_fourier_data,
+        )
+        cls.dft1                        = staticmethod(dft1)
+        cls.power_spectrum              = staticmethod(power_spectrum)
+        cls.spectral_entropy            = staticmethod(spectral_entropy)
+        cls.normalised_spectral_entropy = staticmethod(normalised_spectral_entropy)
+        cls.spectral_flatness           = staticmethod(spectral_flatness)
+        cls.dominant_harmonic           = staticmethod(dominant_harmonic)
+        cls.cell_fourier                = staticmethod(cell_fourier)
+        cls.fourier_profile             = staticmethod(fourier_profile)
+        cls.fourier_dict                = staticmethod(fourier_dict)
+        cls.all_fourier                 = staticmethod(all_fourier)
+        cls.build_fourier_data          = staticmethod(build_fourier_data)
+
+    # ── dft1 ───────────────────────────────────────────────────────────
+
+    def test_dft1_empty(self):
+        self.assertEqual(self.dft1([]), [])
+
+    def test_dft1_single(self):
+        X = self.dft1([3.0])
+        self.assertEqual(len(X), 1)
+        self.assertAlmostEqual(X[0].real, 3.0, places=10)
+
+    def test_dft1_dc_component(self):
+        s = [1.0, 2.0, 3.0, 4.0]
+        X = self.dft1(s)
+        self.assertAlmostEqual(X[0].real, 10.0, places=8)
+
+    def test_dft1_pure_cosine_peak_at_k1(self):
+        import math
+        N = 8
+        s = [math.cos(2 * math.pi * t / N) for t in range(N)]
+        X = self.dft1(s)
+        self.assertGreater(abs(X[1]), abs(X[0]))
+
+    # ── power_spectrum ─────────────────────────────────────────────────
+
+    def test_power_spectrum_empty(self):
+        self.assertEqual(self.power_spectrum([]), [])
+
+    def test_power_spectrum_length(self):
+        ps = self.power_spectrum([1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(len(ps), 5)
+
+    def test_power_spectrum_nonneg(self):
+        ps = self.power_spectrum([10, 5, 20, 15, 3, 8])
+        self.assertTrue(all(v >= 0 for v in ps))
+
+    def test_power_spectrum_constant_dc_only(self):
+        ps = self.power_spectrum([5, 5, 5, 5])
+        self.assertGreater(ps[0], 0)
+        self.assertAlmostEqual(sum(ps[1:]), 0.0, places=8)
+
+    # ── spectral_entropy ───────────────────────────────────────────────
+
+    def test_spectral_entropy_single_bin_is_zero(self):
+        self.assertAlmostEqual(self.spectral_entropy([5.0]), 0.0)
+
+    def test_spectral_entropy_all_zero_is_zero(self):
+        self.assertAlmostEqual(self.spectral_entropy([0.0, 0.0]), 0.0)
+
+    def test_spectral_entropy_uniform_max(self):
+        import math
+        ps = [1.0, 1.0, 1.0, 1.0]
+        self.assertAlmostEqual(self.spectral_entropy(ps), math.log2(4), places=8)
+
+    def test_spectral_entropy_nonneg(self):
+        self.assertGreaterEqual(self.spectral_entropy([3.0, 1.0, 2.0, 0.5]), 0.0)
+
+    # ── normalised_spectral_entropy ────────────────────────────────────
+
+    def test_nse_range(self):
+        v = self.normalised_spectral_entropy([2.0, 1.0, 3.0, 0.5])
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_nse_uniform_is_one(self):
+        self.assertAlmostEqual(self.normalised_spectral_entropy([1.0] * 8), 1.0, places=6)
+
+    def test_nse_one_bin_is_zero(self):
+        self.assertAlmostEqual(self.normalised_spectral_entropy([7.0]), 0.0)
+
+    def test_nse_all_zero_is_zero(self):
+        self.assertAlmostEqual(self.normalised_spectral_entropy([0.0, 0.0, 0.0]), 0.0)
+
+    # ── spectral_flatness ──────────────────────────────────────────────
+
+    def test_sf_uniform_is_one(self):
+        self.assertAlmostEqual(self.spectral_flatness([2.0, 2.0, 2.0, 2.0]), 1.0, places=6)
+
+    def test_sf_zero_if_zero_bin(self):
+        self.assertAlmostEqual(self.spectral_flatness([3.0, 0.0, 2.0]), 0.0)
+
+    def test_sf_range(self):
+        v = self.spectral_flatness([10.0, 1.0, 5.0, 2.0])
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    # ── dominant_harmonic ──────────────────────────────────────────────
+
+    def test_dominant_harmonic_returns_k_ge_1(self):
+        k = self.dominant_harmonic([100.0, 5.0, 20.0, 3.0])
+        self.assertGreaterEqual(k, 1)
+
+    def test_dominant_harmonic_finds_peak(self):
+        self.assertEqual(self.dominant_harmonic([100.0, 5.0, 80.0, 3.0]), 2)
+
+    def test_dominant_harmonic_single_bin(self):
+        self.assertEqual(self.dominant_harmonic([5.0]), 1)
+
+    # ── Fixed-point attractors → nH_sp = 0 ────────────────────────────
+
+    def test_tuman_xor_nh_sp_zero(self):
+        profile = self.fourier_profile('ТУМАН', 'xor', 16)
+        for c in profile:
+            self.assertAlmostEqual(c['nh_sp'], 0.0)
+
+    def test_gora_and_nh_sp_high(self):
+        profile = self.fourier_profile('ГОРА', 'and', 16)
+        active = [c['nh_sp'] for c in profile if c['ac_total'] > 0]
+        if active:
+            self.assertGreater(sum(active) / len(active), 0.9)
+
+    def test_tuman_xor3_nh_sp_mid(self):
+        d = self.fourier_dict('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['mean_nh_sp'], 0.05)
+        self.assertLess(d['mean_nh_sp'], 0.6)
+
+    # ── fourier_dict structure ─────────────────────────────────────────
+
+    def test_fourier_dict_keys(self):
+        d = self.fourier_dict('ТУМАН', 'xor3', 16)
+        for k in ('word', 'rule', 'period', 'cell_fourier',
+                  'mean_nh_sp', 'mean_sf', 'mean_dc_frac',
+                  'mean_ps', 'dominant_k', 'eff_period', 'n_bins'):
+            self.assertIn(k, d)
+
+    def test_fourier_dict_profile_length(self):
+        d = self.fourier_dict('ГОРА', 'xor3', 16)
+        self.assertEqual(len(d['cell_fourier']), 16)
+
+    def test_fourier_dict_nh_sp_range(self):
+        d = self.fourier_dict('ТУМАН', 'xor3', 16)
+        for c in d['cell_fourier']:
+            self.assertGreaterEqual(c['nh_sp'], 0.0)
+            self.assertLessEqual(c['nh_sp'], 1.0)
+
+    def test_fourier_dict_dc_frac_range(self):
+        d = self.fourier_dict('ГОРА', 'and', 16)
+        for c in d['cell_fourier']:
+            self.assertGreaterEqual(c['dc_frac'], 0.0)
+            self.assertLessEqual(c['dc_frac'], 1.0)
+
+    def test_fourier_dict_dominant_k_ge_1(self):
+        d = self.fourier_dict('ТУМАН', 'xor3', 16)
+        self.assertGreaterEqual(d['dominant_k'], 1)
+
+    def test_fourier_dict_word_uppercase(self):
+        d = self.fourier_dict('туман', 'xor3', 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    # ── all_fourier ────────────────────────────────────────────────────
+
+    def test_all_fourier_has_four_rules(self):
+        result = self.all_fourier('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_fourier_values_are_dicts(self):
+        result = self.all_fourier('ГОРА', 16)
+        for rule, d in result.items():
+            self.assertIsInstance(d, dict)
+            self.assertIn('mean_nh_sp', d)
+
+    # ── build_fourier_data ─────────────────────────────────────────────
+
+    def test_build_fourier_data_structure(self):
+        data = self.build_fourier_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_fourier_data_entry_keys(self):
+        data = self.build_fourier_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'mean_nh_sp', 'mean_sf', 'mean_dc_frac',
+                  'dominant_k', 'eff_period', 'n_bins'):
+            self.assertIn(k, entry)
+
+    def test_build_fourier_data_words_uppercase(self):
+        data = self.build_fourier_data(['туман'], 16)
+        self.assertIn('ТУМАН', data['words'])
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_fou_spectrum(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('fou-spectrum', content)
+
+    def test_viewer_has_fou_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('fou-cell', content)
+
+    def test_viewer_has_fou_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('fou-stats', content)
+
+    def test_viewer_has_fou_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('fouRun', content)
+
+    def test_viewer_has_fou_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Фурье / PSD Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 

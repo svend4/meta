@@ -8589,6 +8589,206 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Фурье / PSD Q6 — спектральная энтропия аттрактора</h2>
+<p class="meta">S[k] = |X[k]|²/P — односторонний спектр мощности (ровно 1 период) · nH_sp = H_sp/log₂(K+1) ∈ [0,1] · SF = геом./арифм. среднее (Wiener) · фиксированная точка → nH_sp=0; ГОРА AND (P=2) → nH_sp≈0.999; ТУМАН XOR3 (P=8) → nH_sp≈0.297</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="fou-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="fou-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="fou-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="fou-spectrum" width="530" height="160"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="fou-cell"     width="530" height="90"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="fou-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA helpers ─────────────────────────────────────────────────── */
+  function fouStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function fouOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=fouStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=fouStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++;
+      cur=fouStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  /* ── DFT & spectrum ─────────────────────────────────────────────────── */
+  function fouDFT(s){
+    var N=s.length,X=[];
+    for(var k=0;k<N;k++){
+      var re=0,im=0;
+      for(var t=0;t<N;t++){
+        var angle=-2*Math.PI*k*t/N;
+        re+=s[t]*Math.cos(angle); im+=s[t]*Math.sin(angle);
+      }
+      X.push({re:re,im:im});
+    }
+    return X;
+  }
+  function fouPS(s){
+    var N=s.length;
+    if(!N) return [];
+    var X=fouDFT(s),K=Math.floor(N/2),ps=[];
+    for(var k=0;k<=K;k++) ps.push((X[k].re*X[k].re+X[k].im*X[k].im)/N);
+    return ps;
+  }
+  function fouNHsp(ps){
+    var total=ps.reduce(function(a,b){return a+b;},0);
+    if(total<=0||ps.length<=1) return 0;
+    var h=0;
+    ps.forEach(function(v){if(v>0){var p=v/total; h-=p*Math.log2(p);}});
+    return Math.max(0,Math.min(h/Math.log2(ps.length),1));
+  }
+  function fouSF(ps){
+    var n=ps.length,total=ps.reduce(function(a,b){return a+b;},0);
+    if(!n||total<=0||ps.some(function(v){return v<=0;})) return 0;
+    var logMean=ps.reduce(function(a,v){return a+Math.log(v);},0)/n;
+    return Math.min(Math.exp(logMean)/(total/n),1);
+  }
+  function fouDomK(ps){
+    if(ps.length<=1) return 1;
+    var best=1,bestV=ps.length>1?ps[1]:0;
+    for(var k=2;k<ps.length;k++){if(ps[k]>bestV){bestV=ps[k];best=k;}}
+    return best;
+  }
+  /* ── Main render ────────────────────────────────────────────────────── */
+  function fouRun(){
+    var word=(document.getElementById('fou-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('fou-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var grid=fouOrbit(ic,rule);
+    var P=grid.length,N=grid[0].length;
+    /* Per-cell power spectra */
+    var allPS=[],nhArr=[];
+    for(var i=0;i<N;i++){
+      var s=[];
+      for(var t=0;t<P;t++) s.push(grid[t][i]);
+      var ps=fouPS(s);
+      allPS.push(ps);
+      nhArr.push(fouNHsp(ps));
+    }
+    /* Mean power spectrum */
+    var maxBins=allPS.reduce(function(m,ps){return Math.max(m,ps.length);},0);
+    var meanPS=[];
+    for(var k=0;k<maxBins;k++){
+      var vals=allPS.filter(function(ps){return k<ps.length;}).map(function(ps){return ps[k];});
+      meanPS.push(vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0);
+    }
+    var domK=fouDomK(meanPS);
+    var effP=domK>0?Math.floor(P/domK):P;
+    var meanNH=nhArr.reduce(function(a,b){return a+b;},0)/N;
+    var meanSFv=allPS.map(fouSF).reduce(function(a,b){return a+b;},0)/N;
+    var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    var col=RCOL[rule]||'#4fc3f7';
+    /* ── Spectrum canvas ─────────────────────────────────────────────── */
+    var sc=document.getElementById('fou-spectrum');
+    var sx=sc.getContext('2d');
+    var SW=sc.width,SH=sc.height;
+    sx.fillStyle='#0d0d0d'; sx.fillRect(0,0,SW,SH);
+    var sMax=Math.max.apply(null,meanPS)||1;
+    var K=meanPS.length;
+    var barW=K>0?Math.floor((SW-40)/K)-2:20;
+    barW=Math.max(barW,4);
+    var maxH=SH-46;
+    for(var k=0;k<K;k++){
+      var bx=30+k*(barW+2);
+      var bh=Math.round(meanPS[k]/sMax*maxH);
+      sx.fillStyle=(k===0)?'#888':(k===domK)?'#ffd54f':col;
+      sx.globalAlpha=0.85;
+      sx.fillRect(bx,SH-36-bh,barW,bh);
+      sx.globalAlpha=1;
+      sx.fillStyle='#555'; sx.font='8px monospace'; sx.textAlign='center';
+      if(K<=9||k%2===0) sx.fillText('k='+k,bx+barW/2,SH-22);
+      if(bh>14){sx.fillStyle='#aaa'; sx.fillText(meanPS[k].toFixed(0),bx+barW/2,SH-37-bh);}
+    }
+    sx.fillStyle='#666'; sx.font='9px monospace'; sx.textAlign='left';
+    sx.fillText('S\u0304[k]',2,12); sx.fillText('0',2,SH-33);
+    sx.fillStyle='#888'; sx.fillRect(SW-112,8,12,10);
+    sx.fillStyle='#ccc'; sx.font='10px monospace'; sx.textAlign='left';
+    sx.fillText('DC k=0',SW-97,18);
+    sx.fillStyle='#ffd54f'; sx.fillRect(SW-112,22,12,10);
+    sx.fillText('k*='+domK,SW-97,32);
+    /* ── Cell nH_sp canvas ───────────────────────────────────────────── */
+    var cc=document.getElementById('fou-cell');
+    var cx=cc.getContext('2d');
+    var CW=cc.width,CH=cc.height;
+    cx.fillStyle='#0d0d0d'; cx.fillRect(0,0,CW,CH);
+    var cbarW=Math.floor((CW-30)/N)-2,cmaxH=CH-38;
+    for(var i=0;i<N;i++){
+      var bx=20+i*(cbarW+2);
+      var bh=Math.round(nhArr[i]*cmaxH);
+      cx.fillStyle=col; cx.globalAlpha=0.85;
+      cx.fillRect(bx,CH-28-bh,cbarW,bh);
+      cx.globalAlpha=1;
+    }
+    cx.fillStyle='#666'; cx.font='9px monospace'; cx.textAlign='left';
+    cx.fillText('nH_sp',2,12); cx.fillText('0',2,CH-25);
+    cx.fillStyle='#555'; cx.textAlign='center';
+    for(var i=0;i<N;i+=4) cx.fillText(i,20+i*(cbarW+2)+cbarW/2,CH-14);
+    cx.fillText('\u044f\u0447\u0435\u0439\u043a\u0430',CW/2,CH-5);
+    /* Stats */
+    document.getElementById('fou-stats').innerHTML=
+      'P='+P+
+      '  k*='+domK+
+      '  T_eff='+effP+
+      '  mean_nH_sp='+meanNH.toFixed(4)+
+      '  mean_SF='+meanSFv.toFixed(4);
+  }
+  window.fouRun=fouRun;
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('fou-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('fou-btn');
+    var wordEl=document.getElementById('fou-word');
+    var ruleEl=document.getElementById('fou-rule');
+    if(btn)    btn.addEventListener('click',fouRun);
+    if(wordEl) wordEl.addEventListener('change',fouRun);
+    if(ruleEl) ruleEl.addEventListener('change',fouRun);
+    setTimeout(function(){if(window.encL) fouRun();},2200);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
