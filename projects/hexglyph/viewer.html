@@ -15415,6 +15415,204 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Cell Temporal Run Analysis (solan_run)</h2>
+<p style="color:#888;font-size:13px">
+  For each cell, count direction changes (turns) and value range across the P-step orbit.
+  A <em>turn</em> occurs when the non-zero step direction reverses (local max or min).
+  A <em>quasi-frozen</em> cell has 0 turns: it drops to its attractor value and stays.
+  <br>
+  ★ РАБОТА XOR3 cell 1: 6 turns, range=63 — maximum volatility in the lexicon.
+  &nbsp;★ МАТ XOR3 cells 7–8: 0 turns, n_const=6 — quasi-frozen after first step.
+  &nbsp;★ P=2 words: all cells have 0 turns (period too short for reversals).
+</p>
+<label style="color:#aaa">Слово:
+  <select id="rn-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="rn-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="rn-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="rn-canvas" width="660" height="200"
+  style="background:#0a0a0a;border:1px solid #222"></canvas>
+<div id="rn-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  function rnStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function rnOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=rnStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=rnStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=rnStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function analyzeCell(seq){
+    var P=seq.length;
+    var nInc=0,nDec=0,nConst=0;
+    for(var t=0;t<P-1;t++){
+      var d=seq[t+1]-seq[t];
+      if(d>0) nInc++; else if(d<0) nDec++; else nConst++;
+    }
+    var nTurns=0,lastSign=0;
+    for(var t=0;t<P-1;t++){
+      var d=seq[t+1]-seq[t];
+      if(d>0){if(lastSign<0) nTurns++;lastSign=1;}
+      else if(d<0){if(lastSign>0) nTurns++;lastSign=-1;}
+    }
+    var mn=seq[0],mx=seq[0];
+    for(var t=1;t<P;t++){if(seq[t]<mn)mn=seq[t];if(seq[t]>mx)mx=seq[t];}
+    return {nTurns:nTurns,nInc:nInc,nDec:nDec,nConst:nConst,range:mx-mn,minV:mn,maxV:mx};
+  }
+
+  function rnRun(){
+    var word=(document.getElementById('rn-word').value||'РАБОТА').toUpperCase();
+    var rule=document.getElementById('rn-rule').value;
+    if(!window.encL||!window.padL){
+      document.getElementById('rn-info').textContent='(данные не загружены)';return;
+    }
+    var lw=window.LEXW||16;
+    var raw=window.encL(word);
+    if(!raw||!raw.length){document.getElementById('rn-info').textContent='(нет символов)';return;}
+    var ic=window.padL(raw,lw);
+    var orbit=rnOrbit(ic,rule);
+    var P=orbit.length,N=lw;
+
+    // Per-cell analysis
+    var cells=[];
+    for(var i=0;i<N;i++){
+      var seq=orbit.map(function(s){return s[i];});
+      cells.push(analyzeCell(seq));
+    }
+    var maxT=cells.reduce(function(m,c){return Math.max(m,c.nTurns);},0);
+    var maxR=cells.reduce(function(m,c){return Math.max(m,c.range);},1);
+    var maxTCell=cells.findIndex(function(c){return c.nTurns===maxT;});
+    var maxRCell=cells.findIndex(function(c){return c.range===maxR;});
+    var qf=cells.map(function(c,i){return c.nTurns===0?i:-1;}).filter(function(i){return i>=0;});
+
+    // Draw chart
+    var cv=document.getElementById('rn-canvas');
+    var ctx=cv.getContext('2d');
+    var W=cv.width,H=cv.height;
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
+
+    var HPAD=40,VPAD=20,MGAP=20,HTOP=(H-VPAD*2-MGAP)/2;
+    var barW=Math.floor((W-HPAD*2)/N);
+    var TOP1=VPAD,TOP2=VPAD+HTOP+MGAP;
+
+    // Axis labels
+    ctx.fillStyle='#444'; ctx.font='10px monospace'; ctx.textAlign='left';
+    ctx.fillText('turns',2,TOP1+14);
+    ctx.fillText('range',2,TOP2+14);
+
+    for(var i=0;i<N;i++){
+      var bx=HPAD+i*barW;
+      var c=cells[i];
+
+      // Turns bar (top panel)
+      var th=maxT>0?Math.round((c.nTurns/maxT)*HTOP):0;
+      var tAlpha=maxT>0?0.4+0.6*(c.nTurns/maxT):0.2;
+      ctx.globalAlpha=tAlpha;
+      if(c.nTurns===maxT&&maxT>0) ctx.fillStyle='#e67e22';
+      else if(c.nTurns===0) ctx.fillStyle='#555';
+      else ctx.fillStyle='#2ecc71';
+      if(th>0) ctx.fillRect(bx+2,TOP1+HTOP-th,barW-4,th);
+      ctx.globalAlpha=1.0;
+
+      // Range bar (bottom panel)
+      var rh=maxR>0?Math.round((c.range/maxR)*HTOP):0;
+      var rAlpha=maxR>0?0.4+0.6*(c.range/maxR):0.2;
+      ctx.globalAlpha=rAlpha;
+      if(c.range===maxR&&maxR>0) ctx.fillStyle='#3498db';
+      else ctx.fillStyle='#9b59b6';
+      if(rh>0) ctx.fillRect(bx+2,TOP2+HTOP-rh,barW-4,rh);
+      ctx.globalAlpha=1.0;
+
+      // Cell number
+      ctx.fillStyle='#444'; ctx.font='8px monospace'; ctx.textAlign='center';
+      ctx.fillText(i,bx+barW/2,H-4);
+
+      // Turn count label
+      if(c.nTurns>0){
+        ctx.fillStyle=c.nTurns===maxT?'#e67e22':'#666';
+        ctx.font='8px monospace'; ctx.textAlign='center';
+        ctx.fillText(c.nTurns,bx+barW/2,TOP1+HTOP-th-2);
+      }
+    }
+
+    // Axes
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(HPAD,TOP1+HTOP); ctx.lineTo(W-HPAD,TOP1+HTOP);
+    ctx.moveTo(HPAD,TOP2+HTOP); ctx.lineTo(W-HPAD,TOP2+HTOP);
+    ctx.stroke();
+
+    // Summary text
+    var meanT=cells.reduce(function(s,c){return s+c.nTurns;},0)/N;
+    var meanR=cells.reduce(function(s,c){return s+c.range;},0)/N;
+    var totalInc=cells.reduce(function(s,c){return s+c.nInc;},0);
+    var totalDec=cells.reduce(function(s,c){return s+c.nDec;},0);
+    var totalConst=cells.reduce(function(s,c){return s+c.nConst;},0);
+    var lines=[
+      'P='+P+'  rule='+rule+'  word='+word,
+      'max_turns='+maxT+' at cell '+maxTCell+'   mean_turns='+meanT.toFixed(2),
+      'max_range='+maxR+' at cell '+maxRCell+'   mean_range='+meanR.toFixed(1),
+      'total_inc='+totalInc+'  total_dec='+totalDec+'  total_const='+totalConst,
+      'quasi_frozen (0 turns): ['+qf.join(', ')+']  ('+qf.length+'/'+N+')',
+    ];
+    document.getElementById('rn-info').textContent=lines.join('\n');
+  }
+
+  (function(){
+    var sel=document.getElementById('rn-word');
+    var words=window.LEXICON_ARR||['РАБОТА','МАТ','ТУМАН','ГОРА'];
+    words.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='РАБОТА') o.selected=true;
+      sel.appendChild(o);
+    });
+  })();
+
+  document.getElementById('rn-btn').addEventListener('click',rnRun);
+  document.getElementById('rn-word').addEventListener('change',rnRun);
+  document.getElementById('rn-rule').addEventListener('change',rnRun);
+  setTimeout(function(){if(window.encL&&window.LEXICON_ARR) rnRun();},12000);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

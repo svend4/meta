@@ -19811,5 +19811,346 @@ class TestSolanCoverage(unittest.TestCase):
         self.assertIn('XOR3_ABSENT', content)
 
 
+class TestSolanRun(unittest.TestCase):
+    """Tests for solan_run.py — cell temporal run analysis of Q6 CA orbits."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_run import (
+            analyze_cell, run_summary, all_run,
+            build_run_data, run_dict,
+        )
+        cls.analyze_cell = staticmethod(analyze_cell)
+        cls.run_summary  = staticmethod(run_summary)
+        cls.all_run      = staticmethod(all_run)
+        cls.build_data   = staticmethod(build_run_data)
+        cls.run_dict     = staticmethod(run_dict)
+
+        # Precomputed summaries
+        cls.s_rabota_xor3 = run_summary('РАБОТА', 'xor3', 16)
+        cls.s_mat_xor3    = run_summary('МАТ',    'xor3', 16)
+        cls.s_gora_xor3   = run_summary('ГОРА',   'xor3', 16)
+        cls.s_tuman_xor3  = run_summary('ТУМАН',  'xor3', 16)
+        cls.s_mat_xor     = run_summary('МАТ',    'xor',  16)
+        cls.s_mat_and     = run_summary('МАТ',    'and',  16)
+
+    # ── analyze_cell ──────────────────────────────────────────────────────────
+
+    def test_analyze_cell_constant_sequence(self):
+        a = self.analyze_cell([5, 5, 5, 5])
+        self.assertEqual(a['n_turns'], 0)
+        self.assertEqual(a['n_inc'],   0)
+        self.assertEqual(a['n_dec'],   0)
+        self.assertEqual(a['n_const'], 3)
+        self.assertEqual(a['value_range'], 0)
+
+    def test_analyze_cell_monotone_inc(self):
+        a = self.analyze_cell([1, 2, 3, 4])
+        self.assertEqual(a['n_turns'], 0)
+        self.assertEqual(a['n_inc'],   3)
+        self.assertEqual(a['n_dec'],   0)
+
+    def test_analyze_cell_monotone_dec(self):
+        a = self.analyze_cell([4, 3, 2, 1])
+        self.assertEqual(a['n_turns'], 0)
+        self.assertEqual(a['n_inc'],   0)
+        self.assertEqual(a['n_dec'],   3)
+
+    def test_analyze_cell_one_turn(self):
+        # 1,3,1 — goes up then down: 1 turn (local max at t=1)
+        a = self.analyze_cell([1, 3, 1])
+        self.assertEqual(a['n_turns'], 1)
+        self.assertEqual(a['n_inc'],   1)
+        self.assertEqual(a['n_dec'],   1)
+
+    def test_analyze_cell_two_turns(self):
+        # 3,1,3,1 — up/down/up: 2 turns
+        a = self.analyze_cell([3, 1, 3, 1])
+        self.assertEqual(a['n_turns'], 2)
+
+    def test_analyze_cell_range(self):
+        a = self.analyze_cell([10, 40, 20, 5])
+        self.assertEqual(a['value_range'], 35)
+        self.assertEqual(a['min_val'], 5)
+        self.assertEqual(a['max_val'], 40)
+
+    def test_analyze_cell_const_does_not_break_run(self):
+        # 1,2,2,1 — increases then flat then decreases: 1 turn
+        a = self.analyze_cell([1, 2, 2, 1])
+        self.assertEqual(a['n_turns'], 1)
+        self.assertEqual(a['n_const'], 1)
+
+    def test_analyze_cell_period1(self):
+        a = self.analyze_cell([42])
+        self.assertEqual(a['n_turns'],  0)
+        self.assertEqual(a['n_inc'],    0)
+        self.assertEqual(a['n_dec'],    0)
+        self.assertEqual(a['n_const'],  0)
+        self.assertEqual(a['value_range'], 0)
+
+    def test_analyze_cell_alternating(self):
+        # 63,0,63,0 — alternates: 2 turns (down, up, down skipped — 2 sign reversals)
+        a = self.analyze_cell([63, 0, 63, 0])
+        self.assertEqual(a['n_turns'], 2)
+
+    def test_analyze_cell_returns_required_keys(self):
+        a = self.analyze_cell([1, 2, 1])
+        for key in ('n_turns', 'n_inc', 'n_dec', 'n_const',
+                    'value_range', 'min_val', 'max_val'):
+            self.assertIn(key, a)
+
+    # ── run_summary structure ─────────────────────────────────────────────────
+
+    def test_summary_has_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'cell_n_turns', 'cell_n_inc', 'cell_n_dec', 'cell_n_const',
+            'cell_range', 'cell_min_val', 'cell_max_val',
+            'max_turns', 'max_turns_cell', 'min_turns', 'min_turns_cell',
+            'mean_turns', 'total_inc', 'total_dec', 'total_const',
+            'max_range', 'max_range_cell', 'min_range', 'min_range_cell',
+            'mean_range', 'quasi_frozen_cells', 'n_quasi_frozen',
+        }
+        self.assertTrue(required.issubset(self.s_rabota_xor3.keys()))
+
+    def test_summary_list_lengths(self):
+        s = self.s_rabota_xor3
+        N = s['n_cells']
+        for key in ('cell_n_turns', 'cell_n_inc', 'cell_n_dec',
+                    'cell_n_const', 'cell_range', 'cell_min_val', 'cell_max_val'):
+            self.assertEqual(len(s[key]), N, f'{key} length mismatch')
+
+    def test_summary_word_rule_preserved(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['word'], 'РАБОТА')
+        self.assertEqual(s['rule'], 'xor3')
+
+    def test_summary_period(self):
+        self.assertEqual(self.s_rabota_xor3['period'], 8)
+        self.assertEqual(self.s_gora_xor3['period'],   2)
+
+    def test_summary_n_cells(self):
+        self.assertEqual(self.s_rabota_xor3['n_cells'], 16)
+
+    def test_summary_total_steps_conservation(self):
+        # total_inc + total_dec + total_const = N × (P-1)
+        s = self.s_rabota_xor3
+        expected = s['n_cells'] * (s['period'] - 1)
+        actual = s['total_inc'] + s['total_dec'] + s['total_const']
+        self.assertEqual(actual, expected)
+
+    def test_summary_max_turns_cell_consistent(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['cell_n_turns'][s['max_turns_cell']], s['max_turns'])
+
+    def test_summary_min_turns_cell_consistent(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['cell_n_turns'][s['min_turns_cell']], s['min_turns'])
+
+    def test_summary_max_range_cell_consistent(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['cell_range'][s['max_range_cell']], s['max_range'])
+
+    def test_summary_mean_turns_bounds(self):
+        s = self.s_rabota_xor3
+        self.assertGreaterEqual(s['mean_turns'], s['min_turns'])
+        self.assertLessEqual(s['mean_turns'],    s['max_turns'])
+
+    def test_summary_quasi_frozen_subset(self):
+        s = self.s_rabota_xor3
+        for i in s['quasi_frozen_cells']:
+            self.assertEqual(s['cell_n_turns'][i], 0)
+
+    def test_summary_n_quasi_frozen_matches_list(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['n_quasi_frozen'], len(s['quasi_frozen_cells']))
+
+    # ── РАБОТА XOR3 known values ──────────────────────────────────────────────
+
+    def test_rabota_max_turns(self):
+        # Cell 1: [63,62,63,1,63,0,63,62] → 6 turns
+        self.assertEqual(self.s_rabota_xor3['max_turns'], 6)
+
+    def test_rabota_max_turns_cell(self):
+        self.assertEqual(self.s_rabota_xor3['max_turns_cell'], 1)
+
+    def test_rabota_max_range(self):
+        # Cell 1 has range 63 (0–63)
+        self.assertEqual(self.s_rabota_xor3['max_range'], 63)
+
+    def test_rabota_quasi_frozen(self):
+        # Cells 7,8 have 0 turns
+        qf = self.s_rabota_xor3['quasi_frozen_cells']
+        self.assertIn(7, qf)
+        self.assertIn(8, qf)
+
+    def test_rabota_cell1_n_turns(self):
+        self.assertEqual(self.s_rabota_xor3['cell_n_turns'][1], 6)
+
+    def test_rabota_cell7_zero_turns(self):
+        self.assertEqual(self.s_rabota_xor3['cell_n_turns'][7], 0)
+
+    def test_rabota_cell8_zero_turns(self):
+        self.assertEqual(self.s_rabota_xor3['cell_n_turns'][8], 0)
+
+    # ── МАТ XOR3 known values ────────────────────────────────────────────────
+
+    def test_mat_quasi_frozen_includes_7_8(self):
+        qf = self.s_mat_xor3['quasi_frozen_cells']
+        self.assertIn(7, qf)
+        self.assertIn(8, qf)
+
+    def test_mat_cell7_zero_turns(self):
+        self.assertEqual(self.s_mat_xor3['cell_n_turns'][7], 0)
+
+    def test_mat_cell8_zero_turns(self):
+        self.assertEqual(self.s_mat_xor3['cell_n_turns'][8], 0)
+
+    def test_mat_cell7_mostly_const(self):
+        # seq [63,23,23,...] → n_const=6 out of 7 steps
+        self.assertEqual(self.s_mat_xor3['cell_n_const'][7], 6)
+
+    def test_mat_cell0_four_turns(self):
+        # Outer cells have 4 turns (gradient pattern)
+        self.assertEqual(self.s_mat_xor3['cell_n_turns'][0], 4)
+
+    def test_mat_xor3_period(self):
+        self.assertEqual(self.s_mat_xor3['period'], 8)
+
+    # ── ГОРА XOR3 (P=2) ──────────────────────────────────────────────────────
+
+    def test_gora_all_zero_turns(self):
+        # P=2 means only 1 step → can't have a turn
+        s = self.s_gora_xor3
+        self.assertEqual(s['max_turns'], 0)
+        self.assertEqual(len(s['quasi_frozen_cells']), s['n_cells'])
+
+    def test_gora_n_quasi_frozen_all_cells(self):
+        s = self.s_gora_xor3
+        self.assertEqual(s['n_quasi_frozen'], 16)
+
+    def test_gora_total_const_zero_for_p2(self):
+        # P=2: each cell has exactly 1 step (inc or dec), never const
+        s = self.s_gora_xor3
+        self.assertEqual(s['total_const'], 0)
+
+    # ── AND / XOR rules ───────────────────────────────────────────────────────
+
+    def test_mat_and_period1_all_zero_turns(self):
+        # AND collapses to fixed point P=1 → no steps → 0 turns
+        s = self.s_mat_and
+        self.assertEqual(s['period'], 1)
+        self.assertEqual(s['max_turns'], 0)
+        self.assertEqual(s['total_inc'], 0)
+        self.assertEqual(s['total_dec'], 0)
+        self.assertEqual(s['total_const'], 0)
+
+    def test_mat_xor_period(self):
+        # XOR converges to 0; P=1 for all words (fixed-point {0})
+        # (or P=2 transitional — just verify no error and period≥1)
+        s = self.s_mat_xor
+        self.assertGreaterEqual(s['period'], 1)
+        self.assertGreaterEqual(s['max_turns'], 0)
+
+    # ── all_run ───────────────────────────────────────────────────────────────
+
+    def test_all_run_returns_all_rules(self):
+        ar = self.all_run('ТУМАН', 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, ar)
+
+    def test_all_run_each_is_dict(self):
+        ar = self.all_run('ТУМАН', 16)
+        for d in ar.values():
+            self.assertIsInstance(d, dict)
+            self.assertIn('max_turns', d)
+
+    # ── build_run_data ────────────────────────────────────────────────────────
+
+    def test_build_run_data_keys(self):
+        words = ['МАТ', 'ГОРА']
+        d = self.build_data(words, 16)
+        self.assertIn('words', d)
+        self.assertIn('data',  d)
+        self.assertEqual(d['words'], words)
+
+    def test_build_run_data_nested_structure(self):
+        words = ['МАТ']
+        d = self.build_data(words, 16)
+        self.assertIn('МАТ', d['data'])
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, d['data']['МАТ'])
+
+    # ── run_dict ─────────────────────────────────────────────────────────────
+
+    def test_run_dict_json_serialisable(self):
+        import json
+        rd = self.run_dict(self.s_rabota_xor3)
+        out = json.dumps(rd)
+        self.assertIsInstance(out, str)
+
+    def test_run_dict_has_max_turns(self):
+        rd = self.run_dict(self.s_rabota_xor3)
+        self.assertIn('max_turns', rd)
+        self.assertEqual(rd['max_turns'], 6)
+
+    def test_run_dict_has_cell_lists(self):
+        rd = self.run_dict(self.s_rabota_xor3)
+        self.assertIsInstance(rd['cell_n_turns'], list)
+        self.assertEqual(len(rd['cell_n_turns']), 16)
+
+    # ── mean_turns and mean_range bounds ─────────────────────────────────────
+
+    def test_mean_turns_non_negative(self):
+        for s in (self.s_rabota_xor3, self.s_mat_xor3, self.s_gora_xor3):
+            self.assertGreaterEqual(s['mean_turns'], 0.0)
+
+    def test_mean_range_non_negative(self):
+        for s in (self.s_rabota_xor3, self.s_mat_xor3):
+            self.assertGreaterEqual(s['mean_range'], 0.0)
+
+    def test_range_non_negative_all_cells(self):
+        for s in (self.s_rabota_xor3, self.s_mat_xor3, self.s_gora_xor3):
+            for r in s['cell_range']:
+                self.assertGreaterEqual(r, 0)
+
+    def test_turns_non_negative_all_cells(self):
+        for s in (self.s_rabota_xor3, self.s_mat_xor3, self.s_gora_xor3):
+            for t in s['cell_n_turns']:
+                self.assertGreaterEqual(t, 0)
+
+    # ── Viewer HTML assertions ────────────────────────────────────────────────
+
+    def test_viewer_has_rn_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rn-canvas', content)
+
+    def test_viewer_has_rn_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rnRun', content)
+
+    def test_viewer_has_rn_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rnOrbit', content)
+
+    def test_viewer_has_analyze_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('analyzeCell', content)
+
+    def test_viewer_has_rn_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rn-info', content)
+
+    def test_viewer_has_quasi_frozen(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('quasi_frozen', content)
+
+    def test_viewer_has_solan_run_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_run', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
