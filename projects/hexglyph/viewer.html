@@ -14112,6 +14112,249 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Temporal &amp; Spatial Autocorrelation (solan_autocorr)</h2>
+<p style="color:#888;font-size:13px">
+  Temporal AC ρ(τ): for each cell, how its value at step t correlates with
+  its value at step t+τ (Pearson, averaged over the periodic orbit).
+  Left heatmap: per-cell AC profile (x=lag, y=cell; warm=positive, cool=negative).
+  Right: mean temporal AC + spatial AC profile.
+  <br>
+  ★ P=2 orbits: ρ(1)=−1 for EVERY cell (proven: anti-correlation law).&nbsp;
+  ★ ТУМАН XOR3: palindromic profile; inner cells are near period-3.
+</p>
+<label style="color:#aaa">Слово:
+  <select id="ac-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="ac-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="ac-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+  <canvas id="ac-heat" width="320" height="220"
+    style="background:#0a0a0a;border:1px solid #222"></canvas>
+  <canvas id="ac-curves" width="206" height="220"
+    style="background:#0a0a0a;border:1px solid #222"></canvas>
+</div>
+<div id="ac-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+
+  function acStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function acOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=acStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=acStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=acStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function acPearson(s1,s2){
+    var n=s1.length,m1=0,m2=0,v1=0,v2=0,cov=0;
+    for(var i=0;i<n;i++){m1+=s1[i];m2+=s2[i];}
+    m1/=n;m2/=n;
+    for(var i=0;i<n;i++){
+      v1+=(s1[i]-m1)*(s1[i]-m1);
+      v2+=(s2[i]-m2)*(s2[i]-m2);
+      cov+=(s1[i]-m1)*(s2[i]-m2);
+    }
+    if(v1<1e-12||v2<1e-12) return 0;
+    return cov/Math.sqrt(v1*v2);
+  }
+
+  function acTemporalProfile(grid,ci){
+    var P=grid.length;
+    var s=grid.map(function(row){return row[ci];});
+    var mu=s.reduce(function(a,b){return a+b;},0)/P;
+    var vr=s.reduce(function(a,b){return a+(b-mu)*(b-mu);},0)/P;
+    if(vr<1e-12) return Array(P).fill(1.0);
+    var r=[];
+    for(var lag=0;lag<P;lag++){
+      var cov=0;
+      for(var t=0;t<P;t++) cov+=(s[t]-mu)*(s[(t+lag)%P]-mu);
+      r.push(cov/(P*vr));
+    }
+    return r;
+  }
+
+  function acSpatialProfile(grid,maxD){
+    var P=grid.length,N=grid[0].length;
+    var D=Math.min(maxD||Math.floor(N/2),N-1);
+    var result=[1.0];
+    for(var d=1;d<=D;d++){
+      var vals=[];
+      for(var t=0;t<P;t++){
+        var s=grid[t];
+        var mu=s.reduce(function(a,b){return a+b;},0)/N;
+        var vr=s.reduce(function(a,b){return a+(b-mu)*(b-mu);},0)/N;
+        if(vr<1e-12) continue;
+        var cov=0;
+        for(var i=0;i<N;i++) cov+=(s[i]-mu)*(s[(i+d)%N]-mu);
+        vals.push(cov/(N*vr));
+      }
+      result.push(vals.length?vals.reduce(function(a,b){return a+b;})/vals.length:0);
+    }
+    return result;
+  }
+
+  function acColor(v){
+    /* v in [-1,1]: negative=cool blue, zero=dark, positive=warm */
+    if(v>=0){
+      var r=Math.round(80+175*v),g=Math.round(100+100*v),b=Math.round(30+30*v);
+      return 'rgb('+r+','+g+','+b+')';
+    } else {
+      var a=-v;
+      var r=Math.round(20+60*a),g=Math.round(50+130*a),b=Math.round(30+225*a);
+      return 'rgb('+r+','+g+','+b+')';
+    }
+  }
+
+  function acRun(){
+    var wEl=document.getElementById('ac-word');
+    var rEl=document.getElementById('ac-rule');
+    var info=document.getElementById('ac-info');
+    if(!window.encL){if(info) info.textContent='Ожидание…';return;}
+    var word=(wEl?wEl.value:'ТУМАН').toUpperCase();
+    var rule=rEl?rEl.value:'xor3';
+    var ic=window.encL(word);
+    var N=ic.length;
+    var col=BCOL[rule]||'#80deea';
+    var grid=acOrbit(ic,rule);
+    var P=grid.length;
+
+    /* Per-cell AC profiles: N × P */
+    var cellAC=[];
+    for(var ci=0;ci<N;ci++) cellAC.push(acTemporalProfile(grid,ci));
+    /* Mean AC (over cells) */
+    var meanAC=[];
+    for(var lag=0;lag<P;lag++){
+      var s=0;for(var ci=0;ci<N;ci++) s+=cellAC[ci][lag];
+      meanAC.push(s/N);
+    }
+    /* Spatial AC */
+    var spatAC=acSpatialProfile(grid,Math.floor(N/2));
+
+    /* ── Per-cell heatmap ────────────────────────── */
+    var hc=document.getElementById('ac-heat');
+    var hx=hc.getContext('2d');
+    var HW=hc.width,HH=hc.height,padT=14,padB=8;
+    hx.fillStyle='#0a0a0a';hx.fillRect(0,0,HW,HH);
+    var cellH=Math.floor((HH-padT-padB)/N);
+    var lagW =Math.max(1,Math.floor(HW/P));
+    for(var ci=0;ci<N;ci++){
+      for(var lag=0;lag<P;lag++){
+        hx.fillStyle=acColor(cellAC[ci][lag]);
+        hx.fillRect(lag*lagW,padT+ci*cellH,lagW-1,cellH-1);
+      }
+    }
+    hx.fillStyle='#666';hx.font='9px monospace';
+    hx.fillText('cell AC (x=lag, y=cell)',2,padT-2);
+    /* lag labels */
+    for(var lag=0;lag<P&&lag*lagW+4<HW;lag++){
+      hx.fillStyle='#555';hx.font='8px monospace';
+      hx.fillText(lag,lag*lagW+1,padT+N*cellH+padB-1);
+    }
+    /* cell labels */
+    if(cellH>=8){
+      for(var ci=0;ci<N&&ci<20;ci++){
+        hx.fillStyle='#555';hx.font='7px monospace';
+        hx.fillText(ci,lagW*P+1,padT+ci*cellH+cellH-2);
+      }
+    }
+
+    /* ── Mean + Spatial curves ───────────────────── */
+    var cv=document.getElementById('ac-curves');
+    var cx=cv.getContext('2d');
+    var CW=cv.width,CH=cv.height,pad=18;
+    cx.fillStyle='#0a0a0a';cx.fillRect(0,0,CW,CH);
+
+    function drawACBars(data,yTop,hgt,label,barColor){
+      var n=data.length,bw=Math.max(1,Math.floor((CW-4)/n));
+      cx.fillStyle='#555';cx.font='9px monospace';
+      cx.fillText(label,2,yTop+9);
+      var midY=yTop+hgt/2;
+      cx.fillStyle='#222';cx.fillRect(0,midY,CW,1);
+      for(var i=0;i<n;i++){
+        var v=data[i], half=hgt/2-10;
+        var bh=Math.round(Math.abs(v)*half);
+        cx.fillStyle=v>=0?barColor:'#6af';
+        if(v>=0) cx.fillRect(2+i*bw, midY-bh, bw-1, bh);
+        else     cx.fillRect(2+i*bw, midY,     bw-1, bh);
+      }
+    }
+    var halfH=Math.floor(CH/2);
+    drawACBars(meanAC,0,halfH,'mean temporal AC',col);
+    drawACBars(spatAC,halfH+2,CH-halfH-2,'spatial AC',col);
+
+    /* ── Info ─────────────────────────────────────── */
+    var lag1vals=cellAC.map(function(p){return P>1?p[1]:1;});
+    var minL1=Math.min.apply(null,lag1vals).toFixed(3);
+    var maxL1=Math.max.apply(null,lag1vals).toFixed(3);
+    var meanL1=(lag1vals.reduce(function(a,b){return a+b;})/N).toFixed(3);
+    var isPalin=true;
+    for(var tau=1;tau<Math.floor(P/2)+1;tau++){
+      if(Math.abs(meanAC[tau]-meanAC[P-tau])>0.01){isPalin=false;break;}
+    }
+    var allAnti=P>1&&lag1vals.every(function(v){return Math.abs(v+1)<0.01;});
+    var lines=[
+      'Слово: '+word+'  Правило: '+rule.toUpperCase()+'  P='+P,
+      'mean_ac_lag1='+meanL1+'  range=['+minL1+', '+maxL1+']',
+      'mean_AC: ['+meanAC.slice(0,Math.min(8,P)).map(function(v){return v.toFixed(2)}).join(', ')+(P>8?'…':'')+']',
+      (isPalin?'★ palindromic mean_ac profile (ρ[τ]=ρ[P-τ])':''),
+      (allAnti?'★ all_p2_anti: ρ(1)=−1 for every cell (period-2 theorem)':''),
+    ].filter(Boolean);
+    if(info) info.textContent=lines.join('\n');
+  }
+
+  var sel=document.getElementById('ac-word');
+  if(sel&&window.LEXICON_ARR){
+    window.LEXICON_ARR.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w;o.textContent=w;
+      if(w==='ТУМАН') o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+  document.getElementById('ac-btn').addEventListener('click',acRun);
+  document.getElementById('ac-word').addEventListener('change',acRun);
+  document.getElementById('ac-rule').addEventListener('change',acRun);
+  setTimeout(function(){if(window.encL) acRun();},9000);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
