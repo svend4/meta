@@ -12776,6 +12776,179 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Period vs Width — масштабирование периода аттрактора по размеру кольца</h2>
+<p class="meta">P(N) — период при кольце N ячеек · ГОРА AND: P≡2 для всех N · ГОРА XOR3: P≡2 · ТУМАН XOR: P=1 при N=2^k · ТУМАН XOR3: P≈N/2 при N=2^k</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="wd-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <button id="wd-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="width-chart" width="530" height="180"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="width-ratio" width="530" height="60"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="width-info"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  var WIDTHS=[4,8,12,16,20,24,32,48,64];
+  var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  var RULES=['xor','xor3','and','or'];
+
+  function wdOrbitLen(ic,rule){
+    var N=ic.length;
+    function step(cells){
+      var out=new Array(N);
+      for(var i=0;i<N;i++){
+        var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+        if(rule==='xor')       out[i]=(l^r)&63;
+        else if(rule==='xor3') out[i]=(l^c^r)&63;
+        else if(rule==='and')  out[i]=(l&r)&63;
+        else                   out[i]=(l|r)&63;
+      }
+      return out;
+    }
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen) return t-seen[key];
+      seen[key]=t++; cur=step(cur);
+    }
+    return 1;
+  }
+
+  /* encode word at arbitrary width */
+  function encAtWidth(word,w){
+    if(!window.encL) return new Array(w).fill(0);
+    var base=window.encL(word);
+    var out=[];
+    for(var i=0;i<w;i++) out.push(base[i%base.length]);
+    return out;
+  }
+
+  function wdRun(){
+    var word=(document.getElementById('wd-word').value||'ТУМАН').toUpperCase();
+
+    /* Compute periods for all rules × widths */
+    var allPeriods={};
+    RULES.forEach(function(rule){
+      allPeriods[rule]=WIDTHS.map(function(w){
+        return wdOrbitLen(encAtWidth(word,w), rule);
+      });
+    });
+    var maxP=1;
+    RULES.forEach(function(rule){ WIDTHS.forEach(function(_,wi){maxP=Math.max(maxP,allPeriods[rule][wi]);}); });
+
+    /* ── P(N) line chart ─────────────────────────────────────────── */
+    var wc=document.getElementById('width-chart');
+    var wx=wc.getContext('2d');
+    var WW=wc.width, WH=wc.height;
+    wx.fillStyle='#0a0a0a'; wx.fillRect(0,0,WW,WH);
+    var PAD=36, rPad=8, botPad=22;
+    var cW=WW-PAD-rPad, cH=WH-PAD-botPad;
+    /* Axes */
+    wx.strokeStyle='#333'; wx.lineWidth=1;
+    wx.beginPath(); wx.moveTo(PAD,PAD); wx.lineTo(PAD,PAD+cH); wx.lineTo(PAD+cW,PAD+cH); wx.stroke();
+    /* Y axis labels */
+    wx.fillStyle='#555'; wx.font='9px monospace'; wx.textAlign='right';
+    wx.fillText(maxP, PAD-3, PAD+4);
+    wx.fillText(1, PAD-3, PAD+cH+4);
+    wx.fillText('P', PAD-8, PAD-10);
+    /* X axis labels */
+    WIDTHS.forEach(function(w,wi){
+      var xp=PAD+wi*(cW/(WIDTHS.length-1));
+      wx.fillStyle='#555'; wx.font='8px monospace'; wx.textAlign='center';
+      wx.fillText(w, xp, PAD+cH+botPad-4);
+    });
+    wx.fillStyle='#555'; wx.font='9px monospace'; wx.textAlign='center';
+    wx.fillText('N →', PAD+cW/2, WH-2);
+    /* Lines per rule */
+    RULES.forEach(function(rule){
+      var col=RCOL[rule]||'#888';
+      wx.strokeStyle=col; wx.lineWidth=2;
+      wx.beginPath();
+      WIDTHS.forEach(function(w,wi){
+        var p=allPeriods[rule][wi];
+        var xp=PAD+wi*(cW/(WIDTHS.length-1));
+        var yp=PAD+cH*(1-p/maxP);
+        if(wi===0) wx.moveTo(xp,yp); else wx.lineTo(xp,yp);
+      });
+      wx.stroke();
+      /* Dots */
+      WIDTHS.forEach(function(w,wi){
+        var p=allPeriods[rule][wi];
+        var xp=PAD+wi*(cW/(WIDTHS.length-1));
+        var yp=PAD+cH*(1-p/maxP);
+        wx.fillStyle=col;
+        wx.beginPath(); wx.arc(xp,yp,3,0,2*Math.PI); wx.fill();
+      });
+      /* Rule label on right */
+      var lastP=allPeriods[rule][WIDTHS.length-1];
+      var yp=PAD+cH*(1-lastP/maxP);
+      wx.fillStyle=col; wx.font='8px monospace'; wx.textAlign='left';
+      wx.fillText(rule.toUpperCase(), PAD+cW+3, yp+3);
+    });
+    /* Title */
+    wx.fillStyle='#888'; wx.font='10px monospace'; wx.textAlign='left';
+    wx.fillText('P(N) for '+word+' (4 rules × '+WIDTHS.length+' widths)',PAD,PAD-10);
+
+    /* ── P/N ratio bars (one per width, colored by max rule) ─────── */
+    var rc=document.getElementById('width-ratio');
+    var rx=rc.getContext('2d');
+    var RW=rc.width, RH=rc.height;
+    rx.fillStyle='#0a0a0a'; rx.fillRect(0,0,RW,RH);
+    var rPad2=28, rbBot=14;
+    var rCW=RW-rPad2*2, rCH=RH-rPad2-rbBot;
+    rx.fillStyle='#555'; rx.font='9px monospace'; rx.textAlign='left';
+    rx.fillText('max P/N per width (higher=faster growth with N):',rPad2,rPad2-10);
+    var bW3=Math.floor(rCW/WIDTHS.length)-2;
+    WIDTHS.forEach(function(w,wi){
+      /* Find max P/N across rules */
+      var maxRatio=0, bestRule='xor';
+      RULES.forEach(function(rule){
+        var ratio=allPeriods[rule][wi]/w;
+        if(ratio>maxRatio){maxRatio=ratio;bestRule=rule;}
+      });
+      var col=RCOL[bestRule]||'#4fc3f7';
+      var bh=Math.round(rCH*Math.min(maxRatio,1.0));
+      var bx=rPad2+wi*(bW3+2);
+      rx.fillStyle=col;
+      rx.fillRect(bx, rPad2+rCH-bh, bW3, bh);
+      rx.fillStyle='#666'; rx.font='7px monospace'; rx.textAlign='center';
+      rx.fillText(w, bx+bW3/2, rPad2+rCH+rbBot-3);
+    });
+
+    /* ── Info text ──────────────────────────────────────────────── */
+    var infoLines=RULES.map(function(rule){
+      var ps=allPeriods[rule];
+      var isConst=(new Set(ps)).size===1;
+      return '<span style="color:'+RCOL[rule]+'">'+rule.toUpperCase()+'</span>: '+
+        (isConst?'≡'+ps[0]:'['+ps.join(',')+']');
+    });
+    document.getElementById('width-info').innerHTML=
+      '<b>'+word+'</b> — период при разных N:<br>'+infoLines.join('  ');
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var lexArr=window.LEXICON_ARR||['ТУМАН','ГОРА'];
+    var sel=document.getElementById('wd-word');
+    if(sel){
+      lexArr.forEach(function(w){var o=document.createElement('option');o.value=w;o.textContent=w;sel.appendChild(o);});
+      sel.value='ГОРА';
+    }
+    var btn=document.getElementById('wd-btn');
+    var wEl=document.getElementById('wd-word');
+    if(btn) btn.addEventListener('click',wdRun);
+    if(wEl) wEl.addEventListener('change',wdRun);
+    setTimeout(function(){if(window.encL) wdRun();},5500);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

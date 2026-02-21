@@ -15224,5 +15224,345 @@ class TestSolanConfig(unittest.TestCase):
         self.assertIn('ALL_CFGS', content)
 
 
+class TestSolanWidth(unittest.TestCase):
+    """Tests for solan_width.py — Period vs. Ring Width Scaling."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_width import (
+            period_at_width, width_series, is_constant_period,
+            constant_period_value, max_width_period, width_summary,
+            build_width_data, _DEFAULT_WIDTHS, _RULES,
+        )
+        cls.period_at_width      = staticmethod(period_at_width)
+        cls.width_series         = staticmethod(width_series)
+        cls.is_constant_period   = staticmethod(is_constant_period)
+        cls.constant_period_value = staticmethod(constant_period_value)
+        cls.max_width_period     = staticmethod(max_width_period)
+        cls.width_summary        = staticmethod(width_summary)
+        cls.build_width_data     = staticmethod(build_width_data)
+        cls.DEFAULT_WIDTHS       = list(_DEFAULT_WIDTHS)
+        cls.RULES                = list(_RULES)
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.LEXICON = list(LEXICON)
+
+    # ── period_at_width ─────────────────────────────────────────────────────
+
+    def test_period_at_width_returns_int(self):
+        result = self.period_at_width('ГОРА', 'and', 16)
+        self.assertIsInstance(result, int)
+
+    def test_period_at_width_positive(self):
+        result = self.period_at_width('ГОРА', 'xor3', 16)
+        self.assertGreater(result, 0)
+
+    def test_period_at_width_gora_and_16(self):
+        self.assertEqual(self.period_at_width('ГОРА', 'and', 16), 2)
+
+    def test_period_at_width_tuman_xor_8(self):
+        self.assertEqual(self.period_at_width('ТУМАН', 'xor', 8), 1)
+
+    def test_period_at_width_tuman_xor_12(self):
+        self.assertEqual(self.period_at_width('ТУМАН', 'xor', 12), 4)
+
+    def test_period_at_width_gora_xor3_16(self):
+        self.assertEqual(self.period_at_width('ГОРА', 'xor3', 16), 2)
+
+    def test_period_at_width_gora_or_16(self):
+        self.assertEqual(self.period_at_width('ГОРА', 'or', 16), 1)
+
+    def test_period_at_width_case_insensitive(self):
+        self.assertEqual(
+            self.period_at_width('гора', 'and', 16),
+            self.period_at_width('ГОРА', 'and', 16),
+        )
+
+    # ── width_series ─────────────────────────────────────────────────────────
+
+    def test_width_series_returns_list(self):
+        result = self.width_series('ГОРА', 'and')
+        self.assertIsInstance(result, list)
+
+    def test_width_series_length_matches_widths(self):
+        result = self.width_series('ГОРА', 'and')
+        self.assertEqual(len(result), len(self.DEFAULT_WIDTHS))
+
+    def test_width_series_all_positive(self):
+        result = self.width_series('ГОРА', 'xor3')
+        self.assertTrue(all(p > 0 for p in result))
+
+    def test_width_series_gora_and_all_two(self):
+        result = self.width_series('ГОРА', 'and')
+        self.assertEqual(result, [2] * 9)
+
+    def test_width_series_gora_xor3_all_two(self):
+        result = self.width_series('ГОРА', 'xor3')
+        self.assertEqual(result, [2] * 9)
+
+    def test_width_series_gora_or_all_one(self):
+        result = self.width_series('ГОРА', 'or')
+        self.assertEqual(result, [1] * 9)
+
+    def test_width_series_tuman_xor3_known_values(self):
+        # N=4→2, N=8→4, N=16→8, N=32→16, N=64→32
+        ws  = self.DEFAULT_WIDTHS
+        ps  = self.width_series('ТУМАН', 'xor3')
+        idx4  = ws.index(4);  self.assertEqual(ps[idx4], 2)
+        idx8  = ws.index(8);  self.assertEqual(ps[idx8], 4)
+        idx16 = ws.index(16); self.assertEqual(ps[idx16], 8)
+        idx32 = ws.index(32); self.assertEqual(ps[idx32], 16)
+        idx64 = ws.index(64); self.assertEqual(ps[idx64], 32)
+
+    def test_width_series_tuman_xor_pow2_are_one(self):
+        # For powers-of-2 widths ТУМАН XOR converges to 0 → P=1
+        ws = self.DEFAULT_WIDTHS
+        ps = self.width_series('ТУМАН', 'xor')
+        for w, p in zip(ws, ps):
+            if w in (4, 8, 16, 32, 64):
+                self.assertEqual(p, 1, f"Expected P=1 for N={w}")
+
+    def test_width_series_custom_widths(self):
+        result = self.width_series('ГОРА', 'and', [4, 8, 16])
+        self.assertEqual(result, [2, 2, 2])
+
+    # ── is_constant_period ───────────────────────────────────────────────────
+
+    def test_is_constant_period_returns_bool(self):
+        self.assertIsInstance(self.is_constant_period('ГОРА', 'and'), bool)
+
+    def test_is_constant_gora_and(self):
+        self.assertTrue(self.is_constant_period('ГОРА', 'and'))
+
+    def test_is_constant_gora_xor3(self):
+        self.assertTrue(self.is_constant_period('ГОРА', 'xor3'))
+
+    def test_is_constant_gora_or(self):
+        self.assertTrue(self.is_constant_period('ГОРА', 'or'))
+
+    def test_not_constant_tuman_xor(self):
+        self.assertFalse(self.is_constant_period('ТУМАН', 'xor'))
+
+    def test_not_constant_tuman_xor3(self):
+        self.assertFalse(self.is_constant_period('ТУМАН', 'xor3'))
+
+    # ── constant_period_value ─────────────────────────────────────────────────
+
+    def test_constant_value_returns_int_or_none(self):
+        v = self.constant_period_value('ГОРА', 'and')
+        self.assertIsInstance(v, int)
+
+    def test_constant_value_gora_and(self):
+        self.assertEqual(self.constant_period_value('ГОРА', 'and'), 2)
+
+    def test_constant_value_gora_xor3(self):
+        self.assertEqual(self.constant_period_value('ГОРА', 'xor3'), 2)
+
+    def test_constant_value_gora_or(self):
+        self.assertEqual(self.constant_period_value('ГОРА', 'or'), 1)
+
+    def test_constant_value_none_for_variable(self):
+        self.assertIsNone(self.constant_period_value('ТУМАН', 'xor'))
+
+    def test_constant_value_none_tuman_xor3(self):
+        self.assertIsNone(self.constant_period_value('ТУМАН', 'xor3'))
+
+    # ── max_width_period ──────────────────────────────────────────────────────
+
+    def test_max_width_period_returns_tuple(self):
+        result = self.max_width_period('ГОРА', 'and')
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_max_width_period_width_in_widths(self):
+        w, p = self.max_width_period('ТУМАН', 'xor3')
+        self.assertIn(w, self.DEFAULT_WIDTHS)
+
+    def test_max_width_period_tuman_xor3(self):
+        w, p = self.max_width_period('ТУМАН', 'xor3')
+        self.assertEqual((w, p), (64, 32))
+
+    def test_max_width_period_gora_and(self):
+        w, p = self.max_width_period('ГОРА', 'and')
+        self.assertEqual(p, 2)  # constant series → max = 2
+
+    def test_max_width_period_is_in_series(self):
+        series = self.width_series('ТУМАН', 'xor3')
+        _, max_p = self.max_width_period('ТУМАН', 'xor3')
+        self.assertEqual(max_p, max(series))
+
+    # ── width_summary ─────────────────────────────────────────────────────────
+
+    def test_width_summary_returns_dict(self):
+        result = self.width_summary('ГОРА', 'and')
+        self.assertIsInstance(result, dict)
+
+    def test_width_summary_required_keys(self):
+        d = self.width_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'widths', 'periods', 'pn_ratio',
+                    'is_constant', 'constant_value', 'min_period', 'max_period',
+                    'max_period_width', 'all_pow2', 'all_one', 'all_two',
+                    'n_distinct'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_width_summary_word_upper(self):
+        d = self.width_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_width_summary_gora_and_is_constant(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertTrue(d['is_constant'])
+
+    def test_width_summary_gora_and_constant_value(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertEqual(d['constant_value'], 2)
+
+    def test_width_summary_gora_and_all_two(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertTrue(d['all_two'])
+
+    def test_width_summary_gora_and_all_pow2(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertTrue(d['all_pow2'])
+
+    def test_width_summary_gora_and_not_all_one(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertFalse(d['all_one'])
+
+    def test_width_summary_gora_and_n_distinct_one(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertEqual(d['n_distinct'], 1)
+
+    def test_width_summary_tuman_xor3_not_constant(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertFalse(d['is_constant'])
+        self.assertIsNone(d['constant_value'])
+
+    def test_width_summary_tuman_xor3_max_period(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['max_period'], 32)
+        self.assertEqual(d['max_period_width'], 64)
+
+    def test_width_summary_tuman_xor3_n_distinct(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['n_distinct'], 6)
+
+    def test_width_summary_pn_ratio_length(self):
+        d = self.width_summary('ГОРА', 'xor3')
+        self.assertEqual(len(d['pn_ratio']), len(self.DEFAULT_WIDTHS))
+
+    def test_width_summary_pn_ratio_positive(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertTrue(all(r > 0 for r in d['pn_ratio']))
+
+    def test_width_summary_tuman_xor3_pow2_ratio_half(self):
+        # For N=8,16,32,64 the ratio P/N = 0.5
+        d   = self.width_summary('ТУМАН', 'xor3')
+        ws  = d['widths']
+        pns = d['pn_ratio']
+        for w, r in zip(ws, pns):
+            if w in (8, 16, 32, 64):
+                self.assertAlmostEqual(r, 0.5, places=3,
+                                       msg=f"N={w}: expected P/N=0.5 got {r}")
+
+    def test_width_summary_gora_or_all_one(self):
+        d = self.width_summary('ГОРА', 'or')
+        self.assertTrue(d['all_one'])
+
+    def test_width_summary_min_le_max_period(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertLessEqual(d['min_period'], d['max_period'])
+
+    def test_width_summary_periods_matches_series(self):
+        d = self.width_summary('ГОРА', 'xor3')
+        expected = self.width_series('ГОРА', 'xor3')
+        self.assertEqual(d['periods'], expected)
+
+    # ── build_width_data ──────────────────────────────────────────────────────
+
+    def test_build_width_data_returns_dict(self):
+        result = self.build_width_data(['ГОРА', 'ТУМАН'])
+        self.assertIsInstance(result, dict)
+
+    def test_build_width_data_top_keys(self):
+        d = self.build_width_data(['ГОРА'])
+        for key in ('words', 'widths', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_width_data_rule_keys(self):
+        d = self.build_width_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_width_data_word_uppercase(self):
+        d = self.build_width_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_width_data_gora_and_constant(self):
+        d = self.build_width_data(['ГОРА'])
+        self.assertTrue(d['per_rule']['and']['ГОРА']['is_constant'])
+
+    def test_build_width_data_known_fields(self):
+        d   = self.build_width_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('periods', 'pn_ratio', 'is_constant', 'constant_value',
+                    'min_period', 'max_period', 'all_pow2', 'all_one',
+                    'all_two', 'n_distinct'):
+            self.assertIn(key, rec)
+
+    def test_build_width_data_widths_field(self):
+        d = self.build_width_data(['ГОРА'])
+        self.assertEqual(d['widths'], self.DEFAULT_WIDTHS)
+
+    # ── Cross-rule checks ─────────────────────────────────────────────────────
+
+    def test_xor_all_one_for_all_lexicon_xor_po2(self):
+        # ТУМАН XOR is NOT constant; but let's check specific power-of-2 widths
+        ps = self.width_series('ТУМАН', 'xor', [4, 8, 16, 32, 64])
+        self.assertEqual(ps, [1, 1, 1, 1, 1])
+
+    def test_all_rules_positive_periods(self):
+        for rule in self.RULES:
+            ps = self.width_series('ГОРА', rule)
+            self.assertTrue(all(p >= 1 for p in ps))
+
+    def test_gora_xor_constant_one(self):
+        # ГОРА XOR converges to all-0 → P=1 for all widths
+        self.assertTrue(self.is_constant_period('ГОРА', 'xor'))
+        self.assertEqual(self.constant_period_value('ГОРА', 'xor'), 1)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_width_chart(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('width-chart', content)
+
+    def test_viewer_has_width_ratio(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('width-ratio', content)
+
+    def test_viewer_has_width_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('width-info', content)
+
+    def test_viewer_has_wd_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wd-word', content)
+
+    def test_viewer_has_wd_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wd-btn', content)
+
+    def test_viewer_has_wd_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wdRun', content)
+
+    def test_viewer_has_enc_at_width_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('encAtWidth', content)
+
+    def test_viewer_has_wd_orbit_len_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wdOrbitLen', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
