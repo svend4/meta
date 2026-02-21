@@ -15242,6 +15242,179 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Q6 Value Coverage (solan_coverage)</h2>
+<p style="color:#888;font-size:13px">
+  Which of the 64 Q6 phonetic codes appear across the full P×N orbit?
+  Bar chart: x=Q6 value (0–63), y=frequency. Bright bar=dominant, red cross=globally absent (XOR3 only).
+  <br>
+  ★ МАТ XOR3: only 4/64 values; v=23 (T+B+L+D1) = 50% of all 128 observations.
+  &nbsp;★ XOR rule: every word collapses to {0} — the all-zero fixed point.
+  &nbsp;★ XOR3 globally forbidden: v=6(B+L), v=10(B+R), v=45(T+L+R+D2), v=58(B+R+D1+D2).
+</p>
+<label style="color:#aaa">Слово:
+  <select id="cv-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="cv-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="cv-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="cv-canvas" width="660" height="160"
+  style="background:#0a0a0a;border:1px solid #222"></canvas>
+<div id="cv-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BIT_NAMES=['T','B','L','R','D1','D2'];
+  var XOR3_ABSENT=[6,10,45,58];
+
+  function q6Label(v){
+    var parts=[];
+    for(var b=0;b<6;b++) if((v>>b)&1) parts.push(BIT_NAMES[b]);
+    return parts.length?parts.join('+'):'0';
+  }
+
+  function cvStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function cvOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var tr=seen[key],per=t-tr;
+        cur=ic.slice(); for(var i=0;i<tr;i++) cur=cvStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<per;i++){grid.push(cur.slice());cur=cvStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=cvStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  function cvRun(){
+    var word=(document.getElementById('cv-word').value||'МАТ').toUpperCase();
+    var rule=document.getElementById('cv-rule').value;
+    if(!window.encL||!window.padL){
+      document.getElementById('cv-info').textContent='(данные не загружены)';return;
+    }
+    var lw=window.LEXW||16;
+    var raw=window.encL(word);
+    if(!raw||!raw.length){document.getElementById('cv-info').textContent='(нет символов)';return;}
+    var ic=window.padL(raw,lw);
+    var orbit=cvOrbit(ic,rule);
+    var P=orbit.length,N=lw,size=P*N;
+
+    // Count frequencies
+    var freq=new Array(64).fill(0);
+    orbit.forEach(function(state){state.forEach(function(v){freq[v]++;});});
+    var maxFreq=Math.max.apply(null,freq);
+    var nDistinct=freq.filter(function(f){return f>0;}).length;
+    var domV=freq.indexOf(maxFreq);
+
+    // Draw histogram
+    var cv2=document.getElementById('cv-canvas');
+    var ctx=cv2.getContext('2d');
+    var barW=Math.floor(cv2.width/64);
+    cv2.height=160;
+    ctx.clearRect(0,0,cv2.width,cv2.height);
+
+    var TOP=16,BOT=cv2.height-24;
+    // Axis
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,BOT); ctx.lineTo(cv2.width,BOT); ctx.stroke();
+
+    for(var v=0;v<64;v++){
+      var bx=v*barW;
+      var f=freq[v];
+      var isAbsent=rule==='xor3'&&XOR3_ABSENT.indexOf(v)>=0;
+
+      if(f>0){
+        var h=Math.round((f/maxFreq)*(BOT-TOP));
+        var bright=0.3+0.7*(f/maxFreq);
+        var r2=v===domV?220:100;
+        var g2=v===domV?180:180;
+        var b2=v===domV?60:220;
+        ctx.globalAlpha=bright;
+        ctx.fillStyle='rgb('+r2+','+g2+','+b2+')';
+        ctx.fillRect(bx+1,BOT-h,barW-2,h);
+        ctx.globalAlpha=1.0;
+        // Label for high bars
+        if(f>=Math.max(3,maxFreq*0.1)){
+          ctx.fillStyle='#aaa'; ctx.font='8px monospace'; ctx.textAlign='center';
+          ctx.fillText(v,bx+barW/2,BOT-h-2);
+        }
+      } else if(isAbsent){
+        // Mark globally absent values with a small red cross
+        ctx.fillStyle='#c0392b'; ctx.globalAlpha=0.6;
+        ctx.fillRect(bx+barW*0.3,BOT-8,barW*0.4,2);
+        ctx.fillRect(bx+barW*0.5-1,BOT-12,2,8);
+        ctx.globalAlpha=1.0;
+      }
+    }
+
+    // Value axis labels (every 8)
+    ctx.fillStyle='#444'; ctx.font='8px monospace'; ctx.textAlign='center';
+    for(var v=0;v<=63;v+=8) ctx.fillText(v,v*barW+barW/2,cv2.height-6);
+
+    // Summary
+    var vocab=[];
+    for(var v=0;v<64;v++) if(freq[v]>0) vocab.push(v);
+    var neverSeen=[];
+    for(var v=0;v<64;v++) if(freq[v]===0) neverSeen.push(v);
+
+    var lines=[
+      'P='+P+'  rule='+rule+'  word='+word+'  orbit_size='+size,
+      'vocabulary : '+nDistinct+'/64 values  ('+((nDistinct/64)*100).toFixed(1)+'%)',
+      'vocab      : ['+vocab.join(', ')+']',
+      'dominant   : v='+domV+' ('+q6Label(domV)+')  '+maxFreq+'/'+size+
+        ' ('+((maxFreq/size)*100).toFixed(1)+'%)',
+      'never_seen : '+neverSeen.length+' values  ['+neverSeen.slice(0,12).join(', ')+
+        (neverSeen.length>12?'…':'')+']',
+    ];
+    document.getElementById('cv-info').textContent=lines.join('\n');
+  }
+
+  (function(){
+    var sel=document.getElementById('cv-word');
+    var words=window.LEXICON_ARR||['МАТ','РАБОТА','ТУМАН','ГОРА'];
+    words.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='МАТ') o.selected=true;
+      sel.appendChild(o);
+    });
+  })();
+
+  document.getElementById('cv-btn').addEventListener('click',cvRun);
+  document.getElementById('cv-word').addEventListener('change',cvRun);
+  document.getElementById('cv-rule').addEventListener('change',cvRun);
+  setTimeout(function(){if(window.encL&&window.LEXICON_ARR) cvRun();},11500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

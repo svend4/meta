@@ -19541,5 +19541,275 @@ class TestSolanProfile(unittest.TestCase):
         self.assertIn('mode_frac', content)
 
 
+class TestSolanCoverage(unittest.TestCase):
+    """Tests for solan_coverage.py — Q6 value coverage of CA orbits."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_coverage import (
+            q6_label, orbit_frequencies, coverage_summary,
+            global_coverage, all_coverage, build_coverage_data, coverage_dict,
+        )
+        cls.q6_label          = staticmethod(q6_label)
+        cls.orbit_frequencies = staticmethod(orbit_frequencies)
+        cls.coverage_summary  = staticmethod(coverage_summary)
+        cls.global_coverage   = staticmethod(global_coverage)
+        cls.all_coverage      = staticmethod(all_coverage)
+        cls.build_data        = staticmethod(build_coverage_data)
+        cls.coverage_dict     = staticmethod(coverage_dict)
+
+        # Precomputed summaries
+        cls.s_mat_xor3   = coverage_summary('МАТ',    'xor3', 16)
+        cls.s_tuman_xor3 = coverage_summary('ТУМАН',  'xor3', 16)
+        cls.s_rabota_xor3= coverage_summary('РАБОТА', 'xor3', 16)
+        cls.s_gora_xor3  = coverage_summary('ГОРА',   'xor3', 16)
+        cls.s_tuman_xor  = coverage_summary('ТУМАН',  'xor',  16)
+        cls.g_xor3        = global_coverage('xor3', 16)
+        cls.g_xor         = global_coverage('xor',  16)
+
+    # ── q6_label ──────────────────────────────────────────────────────────────
+
+    def test_q6_label_zero(self):
+        self.assertEqual(self.q6_label(0), '0')
+
+    def test_q6_label_63(self):
+        self.assertEqual(self.q6_label(63), 'T+B+L+R+D1+D2')
+
+    def test_q6_label_1_is_T(self):
+        self.assertEqual(self.q6_label(1), 'T')
+
+    def test_q6_label_23(self):
+        # 23 = 0b010111 = T+B+L+D1
+        self.assertEqual(self.q6_label(23), 'T+B+L+D1')
+
+    def test_q6_label_6_is_BL(self):
+        self.assertEqual(self.q6_label(6), 'B+L')
+
+    def test_q6_label_10_is_BR(self):
+        self.assertEqual(self.q6_label(10), 'B+R')
+
+    # ── orbit_frequencies ─────────────────────────────────────────────────────
+
+    def test_orbit_frequencies_returns_counter(self):
+        from collections import Counter
+        cnt = self.orbit_frequencies('ТУМАН', 'xor3', 16)
+        self.assertIsInstance(cnt, Counter)
+
+    def test_orbit_frequencies_total_equals_orbit_size(self):
+        cnt = self.orbit_frequencies('МАТ', 'xor3', 16)
+        self.assertEqual(sum(cnt.values()), 8 * 16)
+
+    def test_orbit_frequencies_mat_has_4_values(self):
+        cnt = self.orbit_frequencies('МАТ', 'xor3', 16)
+        self.assertEqual(len(cnt), 4)
+
+    def test_orbit_frequencies_xor_only_zero(self):
+        cnt = self.orbit_frequencies('ТУМАН', 'xor', 16)
+        self.assertEqual(set(cnt.keys()), {0})
+
+    # ── coverage_summary required keys ────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells', 'orbit_size',
+            'freq', 'vocab', 'n_distinct', 'coverage',
+            'most_common', 'dominant_val', 'dominant_count', 'dominant_frac',
+            'never_seen', 'n_never_seen', 'vocab_labels',
+            'step_vocab', 'step_n_distinct', 'step_mode', 'step_mode_count',
+            'min_step_n_distinct', 'max_step_n_distinct',
+        }
+        self.assertTrue(required.issubset(self.s_mat_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_mat_xor3['word'], 'МАТ')
+
+    def test_summary_rule_preserved(self):
+        self.assertEqual(self.s_mat_xor3['rule'], 'xor3')
+
+    def test_orbit_size_equals_period_times_n_cells(self):
+        s = self.s_mat_xor3
+        self.assertEqual(s['orbit_size'], s['period'] * s['n_cells'])
+
+    # ── МАТ XOR3 known values ─────────────────────────────────────────────────
+
+    def test_mat_n_distinct_is_4(self):
+        self.assertEqual(self.s_mat_xor3['n_distinct'], 4)
+
+    def test_mat_coverage(self):
+        self.assertAlmostEqual(self.s_mat_xor3['coverage'], 4 / 64, places=6)
+
+    def test_mat_dominant_val_is_23(self):
+        self.assertEqual(self.s_mat_xor3['dominant_val'], 23)
+
+    def test_mat_dominant_count_is_64(self):
+        self.assertEqual(self.s_mat_xor3['dominant_count'], 64)
+
+    def test_mat_dominant_frac_is_half(self):
+        self.assertAlmostEqual(self.s_mat_xor3['dominant_frac'], 0.5, places=6)
+
+    def test_mat_vocab_contains_23(self):
+        self.assertIn(23, self.s_mat_xor3['vocab'])
+
+    def test_mat_vocab_is_sorted(self):
+        v = self.s_mat_xor3['vocab']
+        self.assertEqual(v, sorted(v))
+
+    def test_mat_vocab_labels_for_23(self):
+        idx = self.s_mat_xor3['vocab'].index(23)
+        self.assertEqual(self.s_mat_xor3['vocab_labels'][idx], 'T+B+L+D1')
+
+    def test_mat_orbit_size_is_128(self):
+        self.assertEqual(self.s_mat_xor3['orbit_size'], 128)
+
+    # ── РАБОТА XOR3 — maximum vocabulary ──────────────────────────────────────
+
+    def test_rabota_n_distinct_is_16(self):
+        self.assertEqual(self.s_rabota_xor3['n_distinct'], 16)
+
+    def test_rabota_has_max_coverage_in_xor3(self):
+        # РАБОТА has the maximum vocabulary size under XOR3
+        self.assertGreaterEqual(
+            self.s_rabota_xor3['n_distinct'],
+            self.s_tuman_xor3['n_distinct'])
+
+    # ── XOR rule — only value 0 ───────────────────────────────────────────────
+
+    def test_xor_n_distinct_is_1(self):
+        self.assertEqual(self.s_tuman_xor['n_distinct'], 1)
+
+    def test_xor_dominant_val_is_0(self):
+        self.assertEqual(self.s_tuman_xor['dominant_val'], 0)
+
+    def test_xor_dominant_frac_is_1(self):
+        self.assertAlmostEqual(self.s_tuman_xor['dominant_frac'], 1.0, places=9)
+
+    def test_xor_n_never_seen_is_63(self):
+        self.assertEqual(self.s_tuman_xor['n_never_seen'], 63)
+
+    # ── Structural invariants ─────────────────────────────────────────────────
+
+    def test_n_distinct_plus_n_never_seen_eq_64(self):
+        for s in [self.s_mat_xor3, self.s_tuman_xor3, self.s_gora_xor3]:
+            self.assertEqual(s['n_distinct'] + s['n_never_seen'], 64)
+
+    def test_coverage_consistent(self):
+        s = self.s_mat_xor3
+        self.assertAlmostEqual(s['coverage'], s['n_distinct'] / 64, places=9)
+
+    def test_dominant_frac_consistent(self):
+        s = self.s_mat_xor3
+        self.assertAlmostEqual(
+            s['dominant_frac'], s['dominant_count'] / s['orbit_size'], places=9)
+
+    def test_vocab_len_equals_n_distinct(self):
+        self.assertEqual(len(self.s_mat_xor3['vocab']), self.s_mat_xor3['n_distinct'])
+
+    def test_vocab_labels_len_equals_n_distinct(self):
+        s = self.s_mat_xor3
+        self.assertEqual(len(s['vocab_labels']), s['n_distinct'])
+
+    def test_freq_total_equals_orbit_size(self):
+        s = self.s_mat_xor3
+        self.assertEqual(sum(s['freq'].values()), s['orbit_size'])
+
+    def test_never_seen_not_in_freq(self):
+        s = self.s_mat_xor3
+        for v in s['never_seen']:
+            self.assertNotIn(v, s['freq'])
+
+    # ── Per-step stats ────────────────────────────────────────────────────────
+
+    def test_step_vocab_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['step_vocab']), P)
+
+    def test_step_n_distinct_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['step_n_distinct']), P)
+
+    def test_step_mode_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['step_mode']), P)
+
+    def test_mat_step_mode_at_t1_is_23(self):
+        self.assertEqual(self.s_mat_xor3['step_mode'][1], 23)
+
+    def test_mat_step_mode_count_at_t1_is_14(self):
+        self.assertEqual(self.s_mat_xor3['step_mode_count'][1], 14)
+
+    def test_min_step_n_distinct_le_max(self):
+        s = self.s_mat_xor3
+        self.assertLessEqual(s['min_step_n_distinct'], s['max_step_n_distinct'])
+
+    # ── global_coverage XOR3 ──────────────────────────────────────────────────
+
+    def test_global_xor3_n_seen_is_60(self):
+        self.assertEqual(self.g_xor3['n_seen'], 60)
+
+    def test_global_xor3_n_absent_is_4(self):
+        self.assertEqual(self.g_xor3['n_absent'], 4)
+
+    def test_global_xor3_absent_contains_6(self):
+        self.assertIn(6, self.g_xor3['absent'])
+
+    def test_global_xor3_absent_contains_10(self):
+        self.assertIn(10, self.g_xor3['absent'])
+
+    def test_global_xor3_absent_contains_45(self):
+        self.assertIn(45, self.g_xor3['absent'])
+
+    def test_global_xor3_absent_contains_58(self):
+        self.assertIn(58, self.g_xor3['absent'])
+
+    def test_global_xor3_absent_labels(self):
+        labels = self.g_xor3['absent_labels']
+        self.assertIn('B+L', labels)
+        self.assertIn('B+R', labels)
+
+    def test_global_xor_only_value_0(self):
+        self.assertEqual(self.g_xor['n_seen'], 1)
+        self.assertEqual(self.g_xor['seen'], [0])
+
+    # ── coverage_dict / serialisation ─────────────────────────────────────────
+
+    def test_coverage_dict_serialisable(self):
+        import json
+        d = self.coverage_dict(self.s_mat_xor3)
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIn('МАТ', s)
+
+    def test_all_coverage_has_four_rules(self):
+        d = self.all_coverage('МАТ', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_cv_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cv-canvas', content)
+
+    def test_viewer_has_cv_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cvRun', content)
+
+    def test_viewer_has_cv_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cvOrbit', content)
+
+    def test_viewer_has_q6_label(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('q6Label', content)
+
+    def test_viewer_has_cv_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cv-info', content)
+
+    def test_viewer_has_xor3_absent(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('XOR3_ABSENT', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
