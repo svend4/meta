@@ -13520,6 +13520,182 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Shannon Entropy Analysis (solan_entropy)</h2>
+<p style="color:#888;font-size:13px">
+  Spatial entropy H<sub>s</sub>(t): entropy of Q6 distribution across cells at each step
+  (bars left).&nbsp; Temporal entropy H<sub>c</sub>(i): entropy of Q6 distribution for
+  each cell across orbit steps (bars right).&nbsp;
+  ★ ТУМАН XOR3: H<sub>c</sub> is symmetric and peaks at cells 2,3,12,13.
+</p>
+<label style="color:#aaa">Слово:
+  <select id="en-word" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+  </select>
+</label>
+&nbsp;
+<label style="color:#aaa">Правило:
+  <select id="en-rule" style="background:#111;color:#ccc;border:1px solid #444;padding:3px 6px">
+    <option value="xor">XOR</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+</label>
+&nbsp;
+<button id="en-btn"
+  style="background:#1a1a1a;color:#9f9;border:1px solid #336633;padding:4px 14px;cursor:pointer">
+  Показать
+</button>
+<br><br>
+<canvas id="ent-bar" width="530" height="80"
+  style="background:#0a0a0a;display:block;border:1px solid #222"></canvas>
+<canvas id="ent-cell" width="530" height="80"
+  style="background:#0a0a0a;display:block;border:1px solid #222;margin-top:4px"></canvas>
+<div id="ent-info"
+  style="margin-top:6px;font-size:12px;color:#999;font-family:monospace;white-space:pre"></div>
+<script>
+(function(){
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+
+  function enStep(cells,rule){
+    var N=cells.length, out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function enOrbit(ic,rule){
+    var seen={}, t=0, cur=ic.slice();
+    for(;;){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key], period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=enStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.slice()); cur=enStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=enStep(cur,rule);
+      if(t>2000) return [ic.slice()];
+    }
+  }
+
+  /* Shannon entropy of array of ints */
+  function enEntropy(arr){
+    var N=arr.length, cnt={};
+    for(var i=0;i<N;i++) cnt[arr[i]]=(cnt[arr[i]]||0)+1;
+    var H=0;
+    for(var k in cnt){var p=cnt[k]/N; H-=p*Math.log2(p);}
+    return Math.max(0,H);
+  }
+
+  function enSpatialH(state){return enEntropy(state);}
+
+  function enTemporalH(grid,cellIdx){
+    var vals=grid.map(function(s){return s[cellIdx];});
+    return enEntropy(vals);
+  }
+
+  function enRun(){
+    var wEl=document.getElementById('en-word');
+    var rEl=document.getElementById('en-rule');
+    var info=document.getElementById('ent-info');
+    if(!window.encL){if(info) info.textContent='Ожидание…'; return;}
+    var word=(wEl?wEl.value:'ТУМАН').toUpperCase();
+    var rule=rEl?rEl.value:'xor3';
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=enOrbit(ic,rule);
+    var P=grid.length;
+    var col=BCOL[rule]||'#80deea';
+
+    /* Compute spatial and temporal entropies */
+    var Hs=[], Hc=[];
+    for(var t=0;t<P;t++) Hs.push(enSpatialH(grid[t]));
+    for(var i=0;i<N;i++) Hc.push(enTemporalH(grid,i));
+    var maxHs=Math.log2(Math.min(N,64));
+    var maxHc=P>1?Math.log2(P):1;
+    var meanHs=Hs.reduce(function(a,b){return a+b;},0)/P;
+    var meanHc=Hc.reduce(function(a,b){return a+b;},0)/N;
+
+    /* ── Spatial entropy bar chart ───────────────────── */
+    var bc=document.getElementById('ent-bar');
+    var bx=bc.getContext('2d');
+    var BW=bc.width, BH=bc.height, pad=18;
+    bx.fillStyle='#0a0a0a'; bx.fillRect(0,0,BW,BH);
+    var barW=Math.max(1,Math.floor((BW-4)/Math.max(P,1)));
+    for(var t=0;t<P;t++){
+      var frac=maxHs>0?Hs[t]/maxHs:0;
+      var bh=Math.round(frac*(BH-pad-4));
+      bx.fillStyle=col;
+      bx.fillRect(2+t*barW, BH-pad-bh, barW-1, bh);
+      bx.fillStyle='#666';bx.font='9px monospace';
+      bx.fillText(t, 2+t*barW+1, BH-4);
+    }
+    bx.fillStyle='#666'; bx.font='10px monospace';
+    bx.fillText('H_s(t)  max='+maxHs.toFixed(2)+'b',2,12);
+    bx.fillText('mean='+meanHs.toFixed(3)+'b',BW-90,12);
+
+    /* ── Temporal entropy bar chart ──────────────────── */
+    var cc=document.getElementById('ent-cell');
+    var cx=cc.getContext('2d');
+    var CW=cc.width, CH=cc.height;
+    cx.fillStyle='#0a0a0a'; cx.fillRect(0,0,CW,CH);
+    var cellBarW=Math.max(1,Math.floor((CW-4)/N));
+    for(var i=0;i<N;i++){
+      var frac2=maxHc>0?Hc[i]/maxHc:0;
+      var bh2=Math.round(frac2*(CH-pad-4));
+      cx.fillStyle=col;
+      cx.fillRect(2+i*cellBarW, CH-pad-bh2, cellBarW-1, bh2);
+      if(cellBarW>=8){
+        cx.fillStyle='#666'; cx.font='9px monospace';
+        cx.fillText(i, 2+i*cellBarW+1, CH-4);
+      }
+    }
+    cx.fillStyle='#666'; cx.font='10px monospace';
+    cx.fillText('H_c(i)  max='+maxHc.toFixed(2)+'b',2,12);
+    cx.fillText('mean='+meanHc.toFixed(3)+'b',CW-90,12);
+
+    /* ── Info ────────────────────────────────────────── */
+    var hcSym=Hc.every(function(v,i){return Math.abs(v-Hc[N-1-i])<1e-6;});
+    var lines=[
+      'Слово: '+word+'  Правило: '+rule.toUpperCase()+'  P='+P+'  N='+N,
+      'H_s per step: ['+Hs.map(function(v){return v.toFixed(4);}).join(', ')+']',
+      'mean_H_s='+meanHs.toFixed(4)+'  max_H_s='+Math.max.apply(null,Hs).toFixed(4),
+      'H_c per cell: ['+Hc.map(function(v){return v.toFixed(4);}).join(', ')+']',
+      'mean_H_c='+meanHc.toFixed(4)+'  max_H_c='+Math.max.apply(null,Hc).toFixed(4)+
+        '  min_H_c='+Math.min.apply(null,Hc).toFixed(4),
+      (hcSym?'★ H_c_symmetric: H_c[i]=H_c[N-1-i] for all i':''),
+      (Hs.every(function(v){return v===0;})?'★ zero_entropy: uniform orbit':''),
+    ].filter(Boolean);
+    if(info) info.textContent=lines.join('\n');
+  }
+
+  /* Populate word selector */
+  var sel=document.getElementById('en-word');
+  if(sel && window.LEXICON_ARR){
+    window.LEXICON_ARR.forEach(function(w){
+      var o=document.createElement('option');
+      o.value=w; o.textContent=w;
+      if(w==='ТУМАН') o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+  var btn=document.getElementById('en-btn');
+  if(btn) btn.addEventListener('click',enRun);
+  var wEl2=document.getElementById('en-word');
+  var rEl2=document.getElementById('en-rule');
+  if(wEl2) wEl2.addEventListener('change',enRun);
+  if(rEl2) rEl2.addEventListener('change',enRun);
+  setTimeout(function(){if(window.encL) enRun();},7500);
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

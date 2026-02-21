@@ -15595,6 +15595,362 @@ class TestSolanSegment(unittest.TestCase):
         self.assertIn('sgColor', content)
 
 
+class TestSolanEntropyOrbit(unittest.TestCase):
+    """Tests for solan_entropy.py — Orbit-level Shannon Entropy Analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_entropy import (
+            spatial_entropy, temporal_entropy_cell,
+            spatial_entropy_orbit, temporal_entropy_all,
+            mean_spatial_entropy, mean_temporal_entropy,
+            max_spatial_entropy, min_spatial_entropy,
+            max_temporal_entropy, min_temporal_entropy,
+            entropy_summary, all_entropy, build_entropy_data,
+        )
+        cls.spatial_entropy        = staticmethod(spatial_entropy)
+        cls.temporal_entropy_cell  = staticmethod(temporal_entropy_cell)
+        cls.spatial_entropy_orbit  = staticmethod(spatial_entropy_orbit)
+        cls.temporal_entropy_all   = staticmethod(temporal_entropy_all)
+        cls.mean_spatial_entropy   = staticmethod(mean_spatial_entropy)
+        cls.mean_temporal_entropy  = staticmethod(mean_temporal_entropy)
+        cls.max_spatial_entropy    = staticmethod(max_spatial_entropy)
+        cls.min_spatial_entropy    = staticmethod(min_spatial_entropy)
+        cls.max_temporal_entropy   = staticmethod(max_temporal_entropy)
+        cls.min_temporal_entropy   = staticmethod(min_temporal_entropy)
+        cls.entropy_summary        = staticmethod(entropy_summary)
+        cls.all_entropy            = staticmethod(all_entropy)
+        cls.build_entropy_data     = staticmethod(build_entropy_data)
+
+    # ── spatial_entropy ────────────────────────────────────────────────────────
+
+    def test_spatial_entropy_returns_float(self):
+        self.assertIsInstance(self.spatial_entropy((0, 0, 0, 0)), float)
+
+    def test_spatial_entropy_uniform_zero(self):
+        self.assertAlmostEqual(self.spatial_entropy((0, 0, 0, 0)), 0.0)
+
+    def test_spatial_entropy_uniform_value(self):
+        self.assertAlmostEqual(self.spatial_entropy((63, 63, 63, 63)), 0.0)
+
+    def test_spatial_entropy_two_equal_freq(self):
+        # (0,0,1,1) → two values, each 50% → H = log2(2) = 1 bit
+        self.assertAlmostEqual(self.spatial_entropy((0, 0, 1, 1)), 1.0)
+
+    def test_spatial_entropy_four_equal_freq(self):
+        # (0,1,2,3) → four values, each 25% → H = log2(4) = 2 bits
+        self.assertAlmostEqual(self.spatial_entropy((0, 1, 2, 3)), 2.0)
+
+    def test_spatial_entropy_nonnegative(self):
+        self.assertGreaterEqual(self.spatial_entropy((47, 1, 47, 1)), 0.0)
+
+    def test_spatial_entropy_le_log2_n(self):
+        import math
+        state = tuple(range(16))
+        self.assertLessEqual(self.spatial_entropy(state), math.log2(16) + 1e-9)
+
+    def test_spatial_entropy_not_negative_zero(self):
+        # -0.0 should be returned as 0.0
+        result = self.spatial_entropy((0, 0, 0, 0))
+        self.assertGreaterEqual(result, 0.0)
+
+    # ── temporal_entropy_cell ─────────────────────────────────────────────────
+
+    def test_temporal_entropy_cell_returns_float(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor', 16)
+        self.assertIsInstance(self.temporal_entropy_cell(orbit, 0), float)
+
+    def test_temporal_entropy_cell_constant_zero(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor', 16)
+        self.assertAlmostEqual(self.temporal_entropy_cell(orbit, 0), 0.0)
+
+    def test_temporal_entropy_cell_two_equal(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        result = self.temporal_entropy_cell(orbit, 0)
+        self.assertAlmostEqual(result, 1.0)
+
+    def test_temporal_entropy_cell_nonnegative(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        for i in range(16):
+            self.assertGreaterEqual(self.temporal_entropy_cell(orbit, i), 0.0)
+
+    # ── spatial_entropy_orbit ─────────────────────────────────────────────────
+
+    def test_spatial_entropy_orbit_returns_list(self):
+        self.assertIsInstance(self.spatial_entropy_orbit('ГОРА', 'and'), list)
+
+    def test_spatial_entropy_orbit_length_equals_period(self):
+        result = self.spatial_entropy_orbit('ГОРА', 'and')
+        self.assertEqual(len(result), 2)
+
+    def test_spatial_entropy_orbit_tuman_xor_zero(self):
+        result = self.spatial_entropy_orbit('ТУМАН', 'xor')
+        self.assertAlmostEqual(result[0], 0.0)
+
+    def test_spatial_entropy_orbit_gora_or_zero(self):
+        result = self.spatial_entropy_orbit('ГОРА', 'or')
+        self.assertAlmostEqual(result[0], 0.0)
+
+    def test_spatial_entropy_orbit_gora_and_one(self):
+        result = self.spatial_entropy_orbit('ГОРА', 'and')
+        self.assertTrue(all(abs(v - 1.0) < 1e-6 for v in result))
+
+    def test_spatial_entropy_orbit_gora_xor3_two(self):
+        result = self.spatial_entropy_orbit('ГОРА', 'xor3')
+        self.assertTrue(all(abs(v - 2.0) < 1e-6 for v in result))
+
+    def test_spatial_entropy_orbit_tuman_xor3(self):
+        result = self.spatial_entropy_orbit('ТУМАН', 'xor3')
+        self.assertEqual(len(result), 8)
+        self.assertAlmostEqual(result[5], 3.375, places=4)
+
+    def test_spatial_entropy_orbit_all_nonnegative(self):
+        result = self.spatial_entropy_orbit('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 0.0 for v in result))
+
+    def test_spatial_entropy_orbit_case_insensitive(self):
+        self.assertEqual(
+            self.spatial_entropy_orbit('гора', 'and'),
+            self.spatial_entropy_orbit('ГОРА', 'and'),
+        )
+
+    # ── temporal_entropy_all ──────────────────────────────────────────────────
+
+    def test_temporal_entropy_all_returns_list(self):
+        self.assertIsInstance(self.temporal_entropy_all('ГОРА', 'and'), list)
+
+    def test_temporal_entropy_all_length_equals_width(self):
+        result = self.temporal_entropy_all('ГОРА', 'and')
+        self.assertEqual(len(result), 16)
+
+    def test_temporal_entropy_all_tuman_xor_zero(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor')
+        self.assertTrue(all(abs(v) < 1e-9 for v in result))
+
+    def test_temporal_entropy_all_gora_and_one(self):
+        result = self.temporal_entropy_all('ГОРА', 'and')
+        self.assertTrue(all(abs(v - 1.0) < 1e-6 for v in result))
+
+    def test_temporal_entropy_all_gora_xor3_one(self):
+        result = self.temporal_entropy_all('ГОРА', 'xor3')
+        self.assertTrue(all(abs(v - 1.0) < 1e-6 for v in result))
+
+    def test_temporal_entropy_all_tuman_xor3_symmetric(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor3')
+        N = len(result)
+        for i in range(N // 2):
+            self.assertAlmostEqual(result[i], result[N - 1 - i], places=5)
+
+    def test_temporal_entropy_all_tuman_xor3_max_cells(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result[2], 2.75, places=4)
+        self.assertAlmostEqual(result[3], 2.75, places=4)
+
+    def test_temporal_entropy_all_tuman_xor3_min_cells(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result[7], result[8], places=5)
+        self.assertLess(result[7], result[2])
+
+    def test_temporal_entropy_all_nonnegative(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 0.0 for v in result))
+
+    # ── mean / max / min entropy ───────────────────────────────────────────────
+
+    def test_mean_spatial_entropy_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_spatial_entropy('ТУМАН', 'xor'), 0.0)
+
+    def test_mean_spatial_entropy_gora_and(self):
+        self.assertAlmostEqual(self.mean_spatial_entropy('ГОРА', 'and'), 1.0)
+
+    def test_mean_spatial_entropy_gora_xor3(self):
+        self.assertAlmostEqual(self.mean_spatial_entropy('ГОРА', 'xor3'), 2.0)
+
+    def test_mean_spatial_entropy_tuman_xor3(self):
+        result = self.mean_spatial_entropy('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result, 2.8534, places=3)
+
+    def test_mean_temporal_entropy_gora_and(self):
+        self.assertAlmostEqual(self.mean_temporal_entropy('ГОРА', 'and'), 1.0)
+
+    def test_mean_temporal_entropy_tuman_xor3(self):
+        result = self.mean_temporal_entropy('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result, 2.234, places=2)
+
+    def test_max_spatial_entropy_tuman_xor(self):
+        self.assertAlmostEqual(self.max_spatial_entropy('ТУМАН', 'xor'), 0.0)
+
+    def test_max_spatial_entropy_tuman_xor3(self):
+        self.assertAlmostEqual(self.max_spatial_entropy('ТУМАН', 'xor3'), 3.375, places=4)
+
+    def test_min_spatial_entropy_gora_and(self):
+        self.assertAlmostEqual(self.min_spatial_entropy('ГОРА', 'and'), 1.0)
+
+    def test_max_temporal_entropy_tuman_xor3(self):
+        self.assertAlmostEqual(self.max_temporal_entropy('ТУМАН', 'xor3'), 2.75, places=4)
+
+    def test_min_temporal_entropy_tuman_xor(self):
+        self.assertAlmostEqual(self.min_temporal_entropy('ТУМАН', 'xor'), 0.0)
+
+    def test_min_temporal_entropy_tuman_xor3(self):
+        result = self.min_temporal_entropy('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result, 1.5613, places=3)
+
+    # ── entropy_summary ───────────────────────────────────────────────────────
+
+    def test_entropy_summary_returns_dict(self):
+        self.assertIsInstance(self.entropy_summary('ГОРА', 'and'), dict)
+
+    def test_entropy_summary_required_keys(self):
+        d = self.entropy_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'n_cells',
+                    'max_possible_Hs', 'max_possible_Hc',
+                    'spatial_entropy', 'mean_spatial_H',
+                    'max_spatial_H', 'min_spatial_H',
+                    'temporal_entropy', 'mean_temporal_H',
+                    'max_temporal_H', 'min_temporal_H',
+                    'zero_entropy', 'constant_spatial',
+                    'constant_temporal', 'symmetric_temporal'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_entropy_summary_tuman_xor_zero_entropy(self):
+        d = self.entropy_summary('ТУМАН', 'xor')
+        self.assertTrue(d['zero_entropy'])
+        self.assertAlmostEqual(d['mean_spatial_H'], 0.0)
+
+    def test_entropy_summary_gora_or_zero_entropy(self):
+        d = self.entropy_summary('ГОРА', 'or')
+        self.assertTrue(d['zero_entropy'])
+
+    def test_entropy_summary_gora_and_not_zero(self):
+        d = self.entropy_summary('ГОРА', 'and')
+        self.assertFalse(d['zero_entropy'])
+        self.assertAlmostEqual(d['mean_spatial_H'], 1.0)
+
+    def test_entropy_summary_gora_xor3_spatial_2(self):
+        d = self.entropy_summary('ГОРА', 'xor3')
+        self.assertAlmostEqual(d['mean_spatial_H'], 2.0)
+
+    def test_entropy_summary_gora_and_constant_spatial(self):
+        d = self.entropy_summary('ГОРА', 'and')
+        self.assertTrue(d['constant_spatial'])
+
+    def test_entropy_summary_tuman_xor3_not_constant(self):
+        d = self.entropy_summary('ТУМАН', 'xor3')
+        self.assertFalse(d['zero_entropy'])
+        self.assertFalse(d['constant_spatial'])
+
+    def test_entropy_summary_tuman_xor3_symmetric_temporal(self):
+        d = self.entropy_summary('ТУМАН', 'xor3')
+        self.assertTrue(d['symmetric_temporal'])
+
+    def test_entropy_summary_tuman_xor3_max_H_s(self):
+        d = self.entropy_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['max_spatial_H'], 3.375, places=4)
+
+    def test_entropy_summary_max_possible_Hs(self):
+        import math
+        d = self.entropy_summary('ГОРА', 'and')
+        self.assertAlmostEqual(d['max_possible_Hs'], math.log2(16), places=6)
+
+    def test_entropy_summary_word_upper(self):
+        d = self.entropy_summary('гора', 'xor3')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_entropy_summary_n_cells(self):
+        d = self.entropy_summary('ГОРА', 'and')
+        self.assertEqual(d['n_cells'], 16)
+
+    # ── all_entropy ───────────────────────────────────────────────────────────
+
+    def test_all_entropy_returns_dict(self):
+        self.assertIsInstance(self.all_entropy('ГОРА'), dict)
+
+    def test_all_entropy_four_rules(self):
+        d = self.all_entropy('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_entropy_consistent_with_summary(self):
+        ae = self.all_entropy('ГОРА')
+        s  = self.entropy_summary('ГОРА', 'and')
+        self.assertAlmostEqual(ae['and']['mean_spatial_H'], s['mean_spatial_H'])
+
+    # ── build_entropy_data ────────────────────────────────────────────────────
+
+    def test_build_entropy_data_returns_dict(self):
+        self.assertIsInstance(self.build_entropy_data(['ГОРА']), dict)
+
+    def test_build_entropy_data_top_keys(self):
+        d = self.build_entropy_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_entropy_data_four_rule_keys(self):
+        d = self.build_entropy_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_entropy_data_word_uppercase(self):
+        d = self.build_entropy_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_entropy_data_zero_entropy(self):
+        d = self.build_entropy_data(['ТУМАН'])
+        self.assertTrue(d['per_rule']['xor']['ТУМАН']['zero_entropy'])
+
+    def test_build_entropy_data_known_fields(self):
+        d   = self.build_entropy_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'spatial_entropy', 'mean_spatial_H',
+                    'max_spatial_H', 'min_spatial_H',
+                    'temporal_entropy', 'mean_temporal_H',
+                    'max_temporal_H', 'min_temporal_H',
+                    'zero_entropy', 'constant_spatial',
+                    'constant_temporal', 'symmetric_temporal'):
+            self.assertIn(key, rec)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_ent_bar(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ent-bar', content)
+
+    def test_viewer_has_ent_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ent-cell', content)
+
+    def test_viewer_has_ent_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ent-info', content)
+
+    def test_viewer_has_en_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('en-word', content)
+
+    def test_viewer_has_en_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('en-btn', content)
+
+    def test_viewer_has_en_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('enRun', content)
+
+    def test_viewer_has_en_entropy_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('enEntropy', content)
+
+    def test_viewer_has_en_spatial_h_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('enSpatialH', content)
+
+    def test_viewer_has_en_temporal_h_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('enTemporalH', content)
+
+
 class TestSolanBoundary(unittest.TestCase):
     """Tests for solan_boundary.py — Spatial XOR-Boundary Analysis."""
 
