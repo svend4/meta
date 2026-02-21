@@ -8853,6 +8853,246 @@ class TestSolanLZ(unittest.TestCase):
         self.assertIn('LZ76 Q6', content)
 
 
+class TestSolanMoments(unittest.TestCase):
+    """Tests for solan_moments.py and the viewer Temporal Moments section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moments import (
+            temporal_moments, cell_moments_list, moments_summary,
+            all_moments, build_moments_data,
+        )
+        cls.temporal_moments   = staticmethod(temporal_moments)
+        cls.cell_moments_list  = staticmethod(cell_moments_list)
+        cls.moments_summary    = staticmethod(moments_summary)
+        cls.all_moments        = staticmethod(all_moments)
+        cls.build_moments_data = staticmethod(build_moments_data)
+
+    # ── temporal_moments() ────────────────────────────────────────────
+
+    def test_moments_empty(self):
+        m = self.temporal_moments([])
+        self.assertEqual(m['var'], 0.0)
+        self.assertIsNone(m['skew'])
+        self.assertIsNone(m['kurt'])
+
+    def test_moments_constant_zero(self):
+        m = self.temporal_moments([0, 0, 0])
+        self.assertAlmostEqual(m['mean'], 0.0)
+        self.assertAlmostEqual(m['var'],  0.0)
+        self.assertIsNone(m['skew'])
+        self.assertIsNone(m['kurt'])
+
+    def test_moments_constant_nonzero(self):
+        m = self.temporal_moments([5, 5, 5, 5])
+        self.assertAlmostEqual(m['mean'], 5.0)
+        self.assertAlmostEqual(m['var'],  0.0)
+        self.assertIsNone(m['skew'])
+
+    def test_moments_two_point_bernoulli_mean(self):
+        m = self.temporal_moments([47, 1])
+        self.assertAlmostEqual(m['mean'], 24.0, places=4)
+
+    def test_moments_two_point_bernoulli_var(self):
+        m = self.temporal_moments([47, 1])
+        self.assertAlmostEqual(m['var'], 529.0, places=3)
+
+    def test_moments_two_point_bernoulli_std(self):
+        m = self.temporal_moments([47, 1])
+        self.assertAlmostEqual(m['std'], 23.0, places=3)
+
+    def test_moments_two_point_bernoulli_skew_zero(self):
+        # Symmetric two-point distribution → skew = 0
+        m = self.temporal_moments([47, 1])
+        self.assertAlmostEqual(m['skew'], 0.0, places=8)
+
+    def test_moments_two_point_bernoulli_kurt_minus_two(self):
+        # Exact result: excess kurtosis of uniform 2-point = −2
+        m = self.temporal_moments([47, 1])
+        self.assertAlmostEqual(m['kurt'], -2.0, places=8)
+
+    def test_moments_kurt_minimum_property(self):
+        # For any 2-point distribution: kurt = −2
+        for a, b in [(0, 63), (10, 50), (1, 30)]:
+            m = self.temporal_moments([a, b])
+            self.assertAlmostEqual(m['kurt'], -2.0, places=6,
+                                   msg=f'kurt≠-2 for [{a},{b}]')
+
+    def test_moments_uniform_three_values(self):
+        # [0, 1, 2]: symmetric → skew=0
+        # excess kurtosis of discrete uniform on 3 points = μ₄/σ⁴ − 3
+        # μ=1, σ²=2/3, μ₄=2/3 → kurt = (2/3)/(4/9) − 3 = 3/2 − 3 = −3/2
+        m = self.temporal_moments([0, 1, 2])
+        self.assertAlmostEqual(m['skew'], 0.0,  places=6)
+        self.assertAlmostEqual(m['kurt'], -3/2, places=5)
+
+    def test_moments_single_element_constant(self):
+        m = self.temporal_moments([42])
+        self.assertAlmostEqual(m['mean'], 42.0)
+        self.assertAlmostEqual(m['var'], 0.0)
+        self.assertIsNone(m['skew'])
+
+    def test_moments_std_is_sqrt_var(self):
+        import math
+        m = self.temporal_moments([0, 10, 20, 30])
+        # std is rounded to 6 decimal places in the module
+        self.assertAlmostEqual(m['std'], math.sqrt(m['var']), places=4)
+
+    def test_moments_skew_asymmetric(self):
+        # Positive-skew series: mostly low, one high
+        m = self.temporal_moments([0, 0, 0, 30])
+        self.assertGreater(m['skew'], 0)
+
+    # ── Fixed-point attractor ─────────────────────────────────────────
+
+    def test_tuman_xor_all_constant(self):
+        d = self.moments_summary('ТУМАН', 'xor', 16)
+        self.assertEqual(d['n_constant'], 16)
+        self.assertEqual(d['n_defined'], 0)
+
+    def test_tuman_or_all_constant(self):
+        d = self.moments_summary('ТУМАН', 'or', 16)
+        self.assertEqual(d['n_constant'], 16)
+
+    # ── ГОРА AND (P=2, 47↔1) ─────────────────────────────────────────
+
+    def test_gora_and_no_constant(self):
+        d = self.moments_summary('ГОРА', 'and', 16)
+        self.assertEqual(d['n_constant'], 0)
+        self.assertEqual(d['n_defined'], 16)
+
+    def test_gora_and_all_skew_zero(self):
+        d = self.moments_summary('ГОРА', 'and', 16)
+        ss = d['skew_stats']
+        self.assertAlmostEqual(ss['mean'], 0.0, places=6)
+        self.assertAlmostEqual(ss['std'],  0.0, places=6)
+
+    def test_gora_and_all_kurt_minus_two(self):
+        d = self.moments_summary('ГОРА', 'and', 16)
+        ks = d['kurt_stats']
+        self.assertAlmostEqual(ks['mean'], -2.0, places=6)
+        self.assertAlmostEqual(ks['std'],   0.0, places=6)
+
+    def test_gora_and_mean_var_correct(self):
+        d = self.moments_summary('ГОРА', 'and', 16)
+        vs = d['var_stats']
+        # All cells have series [47,1] or [1,47] → var=529
+        self.assertAlmostEqual(vs['mean'], 529.0, places=2)
+        self.assertAlmostEqual(vs['std'],   0.0,  places=2)
+
+    # ── ТУМАН XOR3 (P=8) ──────────────────────────────────────────────
+
+    def test_tuman_xor3_no_constant(self):
+        d = self.moments_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['n_constant'], 0)
+
+    def test_tuman_xor3_var_range(self):
+        d = self.moments_summary('ТУМАН', 'xor3', 16)
+        vs = d['var_stats']
+        self.assertGreater(vs['max'], vs['min'])   # spatial heterogeneity
+
+    def test_tuman_xor3_var_positive(self):
+        d = self.moments_summary('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['var_stats']['min'], 0)
+
+    def test_tuman_xor3_kurt_le_zero(self):
+        # All platykurtic (kurt < 0) — bounded finite distribution
+        d = self.moments_summary('ТУМАН', 'xor3', 16)
+        self.assertLess(d['kurt_stats']['max'], 0)
+
+    def test_tuman_xor3_kurt_ge_minus_two(self):
+        # Exact lower bound: kurt ≥ −2 for any distribution
+        d = self.moments_summary('ТУМАН', 'xor3', 16)
+        self.assertGreaterEqual(d['kurt_stats']['min'], -2.0 - 1e-6)
+
+    # ── cell_moments_list ──────────────────────────────────────────────
+
+    def test_cell_moments_list_length(self):
+        cms = self.cell_moments_list('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(cms), 16)
+
+    def test_cell_moments_list_has_cell_key(self):
+        cms = self.cell_moments_list('ТУМАН', 'xor3', 16)
+        for i, m in enumerate(cms):
+            self.assertEqual(m['cell'], i)
+
+    def test_cell_moments_list_has_required_keys(self):
+        cms = self.cell_moments_list('ТУМАН', 'xor3', 16)
+        for m in cms:
+            for k in ('mean', 'var', 'std', 'skew', 'kurt', 'cell'):
+                self.assertIn(k, m)
+
+    # ── moments_summary structure ──────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.moments_summary('ТУМАН', 'xor3', 16)
+        for k in ('word', 'rule', 'period', 'cell_moments',
+                  'var_stats', 'mean_stats', 'skew_stats', 'kurt_stats',
+                  'n_constant', 'n_defined'):
+            self.assertIn(k, d)
+
+    def test_summary_word_uppercase(self):
+        d = self.moments_summary('туман', 'xor3', 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_summary_n_constant_plus_defined_equals_width(self):
+        d = self.moments_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['n_constant'] + d['n_defined'], 16)
+
+    # ── all_moments ────────────────────────────────────────────────────
+
+    def test_all_moments_has_four_rules(self):
+        result = self.all_moments('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_moments_values_are_dicts(self):
+        result = self.all_moments('ГОРА', 16)
+        for rule, d in result.items():
+            self.assertIsInstance(d, dict)
+            self.assertIn('n_defined', d)
+
+    # ── build_moments_data ─────────────────────────────────────────────
+
+    def test_build_moments_data_structure(self):
+        data = self.build_moments_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('per_rule', data)
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_moments_data_entry_keys(self):
+        data = self.build_moments_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'n_constant', 'n_defined', 'var_stats',
+                  'skew_stats', 'kurt_stats'):
+            self.assertIn(k, entry)
+
+    def test_build_moments_data_words_uppercase(self):
+        data = self.build_moments_data(['туман'], 16)
+        self.assertIn('ТУМАН', data['words'])
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_mom_var(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mom-var', content)
+
+    def test_viewer_has_mom_sk(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mom-sk', content)
+
+    def test_viewer_has_mom_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mom-stats', content)
+
+    def test_viewer_has_mom_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('momRun', content)
+
+    def test_viewer_has_moments_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Temporal Moments Q6', content)
+
+
 class TestSolanReturn(unittest.TestCase):
     """Tests for solan_return.py and the viewer First-Return Map section."""
 
