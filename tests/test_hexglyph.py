@@ -4541,6 +4541,228 @@ class TestSolanTransfer(unittest.TestCase):
         self.assertIn('teBuildMatrix', content)
 
 
+class TestSolanPerm(unittest.TestCase):
+    """Tests for solan_perm.py and the viewer Permutation Entropy section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import (
+            ordinal_pattern, perm_entropy,
+            spatial_pe, pe_dict, all_pe, build_pe_data,
+            _ALL_RULES, _DEFAULT_WIDTH, _DEFAULT_M,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.ordinal_pattern = staticmethod(ordinal_pattern)
+        cls.perm_entropy    = staticmethod(perm_entropy)
+        cls.spatial_pe      = staticmethod(spatial_pe)
+        cls.pe_dict         = staticmethod(pe_dict)
+        cls.all_pe          = staticmethod(all_pe)
+        cls.build_pe_data   = staticmethod(build_pe_data)
+        cls.ALL_RULES       = _ALL_RULES
+        cls.W               = _DEFAULT_WIDTH
+        cls.M               = _DEFAULT_M
+        cls.LEXICON         = list(LEXICON)
+
+    # ── ordinal_pattern() ─────────────────────────────────────────────────────
+
+    def test_op_no_ties_ascending(self):
+        self.assertEqual(self.ordinal_pattern([1, 2, 3]), (0, 1, 2))
+
+    def test_op_no_ties_descending(self):
+        self.assertEqual(self.ordinal_pattern([3, 2, 1]), (2, 1, 0))
+
+    def test_op_no_ties_mixed(self):
+        self.assertEqual(self.ordinal_pattern([1, 3, 2]), (0, 2, 1))
+
+    def test_op_ties_stable(self):
+        # [3, 1, 3]: 1 at idx 1 → rank 0; 3 at idx 0 → rank 1; 3 at idx 2 → rank 2
+        self.assertEqual(self.ordinal_pattern([3, 1, 3]), (1, 0, 2))
+
+    def test_op_all_equal(self):
+        # Stable sort preserves original order → (0, 1, 2)
+        self.assertEqual(self.ordinal_pattern([5, 5, 5]), (0, 1, 2))
+
+    def test_op_length_2(self):
+        self.assertEqual(self.ordinal_pattern([0, 1]), (0, 1))
+        self.assertEqual(self.ordinal_pattern([1, 0]), (1, 0))
+
+    def test_op_length_matches_input(self):
+        for length in [2, 3, 4, 5]:
+            pat = self.ordinal_pattern(list(range(length)))
+            self.assertEqual(len(pat), length)
+
+    def test_op_is_permutation(self):
+        import random
+        rng = random.Random(0)
+        for _ in range(20):
+            m = rng.randint(2, 5)
+            win = [rng.randint(0, 63) for _ in range(m)]
+            pat = self.ordinal_pattern(win)
+            self.assertEqual(sorted(pat), list(range(m)))
+
+    # ── perm_entropy() ────────────────────────────────────────────────────────
+
+    def test_pe_period1_zero(self):
+        self.assertAlmostEqual(self.perm_entropy([42, 42, 42, 42], 3), 0.0, places=8)
+
+    def test_pe_constant_single_zero(self):
+        self.assertAlmostEqual(self.perm_entropy([7], 3), 0.0, places=8)
+
+    def test_pe_m_less_than_2_zero(self):
+        self.assertAlmostEqual(self.perm_entropy([1, 2, 3, 4], 1), 0.0, places=8)
+
+    def test_pe_empty_zero(self):
+        self.assertAlmostEqual(self.perm_entropy([], 3), 0.0, places=8)
+
+    def test_pe_period2_m2_max(self):
+        # Period-2 with m=2 → 2 distinct patterns → normalised PE = 1.0
+        self.assertAlmostEqual(self.perm_entropy([3, 7], 2), 1.0, places=6)
+        self.assertAlmostEqual(self.perm_entropy([7, 3], 2), 1.0, places=6)
+
+    def test_pe_period2_m3_value(self):
+        # Period-2 m=3 → always log(2)/log(3!) = 1/log2(6) regardless of values
+        import math
+        expected = round(1.0 / math.log2(math.factorial(3)), 8)
+        self.assertAlmostEqual(self.perm_entropy([3, 7], 3), expected, places=6)
+        self.assertAlmostEqual(self.perm_entropy([7, 3], 3), expected, places=6)
+        self.assertAlmostEqual(self.perm_entropy([1, 63], 3), expected, places=6)
+
+    def test_pe_in_range(self):
+        import random
+        rng = random.Random(99)
+        for _ in range(30):
+            P = rng.randint(1, 10)
+            m = rng.randint(2, 4)
+            series = [rng.randint(0, 63) for _ in range(P)]
+            pe = self.perm_entropy(series, m)
+            self.assertGreaterEqual(pe, 0.0)
+            self.assertLessEqual(pe, 1.0 + 1e-8)
+
+    def test_pe_non_negative(self):
+        # Verify no -0.0 leaks
+        pe = self.perm_entropy([5], 3)
+        self.assertGreaterEqual(pe, 0.0)
+        self.assertFalse(str(pe).startswith('-'))
+
+    def test_pe_tuman_xor3_positive(self):
+        from projects.hexglyph.solan_transfer import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3')
+        series = [s[0] for s in orbit]
+        pe = self.perm_entropy(series, 3)
+        self.assertGreater(pe, 0.0)
+
+    # ── spatial_pe() ──────────────────────────────────────────────────────────
+
+    def test_spe_length(self):
+        profile = self.spatial_pe('ТУМАН', 'xor3', self.W, 3)
+        self.assertEqual(len(profile), self.W)
+
+    def test_spe_all_in_range(self):
+        for rule in self.ALL_RULES:
+            profile = self.spatial_pe('ТУМАН', rule, self.W, 3)
+            for v in profile:
+                self.assertGreaterEqual(v, 0.0)
+                self.assertLessEqual(v, 1.0 + 1e-8)
+
+    def test_spe_period1_all_zero(self):
+        profile = self.spatial_pe('ГОРА', 'xor', self.W, 3)
+        for v in profile:
+            self.assertAlmostEqual(v, 0.0, places=8)
+
+    def test_spe_tuman_xor3_nonzero(self):
+        profile = self.spatial_pe('ТУМАН', 'xor3', self.W, 3)
+        self.assertGreater(max(profile), 0.0)
+
+    # ── pe_dict() ────────────────────────────────────────────────────────────
+
+    def test_pd_keys(self):
+        d = self.pe_dict('ТУМАН', 'xor3', self.W, 3)
+        for k in ['word', 'rule', 'width', 'm', 'period',
+                  'max_patterns', 'profile', 'mean_pe',
+                  'max_pe_val', 'min_pe_val', 'spatial_var', 'multi_m']:
+            self.assertIn(k, d)
+
+    def test_pd_word_upper(self):
+        d = self.pe_dict('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_pd_period_tuman_xor3(self):
+        d = self.pe_dict('ТУМАН', 'xor3')
+        self.assertEqual(d['period'], 8)
+
+    def test_pd_mean_pe_matches_profile(self):
+        d = self.pe_dict('ТУМАН', 'xor3', self.W, 3)
+        expected = round(sum(d['profile']) / self.W, 8)
+        self.assertAlmostEqual(d['mean_pe'], expected, places=6)
+
+    def test_pd_period1_mean_zero(self):
+        d = self.pe_dict('ГОРА', 'xor')
+        self.assertAlmostEqual(d['mean_pe'], 0.0, places=8)
+
+    def test_pd_multi_m_keys(self):
+        d = self.pe_dict('ТУМАН', 'xor3')
+        for m_key in ['2', '3', '4']:
+            self.assertIn(m_key, d['multi_m'])
+
+    def test_pd_max_patterns_period1(self):
+        d = self.pe_dict('ГОРА', 'xor', m=3)
+        self.assertEqual(d['max_patterns'], 1)  # min(period=1, 3!=6) = 1
+
+    def test_pd_max_patterns_period8_m3(self):
+        d = self.pe_dict('ТУМАН', 'xor3', m=3)
+        # min(8, 6) = 6
+        self.assertEqual(d['max_patterns'], 6)
+
+    def test_pd_spatial_var_non_negative(self):
+        d = self.pe_dict('ТУМАН', 'xor3')
+        self.assertGreaterEqual(d['spatial_var'], 0.0)
+
+    # ── all_pe() ─────────────────────────────────────────────────────────────
+
+    def test_ape_all_rules(self):
+        d = self.all_pe('ТУМАН')
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    # ── build_pe_data() ──────────────────────────────────────────────────────
+
+    def test_bpd_keys(self):
+        d = self.build_pe_data(['ГОРА', 'ВОДА'])
+        for k in ['words', 'm_vals', 'per_rule', 'ranking']:
+            self.assertIn(k, d)
+
+    def test_bpd_ranking_sorted(self):
+        d = self.build_pe_data(['ГОРА', 'ВОДА', 'МИР'])
+        for rule in self.ALL_RULES:
+            vals = [x[1] for x in d['ranking'][rule]]
+            self.assertEqual(vals, sorted(vals, reverse=True))
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_pe_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pe-canvas', content)
+
+    def test_viewer_has_pe_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pe-stats', content)
+
+    def test_viewer_has_pe_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pe-btn', content)
+
+    def test_viewer_has_ordinal_pattern(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ordinalPattern', content)
+
+    def test_viewer_has_perm_entropy(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('permEntropy', content)
+
+    def test_viewer_has_spatial_pe(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatialPE', content)
+
+
 class TestSolanBasin(unittest.TestCase):
     """Tests for solan_basin.py and the viewer Basin section."""
 

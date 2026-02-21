@@ -4373,6 +4373,240 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Перестановочная энтропия CA Q6 — порядковая сложность</h2>
+<p class="meta">nPE_m = H(ординальные паттерны) / log₂(m!) · окна длины m по циклической траектории аттрактора · ранговый порядок с устойчивой сортировкой · период=1 → nPE=0 · период=2 m=2 → nPE=1.0 (максимум) · XOR3 ТУМАН (P=8) → богатое распределение паттернов</p>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <select id="pe-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px"></select>
+  <select id="pe-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:5px 8px;font-size:13px">
+    <option value="xor">XOR ⊕</option>
+    <option value="xor3" selected>XOR3</option>
+    <option value="and">AND &amp;</option>
+    <option value="or">OR |</option>
+  </select>
+  <label style="color:#aaa;font-size:12px">m =
+    <select id="pe-m"
+      style="background:#111;color:#ccc;border:1px solid #333;padding:4px 6px;font-size:12px">
+      <option value="2">2</option>
+      <option value="3" selected>3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+    </select>
+  </label>
+  <button id="pe-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    nPE-профиль</button>
+  <button id="pe-multi-btn"
+    style="background:#222;color:#ccc;border:1px solid #444;padding:5px 14px;cursor:pointer;font-size:13px">
+    Heatmap m=2/3/4</button>
+</div>
+<canvas id="pe-canvas" style="display:block;margin-bottom:6px"></canvas>
+<div id="pe-stats" style="color:#ccc;font-family:monospace;font-size:12px;margin-bottom:6px"></div>
+<canvas id="pe-hmap" style="display:none;margin-top:8px"></canvas>
+<script>
+(function(){
+  var PE_COLS={xor:'#f55',xor3:'#4dd',and:'#7d7',or:'#fa0'};
+  var PE_RGB ={xor:[255,85,85],xor3:[68,221,221],and:[119,221,119],or:[255,170,0]};
+  var ALL_RULES=['xor','xor3','and','or'];
+  var RNAMES={xor:'XOR \u2295',xor3:'XOR3',and:'AND \u0026',or:'OR |'};
+
+  function peStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+
+  function peOrbit(cells0,rule){
+    var seen={},c=cells0.slice(),t=0;
+    for(;;){
+      var key=c.join(',');
+      if(key in seen){
+        var T=seen[key],P=t-T; P=Math.max(P,1);
+        var c2=cells0.slice();
+        for(var s=0;s<T;s++) c2=peStep(c2,rule);
+        var states=[];
+        for(var s=0;s<P;s++){states.push(c2.slice());c2=peStep(c2,rule);}
+        return states;
+      }
+      seen[key]=t; c=peStep(c,rule); t++;
+    }
+  }
+
+  function ordinalPattern(window){
+    var m=window.length;
+    var idx=[];
+    for(var i=0;i<m;i++) idx.push(i);
+    idx.sort(function(a,b){return window[a]!==window[b]?window[a]-window[b]:a-b;});
+    var ranks=new Array(m);
+    for(var r=0;r<m;r++) ranks[idx[r]]=r;
+    return ranks.join(',');
+  }
+
+  function permEntropy(series,m){
+    var P=series.length;
+    if(P<1||m<2) return 0;
+    var counts={};
+    for(var t=0;t<P;t++){
+      var win=[];
+      for(var k=0;k<m;k++) win.push(series[(t+k)%P]);
+      var pat=ordinalPattern(win);
+      counts[pat]=(counts[pat]||0)+1;
+    }
+    var total=P,pe=0;
+    for(var k in counts){
+      if(counts[k]>0){var p=counts[k]/total; pe-=p*Math.log2(p);}
+    }
+    var maxPe=Math.log2(factorial(m));
+    return maxPe>0?Math.max(0,pe/maxPe):0;
+  }
+
+  function factorial(n){var f=1;for(var i=2;i<=n;i++)f*=i;return f;}
+
+  function spatialPE(orbit,m){
+    var N=orbit[0].length, result=[];
+    for(var i=0;i<N;i++){
+      var series=orbit.map(function(s){return s[i];});
+      result.push(permEntropy(series,m));
+    }
+    return result;
+  }
+
+  function drawPEProfile(canvas,profile,rule,period,m){
+    var N=profile.length;
+    var padL=10,padR=10,padT=14,padB=22;
+    var W=Math.max(320,N*20+padL+padR), H=160;
+    canvas.width=W; canvas.height=H;
+    var ctx=canvas.getContext('2d');
+    var rgb=PE_RGB[rule]||[128,128,128];
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,W,H);
+    var chartW=W-padL-padR, chartH=H-padT-padB;
+    var barW=Math.floor(chartW/N)-1;
+
+    // 50% line
+    var y50=padT+chartH*0.5;
+    ctx.strokeStyle='rgba(128,128,128,0.4)'; ctx.lineWidth=1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(padL,y50); ctx.lineTo(W-padR,y50); ctx.stroke();
+    ctx.setLineDash([]);
+
+    for(var i=0;i<N;i++){
+      var f=profile[i];
+      var x=padL+i*(chartW/N);
+      var bH=Math.round(f*chartH);
+      var a=Math.max(0.1,f);
+      var cr=Math.round(rgb[0]*a+0x1c*(1-a));
+      var cg=Math.round(rgb[1]*a+0x1c*(1-a));
+      var cb=Math.round(rgb[2]*a+0x1c*(1-a));
+      ctx.fillStyle='rgb('+cr+','+cg+','+cb+')';
+      ctx.fillRect(x,padT+chartH-bH,barW,bH);
+      ctx.fillStyle='#555'; ctx.font='9px monospace'; ctx.textAlign='center';
+      ctx.fillText(i,x+barW/2,H-padB+10);
+    }
+  }
+
+  function peRun(){
+    if(!window.encL||!window.padL) return;
+    var word=(document.getElementById('pe-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('pe-rule').value||'xor3';
+    var m=parseInt(document.getElementById('pe-m').value||'3',10);
+    var canvas=document.getElementById('pe-canvas');
+    var statsDiv=document.getElementById('pe-stats');
+
+    var cells=window.padL(window.encL(word),16);
+    var orbit=peOrbit(cells,rule);
+    var profile=spatialPE(orbit,m);
+    var meanPE=profile.reduce(function(a,b){return a+b;},0)/profile.length;
+    var maxPE=Math.max.apply(null,profile);
+    var maxPat=Math.min(orbit.length,factorial(m));
+
+    drawPEProfile(canvas,profile,rule,orbit.length,m);
+    document.getElementById('pe-hmap').style.display='none';
+    statsDiv.innerHTML='<span style="color:'+PE_COLS[rule]+'">'+rule.toUpperCase()+'</span>'
+      +'  P='+orbit.length+'  m='+m
+      +'  ср.nPE='+meanPE.toFixed(4)
+      +'  max.nPE='+maxPE.toFixed(4)
+      +'  max_pat='+maxPat;
+  }
+
+  function peHmapRun(){
+    if(!window.encL||!window.padL||!window.LEXICON_ARR) return;
+    var words=window.LEXICON_ARR.slice().sort();
+    var mVals=[2,3,4];
+    var cellW=13,cellH=14,leftPad=54,topPad=65;
+    var hmCv=document.getElementById('pe-hmap');
+    var nRows=ALL_RULES.length*mVals.length;
+    hmCv.width=leftPad+words.length*cellW+4;
+    hmCv.height=topPad+nRows*cellH+4;
+    var ctx=hmCv.getContext('2d');
+    ctx.fillStyle='#111'; ctx.fillRect(0,0,hmCv.width,hmCv.height);
+    ctx.save(); ctx.font='9px monospace'; ctx.fillStyle='#999';
+    for(var wi=0;wi<words.length;wi++){
+      ctx.save();
+      ctx.translate(leftPad+wi*cellW+cellW/2,topPad-4);
+      ctx.rotate(-Math.PI/2); ctx.textAlign='left';
+      ctx.fillText(words[wi],0,0); ctx.restore();
+    }
+    ctx.restore();
+    var row=0;
+    for(var ri=0;ri<ALL_RULES.length;ri++){
+      var rule2=ALL_RULES[ri];
+      var rgb2=PE_RGB[rule2]||[128,128,128];
+      for(var mi=0;mi<mVals.length;mi++){
+        var m2=mVals[mi];
+        ctx.textAlign='right'; ctx.font='10px monospace';
+        ctx.fillStyle=PE_COLS[rule2];
+        ctx.fillText(RNAMES[rule2]+' m='+m2,leftPad-4,topPad+row*cellH+cellH-3);
+        for(var wi2=0;wi2<words.length;wi2++){
+          var cells2=window.padL(window.encL(words[wi2]),16);
+          var orbit2=peOrbit(cells2,rule2);
+          var prof2=spatialPE(orbit2,m2);
+          var mp=prof2.reduce(function(a,b){return a+b;},0)/prof2.length;
+          var a=mp;
+          var cr=Math.round(rgb2[0]*a+0x1c*(1-a));
+          var cg=Math.round(rgb2[1]*a+0x1c*(1-a));
+          var cb=Math.round(rgb2[2]*a+0x1c*(1-a));
+          ctx.fillStyle='rgb('+cr+','+cg+','+cb+')';
+          ctx.fillRect(leftPad+wi2*cellW,topPad+row*cellH,cellW-1,cellH-1);
+        }
+        row++;
+      }
+    }
+    hmCv.style.display='block';
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('pe-word');
+    if(window.LEXICON_ARR){
+      window.LEXICON_ARR.slice().sort().forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.text=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn   =document.getElementById('pe-btn');
+    var hmBtn =document.getElementById('pe-multi-btn');
+    var ruleEl=document.getElementById('pe-rule');
+    var wordEl=document.getElementById('pe-word');
+    var mEl   =document.getElementById('pe-m');
+    if(btn)    btn.addEventListener('click',peRun);
+    if(hmBtn)  hmBtn.addEventListener('click',peHmapRun);
+    if(ruleEl) ruleEl.addEventListener('change',peRun);
+    if(wordEl) wordEl.addEventListener('change',peRun);
+    if(mEl)    mEl.addEventListener('change',peRun);
+    setTimeout(function(){if(window.encL) peRun();},1150);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Бассейн аттрактора CA Q6 — профиль устойчивости</h2>
 <p class="meta">Для каждого k = 0..max_k: случайно переворачивается ровно k бит из 96 (16 клеток × 6 бит) → доля выборок, попавших в тот же аттрактор · k=0 ≡ 1.0 (само слово) · XOR: глобальный бассейн «ноль» → доля ≈ 1.0 · XOR3: узкие частные бассейны → резкий обрыв · пунктир = порог 50%</p>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
