@@ -13587,5 +13587,269 @@ class TestSolanEdge(unittest.TestCase):
         self.assertIn('edRun', content)
 
 
+class TestSolanSymm(unittest.TestCase):
+    """Tests for solan_symm.py and the viewer Rotational Symmetry section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symm import (
+            rot_period,
+            rot_order,
+            orbit_rot_periods,
+            orbit_rot_orders,
+            min_rot_period,
+            max_rot_order,
+            symm_summary,
+            all_symm,
+            build_symm_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.rot_period       = staticmethod(rot_period)
+        cls.rot_order        = staticmethod(rot_order)
+        cls.orbit_rot_periods = staticmethod(orbit_rot_periods)
+        cls.orbit_rot_orders  = staticmethod(orbit_rot_orders)
+        cls.min_rot_period   = staticmethod(min_rot_period)
+        cls.max_rot_order    = staticmethod(max_rot_order)
+        cls.symm_summary     = staticmethod(symm_summary)
+        cls.all_symm         = staticmethod(all_symm)
+        cls.build_symm_data  = staticmethod(build_symm_data)
+        cls.LEXICON          = list(LEXICON)
+
+    # ── rot_period() ──────────────────────────────────────────────────────────
+
+    def test_rot_period_constant_is_one(self):
+        # Constant state [v]*16 → rot_period = 1
+        self.assertEqual(self.rot_period([7] * 16), 1)
+
+    def test_rot_period_alternating_is_two(self):
+        self.assertEqual(self.rot_period([0, 63] * 8), 2)
+
+    def test_rot_period_four_cluster_is_four(self):
+        self.assertEqual(self.rot_period([1, 2, 3, 4] * 4), 4)
+
+    def test_rot_period_unique_is_n(self):
+        # All distinct values → rot_period = N
+        state = list(range(16))
+        self.assertEqual(self.rot_period(state), 16)
+
+    def test_rot_period_eight_cluster_is_eight(self):
+        self.assertEqual(self.rot_period([1, 2, 3, 4, 5, 6, 7, 8] * 2), 8)
+
+    def test_rot_period_gora_and_state(self):
+        # ГОРА AND state [47, 1, 47, 1, ...] → rot_period = 2
+        self.assertEqual(self.rot_period([47, 1] * 8), 2)
+
+    # ── rot_order() ───────────────────────────────────────────────────────────
+
+    def test_rot_order_constant_is_n(self):
+        self.assertEqual(self.rot_order([5] * 16), 16)
+
+    def test_rot_order_alternating_is_8(self):
+        self.assertEqual(self.rot_order([0, 63] * 8), 8)
+
+    def test_rot_order_four_cluster_is_4(self):
+        self.assertEqual(self.rot_order([1, 2, 3, 4] * 4), 4)
+
+    def test_rot_order_unique_is_1(self):
+        self.assertEqual(self.rot_order(list(range(16))), 1)
+
+    def test_rot_order_times_rot_period_equals_n(self):
+        for state in [[0]*16, [0,1]*8, [0,1,2,3]*4, list(range(16))]:
+            N = len(state)
+            rp = self.rot_period(state)
+            ro = self.rot_order(state)
+            self.assertEqual(rp * ro, N)
+
+    # ── orbit_rot_periods() / orbit_rot_orders() ──────────────────────────────
+
+    def test_orbit_rot_periods_tuman_xor(self):
+        periods = self.orbit_rot_periods('ТУМАН', 'xor')
+        self.assertEqual(len(periods), 1)
+        self.assertEqual(periods[0], 1)  # all-zero state
+
+    def test_orbit_rot_orders_tuman_xor(self):
+        orders = self.orbit_rot_orders('ТУМАН', 'xor')
+        self.assertEqual(orders[0], 16)  # maximum symmetry
+
+    def test_orbit_rot_periods_gora_and(self):
+        periods = self.orbit_rot_periods('ГОРА', 'and')
+        self.assertEqual(len(periods), 2)
+        for rp in periods:
+            self.assertEqual(rp, 2)  # binary alternation
+
+    def test_orbit_rot_orders_gora_and(self):
+        orders = self.orbit_rot_orders('ГОРА', 'and')
+        for ro in orders:
+            self.assertEqual(ro, 8)
+
+    def test_orbit_rot_periods_gora_xor3(self):
+        periods = self.orbit_rot_periods('ГОРА', 'xor3')
+        self.assertEqual(len(periods), 2)
+        for rp in periods:
+            self.assertEqual(rp, 4)  # 4-cluster structure
+
+    def test_orbit_rot_orders_gora_xor3(self):
+        orders = self.orbit_rot_orders('ГОРА', 'xor3')
+        for ro in orders:
+            self.assertEqual(ro, 4)
+
+    def test_orbit_rot_periods_tuman_xor3(self):
+        periods = self.orbit_rot_periods('ТУМАН', 'xor3')
+        self.assertEqual(len(periods), 8)
+        for rp in periods:
+            self.assertEqual(rp, 16)  # fully asymmetric
+
+    def test_orbit_rot_orders_tuman_xor3(self):
+        orders = self.orbit_rot_orders('ТУМАН', 'xor3')
+        for ro in orders:
+            self.assertEqual(ro, 1)
+
+    def test_orbit_rot_periods_length_equals_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in ['ГОРА', 'ТУМАН']:
+            for rule in ['xor3', 'and']:
+                traj = word_trajectory(word, rule)
+                periods = self.orbit_rot_periods(word, rule)
+                self.assertEqual(len(periods), traj['period'])
+
+    # ── min_rot_period() / max_rot_order() ───────────────────────────────────
+
+    def test_min_rot_period_tuman_xor(self):
+        self.assertEqual(self.min_rot_period('ТУМАН', 'xor'), 1)
+
+    def test_min_rot_period_gora_and(self):
+        self.assertEqual(self.min_rot_period('ГОРА', 'and'), 2)
+
+    def test_min_rot_period_gora_xor3(self):
+        self.assertEqual(self.min_rot_period('ГОРА', 'xor3'), 4)
+
+    def test_min_rot_period_tuman_xor3(self):
+        self.assertEqual(self.min_rot_period('ТУМАН', 'xor3'), 16)
+
+    def test_max_rot_order_tuman_xor(self):
+        self.assertEqual(self.max_rot_order('ТУМАН', 'xor'), 16)
+
+    def test_max_rot_order_gora_and(self):
+        self.assertEqual(self.max_rot_order('ГОРА', 'and'), 8)
+
+    def test_max_rot_order_gora_xor3(self):
+        self.assertEqual(self.max_rot_order('ГОРА', 'xor3'), 4)
+
+    def test_max_rot_order_tuman_xor3(self):
+        self.assertEqual(self.max_rot_order('ТУМАН', 'xor3'), 1)
+
+    # ── symm_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.symm_summary('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'period', 'rot_periods', 'rot_orders',
+                  'min_rot_period', 'max_rot_order', 'uniform_symmetry',
+                  'symmetry_level'):
+            self.assertIn(k, d)
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.symm_summary('гора', 'xor3')['word'], 'ГОРА')
+
+    def test_summary_tuman_xor_level_maximum(self):
+        self.assertEqual(self.symm_summary('ТУМАН', 'xor')['symmetry_level'], 'maximum')
+
+    def test_summary_gora_and_level_high(self):
+        self.assertEqual(self.symm_summary('ГОРА', 'and')['symmetry_level'], 'high')
+
+    def test_summary_gora_xor3_level_moderate(self):
+        self.assertEqual(self.symm_summary('ГОРА', 'xor3')['symmetry_level'], 'moderate')
+
+    def test_summary_tuman_xor3_level_none(self):
+        self.assertEqual(self.symm_summary('ТУМАН', 'xor3')['symmetry_level'], 'none')
+
+    def test_summary_gora_xor3_uniform_true(self):
+        d = self.symm_summary('ГОРА', 'xor3')
+        self.assertTrue(d['uniform_symmetry'])
+
+    def test_summary_period_matches_len_rot_periods(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                d = self.symm_summary(word, rule)
+                self.assertEqual(d['period'], len(d['rot_periods']))
+                self.assertEqual(d['period'], len(d['rot_orders']))
+
+    # ── Scientific invariants ──────────────────────────────────────────────────
+
+    def test_xor3_period2_words_all_have_rot_period_4(self):
+        # All XOR3 period-2 words must have 4-fold rotational symmetry
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in self.LEXICON:
+            traj = word_trajectory(word, 'xor3')
+            if traj['period'] == 2:
+                mrp = self.min_rot_period(word, 'xor3')
+                self.assertEqual(mrp, 4,
+                    msg=f'{word} XOR3 P=2 should have rot_period=4, got {mrp}')
+
+    def test_xor_attractor_max_symmetry(self):
+        # XOR always → all-zeros (constant) → maximum symmetry for all words
+        for word in self.LEXICON[:12]:
+            mro = self.max_rot_order(word, 'xor')
+            self.assertEqual(mro, 16,
+                msg=f'{word} XOR should have rot_order=16, got {mro}')
+
+    def test_rot_period_divides_n(self):
+        # rot_period must always divide N=16
+        for word in ['ТУМАН', 'ГОРА', 'ЛУНА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for rp in self.orbit_rot_periods(word, rule):
+                    self.assertEqual(16 % rp, 0,
+                        msg=f'{word}/{rule}: rot_period={rp} does not divide 16')
+
+    # ── all_symm() and build_symm_data() ─────────────────────────────────────
+
+    def test_all_symm_four_rules(self):
+        self.assertEqual(set(self.all_symm('ГОРА').keys()), {'xor','xor3','and','or'})
+
+    def test_build_symm_data_keys(self):
+        data = self.build_symm_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_symm_data_word_coverage(self):
+        words = ['ГОРА', 'ТУМАН']
+        data = self.build_symm_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Viewer section tests ───────────────────────────────────────────────────
+
+    def test_viewer_has_symm_ring_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('symm-ring', content)
+
+    def test_viewer_has_symm_rules_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('symm-rules', content)
+
+    def test_viewer_has_symm_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('symm-info', content)
+
+    def test_viewer_has_sy_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sy-word', content)
+
+    def test_viewer_has_sy_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sy-rule', content)
+
+    def test_viewer_has_sy_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sy-btn', content)
+
+    def test_viewer_has_rot_period_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rotPeriod', content)
+
+    def test_viewer_has_sy_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('syRun', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

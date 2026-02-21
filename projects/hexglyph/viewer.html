@@ -11783,6 +11783,210 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Rotational Symmetry Q6 — вращательная симметрия аттрактора</h2>
+<p class="meta">rot_period(S)=min k: rotate(S,k)=S · rot_order=N/rot_period · ТУМАН XOR rot_order=16 (максимум) · ГОРА AND=8 (чётные вращения) · ГОРА XOR3=4 (4 кластера) · ТУМАН XOR3=1 (нет симметрии)</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="sy-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="sy-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="sy-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="symm-ring" width="530" height="200"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="symm-rules" width="530" height="70"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="symm-info"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  function syStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function syOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=syStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=syStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=syStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function rotPeriod(state){
+    var N=state.length;
+    for(var k=1;k<=N;k++){
+      var ok=true;
+      for(var i=0;i<N;i++) if(state[i]!==state[(i+k)%N]){ok=false;break;}
+      if(ok) return k;
+    }
+    return N;
+  }
+  var BCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+  var RULES=['xor','xor3','and','or'];
+  var RULE_LBL={xor:'XOR',xor3:'XOR3',and:'AND',or:'OR'};
+
+  function syRun(){
+    var word=(document.getElementById('sy-word').value||'ГОРА').toUpperCase();
+    var rule=document.getElementById('sy-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=syOrbit(ic,rule), P=grid.length;
+    var col=BCOL[rule]||'#80deea';
+
+    /* Compute rot_period/order per step */
+    var rotPeriods=[], rotOrders=[];
+    for(var t=0;t<P;t++){
+      var rp=rotPeriod(grid[t]);
+      rotPeriods.push(rp);
+      rotOrders.push(N/rp);
+    }
+    var maxRO=Math.max.apply(null,rotOrders);
+
+    /* ── Ring + bar chart canvas ────────────────────────────────── */
+    var rc=document.getElementById('symm-ring');
+    var rx=rc.getContext('2d');
+    var RW=rc.width, RH=rc.height;
+    rx.fillStyle='#0a0a0a'; rx.fillRect(0,0,RW,RH);
+    var r1=parseInt(col.slice(1,3),16)||0x80;
+    var g1=parseInt(col.slice(3,5),16)||0xde;
+    var b1=parseInt(col.slice(5,7),16)||0xea;
+
+    /* ── Left: ring diagram for t=0 ── */
+    var ringCx=120, ringCy=RH/2, ringR=75;
+    var dotR=7;
+    /* draw ring connections */
+    rx.strokeStyle='#1a1a1a'; rx.lineWidth=1;
+    rx.beginPath(); rx.arc(ringCx,ringCy,ringR,0,2*Math.PI); rx.stroke();
+    /* compute positions */
+    var rp0=rotPeriods[0], ro0=rotOrders[0];
+    for(var i=0;i<N;i++){
+      var angle=-Math.PI/2 + 2*Math.PI*i/N;
+      var x=ringCx+ringR*Math.cos(angle);
+      var y=ringCy+ringR*Math.sin(angle);
+      /* is this position a symmetry axis? (i is multiple of rp0) */
+      var isSym=(i % rp0===0);
+      if(isSym){
+        rx.fillStyle='rgb('+r1+','+g1+','+b1+')';
+      } else {
+        rx.fillStyle='#222';
+      }
+      rx.beginPath(); rx.arc(x,y,dotR,0,2*Math.PI); rx.fill();
+      if(isSym){
+        rx.strokeStyle=col; rx.lineWidth=1.5;
+        rx.beginPath(); rx.moveTo(ringCx,ringCy); rx.lineTo(x,y); rx.stroke();
+      }
+      /* cell index label */
+      rx.fillStyle=isSym?'#ccc':'#555'; rx.font='8px monospace'; rx.textAlign='center';
+      rx.fillText(i, x, y+3);
+    }
+    /* center label */
+    rx.fillStyle='#888'; rx.font='11px monospace'; rx.textAlign='center';
+    rx.fillText('t=0', ringCx, ringCy-10);
+    rx.fillStyle=col; rx.font='12px monospace';
+    rx.fillText('order='+ro0, ringCx, ringCy+8);
+    rx.fillStyle='#666'; rx.font='10px monospace';
+    rx.fillText('period='+rp0, ringCx, ringCy+22);
+
+    /* title */
+    rx.fillStyle='#888'; rx.font='10px monospace'; rx.textAlign='left';
+    rx.fillText(word+' '+rule.toUpperCase()+' P='+P+' — rot. symmetry',ringCx-90,16);
+
+    /* ── Right: bars for rot_order per step ── */
+    var bx0=260, bPad=10;
+    var bCW=RW-bx0-bPad, bCH=RH-30;
+    var barW=P>0?Math.floor(bCW/P)-4:bCW;
+    rx.fillStyle='#888'; rx.font='9px monospace'; rx.textAlign='left';
+    rx.fillText('rot_order per step (max='+N+'):', bx0, 16);
+    for(var t=0;t<P;t++){
+      var bxPos=bx0+t*(barW+4);
+      var bh=Math.round(bCH*(rotOrders[t]/N));
+      rx.fillStyle=col;
+      rx.fillRect(bxPos, 25+bCH-bh, barW, bh);
+      /* label above */
+      rx.fillStyle='#ccc'; rx.font='9px monospace'; rx.textAlign='center';
+      rx.fillText(rotOrders[t], bxPos+barW/2, 25+bCH-bh-3);
+      /* t label below */
+      rx.fillStyle='#666'; rx.font='8px monospace';
+      rx.fillText('t='+t, bxPos+barW/2, 25+bCH+12);
+    }
+
+    /* ── All-rules rot_order comparison ────────────────────────── */
+    var bc2=document.getElementById('symm-rules');
+    var bx2=bc2.getContext('2d');
+    var BW=bc2.width, BH=bc2.height;
+    bx2.fillStyle='#0a0a0a'; bx2.fillRect(0,0,BW,BH);
+    var bPad2=28, bBot2=16;
+    var bCW2=BW-bPad2*2, bCH2=BH-bPad2-bBot2;
+    var barW2=Math.floor(bCW2/4)-8;
+    bx2.fillStyle='#555'; bx2.font='9px monospace'; bx2.textAlign='left';
+    bx2.fillText('Max rot_order per rule:', bPad2, bPad2-10);
+    for(var ri=0;ri<4;ri++){
+      var r=RULES[ri];
+      var ic2=window.encL(word);
+      var g2=syOrbit(ic2,r); var P2=g2.length;
+      var maxRO2=0;
+      for(var t=0;t<P2;t++){var rp2=rotPeriod(g2[t]); var ro2=N/rp2; if(ro2>maxRO2) maxRO2=ro2;}
+      var bx0r=bPad2+ri*(barW2+8);
+      var bh2=Math.round(bCH2*(maxRO2/N));
+      var bc3=BCOL[r]||'#ccc';
+      bx2.fillStyle=(r===rule)?bc3:'rgba('+parseInt(bc3.slice(1,3),16)+','+parseInt(bc3.slice(3,5),16)+','+parseInt(bc3.slice(5,7),16)+',0.4)';
+      bx2.fillRect(bx0r,bPad2+bCH2-bh2,barW2,bh2);
+      bx2.fillStyle='#888'; bx2.font='9px monospace'; bx2.textAlign='center';
+      bx2.fillText(RULE_LBL[r],bx0r+barW2/2,bPad2+bCH2+bBot2-3);
+      bx2.fillText('×'+maxRO2,bx0r+barW2/2,bPad2+bCH2-bh2-3);
+    }
+
+    /* ── Info text ──────────────────────────────────────────────── */
+    var lvl=maxRO>=N?'maximum':maxRO>=N/2?'high':maxRO>=N/4?'moderate':maxRO>=2?'low':'none';
+    document.getElementById('symm-info').innerHTML=
+      '<b>'+word+' '+rule.toUpperCase()+'</b>  P='+P+
+      '  rot_periods=['+rotPeriods.join(',')+']'+
+      '  rot_orders=['+rotOrders.join(',')+']'+
+      '  max_rot_order=<b>'+maxRO+'</b>  symmetry=<b>'+lvl+'</b>';
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var lexArr=window.LEXICON_ARR||['ТУМАН','ГОРА'];
+    var sel=document.getElementById('sy-word');
+    if(sel){
+      lexArr.forEach(function(w){var o=document.createElement('option');o.value=w;o.textContent=w;sel.appendChild(o);});
+      sel.value='ГОРА';
+    }
+    var btn=document.getElementById('sy-btn');
+    var wordEl=document.getElementById('sy-word');
+    var ruleEl=document.getElementById('sy-rule');
+    if(btn)    btn.addEventListener('click',syRun);
+    if(wordEl) wordEl.addEventListener('change',syRun);
+    if(ruleEl) ruleEl.addEventListener('change',syRun);
+    setTimeout(function(){if(window.encL) syRun();},4350);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."
