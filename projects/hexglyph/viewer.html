@@ -12577,6 +12577,205 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
+<h2>Neighborhood Config Coverage — охват правила по битовым плоскостям</h2>
+<p class="meta">Для каждой 1-битовой плоскости b: какие из 8 конфигураций (l,c,r) встречаются в аттракторе · ТУМАН XOR3: все 8/8 для всех битов (эргодичность) · ГОРА XOR3: бит 4 только 4/8 (только l≠r) · ГОРА AND: 2/8 для активных битов</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="cf-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="cf-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="cf-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="config-grid" width="530" height="160"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="config-cov" width="530" height="55"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<div id="config-info"
+  style="color:#ccc;font-family:monospace;font-size:12px"> </div>
+<script>
+(function(){
+  var BIT_COLS=['#4fc3f7','#80deea','#a5d6a7','#ffcc80','#ef9a9a','#ce93d8'];
+  var ALL_CFGS=[];
+  for(var l=0;l<2;l++) for(var c=0;c<2;c++) for(var r=0;r<2;r++) ALL_CFGS.push([l,c,r]);
+
+  function cfStep(cells,rule){
+    var N=cells.length,out=new Array(N);
+    for(var i=0;i<N;i++){
+      var l=cells[(i-1+N)%N],c2=cells[i],r=cells[(i+1)%N];
+      if(rule==='xor')       out[i]=(l^r)&63;
+      else if(rule==='xor3') out[i]=(l^c2^r)&63;
+      else if(rule==='and')  out[i]=(l&r)&63;
+      else                   out[i]=(l|r)&63;
+    }
+    return out;
+  }
+  function cfOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice(); for(var i=0;i<trans;i++) cur=cfStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){grid.push(cur.map(Number)); cur=cfStep(cur,rule);}
+        return grid;
+      }
+      seen[key]=t++; cur=cfStep(cur,rule);
+    }
+    return [ic.map(Number)];
+  }
+  function ruleBit(l,c,r,rule){
+    if(rule==='xor')  return (l^r)&1;
+    if(rule==='xor3') return (l^c^r)&1;
+    if(rule==='and')  return (l&r)&1;
+    return (l|r)&1;
+  }
+
+  function cfRun(){
+    var word=(document.getElementById('cf-word').value||'ГОРА').toUpperCase();
+    var rule=document.getElementById('cf-rule').value||'xor3';
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var N=ic.length;
+    var grid=cfOrbit(ic,rule), P=grid.length;
+
+    /* For each bit b, find active configs and their outputs */
+    var perBit=[];
+    for(var b=0;b<6;b++){
+      var cfg={};
+      for(var t=0;t<P;t++){
+        for(var i=0;i<N;i++){
+          var l=(grid[t][(i-1+N)%N]>>b)&1;
+          var c=(grid[t][i]>>b)&1;
+          var r=(grid[t][(i+1)%N]>>b)&1;
+          var out=(grid[(t+1)%P][i]>>b)&1;
+          cfg[l+','+c+','+r]=out;
+        }
+      }
+      perBit.push(cfg);
+    }
+    var covVec=perBit.map(function(cfg){return Object.keys(cfg).length;});
+    var meanCov=covVec.reduce(function(s,v){return s+v;},0)/(6*8);
+
+    /* ── Config grid (6 rows × 8 cols) ──────────────────────────── */
+    var gc=document.getElementById('config-grid');
+    var gx=gc.getContext('2d');
+    var GW=gc.width, GH=gc.height;
+    gx.fillStyle='#0a0a0a'; gx.fillRect(0,0,GW,GH);
+    var PAD=30, rightPad=10;
+    var cellW=Math.floor((GW-PAD-rightPad)/8);
+    var cellH=Math.floor((GH-20-10)/6);
+    /* Config header labels */
+    gx.fillStyle='#555'; gx.font='9px monospace'; gx.textAlign='center';
+    for(var ci=0;ci<8;ci++){
+      var cfg=ALL_CFGS[ci];
+      gx.fillText(cfg.join(''), PAD+ci*cellW+cellW/2, 14);
+      /* Rule output arrow */
+      var ruleOut=ruleBit(cfg[0],cfg[1],cfg[2],rule);
+      gx.fillStyle=ruleOut?'#4fc3f7':'#444';
+      gx.fillText('→'+ruleOut, PAD+ci*cellW+cellW/2, 24);
+      gx.fillStyle='#555';
+    }
+    for(var b=0;b<6;b++){
+      var col=BIT_COLS[b];
+      var r1=parseInt(col.slice(1,3),16)||0x4f;
+      var g1=parseInt(col.slice(3,5),16)||0xc3;
+      var b1=parseInt(col.slice(5,7),16)||0xf7;
+      /* Bit label */
+      gx.fillStyle=col; gx.font='9px monospace'; gx.textAlign='right';
+      gx.fillText('b'+b, PAD-4, 20+10+b*cellH+cellH/2+4);
+      for(var ci=0;ci<8;ci++){
+        var cfg=ALL_CFGS[ci];
+        var key=cfg.join(',');
+        var isActive=(key in perBit[b]);
+        var out=isActive?perBit[b][key]:null;
+        var bx=PAD+ci*cellW, by=20+10+b*cellH;
+        if(isActive){
+          var alpha=out===1?0.9:0.25;
+          gx.fillStyle='rgba('+r1+','+g1+','+b1+','+alpha+')';
+          gx.fillRect(bx+1, by+1, cellW-2, cellH-2);
+          if(cellW>=14){
+            gx.fillStyle=out===1?'#111':'#aaa';
+            gx.font='8px monospace'; gx.textAlign='center';
+            gx.fillText(out, bx+cellW/2, by+cellH/2+3);
+          }
+        } else {
+          gx.fillStyle='rgba(20,20,20,0.8)';
+          gx.fillRect(bx+1, by+1, cellW-2, cellH-2);
+          if(cellW>=14){
+            gx.fillStyle='#222';
+            gx.font='8px monospace'; gx.textAlign='center';
+            gx.fillText('·', bx+cellW/2, by+cellH/2+3);
+          }
+        }
+      }
+    }
+    /* Title */
+    gx.fillStyle='#888'; gx.font='10px monospace'; gx.textAlign='left';
+    gx.fillText(word+' '+rule.toUpperCase()+' P='+P+
+      '  mean_cov='+meanCov.toFixed(3),PAD,GH-4);
+
+    /* ── Coverage bar chart (6 bars, one per bit) ────────────────── */
+    var cc=document.getElementById('config-cov');
+    var cx2=cc.getContext('2d');
+    var CW=cc.width, CH=cc.height;
+    cx2.fillStyle='#0a0a0a'; cx2.fillRect(0,0,CW,CH);
+    var cPad=28, cBot=14;
+    var cCW=CW-cPad*2, cCH=CH-cPad-cBot;
+    cx2.strokeStyle='#333'; cx2.lineWidth=1;
+    cx2.beginPath(); cx2.moveTo(cPad,cPad); cx2.lineTo(cPad,cPad+cCH);
+    cx2.lineTo(cPad+cCW,cPad+cCH); cx2.stroke();
+    cx2.fillStyle='#555'; cx2.font='9px monospace'; cx2.textAlign='left';
+    cx2.fillText('Coverage: n_active_configs / 8 per bit plane',cPad,cPad-10);
+    var bW2=Math.floor(cCW/6)-4;
+    for(var b=0;b<6;b++){
+      var col=BIT_COLS[b];
+      var bh=Math.round(cCH*covVec[b]/8);
+      var bx=cPad+b*(bW2+4);
+      cx2.fillStyle=col;
+      cx2.fillRect(bx, cPad+cCH-bh, bW2, bh);
+      cx2.fillStyle='#888'; cx2.font='8px monospace'; cx2.textAlign='center';
+      cx2.fillText('b'+b, bx+bW2/2, cPad+cCH+cBot-3);
+      cx2.fillText(covVec[b]+'/8', bx+bW2/2, cPad+cCH-bh-3);
+    }
+
+    /* ── Info text ──────────────────────────────────────────────── */
+    var full=covVec.map(function(v,b){return v===8?b:null;}).filter(function(x){return x!==null;});
+    var mini=covVec.map(function(v,b){return v===1?b:null;}).filter(function(x){return x!==null;});
+    document.getElementById('config-info').innerHTML=
+      '<b>'+word+' '+rule.toUpperCase()+'</b>  P='+P+
+      '  coverage_vector=['+covVec.join(',')+']  mean='+meanCov.toFixed(3)+'<br>'+
+      'full_coverage_bits='+JSON.stringify(full)+
+      '  minimal_coverage_bits='+JSON.stringify(mini);
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var lexArr=window.LEXICON_ARR||['ТУМАН','ГОРА'];
+    var sel=document.getElementById('cf-word');
+    if(sel){
+      lexArr.forEach(function(w){var o=document.createElement('option');o.value=w;o.textContent=w;sel.appendChild(o);});
+      sel.value='ГОРА';
+    }
+    var btn=document.getElementById('cf-btn');
+    var wEl=document.getElementById('cf-word');
+    var rEl=document.getElementById('cf-rule');
+    if(btn) btn.addEventListener('click',cfRun);
+    if(wEl) wEl.addEventListener('change',cfRun);
+    if(rEl) rEl.addEventListener('change',cfRun);
+    setTimeout(function(){if(window.encL) cfRun();},5250);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Набрать текст в алфавите Solan</h2>
 <textarea id="inp" rows="2" cols="50" 
   placeholder="Наберите латинский текст здесь..."

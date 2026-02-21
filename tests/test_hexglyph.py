@@ -14882,5 +14882,347 @@ class TestSolanDist(unittest.TestCase):
         self.assertIn('dq6', content)
 
 
+class TestSolanConfig(unittest.TestCase):
+    """Tests for solan_config.py and the viewer Neighborhood Config Coverage."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_config import (
+            active_configs,
+            n_active_configs,
+            coverage_fraction,
+            coverage_vector,
+            mean_coverage,
+            full_coverage_bits,
+            minimal_coverage_bits,
+            config_transition_table,
+            config_summary,
+            all_config,
+            build_config_data,
+            _ALL_CONFIGS,
+            _N_CONFIGS,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.active_configs           = staticmethod(active_configs)
+        cls.n_active_configs         = staticmethod(n_active_configs)
+        cls.coverage_fraction        = staticmethod(coverage_fraction)
+        cls.coverage_vector          = staticmethod(coverage_vector)
+        cls.mean_coverage            = staticmethod(mean_coverage)
+        cls.full_coverage_bits       = staticmethod(full_coverage_bits)
+        cls.minimal_coverage_bits    = staticmethod(minimal_coverage_bits)
+        cls.config_transition_table  = staticmethod(config_transition_table)
+        cls.config_summary           = staticmethod(config_summary)
+        cls.all_config               = staticmethod(all_config)
+        cls.build_config_data        = staticmethod(build_config_data)
+        cls.ALL_CONFIGS              = list(_ALL_CONFIGS)
+        cls.N_CONFIGS                = _N_CONFIGS
+        cls.LEXICON                  = list(LEXICON)
+
+    # ── active_configs() ──────────────────────────────────────────────────────
+
+    def test_active_configs_deterministic(self):
+        """Each (l,c,r) config maps to exactly one output."""
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    cfg = self.active_configs(word, rule, b)
+                    for k, v in cfg.items():
+                        self.assertIn(v, (0, 1))
+
+    def test_active_configs_output_in_0_1(self):
+        cfg = self.active_configs('ТУМАН', 'xor3', 0)
+        for v in cfg.values():
+            self.assertIn(v, (0, 1))
+
+    def test_active_configs_keys_valid(self):
+        cfg = self.active_configs('ГОРА', 'and', 1)
+        for key in cfg:
+            self.assertIn(len(key), (3,))
+            for v in key:
+                self.assertIn(v, (0, 1))
+
+    def test_active_configs_tuman_xor_all_zero_zero_zero(self):
+        for b in range(6):
+            cfg = self.active_configs('ТУМАН', 'xor', b)
+            self.assertEqual(list(cfg.keys()), [(0, 0, 0)])
+
+    def test_active_configs_gora_or_all_one_one_one(self):
+        for b in range(6):
+            cfg = self.active_configs('ГОРА', 'or', b)
+            self.assertEqual(list(cfg.keys()), [(1, 1, 1)])
+
+    def test_active_configs_gora_xor3_bit0_only_111(self):
+        cfg = self.active_configs('ГОРА', 'xor3', 0)
+        self.assertEqual(list(cfg.keys()), [(1, 1, 1)])
+
+    def test_active_configs_gora_and_bit0_only_111(self):
+        cfg = self.active_configs('ГОРА', 'and', 0)
+        self.assertEqual(list(cfg.keys()), [(1, 1, 1)])
+
+    def test_active_configs_gora_and_bit4_only_000(self):
+        cfg = self.active_configs('ГОРА', 'and', 4)
+        self.assertEqual(list(cfg.keys()), [(0, 0, 0)])
+
+    def test_active_configs_gora_and_bit1_two_configs(self):
+        cfg = self.active_configs('ГОРА', 'and', 1)
+        self.assertEqual(len(cfg), 2)
+        self.assertIn((0, 1, 0), cfg)
+        self.assertIn((1, 0, 1), cfg)
+
+    def test_active_configs_gora_and_bit1_outputs(self):
+        cfg = self.active_configs('ГОРА', 'and', 1)
+        self.assertEqual(cfg[(0, 1, 0)], 0)   # AND(0,0) = 0
+        self.assertEqual(cfg[(1, 0, 1)], 1)   # AND(1,1) = 1
+
+    def test_active_configs_tuman_xor3_all_8(self):
+        for b in range(6):
+            cfg = self.active_configs('ТУМАН', 'xor3', b)
+            self.assertEqual(len(cfg), 8)
+
+    def test_active_configs_gora_xor3_bits_1235_all_8(self):
+        for b in [1, 2, 3, 5]:
+            cfg = self.active_configs('ГОРА', 'xor3', b)
+            self.assertEqual(len(cfg), 8,
+                msg=f'ГОРА xor3 bit {b} should have 8 active configs')
+
+    def test_active_configs_gora_xor3_bit4_four_configs(self):
+        cfg = self.active_configs('ГОРА', 'xor3', 4)
+        self.assertEqual(len(cfg), 4)
+        # Only l≠r configs: (0,0,1), (0,1,1), (1,0,0), (1,1,0)
+        expected = {(0, 0, 1), (0, 1, 1), (1, 0, 0), (1, 1, 0)}
+        self.assertEqual(set(cfg.keys()), expected)
+
+    def test_active_configs_subset_of_all(self):
+        all_cfgs = set(self.ALL_CONFIGS)
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    cfg = self.active_configs(word, rule, b)
+                    self.assertTrue(set(cfg.keys()).issubset(all_cfgs))
+
+    # ── n_active_configs() / coverage_fraction() ──────────────────────────────
+
+    def test_n_active_tuman_xor(self):
+        for b in range(6):
+            self.assertEqual(self.n_active_configs('ТУМАН', 'xor', b), 1)
+
+    def test_n_active_gora_or(self):
+        for b in range(6):
+            self.assertEqual(self.n_active_configs('ГОРА', 'or', b), 1)
+
+    def test_n_active_tuman_xor3_all_8(self):
+        for b in range(6):
+            self.assertEqual(self.n_active_configs('ТУМАН', 'xor3', b), 8)
+
+    def test_n_active_gora_xor3_b0(self):
+        self.assertEqual(self.n_active_configs('ГОРА', 'xor3', 0), 1)
+
+    def test_n_active_gora_xor3_b4(self):
+        self.assertEqual(self.n_active_configs('ГОРА', 'xor3', 4), 4)
+
+    def test_n_active_gora_and_b1(self):
+        self.assertEqual(self.n_active_configs('ГОРА', 'and', 1), 2)
+
+    def test_coverage_fraction_tuman_xor(self):
+        for b in range(6):
+            self.assertAlmostEqual(self.coverage_fraction('ТУМАН', 'xor', b),
+                                   1 / 8, places=5)
+
+    def test_coverage_fraction_tuman_xor3(self):
+        for b in range(6):
+            self.assertAlmostEqual(self.coverage_fraction('ТУМАН', 'xor3', b),
+                                   1.0, places=5)
+
+    def test_coverage_fraction_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    cf = self.coverage_fraction(word, rule, b)
+                    self.assertGreaterEqual(cf, 0.0)
+                    self.assertLessEqual(cf, 1.0)
+
+    # ── coverage_vector() / mean_coverage() ───────────────────────────────────
+
+    def test_coverage_vector_length_6(self):
+        cv = self.coverage_vector('ГОРА', 'xor3')
+        self.assertEqual(len(cv), 6)
+
+    def test_coverage_vector_tuman_xor(self):
+        self.assertEqual(self.coverage_vector('ТУМАН', 'xor'), [1, 1, 1, 1, 1, 1])
+
+    def test_coverage_vector_gora_and(self):
+        self.assertEqual(self.coverage_vector('ГОРА', 'and'), [1, 2, 2, 2, 1, 2])
+
+    def test_coverage_vector_gora_xor3(self):
+        self.assertEqual(self.coverage_vector('ГОРА', 'xor3'), [1, 8, 8, 8, 4, 8])
+
+    def test_coverage_vector_tuman_xor3(self):
+        self.assertEqual(self.coverage_vector('ТУМАН', 'xor3'), [8, 8, 8, 8, 8, 8])
+
+    def test_mean_coverage_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_coverage('ТУМАН', 'xor'), 1/8, places=5)
+
+    def test_mean_coverage_tuman_xor3(self):
+        self.assertAlmostEqual(self.mean_coverage('ТУМАН', 'xor3'), 1.0, places=5)
+
+    def test_mean_coverage_gora_xor3(self):
+        # [1,8,8,8,4,8] / 48 = 37/48
+        self.assertAlmostEqual(self.mean_coverage('ГОРА', 'xor3'), 37/48, places=5)
+
+    def test_mean_coverage_gora_and(self):
+        # [1,2,2,2,1,2] / 48 = 10/48
+        self.assertAlmostEqual(self.mean_coverage('ГОРА', 'and'), 10/48, places=5)
+
+    def test_mean_coverage_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                mc = self.mean_coverage(word, rule)
+                self.assertGreater(mc, 0.0)
+                self.assertLessEqual(mc, 1.0)
+
+    # ── full_coverage_bits() / minimal_coverage_bits() ───────────────────────
+
+    def test_full_coverage_tuman_xor3(self):
+        self.assertEqual(self.full_coverage_bits('ТУМАН', 'xor3'), [0, 1, 2, 3, 4, 5])
+
+    def test_full_coverage_tuman_xor(self):
+        self.assertEqual(self.full_coverage_bits('ТУМАН', 'xor'), [])
+
+    def test_full_coverage_gora_xor3(self):
+        full = self.full_coverage_bits('ГОРА', 'xor3')
+        self.assertEqual(sorted(full), [1, 2, 3, 5])
+        self.assertNotIn(0, full)
+        self.assertNotIn(4, full)
+
+    def test_minimal_coverage_tuman_xor(self):
+        self.assertEqual(self.minimal_coverage_bits('ТУМАН', 'xor'), [0, 1, 2, 3, 4, 5])
+
+    def test_minimal_coverage_tuman_xor3(self):
+        self.assertEqual(self.minimal_coverage_bits('ТУМАН', 'xor3'), [])
+
+    def test_minimal_coverage_gora_and(self):
+        mini = self.minimal_coverage_bits('ГОРА', 'and')
+        self.assertIn(0, mini)
+        self.assertIn(4, mini)
+
+    def test_minimal_coverage_gora_xor3(self):
+        mini = self.minimal_coverage_bits('ГОРА', 'xor3')
+        self.assertEqual(mini, [0])
+
+    # ── config_transition_table() ─────────────────────────────────────────────
+
+    def test_transition_table_xor3_size(self):
+        tt = self.config_transition_table('ГОРА', 'xor3', 0)
+        self.assertEqual(len(tt), 8)
+
+    def test_transition_table_xor3_known(self):
+        tt = self.config_transition_table('ГОРА', 'xor3', 0)
+        # XOR3: l XOR c XOR r
+        self.assertEqual(tt[(0, 0, 0)], 0)
+        self.assertEqual(tt[(0, 0, 1)], 1)
+        self.assertEqual(tt[(1, 1, 1)], 1)
+        self.assertEqual(tt[(0, 1, 1)], 0)
+
+    def test_transition_table_and_known(self):
+        tt = self.config_transition_table('ГОРА', 'and', 0)
+        # AND: l AND r
+        self.assertEqual(tt[(0, 0, 0)], 0)
+        self.assertEqual(tt[(1, 0, 1)], 1)
+        self.assertEqual(tt[(0, 1, 1)], 0)
+
+    def test_transition_table_consistent_with_active(self):
+        """Active configs must be consistent with the full rule table."""
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            tt = self.config_transition_table('ГОРА', rule, 0)
+            for b in range(6):
+                cfg = self.active_configs('ГОРА', rule, b)
+                for key, out in cfg.items():
+                    self.assertEqual(out, tt[key],
+                        msg=f'ГОРА/{rule}/b{b}: config {key} has inconsistent output')
+
+    # ── config_summary() ──────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.config_summary('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'period', 'coverage_vector',
+                  'coverage_fractions', 'mean_coverage',
+                  'full_coverage_bits', 'minimal_coverage_bits',
+                  'n_full_coverage', 'n_minimal',
+                  'per_bit_configs', 'per_bit_outputs',
+                  'output_diversity', 'rule_table'):
+            self.assertIn(k, d)
+
+    def test_summary_word_normalised(self):
+        self.assertEqual(self.config_summary('гора', 'xor3')['word'], 'ГОРА')
+
+    def test_summary_n_full_tuman_xor3(self):
+        self.assertEqual(self.config_summary('ТУМАН', 'xor3')['n_full_coverage'], 6)
+
+    def test_summary_n_minimal_tuman_xor(self):
+        self.assertEqual(self.config_summary('ТУМАН', 'xor')['n_minimal'], 6)
+
+    def test_summary_output_diversity_frozen(self):
+        d = self.config_summary('ТУМАН', 'xor')
+        # All bits frozen to 0 → output_diversity = [1,1,1,1,1,1]
+        self.assertTrue(all(v == 1 for v in d['output_diversity']))
+
+    # ── all_config() / build_config_data() ────────────────────────────────────
+
+    def test_all_config_four_rules(self):
+        r = self.all_config('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_config_data_keys(self):
+        data = self.build_config_data(['ГОРА', 'ТУМАН'])
+        for k in ('words', 'width', 'n_configs', 'all_configs', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_config_data_n_configs(self):
+        data = self.build_config_data(['ГОРА'])
+        self.assertEqual(data['n_configs'], 8)
+
+    def test_build_config_data_all_configs_length(self):
+        data = self.build_config_data(['ГОРА'])
+        self.assertEqual(len(data['all_configs']), 8)
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_config_grid(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('config-grid', content)
+
+    def test_viewer_has_config_cov(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('config-cov', content)
+
+    def test_viewer_has_config_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('config-info', content)
+
+    def test_viewer_has_cf_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cf-word', content)
+
+    def test_viewer_has_cf_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cf-rule', content)
+
+    def test_viewer_has_cf_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cf-btn', content)
+
+    def test_viewer_has_cf_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cfRun', content)
+
+    def test_viewer_has_rule_bit_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ruleBit', content)
+
+    def test_viewer_has_all_cfgs_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ALL_CFGS', content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
