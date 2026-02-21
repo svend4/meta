@@ -7725,6 +7725,197 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
+<h2>Блочная энтропия Q6 — H_n, скорость энтропии, избыточность</h2>
+<p class="meta">H_n = −Σ P(x) log₂ P(x) для n-граммного распределения всех клеток аттрактора (бинаризация порог=32) · h_n = H_{n+1} − H_n — условная энтропия (убывает) · E ≈ H_{max_n} — избыточная энтропия (сложность) · n* — насыщение контекста</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+  <select id="blo-word"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+  </select>
+  <select id="blo-rule"
+    style="background:#111;color:#ccc;border:1px solid #333;padding:4px 8px;font-size:13px">
+    <option value="xor3" selected>XOR3</option>
+    <option value="xor">XOR</option>
+    <option value="and">AND</option>
+    <option value="or">OR</option>
+  </select>
+  <button id="blo-btn"
+    style="background:#1e3a4a;color:#4fc3f7;border:1px solid #2a5a7a;
+           padding:4px 14px;cursor:pointer;font-size:13px">Запустить</button>
+</div>
+<canvas id="blo-profile" width="530" height="220"
+  style="display:block;border:1px solid #1a1a1a;margin-bottom:6px"></canvas>
+<canvas id="blo-rate"    width="530" height="90"
+  style="display:block;border:1px solid #1a1a1a"></canvas>
+<div id="blo-stats"
+  style="color:#ccc;font-family:monospace;font-size:12px;margin-top:6px"> </div>
+<script>
+(function(){
+  /* ── Q6 CA helpers ─────────────────────────────────────────────────── */
+  function bloStep(cells,rule){
+    var n=cells.length,out=[];
+    for(var i=0;i<n;i++){
+      var l=cells[(i-1+n)%n],c=cells[i],r=cells[(i+1)%n];
+      if(rule==='xor')       out.push((l^r)&63);
+      else if(rule==='xor3') out.push((l^c^r)&63);
+      else if(rule==='and')  out.push((l&r)&63);
+      else                   out.push((l|r)&63);
+    }
+    return out;
+  }
+  function bloOrbit(ic,rule){
+    var seen={},t=0,cur=ic.slice();
+    while(t<2000){
+      var key=cur.join(',');
+      if(key in seen){
+        var trans=seen[key],period=t-trans;
+        cur=ic.slice();
+        for(var i=0;i<trans;i++) cur=bloStep(cur,rule);
+        var grid=[];
+        for(var i=0;i<period;i++){
+          grid.push(cur.map(function(v){return v>=32?1:0;}));
+          cur=bloStep(cur,rule);
+        }
+        return grid;
+      }
+      seen[key]=t++;
+      cur=bloStep(cur,rule);
+    }
+    return [ic.map(function(v){return v>=32?1:0;})];
+  }
+  /* ── Block entropy computation ────────────────────────────────────── */
+  function bloHBlock(seqs,n){
+    var counts={},total=0;
+    for(var si=0;si<seqs.length;si++){
+      var s=seqs[si],m=s.length;
+      for(var t=0;t<m;t++){
+        var gram=[];
+        for(var j=0;j<n;j++) gram.push(s[(t+j)%m]);
+        var key=gram.join('');
+        counts[key]=(counts[key]||0)+1; total++;
+      }
+    }
+    if(!total) return 0;
+    var h=0;
+    for(var k in counts){var p=counts[k]/total; h-=p*Math.log2(p);}
+    return Math.max(0,h);
+  }
+  function bloProfile(seqs,maxN){
+    var prof=[];
+    for(var n=1;n<=maxN;n++) prof.push(bloHBlock(seqs,n));
+    return prof;
+  }
+  /* ── Main render ────────────────────────────────────────────────── */
+  window.bloRun=function(){
+    var word=(document.getElementById('blo-word').value||'ТУМАН').toUpperCase();
+    var rule=document.getElementById('blo-rule').value||'xor3';
+    var MAX_N=8;
+    if(!window.encL) return;
+    var ic=window.encL(word);
+    var grid=bloOrbit(ic,rule);
+    var P=grid.length;
+    if(!P) return;
+    var N=grid[0].length;
+    var seqs=[];
+    for(var i=0;i<N;i++){
+      var s=[];
+      for(var t=0;t<P;t++) s.push(grid[t][i]);
+      seqs.push(s);
+    }
+    var prof=bloProfile(seqs,MAX_N);
+    var rates=[];
+    for(var i=1;i<prof.length;i++) rates.push(Math.max(0,prof[i]-prof[i-1]));
+    var h1=prof[0]||0;
+    var hMax=Math.max.apply(null,prof)||1;
+    var exc=prof[prof.length-1]||0;
+    var hInf=rates.length?rates[rates.length-1]:0;
+    /* saturation index n* */
+    var nStar=MAX_N;
+    for(var i=0;i<rates.length;i++){if(rates[i]<0.01){nStar=i+2;break;}}
+    var RCOL={xor:'#4fc3f7',xor3:'#80deea',and:'#ef5350',or:'#ffd54f'};
+    var col=RCOL[rule]||'#4fc3f7';
+    /* ── H_n profile bars ──────────────────────────────────────────── */
+    var pc=document.getElementById('blo-profile');
+    var cx=pc.getContext('2d');
+    var W=pc.width,H=pc.height;
+    cx.fillStyle='#0d0d0d'; cx.fillRect(0,0,W,H);
+    var BAR_W=52,BAR_GAP=6,X0=58,YBASE=H-38,MAX_HB=H-58;
+    /* axis labels */
+    cx.fillStyle='#555'; cx.font='10px monospace'; cx.textAlign='right';
+    [0,0.25,0.5,0.75,1.0].forEach(function(frac){
+      var y=YBASE-frac*MAX_HB;
+      cx.fillStyle='#333'; cx.fillRect(X0-3,y,W-X0+3,1);
+      cx.fillStyle='#666'; cx.fillText((frac*hMax).toFixed(2),X0-5,y+3);
+    });
+    for(var i=0;i<prof.length;i++){
+      var hn=prof[i];
+      var bh=hMax>0?Math.round((hn/hMax)*MAX_HB):0;
+      var rate=i<rates.length?rates[i]:0;
+      var rFrac=h1>0?rate/h1:0;
+      var g=Math.round(rFrac*120+80); // green component — higher rate = greener
+      cx.fillStyle='rgba(50,'+g+',160,0.75)';
+      cx.globalAlpha=0.3+0.7*(hMax>0?hn/hMax:0);
+      cx.fillRect(X0+i*(BAR_W+BAR_GAP),YBASE-bh,BAR_W,bh);
+      cx.globalAlpha=1;
+      cx.strokeStyle=col; cx.lineWidth=0.5;
+      cx.strokeRect(X0+i*(BAR_W+BAR_GAP),YBASE-MAX_HB,BAR_W,MAX_HB);
+      cx.fillStyle='#bbb'; cx.font='10px monospace'; cx.textAlign='center';
+      cx.fillText('n='+(i+1),X0+i*(BAR_W+BAR_GAP)+BAR_W/2,YBASE+12);
+      if(hn>0.01)
+        cx.fillText(hn.toFixed(2),X0+i*(BAR_W+BAR_GAP)+BAR_W/2,YBASE-bh-5);
+    }
+    cx.textAlign='left';
+    cx.fillStyle='#777'; cx.font='10px monospace';
+    cx.fillText('H_n\n(bits)',2,H/2);
+    /* ── h_n rate bars ─────────────────────────────────────────────── */
+    var rc=document.getElementById('blo-rate');
+    var rx=rc.getContext('2d');
+    var RW=rc.width,RH=rc.height;
+    rx.fillStyle='#0d0d0d'; rx.fillRect(0,0,RW,RH);
+    var rMax=rates.length?Math.max.apply(null,rates)||1:1;
+    for(var i=0;i<rates.length;i++){
+      var bh2=Math.round((rates[i]/rMax)*(RH-36));
+      rx.fillStyle=col; rx.globalAlpha=0.3+0.7*(rates[i]/rMax);
+      rx.fillRect(X0+i*(BAR_W+BAR_GAP),RH-22-bh2,BAR_W,bh2);
+      rx.globalAlpha=1;
+      rx.fillStyle='#aaa'; rx.font='9px monospace'; rx.textAlign='center';
+      rx.fillText('h'+(i+2),X0+i*(BAR_W+BAR_GAP)+BAR_W/2,RH-6);
+      if(rates[i]>0.005)
+        rx.fillText(rates[i].toFixed(3),X0+i*(BAR_W+BAR_GAP)+BAR_W/2,RH-22-bh2-3);
+    }
+    rx.fillStyle='#777'; rx.textAlign='left'; rx.font='9px monospace';
+    rx.fillText('h_n',2,RH/2);
+    /* Stats */
+    var logPW=P>0&&N>0?Math.log2(P*N):1;
+    document.getElementById('blo-stats').innerHTML=
+      'P='+P+
+      '  H\u2081='+h1.toFixed(4)+
+      '  E\u2248'+exc.toFixed(4)+
+      '  h\u221e\u2248'+hInf.toFixed(4)+
+      '  n*='+nStar+
+      '  E/log\u2082(P\u00b7N)='+(logPW>0?(exc/logPW).toFixed(3):'—');
+  };
+  window.addEventListener('DOMContentLoaded',function(){
+    var sel=document.getElementById('blo-word');
+    if(sel&&window.LEXICON_ARR){
+      window.LEXICON_ARR.forEach(function(w){
+        var o=document.createElement('option');
+        o.value=o.textContent=w;
+        if(w==='\u0422\u0423\u041c\u0410\u041d') o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    var btn=document.getElementById('blo-btn');
+    var wordEl=document.getElementById('blo-word');
+    var ruleEl=document.getElementById('blo-rule');
+    if(btn)    btn.addEventListener('click',bloRun);
+    if(wordEl) wordEl.addEventListener('change',bloRun);
+    if(ruleEl) ruleEl.addEventListener('change',bloRun);
+    setTimeout(function(){if(window.encL) bloRun();},1800);
+  });
+})();
+</script>
+</div>
+<div class="section">
 <h2>Предсказание Q6 — любое слово</h2>
 <p class="meta">Введите произвольное русское слово · сигнатура + класс (из 13) + ближайшие соседи в лексиконе</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">

@@ -6797,6 +6797,278 @@ class TestSolanPersistence(unittest.TestCase):
         self.assertIn('Персистентность Q6', content)
 
 
+class TestSolanBlock(unittest.TestCase):
+    """Tests for solan_block.py and the viewer Block Entropy section."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib, sys
+        spec = importlib.util.spec_from_file_location(
+            'solan_block',
+            str(pathlib.Path(__file__).resolve().parents[1] /
+                'projects' / 'hexglyph' / 'solan_block.py'))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules['solan_block'] = mod
+        spec.loader.exec_module(mod)
+        cls.mod = mod
+
+    # ── h_block ────────────────────────────────────────────────────────
+
+    def test_hb_empty_seqs(self):
+        self.assertAlmostEqual(self.mod.h_block([], 1), 0.0)
+
+    def test_hb_constant_seq(self):
+        # constant sequence → only one unigram → H_1=0
+        seqs = [[0, 0, 0, 0, 0, 0, 0, 0]]
+        self.assertAlmostEqual(self.mod.h_block(seqs, 1), 0.0)
+
+    def test_hb_alternating_unigram(self):
+        # alternating [0,1,0,1] → H_1 = 1 bit
+        seqs = [[0, 1, 0, 1]]
+        self.assertAlmostEqual(self.mod.h_block(seqs, 1), 1.0, places=6)
+
+    def test_hb_alternating_bigram(self):
+        # alternating [0,1,0,1] → bigrams (0,1),(1,0),(0,1),(1,0) → H_2=1
+        seqs = [[0, 1, 0, 1]]
+        self.assertAlmostEqual(self.mod.h_block(seqs, 2), 1.0, places=6)
+
+    def test_hb_nonnegative(self):
+        import random
+        rng = random.Random(0)
+        seqs = [[rng.randint(0, 1) for _ in range(10)] for _ in range(4)]
+        for n in range(1, 5):
+            self.assertGreaterEqual(self.mod.h_block(seqs, n), 0.0)
+
+    def test_hb_subadditive_h2_le_2h1(self):
+        # H_2 ≤ 2·H_1 by chain rule + non-negativity of cond. entropy
+        seqs = [[0, 1, 0, 1, 0, 0, 1, 1]]
+        h1 = self.mod.h_block(seqs, 1)
+        h2 = self.mod.h_block(seqs, 2)
+        self.assertLessEqual(h2, 2.0 * h1 + 1e-9)
+
+    def test_hb_monotone_nondecreasing(self):
+        # H_{n+1} >= H_n
+        seqs = [[0, 1, 0, 0, 1, 1, 0, 1]]
+        prev = 0.0
+        for n in range(1, 5):
+            hn = self.mod.h_block(seqs, n)
+            self.assertGreaterEqual(hn + 1e-9, prev)
+            prev = hn
+
+    # ── block_profile ──────────────────────────────────────────────────
+
+    def test_bp_xor_tuman_all_zero(self):
+        prof = self.mod.block_profile('ТУМАН', 'xor', 8, 16)
+        self.assertEqual(len(prof), 8)
+        for h in prof:
+            self.assertAlmostEqual(h, 0.0, places=5)
+
+    def test_bp_gora_and_all_ones(self):
+        # ГОРА AND P=2, all alternating → H_n=1 ∀n
+        prof = self.mod.block_profile('ГОРА', 'and', 6, 16)
+        for h in prof:
+            self.assertAlmostEqual(h, 1.0, places=5)
+
+    def test_bp_gora_xor3_saturates(self):
+        # ГОРА XOR3: H_1=1, H_2=2, H_n=2 for n≥2
+        prof = self.mod.block_profile('ГОРА', 'xor3', 6, 16)
+        self.assertAlmostEqual(prof[0], 1.0, places=5)
+        self.assertAlmostEqual(prof[1], 2.0, places=5)
+        for h in prof[2:]:
+            self.assertAlmostEqual(h, 2.0, places=5)
+
+    def test_bp_length(self):
+        prof = self.mod.block_profile('ТУМАН', 'xor3', 5, 16)
+        self.assertEqual(len(prof), 5)
+
+    def test_bp_monotone(self):
+        prof = self.mod.block_profile('ТУМАН', 'xor3', 8, 16)
+        for i in range(len(prof) - 1):
+            self.assertLessEqual(prof[i] - 1e-9, prof[i + 1])
+
+    # ── h_rate_profile ─────────────────────────────────────────────────
+
+    def test_hrp_length(self):
+        prof = self.mod.block_profile('ТУМАН', 'xor3', 8, 16)
+        rates = self.mod.h_rate_profile(prof)
+        self.assertEqual(len(rates), len(prof) - 1)
+
+    def test_hrp_nonnegative(self):
+        prof = self.mod.block_profile('ТУМАН', 'xor3', 8, 16)
+        rates = self.mod.h_rate_profile(prof)
+        self.assertTrue(all(r >= 0.0 for r in rates))
+
+    def test_hrp_gora_and_all_zero(self):
+        # ГОРА AND: H_n=1 ∀n → rates = 0
+        prof = self.mod.block_profile('ГОРА', 'and', 6, 16)
+        rates = self.mod.h_rate_profile(prof)
+        for r in rates:
+            self.assertAlmostEqual(r, 0.0, places=5)
+
+    def test_hrp_gora_xor3_first_rate(self):
+        # ГОРА XOR3: h_2 = H_2 - H_1 = 2 - 1 = 1.0
+        prof = self.mod.block_profile('ГОРА', 'xor3', 6, 16)
+        rates = self.mod.h_rate_profile(prof)
+        self.assertAlmostEqual(rates[0], 1.0, places=5)
+
+    def test_hrp_gora_xor3_rest_zero(self):
+        # ГОРА XOR3: h_n = 0 for n≥3 (saturates at n=2)
+        prof = self.mod.block_profile('ГОРА', 'xor3', 6, 16)
+        rates = self.mod.h_rate_profile(prof)
+        for r in rates[1:]:
+            self.assertAlmostEqual(r, 0.0, places=5)
+
+    def test_hrp_empty_profile(self):
+        self.assertEqual(self.mod.h_rate_profile([]), [])
+
+    def test_hrp_single(self):
+        self.assertEqual(self.mod.h_rate_profile([1.0]), [])
+
+    # ── saturation_index ───────────────────────────────────────────────
+
+    def test_si_xor_tuman(self):
+        prof = self.mod.block_profile('ТУМАН', 'xor', 8, 16)
+        n = self.mod.saturation_index(prof)
+        self.assertEqual(n, 2)
+
+    def test_si_gora_and(self):
+        prof = self.mod.block_profile('ГОРА', 'and', 8, 16)
+        n = self.mod.saturation_index(prof)
+        self.assertEqual(n, 2)
+
+    def test_si_gora_xor3(self):
+        prof = self.mod.block_profile('ГОРА', 'xor3', 8, 16)
+        n = self.mod.saturation_index(prof)
+        self.assertEqual(n, 3)
+
+    def test_si_returns_int(self):
+        prof = self.mod.block_profile('ТУМАН', 'xor3', 8, 16)
+        n = self.mod.saturation_index(prof)
+        self.assertIsInstance(n, int)
+
+    # ── excess_entropy_estimate ────────────────────────────────────────
+
+    def test_ee_xor_tuman(self):
+        prof = self.mod.block_profile('ТУМАН', 'xor', 8, 16)
+        self.assertAlmostEqual(self.mod.excess_entropy_estimate(prof), 0.0)
+
+    def test_ee_gora_and(self):
+        prof = self.mod.block_profile('ГОРА', 'and', 8, 16)
+        self.assertAlmostEqual(self.mod.excess_entropy_estimate(prof), 1.0, places=5)
+
+    def test_ee_gora_xor3(self):
+        prof = self.mod.block_profile('ГОРА', 'xor3', 8, 16)
+        self.assertAlmostEqual(self.mod.excess_entropy_estimate(prof), 2.0, places=5)
+
+    def test_ee_empty(self):
+        self.assertAlmostEqual(self.mod.excess_entropy_estimate([]), 0.0)
+
+    # ── block_dict ─────────────────────────────────────────────────────
+
+    def test_bd_keys(self):
+        d = self.mod.block_dict('ТУМАН', 'xor3', 8, 16)
+        for k in ('word', 'rule', 'period', 'max_n', 'h_profile', 'h_rate',
+                  'h1', 'h_inf_estimate', 'excess_entropy', 'saturation_n',
+                  'normalised_E'):
+            self.assertIn(k, d)
+
+    def test_bd_xor_tuman(self):
+        d = self.mod.block_dict('ТУМАН', 'xor', 8, 16)
+        self.assertAlmostEqual(d['h1'], 0.0)
+        self.assertAlmostEqual(d['excess_entropy'], 0.0)
+        self.assertEqual(d['saturation_n'], 2)
+
+    def test_bd_gora_and(self):
+        d = self.mod.block_dict('ГОРА', 'and', 8, 16)
+        self.assertAlmostEqual(d['h1'], 1.0, places=5)
+        self.assertAlmostEqual(d['excess_entropy'], 1.0, places=5)
+        self.assertEqual(d['saturation_n'], 2)
+
+    def test_bd_gora_xor3(self):
+        d = self.mod.block_dict('ГОРА', 'xor3', 8, 16)
+        self.assertAlmostEqual(d['h1'], 1.0, places=5)
+        self.assertAlmostEqual(d['excess_entropy'], 2.0, places=5)
+        self.assertEqual(d['saturation_n'], 3)
+
+    def test_bd_period_xor3_tuman(self):
+        d = self.mod.block_dict('ТУМАН', 'xor3', 8, 16)
+        self.assertEqual(d['period'], 8)
+
+    def test_bd_word_uppercase(self):
+        d = self.mod.block_dict('туман', 'xor3', 8, 16)
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_bd_profile_length(self):
+        d = self.mod.block_dict('ТУМАН', 'xor3', 6, 16)
+        self.assertEqual(len(d['h_profile']), 6)
+
+    def test_bd_rate_length(self):
+        d = self.mod.block_dict('ТУМАН', 'xor3', 6, 16)
+        self.assertEqual(len(d['h_rate']), 5)
+
+    def test_bd_normalised_E_in_range(self):
+        d = self.mod.block_dict('ТУМАН', 'xor3', 8, 16)
+        self.assertGreaterEqual(d['normalised_E'], 0.0)
+        self.assertLessEqual(d['normalised_E'], 1.0 + 1e-6)
+
+    # ── all_block ──────────────────────────────────────────────────────
+
+    def test_ab_four_rules(self):
+        ab = self.mod.all_block('ТУМАН', 8, 16)
+        self.assertEqual(set(ab.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_ab_each_has_dict(self):
+        ab = self.mod.all_block('ГОРА', 8, 16)
+        for rule, d in ab.items():
+            self.assertIn('excess_entropy', d)
+
+    # ── build_block_data ───────────────────────────────────────────────
+
+    def test_bbd_structure(self):
+        d = self.mod.build_block_data(['ТУМАН', 'ГОРА'], 8, 16)
+        self.assertIn('words', d)
+        self.assertIn('width', d)
+        self.assertIn('max_n', d)
+        self.assertIn('per_rule', d)
+
+    def test_bbd_per_rule_keys(self):
+        d = self.mod.build_block_data(['ТУМАН'], 8, 16)
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_bbd_word_entry_keys(self):
+        d = self.mod.build_block_data(['ТУМАН'], 8, 16)
+        entry = d['per_rule']['xor3']['ТУМАН']
+        for k in ('period', 'h1', 'h_inf_estimate', 'excess_entropy',
+                  'saturation_n', 'normalised_E', 'h_profile', 'h_rate'):
+            self.assertIn(k, entry)
+
+    # ── viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_blo_profile(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('blo-profile', content)
+
+    def test_viewer_has_blo_rate(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('blo-rate', content)
+
+    def test_viewer_has_blo_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('blo-stats', content)
+
+    def test_viewer_has_blo_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bloRun', content)
+
+    def test_viewer_has_blo_hblock(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bloHBlock', content)
+
+    def test_viewer_has_block_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Блочная энтропия Q6', content)
+
+
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
 
