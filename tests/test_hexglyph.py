@@ -30487,5 +30487,232 @@ class TestDistSummaryProps(unittest.TestCase):
         self.assertIn('mean_dist_q6', self._ds)
 
 
+# ---------------------------------------------------------------------------
+# TestBitplaneProps
+# ---------------------------------------------------------------------------
+class TestBitplaneProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitplane import bitplane_summary, cell_activity, coupling_matrix
+        from projects.hexglyph.solan_network import get_orbit
+        cls.cell_activity    = staticmethod(cell_activity)
+        cls.coupling_matrix  = staticmethod(coupling_matrix)
+        cls._bs   = bitplane_summary('ГОРА', 'xor3')
+        orbit = get_orbit('ВОЛНА', 'xor3')
+        from projects.hexglyph.solan_layer import bit_plane
+        cls._bp   = bit_plane('ГОРА', 'xor3', 5)
+        cls._ca   = cell_activity(cls._bp)
+        cls._cm   = coupling_matrix(orbit)
+
+    def test_bitplane_summary_dict(self):
+        self.assertIsInstance(self._bs, dict)
+
+    def test_bitplane_summary_word_preserved(self):
+        self.assertEqual(self._bs['word'], 'ГОРА')
+
+    def test_cell_activity_list(self):
+        self.assertIsInstance(self._ca, list)
+
+    def test_coupling_matrix_list(self):
+        self.assertIsInstance(self._cm, list)
+
+
+# ---------------------------------------------------------------------------
+# TestBlockProps
+# ---------------------------------------------------------------------------
+class TestBlockProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_block import block_dict, block_profile, excess_entropy_estimate
+        cls.excess_entropy_estimate = staticmethod(excess_entropy_estimate)
+        cls._bd  = block_dict('ГОРА', 'xor3', max_n=4)
+        cls._bp  = block_profile('ГОРА', 'xor3', max_n=4)
+        cls._eee = excess_entropy_estimate(cls._bp)
+
+    def test_block_dict_dict(self):
+        self.assertIsInstance(self._bd, dict)
+
+    def test_block_dict_word_preserved(self):
+        self.assertEqual(self._bd['word'], 'ГОРА')
+
+    def test_block_profile_list(self):
+        self.assertIsInstance(self._bp, list)
+
+    def test_block_profile_nonneg(self):
+        for v in self._bp:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_excess_entropy_estimate_float(self):
+        self.assertIsInstance(self._eee, float)
+
+
+# ---------------------------------------------------------------------------
+# TestEdgeProps
+# ---------------------------------------------------------------------------
+class TestEdgeProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_edge import (
+            bit_edge_density, bit_edge_vector, edge_density, classify_bit_edge,
+        )
+        cls.bit_edge_density  = staticmethod(bit_edge_density)
+        cls.edge_density      = staticmethod(edge_density)
+        cls.classify_bit_edge = staticmethod(classify_bit_edge)
+        cls._state = [49, 47, 15, 63]
+        cls._bev   = bit_edge_vector(cls._state)
+
+    def test_bit_edge_density_float(self):
+        v = self.bit_edge_density(self._state, 5)
+        self.assertIsInstance(v, float)
+
+    def test_bit_edge_density_in_01(self):
+        v = self.bit_edge_density(self._state, 5)
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_bit_edge_vector_list(self):
+        self.assertIsInstance(self._bev, list)
+
+    def test_bit_edge_vector_length_6(self):
+        self.assertEqual(len(self._bev), 6)
+
+    def test_edge_density_float(self):
+        v = self.edge_density(self._state)
+        self.assertIsInstance(v, float)
+
+    def test_classify_bit_edge_str(self):
+        v = self.classify_bit_edge(0.5)
+        self.assertIsInstance(v, str)
+
+
+# ---------------------------------------------------------------------------
+# TestLayerProps
+# ---------------------------------------------------------------------------
+class TestLayerProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_layer import active_bits, frozen_bits, layer_periods, bit_plane
+        cls._ab  = active_bits('ГОРА', 'xor3')
+        cls._fb  = frozen_bits('ГОРА', 'xor3')
+        cls._lp  = layer_periods('ГОРА', 'xor3')
+        cls._bp  = bit_plane('ГОРА', 'xor3', 5)
+
+    def test_active_bits_list(self):
+        self.assertIsInstance(self._ab, list)
+
+    def test_frozen_bits_tuple(self):
+        self.assertIsInstance(self._fb, tuple)
+
+    def test_frozen_bits_length_2(self):
+        self.assertEqual(len(self._fb), 2)
+
+    def test_layer_periods_list(self):
+        self.assertIsInstance(self._lp, list)
+
+    def test_layer_periods_6_bits(self):
+        self.assertEqual(len(self._lp), 6)
+
+    def test_bit_plane_list(self):
+        self.assertIsInstance(self._bp, list)
+
+
+# ---------------------------------------------------------------------------
+# TestAnalyzeCellProps
+# ---------------------------------------------------------------------------
+class TestAnalyzeCellProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_run import analyze_cell
+        cls._ac = analyze_cell([49, 47, 15, 63, 49, 47, 15, 63])
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._ac, dict)
+
+    def test_has_n_turns(self):
+        self.assertIn('n_turns', self._ac)
+
+    def test_has_value_range(self):
+        self.assertIn('value_range', self._ac)
+
+    def test_n_turns_nonneg(self):
+        self.assertGreaterEqual(self._ac['n_turns'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestPhaseProps
+# ---------------------------------------------------------------------------
+class TestPhaseProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phase import phase_offset, phase_summary
+        cls.phase_offset = staticmethod(phase_offset)
+        cls._s1 = [49, 47, 15, 63] * 2
+        cls._s2 = [15, 63, 49, 47] * 2
+        cls._po = phase_offset(cls._s1, cls._s2)
+        cls._ps = phase_summary('ГОРА', 'xor3')
+
+    def test_phase_offset_int_or_none(self):
+        self.assertIsInstance(self._po, (int, type(None)))
+
+    def test_phase_summary_dict(self):
+        self.assertIsInstance(self._ps, dict)
+
+    def test_phase_summary_word_preserved(self):
+        self.assertEqual(self._ps['word'], 'ГОРА')
+
+    def test_phase_summary_has_sync_fraction(self):
+        self.assertIn('sync_fraction', self._ps)
+
+
+# ---------------------------------------------------------------------------
+# TestTemporalProps
+# ---------------------------------------------------------------------------
+class TestTemporalProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_temporal import cell_dft_power, attractor_temporal_spectra
+        cls._cdp = cell_dft_power([49, 47, 15, 63] * 2)
+        cls._ats = attractor_temporal_spectra('ГОРА', 'xor3')
+
+    def test_cell_dft_power_list(self):
+        self.assertIsInstance(self._cdp, list)
+
+    def test_cell_dft_power_nonneg(self):
+        for v in self._cdp:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_attractor_temporal_spectra_list(self):
+        self.assertIsInstance(self._ats, list)
+
+    def test_attractor_temporal_spectra_16_cells(self):
+        self.assertEqual(len(self._ats), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestCrossProps
+# ---------------------------------------------------------------------------
+class TestCrossProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cross import cross_corr_matrix, pearson
+        cls.pearson = staticmethod(pearson)
+        cls._ccm = cross_corr_matrix('ГОРА', 'xor3')
+
+    def test_cross_corr_matrix_list(self):
+        self.assertIsInstance(self._ccm, list)
+
+    def test_cross_corr_matrix_16x16(self):
+        self.assertEqual(len(self._ccm), 16)
+        self.assertEqual(len(self._ccm[0]), 16)
+
+    def test_pearson_float_or_none(self):
+        v = self.pearson([1, 2, 3, 4, 5], [2, 4, 6, 8, 10])
+        self.assertIsInstance(v, (float, type(None)))
+
+    def test_pearson_correlated_is_one(self):
+        v = self.pearson([1, 2, 3, 4, 5], [2, 4, 6, 8, 10])
+        self.assertAlmostEqual(v, 1.0, places=5)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
