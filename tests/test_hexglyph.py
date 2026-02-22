@@ -24622,5 +24622,143 @@ class TestMutualSummaryShape(unittest.TestCase):
             self.assertEqual(r['rule'], rule)
 
 
+class TestMultistepSummaryShape(unittest.TestCase):
+    """Structure of multistep_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multistep import multistep_summary
+        cls.multistep_summary = staticmethod(multistep_summary)
+        cls._r = multistep_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_dist_matrix_is_list(self):
+        self.assertIsInstance(self._r['dist_matrix'], list)
+
+    def test_eccentricity_is_list(self):
+        self.assertIsInstance(self._r['eccentricity'], list)
+
+    def test_diameter_int(self):
+        self.assertIsInstance(self._r['diameter'], int)
+
+    def test_radius_int(self):
+        self.assertIsInstance(self._r['radius'], int)
+
+    def test_orbit_spread_float(self):
+        self.assertIsInstance(self._r['orbit_spread'], float)
+
+    def test_is_regular_bool(self):
+        self.assertIsInstance(self._r['is_regular'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.multistep_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestSemanticSummaryShape(unittest.TestCase):
+    """Structure of semantic_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_semantic import semantic_summary
+        cls.semantic_summary = staticmethod(semantic_summary)
+        cls._r = semantic_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_nearest_is_list(self):
+        self.assertIsInstance(self._r['nearest'], list)
+
+    def test_mean_nearest_dist_float(self):
+        self.assertIsInstance(self._r['mean_nearest_dist'], float)
+
+    def test_n_unique_words_int(self):
+        self.assertIsInstance(self._r['n_unique_words'], int)
+
+    def test_self_is_nearest_t0_bool(self):
+        self.assertIsInstance(self._r['self_is_nearest_t0'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.semantic_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestPCASummaryShape(unittest.TestCase):
+    """Structure of pca_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_pca import pca_summary
+        cls.pca_summary = staticmethod(pca_summary)
+        cls._r = pca_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_eigenvalues_is_list(self):
+        self.assertIsInstance(self._r['eigenvalues'], list)
+
+    def test_explained_var_ratio_is_list(self):
+        self.assertIsInstance(self._r['explained_var_ratio'], list)
+
+    def test_total_var_float(self):
+        self.assertIsInstance(self._r['total_var'], float)
+
+    def test_orbit_rank_int(self):
+        self.assertIsInstance(self._r['orbit_rank'], int)
+
+    def test_pc1_dom_cell_int(self):
+        self.assertIsInstance(self._r['pc1_dom_cell'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.pca_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
