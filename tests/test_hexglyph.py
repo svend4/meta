@@ -25111,5 +25111,200 @@ class TestBalanceSummaryShape(unittest.TestCase):
             self.assertEqual(r['rule'], rule)
 
 
+class TestCellSummaryShape(unittest.TestCase):
+    """Structure of cell_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cell import cell_summary
+        cls.cell_summary = staticmethod(cell_summary)
+        cls._r = cell_summary('ГОРА', 'xor', 0)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_cell_idx_field(self):
+        self.assertEqual(self._r['cell_idx'], 0)
+
+    def test_series_list(self):
+        self.assertIsInstance(self._r['series'], list)
+
+    def test_is_frozen_bool(self):
+        self.assertIsInstance(self._r['is_frozen'], bool)
+
+    def test_transitions_int(self):
+        self.assertIsInstance(self._r['transitions'], int)
+
+    def test_vocab_size_int(self):
+        self.assertIsInstance(self._r['vocab_size'], int)
+
+    def test_all_cells_valid(self):
+        for i in range(0, 16, 4):
+            r = self.cell_summary('ГОРА', 'xor', i)
+            self.assertEqual(r['cell_idx'], i)
+
+
+class TestDistSummaryShape(unittest.TestCase):
+    """Structure of dist_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dist import dist_summary
+        cls.dist_summary = staticmethod(dist_summary)
+        cls._r = dist_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_N_int(self):
+        self.assertIsInstance(self._r['N'], int)
+
+    def test_distance_series_q6_list(self):
+        self.assertIsInstance(self._r['distance_series_q6'], list)
+
+    def test_mean_dist_q6_float(self):
+        self.assertIsInstance(self._r['mean_dist_q6'], float)
+
+    def test_closest_pair_tuple(self):
+        self.assertIsInstance(self._r['closest_pair'], tuple)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.dist_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestEdgeSummaryShape(unittest.TestCase):
+    """Structure of edge_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_edge import edge_summary
+        cls.edge_summary = staticmethod(edge_summary)
+        cls._r = edge_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_profile_list(self):
+        self.assertIsInstance(self._r['profile'], list)
+
+    def test_mean_E_float(self):
+        self.assertIsInstance(self._r['mean_E'], float)
+
+    def test_variability_str(self):
+        self.assertIsInstance(self._r['variability'], str)
+
+    def test_class_counts_dict(self):
+        self.assertIsInstance(self._r['class_counts'], dict)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.edge_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestSpatentSummaryShape(unittest.TestCase):
+    """Structure of spatent_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spatent import spatent_summary
+        cls.spatent_summary = staticmethod(spatent_summary)
+        cls._r = spatent_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_profile_list(self):
+        self.assertIsInstance(self._r['profile'], list)
+
+    def test_mean_H_float(self):
+        self.assertIsInstance(self._r['mean_H'], float)
+
+    def test_max_possible_H_float(self):
+        self.assertIsInstance(self._r['max_possible_H'], float)
+
+    def test_variability_str(self):
+        self.assertIsInstance(self._r['variability'], str)
+
+    def test_norm_mean_H_in_0_1(self):
+        # Normalised entropy is in [0,1]
+        self.assertGreaterEqual(self._r['norm_mean_H'], 0.0)
+        self.assertLessEqual(self._r['norm_mean_H'], 1.0)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.spatent_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestMomentsSummaryShape(unittest.TestCase):
+    """Structure of moments_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moments import moments_summary
+        cls.moments_summary = staticmethod(moments_summary)
+        cls._r = moments_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_cell_moments_list(self):
+        self.assertIsInstance(self._r['cell_moments'], list)
+
+    def test_var_stats_dict(self):
+        self.assertIsInstance(self._r['var_stats'], dict)
+
+    def test_mean_stats_dict(self):
+        self.assertIsInstance(self._r['mean_stats'], dict)
+
+    def test_n_constant_int(self):
+        self.assertIsInstance(self._r['n_constant'], int)
+
+    def test_n_defined_int(self):
+        self.assertIsInstance(self._r['n_defined'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.moments_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
