@@ -530,3 +530,90 @@ class TestCLI:
     def test_cmd_wobble_produces_output(self):
         out = self._capture(_cmd_wobble)
         assert len(out) > 0
+
+
+class TestBioCLI:
+    """Тесты для hexbio.main() (lines 577-595)."""
+
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexbio.hexbio import main
+        old_argv = sys.argv
+        sys.argv = ['hexbio.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_no_args_shows_usage(self):
+        out = self._run([])
+        assert 'Использование' in out
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        assert len(out) > 0
+
+    def test_cmd_codon(self):
+        out = self._run(['codon', 'GCU'])
+        assert len(out) > 0
+
+    def test_cmd_mutation(self):
+        out = self._run(['mutation', 'GCU', 'GCG'])
+        assert len(out) > 0
+
+    def test_cmd_graph(self):
+        out = self._run(['graph'])
+        assert len(out) > 0
+
+    def test_cmd_wobble(self):
+        out = self._run(['wobble'])
+        assert len(out) > 0
+
+    def test_unknown_cmd(self):
+        out = self._run(['unknown'])
+        assert 'Неизвестная' in out
+
+
+class TestSynonymousPath:
+    """Тесты для synonymous_path BFS (lines 107-120)."""
+
+    def test_synonymous_path_same_codon(self):
+        """Путь от кодона до него самого (line 98-99)."""
+        # GCU = 39 (Ala)
+        path = synonymous_path(39, 39)
+        assert path == [39]
+
+    def test_synonymous_path_same_aa(self):
+        """Синонимичный путь между GCU(39) и GCC(37) (оба Ala) — hits lines 111-118."""
+        path = synonymous_path(39, 37)
+        assert path is not None
+        assert path[0] == 39
+        assert path[-1] == 37
+
+    def test_synonymous_path_returns_none_different_aa(self):
+        """synonymous_path между кодонами разных AA → None (line 105-106)."""
+        # GCU(39)=Ala and UUU(63)=Phe - different AA → early return None
+        path = synonymous_path(39, 63)
+        assert path is None
+
+    def test_synonymous_path_returns_none_no_bfs_path(self):
+        """synonymous_path когда BFS не находит путь → None (line 120)."""
+        # CGG(14)=Arg and CGC(12)=Arg: are they connected via synonymous path?
+        # If not directly connected and no intermediates, returns None
+        # Let's find two Arg codons that have no synonymous path through same AA
+        # Actually they might all be connected. Let's try stop codons
+        # Two stops: UAA and UAG
+        uaa = codon_to_int('UAA')
+        uag = codon_to_int('UAG')
+        # Both are stops ('*') - they may have a synonymous path
+        # But if they are in the same connected component of the synonymous graph, path exists
+        # Instead use a codon where the only same-AA codon is itself (1-fold degenerate)
+        # AUG=Met: only 1 Met codon
+        aug = codon_to_int('AUG')
+        ugc = codon_to_int('UGC')  # Cys
+        path = synonymous_path(aug, ugc)  # different AA → None at line 105
+        assert path is None

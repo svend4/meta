@@ -640,5 +640,50 @@ class TestPhysCLI(unittest.TestCase):
         self.assertIn('hexphys', out)
 
 
+class TestPhysUncovered(unittest.TestCase):
+    """Тесты для непокрытых ветвей hexphys.py."""
+
+    def test_comb6(self):
+        """_comb6 возвращает C(6, k) (lines 43-44)."""
+        from projects.hexphys.hexphys import _comb6
+        from math import comb
+        for k in range(7):
+            self.assertEqual(_comb6(k), comb(6, k))
+
+    def test_yang_gas_compressibility_nonzero_n(self):
+        """YangGas.compressibility с β=1 (line 245)."""
+        gas = YangGas(mu=1.0)
+        kappa = gas.compressibility(beta=1.0)
+        self.assertGreater(kappa, 0)
+
+    def test_yang_gas_entropy(self):
+        """YangGas.entropy (lines 270-272)."""
+        gas = YangGas(mu=1.0)
+        s = gas.entropy(beta=1.0)
+        self.assertIsInstance(s, float)
+
+    def test_yang_gas_chemical_potential_bad_target(self):
+        """chemical_potential_for_mean с target вне [0,6] → ValueError (line 280)."""
+        gas = YangGas(mu=1.0)
+        with self.assertRaises(ValueError):
+            gas.chemical_potential_for_mean(1.0, -1)
+        with self.assertRaises(ValueError):
+            gas.chemical_potential_for_mean(1.0, 7)
+
+    def test_metropolis_estimate_energy(self):
+        """MetropolisQ6.estimate_energy (line 344)."""
+        energy_fn = lambda h: -bin(h).count('1')  # minus yang count
+        mcmc = MetropolisQ6(energy_fn, seed=42)
+        e = mcmc.estimate_energy(energy_fn, n_steps=50, beta=1.0, n_burn=10)
+        self.assertIsInstance(e, float)
+
+    def test_entanglement_entropy_zero_state(self):
+        """entanglement_entropy с нулевым вектором состояния → 0 (line 439)."""
+        # State vector of zeros → zero trace → return 0.0
+        zero_state = [0.0] * 64
+        s = entanglement_entropy(zero_state, [0, 1, 2])
+        self.assertEqual(s, 0.0)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

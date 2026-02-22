@@ -479,6 +479,34 @@ class TestCryptCLI(unittest.TestCase):
         out = self._run(['unknown'])
         self.assertIn('hexcrypt', out)
 
+    def test_cmd_info_complement(self):
+        out = self._run(['info', 'complement'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_info_random(self):
+        out = self._run(['info', 'random'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_info_yangsort(self):
+        out = self._run(['info', 'yangsort'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_info_feistel_sbox(self):
+        out = self._run(['info', 'feistel'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_search_found(self):
+        # low min_nl → result found quickly
+        out = self._run(['search', '1', '20'])
+        self.assertIn('найден', out.lower())
+
+
+class TestGetSboxUnknown(unittest.TestCase):
+    def test_unknown_sbox_raises(self):
+        from projects.hexcrypt.hexcrypt import _get_sbox
+        with self.assertRaises(ValueError):
+            _get_sbox('unknown_box')
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

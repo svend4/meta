@@ -277,3 +277,26 @@ class TestRun:
                 run(0)
             out = captured.getvalue()
         assert len(out) > 0
+
+
+class TestNavMain:
+    """Тесты для hexnav.main() (lines 202-214)."""
+
+    def _run_main(self, argv_args):
+        from projects.hexnav.hexnav import main
+        captured = io.StringIO()
+        with patch('sys.argv', ['hexnav.py'] + argv_args):
+            with patch('projects.hexnav.hexnav.run') as mock_run:
+                with patch('sys.stdout', captured):
+                    main()
+        return captured.getvalue(), mock_run
+
+    def test_main_default_start(self):
+        """main() без аргументов → run(0)."""
+        _, mock_run = self._run_main([])
+        mock_run.assert_called_once_with(0)
+
+    def test_main_with_start_arg(self):
+        """main() с аргументом 42 → run(42)."""
+        _, mock_run = self._run_main(['42'])
+        mock_run.assert_called_once_with(42)
