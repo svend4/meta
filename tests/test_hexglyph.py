@@ -24291,5 +24291,122 @@ class TestBuildGraphProps(unittest.TestCase):
                 self.assertIn(n, self._lex, f'{n} not in lexicon')
 
 
+class TestBuildMDSProps(unittest.TestCase):
+    """Properties of build_mds() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mds import build_mds
+        cls._words, cls._coords, cls._stress = build_mds()
+
+    def test_returns_three_items(self):
+        from projects.hexglyph.solan_mds import build_mds
+        result = build_mds()
+        self.assertEqual(len(result), 3)
+
+    def test_words_list_length_49(self):
+        self.assertEqual(len(self._words), 49)
+
+    def test_coords_list_length_49(self):
+        self.assertEqual(len(self._coords), 49)
+
+    def test_each_coord_is_2d(self):
+        for i, c in enumerate(self._coords):
+            self.assertEqual(len(c), 2, f'coord[{i}] not 2D')
+
+    def test_coords_are_floats(self):
+        for c in self._coords:
+            self.assertIsInstance(c[0], float)
+            self.assertIsInstance(c[1], float)
+
+    def test_stress_is_float(self):
+        self.assertIsInstance(self._stress, float)
+
+    def test_stress_positive(self):
+        self.assertGreater(self._stress, 0.0)
+
+    def test_stress_less_than_one(self):
+        # Good MDS embedding should have stress < 1
+        self.assertLess(self._stress, 1.0)
+
+    def test_words_are_strings(self):
+        for w in self._words:
+            self.assertIsInstance(w, str)
+
+
+class TestEntropySummaryShape(unittest.TestCase):
+    """Structure of entropy_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_entropy import entropy_summary
+        cls.entropy_summary = staticmethod(entropy_summary)
+        cls._r = entropy_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_spatial_entropy_list(self):
+        self.assertIsInstance(self._r['spatial_entropy'], list)
+
+    def test_temporal_entropy_list(self):
+        self.assertIsInstance(self._r['temporal_entropy'], list)
+
+    def test_mean_spatial_H_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_spatial_H'], 0.0)
+
+    def test_mean_temporal_H_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_temporal_H'], 0.0)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.entropy_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestCorrelationSummaryShape(unittest.TestCase):
+    """Structure of correlation_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_correlation import correlation_summary
+        cls._r = correlation_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_lags_is_list(self):
+        self.assertIsInstance(self._r['lags'], list)
+
+    def test_rules_is_dict(self):
+        self.assertIsInstance(self._r['rules'], dict)
+
+    def test_rules_has_four_rules(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r['rules'], f'rule={rule}')
+
+    def test_width_is_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_width_is_16(self):
+        self.assertEqual(self._r['width'], 16)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
