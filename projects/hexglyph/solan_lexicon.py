@@ -107,6 +107,11 @@ for _w in LEXICON:
 LEXICON = _dedup
 
 
+def all_words() -> list[str]:
+    """Return the full lexicon as a list (alias for list(LEXICON))."""
+    return list(LEXICON)
+
+
 # ── Работа с лексиконом ──────────────────────────────────────────────────────
 
 def all_signatures(
