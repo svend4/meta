@@ -140,6 +140,7 @@ make test        # полный прогон
 - [ ] Есть `README.md` по шаблону выше
 - [ ] Есть тест-файл `tests/test_....py` с ≥ 20 тестами
 - [ ] `make test` показывает `0 failed`
+- [ ] `make smoke` показывает `24 OK, 0 FAIL из 24`
 - [ ] `make lint` показывает `OK: синтаксических ошибок не найдено`
 - [ ] `docs/projects-overview.md` дополнен описанием нового проекта
 
@@ -167,4 +168,7 @@ make test
 
 # Интеграционные тесты (импорт всех проектов + инварианты hexcore)
 python3 -m pytest tests/test_integration.py -v
+
+# Smoke-тест: все 24 CLI запускаются без ошибок
+make smoke
 ```

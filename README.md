@@ -45,9 +45,10 @@ meta/
 │   ├── projects-overview.md — подробный обзор всех 24 проектов
 │   └── papers-index.md     — индекс 33 PDF-статей Franz German
 ├── tools/
-│   └── extract_papers.py  — извлечение текста из PDF-статей
+│   ├── extract_papers.py  — извлечение текста из PDF-статей
+│   └── smoke_test.py      — smoke-тест: запуск всех 24 CLI
 ├── pytest.ini         — конфигурация pytest
-├── Makefile           — make test / make lint / make clean
+├── Makefile           — make test / make smoke / make lint / make clean
 ├── CONTRIBUTING.md    — как добавить новый проект
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
 └── README.md
@@ -241,16 +242,19 @@ python3 projects/hexlat/hexlat.py antichain
 
 ```bash
 # Запустить все тесты
-python3 -m pytest
+python3 -m pytest          # или: make test
 
 # Только конкретный проект
 python3 -m pytest tests/test_hexgraph.py -v
 
 # Краткий итог
 python3 -m pytest -q
+
+# Smoke-тест: проверить что все 24 CLI запускаются
+make smoke                 # или: python3 tools/smoke_test.py
 ```
 
-**Статус**: 1440 теста, 27 файлов — все проходят.
+**Статус**: 1464 теста, 27 файлов — все проходят. Smoke-тест: 24/24 OK.
 
 ---
 
