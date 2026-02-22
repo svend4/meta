@@ -23759,5 +23759,218 @@ class TestCAStepLength(unittest.TestCase):
         self._check_len('or', 32)
 
 
+class TestPredictOutputShape(unittest.TestCase):
+    """Structure, consistency, and shape of predict() outputs."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import predict, batch_predict, predict_text, prediction_dict
+        cls.predict = staticmethod(predict)
+        cls.batch_predict = staticmethod(batch_predict)
+        cls.predict_text = staticmethod(predict_text)
+        cls.prediction_dict = staticmethod(prediction_dict)
+        cls._gora = predict('ГОРА')
+
+    def test_predict_returns_dict(self):
+        self.assertIsInstance(self._gora, dict)
+
+    def test_predict_has_word(self):
+        self.assertEqual(self._gora['word'], 'ГОРА')
+
+    def test_predict_has_full_key(self):
+        self.assertIn('full_key', self._gora)
+        self.assertIsInstance(self._gora['full_key'], tuple)
+
+    def test_predict_has_class_id(self):
+        self.assertIn('class_id', self._gora)
+
+    def test_predict_has_class_words(self):
+        self.assertIn('class_words', self._gora)
+        self.assertIsInstance(self._gora['class_words'], list)
+
+    def test_predict_has_neighbors(self):
+        self.assertIn('neighbors', self._gora)
+        self.assertIsInstance(self._gora['neighbors'], list)
+
+    def test_predict_has_is_new_class(self):
+        self.assertIn('is_new_class', self._gora)
+
+    def test_predict_gora_not_new_class(self):
+        self.assertFalse(self._gora['is_new_class'])
+
+    def test_predict_neighbors_sorted(self):
+        dists = [n[1] for n in self._gora['neighbors']]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_predict_neighbors_at_most_10(self):
+        self.assertLessEqual(len(self._gora['neighbors']), 10)
+
+    def test_predict_gora_class_id_in_range(self):
+        cid = self._gora['class_id']
+        self.assertIsNotNone(cid)
+        self.assertIn(cid, range(13))
+
+    def test_batch_predict_matches_individual(self):
+        batch = self.batch_predict(['ГОРА', 'ВОДА'])
+        self.assertEqual(batch[0], self.predict('ГОРА'))
+        self.assertEqual(batch[1], self.predict('ВОДА'))
+
+    def test_batch_predict_length(self):
+        batch = self.batch_predict(['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertEqual(len(batch), 3)
+
+    def test_predict_text_tokenises(self):
+        results = self.predict_text('ГОРА ВОДА ЛУНА')
+        words = [r['word'] for r in results]
+        self.assertIn('ГОРА', words)
+        self.assertIn('ВОДА', words)
+        self.assertIn('ЛУНА', words)
+
+    def test_predict_text_unique_words(self):
+        results = self.predict_text('ГОРА ГОРА ВОДА')
+        words = [r['word'] for r in results]
+        self.assertEqual(len(words), len(set(words)))
+
+    def test_prediction_dict_json_serialisable(self):
+        import json
+        d = self.prediction_dict(self._gora)
+        self.assertIsInstance(d, dict)
+        json.dumps(d)  # should not raise
+
+    def test_prediction_dict_has_class_count(self):
+        d = self.prediction_dict(self._gora)
+        self.assertIn('class_count', d)
+
+
+class TestFourierOutputShape(unittest.TestCase):
+    """Structure of fourier_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        cls.fourier_summary = staticmethod(fourier_summary)
+        cls._r = fourier_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_cell_dom_freq_list(self):
+        self.assertIsInstance(self._r['cell_dom_freq'], list)
+
+    def test_cell_ac_power_list(self):
+        self.assertIsInstance(self._r['cell_ac_power'], list)
+
+    def test_mean_spec_entropy_float(self):
+        self.assertIsInstance(self._r['mean_spec_entropy'], float)
+
+    def test_mean_dc_frac_in_0_1(self):
+        self.assertGreaterEqual(self._r['mean_dc_frac'], 0.0)
+        self.assertLessEqual(self._r['mean_dc_frac'], 1.0)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.fourier_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestMoranOutputShape(unittest.TestCase):
+    """Structure of moran_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moran import moran_summary
+        cls.moran_summary = staticmethod(moran_summary)
+        cls._r = moran_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_series_is_list(self):
+        self.assertIsInstance(self._r['series'], list)
+
+    def test_mean_i_float(self):
+        self.assertIsInstance(self._r['mean_i'], float)
+
+    def test_classification_is_str(self):
+        self.assertIsInstance(self._r['classification'], str)
+
+    def test_n_valid_positive(self):
+        # xor3 has period=2 → n_valid > 0
+        r = self.moran_summary('ГОРА', 'xor3')
+        self.assertGreater(r['n_valid'], 0)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.moran_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+    def test_min_i_leq_mean_i_leq_max_i(self):
+        # xor3 gives multi-step orbit → non-NaN Moran values
+        r = self.moran_summary('ТУМАН', 'xor3')
+        self.assertLessEqual(r['min_i'], r['mean_i'])
+        self.assertLessEqual(r['mean_i'], r['max_i'])
+
+
+class TestEncodeWordProps(unittest.TestCase):
+    """Properties of encode_word()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import encode_word
+        cls.encode_word = staticmethod(encode_word)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self.encode_word('ГОРА'), list)
+
+    def test_length_equals_word_length(self):
+        self.assertEqual(len(self.encode_word('ГОРА')), 4)
+        self.assertEqual(len(self.encode_word('ВОДА')), 4)
+        self.assertEqual(len(self.encode_word('ТУМАН')), 5)
+
+    def test_values_ints(self):
+        e = self.encode_word('ГОРА')
+        self.assertTrue(all(isinstance(v, int) for v in e))
+
+    def test_values_in_range(self):
+        e = self.encode_word('ГОРА')
+        self.assertTrue(all(0 <= v <= 63 for v in e))
+
+    def test_gora_exact_values(self):
+        self.assertEqual(self.encode_word('ГОРА'), [49, 47, 15, 63])
+
+    def test_deterministic(self):
+        self.assertEqual(self.encode_word('ВОДА'), self.encode_word('ВОДА'))
+
+    def test_different_words_different_encoding(self):
+        self.assertNotEqual(self.encode_word('ГОРА'), self.encode_word('ВОДА'))
+
+    def test_voda_values_in_range(self):
+        e = self.encode_word('ВОДА')
+        self.assertTrue(all(0 <= v <= 63 for v in e))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
