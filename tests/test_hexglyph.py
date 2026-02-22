@@ -24917,5 +24917,199 @@ class TestLayerSummaryShape(unittest.TestCase):
             self.assertEqual(r['rule'], rule)
 
 
+class TestCoactSummaryShape(unittest.TestCase):
+    """Structure of coact_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coact import coact_summary
+        cls.coact_summary = staticmethod(coact_summary)
+        cls._r = coact_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_agg_joint_list(self):
+        self.assertIsInstance(self._r['agg_joint'], list)
+
+    def test_n_positive_int(self):
+        self.assertIsInstance(self._r['n_positive'], int)
+
+    def test_n_dependent_int(self):
+        self.assertIsInstance(self._r['n_dependent'], int)
+
+    def test_diagonal_list(self):
+        self.assertIsInstance(self._r['diagonal'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.coact_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestBoundarySummaryShape(unittest.TestCase):
+    """Structure of boundary_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_boundary import boundary_summary
+        cls.boundary_summary = staticmethod(boundary_summary)
+        cls._r = boundary_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_active_list(self):
+        self.assertIsInstance(self._r['n_active'], list)
+
+    def test_mean_n_active_float(self):
+        self.assertIsInstance(self._r['mean_n_active'], float)
+
+    def test_b_period_int(self):
+        self.assertIsInstance(self._r['b_period'], int)
+
+    def test_b_orbit_list(self):
+        self.assertIsInstance(self._r['b_orbit'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.boundary_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestSymmSummaryShape(unittest.TestCase):
+    """Structure of symm_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symm import symm_summary
+        cls.symm_summary = staticmethod(symm_summary)
+        cls._r = symm_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_rot_periods_list(self):
+        self.assertIsInstance(self._r['rot_periods'], list)
+
+    def test_rot_orders_list(self):
+        self.assertIsInstance(self._r['rot_orders'], list)
+
+    def test_uniform_symmetry_bool(self):
+        self.assertIsInstance(self._r['uniform_symmetry'], bool)
+
+    def test_symmetry_level_str(self):
+        self.assertIsInstance(self._r['symmetry_level'], str)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.symm_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestPhaseSummaryShape(unittest.TestCase):
+    """Structure of phase_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phase import phase_summary
+        cls.phase_summary = staticmethod(phase_summary)
+        cls._r = phase_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_distinct_int(self):
+        self.assertIsInstance(self._r['n_distinct'], int)
+
+    def test_sync_fraction_float(self):
+        self.assertIsInstance(self._r['sync_fraction'], float)
+
+    def test_n_clusters_int(self):
+        self.assertIsInstance(self._r['n_clusters'], int)
+
+    def test_cluster_sizes_list(self):
+        self.assertIsInstance(self._r['cluster_sizes'], list)
+
+    def test_any_antiphase_bool(self):
+        self.assertIsInstance(self._r['any_antiphase'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.phase_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestBalanceSummaryShape(unittest.TestCase):
+    """Structure of balance_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_balance import balance_summary
+        cls.balance_summary = staticmethod(balance_summary)
+        cls._r = balance_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_agg_balance_list(self):
+        self.assertIsInstance(self._r['agg_balance'], list)
+
+    def test_class_counts_dict(self):
+        self.assertIsInstance(self._r['class_counts'], dict)
+
+    def test_most_active_bit_int(self):
+        self.assertIsInstance(self._r['most_active_bit'], int)
+
+    def test_total_frozen_bits_int(self):
+        self.assertIsInstance(self._r['total_frozen_bits'], int)
+
+    def test_cell_stats_list(self):
+        self.assertIsInstance(self._r['cell_stats'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.balance_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
