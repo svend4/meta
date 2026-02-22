@@ -2185,6 +2185,18 @@ class TestSolanTransient(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('lexAllSigs', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_transient',
+             '--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanRules(unittest.TestCase):
     """Tests for solan_rules.py and the viewer Rules section."""
@@ -2435,6 +2447,18 @@ class TestSolanRules(unittest.TestCase):
         self.assertIn('PCOL', content)
         self.assertIn('pmap', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_rules',
+             '--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanMds(unittest.TestCase):
     """Tests for solan_mds.py and the viewer MDS section."""
@@ -2646,6 +2670,18 @@ class TestSolanMds(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         # MDS section has its own UPGMA for cluster coloring
         self.assertIn('flatClusters', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_mds',
+             '--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanGraph(unittest.TestCase):
@@ -15080,6 +15116,18 @@ class TestSolanMultistep(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('msHamming', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_multistep',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanSemantic(unittest.TestCase):
     """Tests for solan_semantic.py — semantic orbit trajectory."""
@@ -15391,6 +15439,18 @@ class TestSolanSemantic(unittest.TestCase):
     def test_viewer_has_self_nearest_label(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('self_nearest', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_semantic',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanBitplane(unittest.TestCase):
@@ -15738,6 +15798,18 @@ class TestSolanBitplane(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn("'T','B','L','R','D1','D2'", content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_bitplane',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanProfile(unittest.TestCase):
     """Tests for solan_profile.py — statistical moment profile."""
@@ -16021,6 +16093,18 @@ class TestSolanProfile(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('mode_frac', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_profile',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanCoverage(unittest.TestCase):
     """Tests for solan_coverage.py — Q6 value coverage of CA orbits."""
@@ -16290,6 +16374,18 @@ class TestSolanCoverage(unittest.TestCase):
     def test_viewer_has_xor3_absent(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('XOR3_ABSENT', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_coverage',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanRun(unittest.TestCase):
@@ -16632,6 +16728,18 @@ class TestSolanRun(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_run', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_run',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanCross(unittest.TestCase):
     """Tests for solan_cross.py — pairwise cell Q6 cross-correlation."""
@@ -16909,6 +17017,18 @@ class TestSolanCross(unittest.TestCase):
     def test_viewer_has_solan_cross_section(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_cross', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_cross',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanPCA(unittest.TestCase):
@@ -17237,6 +17357,18 @@ class TestSolanPCA(unittest.TestCase):
     def test_viewer_has_solan_pca_section(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_pca', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_pca',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanFourier(unittest.TestCase):
@@ -17589,6 +17721,18 @@ class TestSolanFourier(unittest.TestCase):
     def test_viewer_has_solan_fourier_section(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_fourier', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_fourier',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanMutual(unittest.TestCase):
@@ -17955,6 +18099,18 @@ class TestSolanMutual(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('mi-word', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_mutual',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanTransfer(unittest.TestCase):
     """Tests for solan_transfer.py — Transfer Entropy analysis of Q6 CA orbits."""
@@ -18261,6 +18417,18 @@ class TestSolanTransfer(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('cellTE', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_transfer',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanLZ(unittest.TestCase):
     """Tests for solan_lz.py — LZ76 complexity of Q6 CA attractors."""
@@ -18459,6 +18627,18 @@ class TestSolanLZ(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_lz', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_lz',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanMoran(unittest.TestCase):
     """Tests for solan_moran.py — Moran's I spatial autocorrelation of Q6 CA."""
@@ -18646,6 +18826,18 @@ class TestSolanMoran(unittest.TestCase):
     def test_viewer_has_solan_moran_section(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_moran', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_moran',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanDerrida2(unittest.TestCase):
@@ -18906,6 +19098,17 @@ class TestSolanDerrida2(unittest.TestCase):
     def test_viewer_has_solan_derrida(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_derrida', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_derrida', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanRecurrence2(unittest.TestCase):
@@ -19216,6 +19419,18 @@ class TestSolanRecurrence2(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_recurrence', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_recurrence',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanCorrelation2(unittest.TestCase):
     """Replacement tests for solan_correlation.py (standard *_summary convention)."""
@@ -19431,6 +19646,18 @@ class TestSolanCorrelation2(unittest.TestCase):
     def test_viewer_has_solan_correlation(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_correlation', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_correlation',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanLyapunov3(unittest.TestCase):
@@ -19778,6 +20005,18 @@ class TestSolanLyapunov3(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_lyapunov', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_lyapunov',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanAutocorr2(unittest.TestCase):
     """Merged replacement tests for solan_autocorr.py."""
@@ -20064,6 +20303,18 @@ class TestSolanAutocorr2(unittest.TestCase):
     def test_viewer_has_solan_autocorr(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_autocorr', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_autocorr',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanHamming3(unittest.TestCase):
