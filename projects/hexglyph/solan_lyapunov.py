@@ -623,11 +623,16 @@ def _main() -> None:
                         help='Orbit-mode table for all words')
     parser.add_argument('--steps',     type=int, default=_DEFAULT_STEPS)
     parser.add_argument('--width',     type=int, default=_DEFAULT_WIDTH)
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     parser.add_argument('--no-color',  action='store_true')
     args  = parser.parse_args()
     color = not args.no_color
 
-    if args.stats:
+    if args.json:
+        import json as _json
+        print(_json.dumps(lyapunov_dict(args.word, args.width, args.steps),
+                          ensure_ascii=False, indent=2))
+    elif args.stats:
         print_lyapunov_stats(color=color, max_steps=args.steps)
     elif args.table:
         print_mode_table(color=color)
