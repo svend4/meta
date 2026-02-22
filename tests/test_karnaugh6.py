@@ -3,8 +3,11 @@ import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
 import unittest
+import io
+from contextlib import redirect_stdout
 from projects.karnaugh6.minimize import (
     Implicant, quine_mccluskey, essential_implicants, minimize,
+    print_truth_table, print_karnaugh_map, print_result,
 )
 
 
@@ -143,6 +146,129 @@ class TestMinimize(unittest.TestCase):
         for e in r['essential']:
             covered.update(e.covered & set(minterms))
         self.assertEqual(covered, set(minterms))
+
+
+class TestEssentialImplicantsDirect(unittest.TestCase):
+    def test_single_covering_implicant(self):
+        """Минтерм, покрытый только одним импликантом, → существенный."""
+        pis = quine_mccluskey([0, 1])
+        ess = essential_implicants(pis, [0, 1])
+        self.assertTrue(any(e.covers(0) and e.covers(1) for e in ess))
+
+    def test_empty_minterms(self):
+        ess = essential_implicants([], [])
+        self.assertEqual(ess, [])
+
+    def test_all_minterms_one_implicant(self):
+        """Все 64 минтерма → одна тавтологическая импликанта."""
+        pis = quine_mccluskey(list(range(64)))
+        ess = essential_implicants(pis, list(range(64)))
+        self.assertEqual(len(ess), 1)
+        self.assertEqual(ess[0].bits, '------')
+
+
+class TestPrintTruthTable(unittest.TestCase):
+    def test_outputs_variable_labels(self):
+        """print_truth_table выводит метки переменных x0..x5."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_truth_table([0, 1, 3])
+        output = buf.getvalue()
+        self.assertIn('x0', output)
+        self.assertIn('x5', output)
+
+    def test_outputs_minterm_values(self):
+        """print_truth_table выводит '1' для переданных минтермов."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_truth_table([42])
+        output = buf.getvalue()
+        self.assertIn('1', output)
+        self.assertIn('42', output)
+
+    def test_dont_care_marker(self):
+        """print_truth_table выводит '-' для безразличных минтермов."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_truth_table([0], dont_cares=[1])
+        output = buf.getvalue()
+        self.assertIn('-', output)
+
+
+class TestPrintKarnaughMap(unittest.TestCase):
+    def test_outputs_header(self):
+        """print_karnaugh_map выводит заголовок 8×8."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_karnaugh_map([0, 1, 2, 3])
+        output = buf.getvalue()
+        self.assertIn('8×8', output)
+
+    def test_outputs_gray_codes(self):
+        """Карта содержит коды Грея."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_karnaugh_map([0])
+        output = buf.getvalue()
+        self.assertIn('000', output)
+        self.assertIn('111', output)
+
+    def test_marks_essential(self):
+        """Существенные минтермы отмечаются '*' при передаче essential."""
+        minterms = [m for m in range(64) if m & 1]  # x0=1
+        r = minimize(minterms)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_karnaugh_map(minterms, essential=r['essential'])
+        output = buf.getvalue()
+        self.assertIn('*', output)
+
+
+class TestPrintResult(unittest.TestCase):
+    def test_outputs_expression(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_result(minimize([3, 7]))
+        output = buf.getvalue()
+        self.assertIsInstance(output, str)
+        self.assertGreater(len(output), 0)
+
+
+class TestImplicantExtra(unittest.TestCase):
+    def setUp(self):
+        self.imp5 = Implicant.from_minterm(5)
+        self.imp3 = Implicant.from_minterm(3)
+
+    def test_repr_contains_implicant(self):
+        """repr содержит 'Implicant'."""
+        self.assertIn("Implicant", repr(self.imp5))
+
+    def test_eq_same_minterm(self):
+        """Два implicant от одного минтерма равны."""
+        self.assertEqual(self.imp5, Implicant.from_minterm(5))
+
+    def test_eq_different_minterm(self):
+        """Implicant'ы от разных минтермов не равны."""
+        self.assertNotEqual(self.imp5, self.imp3)
+
+    def test_hash_consistent(self):
+        """hash совпадает для одинаковых implicant'ов."""
+        self.assertEqual(hash(self.imp5), hash(Implicant.from_minterm(5)))
+
+
+class TestMinimizeExtra(unittest.TestCase):
+    def test_minimize_with_dont_cares_has_expression(self):
+        """minimize с don't-care содержит ключ 'expression'."""
+        res = minimize([0, 2], dont_cares=[4, 6])
+        self.assertIn("expression", res)
+
+    def test_quine_mccluskey_dc_covers_all_minterms(self):
+        """Все минтермы покрыты хотя бы одним импликантом из QMC."""
+        minterms = [0, 2]
+        implicants = quine_mccluskey(minterms, dont_cares=[4, 6])
+        for m in minterms:
+            self.assertTrue(any(imp.covers(m) for imp in implicants),
+                            f"Минтерм {m} не покрыт")
 
 
 if __name__ == '__main__':

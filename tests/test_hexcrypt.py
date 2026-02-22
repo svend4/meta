@@ -416,5 +416,43 @@ class TestFeistel(unittest.TestCase):
         self.assertTrue(fc.is_permutation())
 
 
+class TestJsonAvalanche(unittest.TestCase):
+    """Интеграционные тесты для json_avalanche (SC-5 Шаг 2)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexcrypt.sbox_glyphs import json_avalanche
+        cls.result = json_avalanche()
+
+    def test_command_key(self):
+        self.assertEqual(self.result['command'], 'avalanche')
+
+    def test_sboxes_list_nonempty(self):
+        self.assertGreater(len(self.result['sboxes']), 0)
+
+    def test_each_sbox_has_avalanche_matrix(self):
+        for sb in self.result['sboxes']:
+            mat = sb['avalanche_matrix']
+            self.assertEqual(len(mat), 6)
+            for row in mat:
+                self.assertEqual(len(row), 6)
+
+    def test_sac_deviation_in_01(self):
+        for sb in self.result['sboxes']:
+            dev = sb['sac_deviation']
+            self.assertGreaterEqual(dev, 0.0)
+            self.assertLessEqual(dev, 0.5)
+
+    def test_r_nl_sac_is_negative(self):
+        """Корреляция r(NL, SAC_dev) должна быть отрицательной."""
+        r = self.result['r_nl_sac']
+        self.assertLess(r, 0.0)
+
+    def test_best_sac_key_exists(self):
+        best = self.result['best_sac']
+        names = [sb['name'] for sb in self.result['sboxes']]
+        self.assertIn(best, names)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -386,6 +386,263 @@ def to_svg(
 
 
 # ---------------------------------------------------------------------------
+# Glyph encoding: each Q6 element as a 3×3 ASCII icon (6 line segments)
+# ---------------------------------------------------------------------------
+#
+# Bit → segment mapping (all 64 elements produce distinct glyphs):
+#   bit 0  top bar        row 0 centre = '_'
+#   bit 1  bottom bar     row 2 centre = '_'
+#   bit 2  left bar       row 1 left   = '|'
+#   bit 3  right bar      row 1 right  = '|'
+#   bit 4  '\' diagonal   row 1 centre = '\\'
+#   bit 5  '/' diagonal   row 1 centre = '/'   (both set → 'X')
+
+
+def render_glyph(h: int) -> list[str]:
+    """Return three 3-char strings representing h as a line-segment glyph.
+
+    Each of the 6 bits controls one visible segment in a small square frame:
+      bit 0 = top bar, bit 1 = bottom bar,
+      bit 2 = left bar, bit 3 = right bar,
+      bit 4 = backslash diagonal, bit 5 = slash diagonal.
+    All 64 values produce distinct glyphs.
+    """
+    b = [(h >> i) & 1 for i in range(6)]
+    row0 = ' ' + ('_' if b[0] else ' ') + ' '
+    dc = ('X' if b[4] and b[5] else '\\' if b[4] else '/' if b[5] else ' ')
+    row1 = ('|' if b[2] else ' ') + dc + ('|' if b[3] else ' ')
+    row2 = ' ' + ('_' if b[1] else ' ') + ' '
+    return [row0, row1, row2]
+
+
+def render_hasse_glyphs(
+    color: bool = True,
+    show_numbers: bool = False,
+    highlights: set[int] | None = None,
+) -> str:
+    """Hasse diagram of B₆ as an isosceles triangle of 3×3 glyphs.
+
+    Rank 0 (element 0, no segments) sits at the top; rank 6 (element 63,
+    all segments) at the bottom.  Elements within each rank are sorted
+    numerically.  Each glyph is 3 chars wide; ranks are centred relative
+    to the widest row (rank 3, C(6,3)=20 elements).
+
+    Parameters
+    ----------
+    color       : colour glyphs by yang-count (ANSI 256-colour).
+    show_numbers: prepend a row of decimal indices above each rank band.
+    highlights  : elements to render with background colour.
+    """
+    highlights = highlights or set()
+
+    rank_elems: list[list[int]] = [[] for _ in range(7)]
+    for h in range(64):
+        rank_elems[bin(h).count('1')].append(h)
+
+    cw = 3          # cell width (chars)
+    sw = 1          # separator width (1 space)
+    max_n = 20      # C(6,3) — widest rank
+    total_w = max_n * cw + (max_n - 1) * sw   # = 79
+
+    lines: list[str] = []
+
+    for k, elems in enumerate(rank_elems):
+        n = len(elems)
+        row_w = n * cw + (n - 1) * sw
+        pad = ' ' * ((total_w - row_w) // 2)
+
+        if show_numbers:
+            lines.append(pad + ' '.join(f'{h:3d}' for h in elems))
+
+        glyphs = [render_glyph(h) for h in elems]
+
+        for ri in range(3):
+            parts: list[str] = []
+            for gi, h in enumerate(elems):
+                cell = glyphs[gi][ri]
+                if color:
+                    yc = yang_count(h)
+                    ansi = (_YANG_BG[yc] + _BOLD) if h in highlights else _YANG_ANSI[yc]
+                    cell = ansi + cell + _RESET
+                parts.append(cell)
+            lines.append(pad + ' '.join(parts))
+
+        lines.append('')   # blank line between ranks
+
+    return '\n'.join(lines)
+
+
+# ---------------------------------------------------------------------------
+# 8×8 glyph grid
+# ---------------------------------------------------------------------------
+
+def render_glyph_grid(
+    highlights: set[int] | None = None,
+    color: bool = True,
+    title: str = '',
+) -> str:
+    """8×8 Gray-code grid where every cell is a 3×3 glyph icon.
+
+    Same layout as render_grid (rows = x5x4x3, columns = x2x1x0, Gray-code
+    ordering so neighbours differ by exactly 1 bit), but each cell shows the
+    line-segment glyph instead of the decimal number.
+    """
+    highlights = highlights or set()
+    lines: list[str] = []
+
+    if title:
+        lines.append(f'  {title}')
+
+    # Column header
+    col_hdr = '       ' + '  '.join(format(g, '03b') for g in _GRAY3)
+    lines.append(col_hdr)
+    lines.append('       ' + '─' * (len(_GRAY3) * 5 - 1))
+
+    for row_g in _GRAY3:
+        row_label = format(row_g, '03b')
+        row_glyphs = []
+        for col_g in _GRAY3:
+            h = (row_g << 3) | col_g
+            row_glyphs.append((h, render_glyph(h)))
+
+        for ri in range(3):
+            parts: list[str] = []
+            for h, g in row_glyphs:
+                cell = g[ri]
+                if color:
+                    yc = yang_count(h)
+                    ansi = (_YANG_BG[yc] + _BOLD) if h in highlights else _YANG_ANSI[yc]
+                    cell = ansi + cell + _RESET
+                elif h in highlights:
+                    cell = '[' + cell[1] + ']'
+                parts.append(cell)
+            prefix = f'  {row_label} │ ' if ri == 1 else '       │ '
+            lines.append(prefix + '  '.join(parts))
+
+        lines.append('       │')  # blank row separator
+
+    return '\n'.join(lines)
+
+
+# ---------------------------------------------------------------------------
+# SVG Hasse diagram with vector glyph nodes
+# ---------------------------------------------------------------------------
+
+def to_svg_hasse_glyphs(
+    highlights: set[int] | None = None,
+    color: bool = True,
+    show_edges: bool = True,
+    title: str = 'Q6 — Hasse diagram (glyph nodes)',
+    cell: int = 18,
+) -> str:
+    """SVG Hasse diagram of B₆ where each node is a vector glyph.
+
+    Each element is drawn as a filled square with SVG line segments encoding
+    its 6 bits (same bit→segment mapping as render_glyph).  Nodes are
+    arranged by rank in the isosceles triangle layout.
+
+    Parameters
+    ----------
+    highlights  : elements to outline with a white border.
+    color       : fill nodes with yang-count colour palette.
+    show_edges  : draw cover relations between consecutive ranks.
+    title       : SVG <title> text.
+    cell        : node side length in pixels (default 18).
+    """
+    highlights = highlights or set()
+
+    rank_elems: list[list[int]] = [
+        sorted(h for h in range(64) if bin(h).count('1') == k)
+        for k in range(7)
+    ]
+
+    s = cell // 2        # half-size for internal segment endpoints
+    gap_x = 6            # horizontal gap between node centres
+    gap_y = cell + 18    # vertical gap between rank centres
+    step_x = cell + gap_x
+    margin = 24
+
+    max_n = 20
+    rank3_w = max_n * step_x - gap_x
+    svg_w = rank3_w + 2 * margin
+    svg_h = 7 * gap_y - gap_y + cell + 2 * margin
+
+    # Compute node centres
+    pos: dict[int, tuple[float, float]] = {}
+    for k, elems in enumerate(rank_elems):
+        n = len(elems)
+        rank_w = n * step_x - gap_x
+        x0 = margin + (rank3_w - rank_w) / 2 + s
+        y = margin + s + k * gap_y
+        for i, h in enumerate(elems):
+            pos[h] = (x0 + i * step_x, y)
+
+    lines: list[str] = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_w}" height="{svg_h}" '
+        f'viewBox="0 0 {svg_w} {svg_h}">',
+        f'  <title>{title}</title>',
+        f'  <rect width="{svg_w}" height="{svg_h}" fill="#1a1a2e"/>',
+    ]
+
+    # Cover-relation edges (u ≺ v: v = u | one bit)
+    if show_edges:
+        for k, elems in enumerate(rank_elems[:-1]):
+            for h in elems:
+                for v in neighbors(h):
+                    if bin(v).count('1') == k + 1:
+                        x1, y1 = pos[h]
+                        x2, y2 = pos[v]
+                        lines.append(
+                            f'  <line x1="{x1:.1f}" y1="{y1:.1f}" '
+                            f'x2="{x2:.1f}" y2="{y2:.1f}" '
+                            f'stroke="#33335a" stroke-width="0.8"/>'
+                        )
+
+    # Glyph nodes
+    # Inner margin for segment endpoints (inset by 3px from node border)
+    ins = 3
+    for h in range(64):
+        cx, cy = pos[h]
+        yc = yang_count(h)
+        fill = _SVG_YANG_COLORS[yc] if color else '#3a3a5a'
+        bw = '2' if h in highlights else '0.8'
+        bc = '#ffffff' if h in highlights else '#555577'
+
+        # Node rectangle
+        lines.append(
+            f'  <rect x="{cx - s:.1f}" y="{cy - s:.1f}" '
+            f'width="{cell}" height="{cell}" '
+            f'fill="{fill}" stroke="{bc}" stroke-width="{bw}" rx="1"/>'
+        )
+
+        # Segment lines
+        b = [(h >> i) & 1 for i in range(6)]
+        xi, yi = cx - s + ins, cy - s + ins   # inner top-left
+        xo, yo = cx + s - ins, cy + s - ins   # inner bottom-right
+        segs: list[str] = []
+        if b[0]: segs.append(f'M{xi:.1f},{yi:.1f}L{xo:.1f},{yi:.1f}')   # top
+        if b[1]: segs.append(f'M{xi:.1f},{yo:.1f}L{xo:.1f},{yo:.1f}')   # bottom
+        if b[2]: segs.append(f'M{xi:.1f},{yi:.1f}L{xi:.1f},{yo:.1f}')   # left
+        if b[3]: segs.append(f'M{xo:.1f},{yi:.1f}L{xo:.1f},{yo:.1f}')   # right
+        if b[4]: segs.append(f'M{xi:.1f},{yi:.1f}L{xo:.1f},{yo:.1f}')   # \ diag
+        if b[5]: segs.append(f'M{xo:.1f},{yi:.1f}L{xi:.1f},{yo:.1f}')   # / diag
+        if segs:
+            sc = '#ffffff' if yc <= 2 else '#000000'
+            lines.append(
+                f'  <path d="{"".join(segs)}" '
+                f'stroke="{sc}" stroke-width="1.2" '
+                f'stroke-linecap="round" fill="none"/>'
+            )
+
+    lines.append(
+        f'  <text x="8" y="16" font-family="monospace" font-size="11" '
+        f'fill="#8888bb">{title}</text>'
+    )
+    lines.append('</svg>')
+    return '\n'.join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Специализированные диаграммы
 # ---------------------------------------------------------------------------
 
@@ -443,6 +700,8 @@ if __name__ == '__main__':
     p_grid = sub.add_parser('grid', help='Показать 8×8 решётку Q6')
     p_grid.add_argument('--highlight', nargs='*', type=int, default=[],
                         help='Гексаграммы для выделения')
+    p_grid.add_argument('--glyphs', action='store_true',
+                        help='Показать глифы вместо номеров')
     p_grid.add_argument('--no-color', action='store_true')
 
     p_path = sub.add_parser('path', help='Показать путь')
@@ -457,6 +716,17 @@ if __name__ == '__main__':
     p_auto.add_argument('--grid', action='store_true')
     p_auto.add_argument('--dot', action='store_true', help='Вывод в DOT')
     p_auto.add_argument('--svg', metavar='FILE', help='Сохранить SVG')
+
+    p_hasse = sub.add_parser('hasse', help='Диаграмма Хассе B₆ как треугольник глифов')
+    p_hasse.add_argument('--highlight', nargs='*', type=int, default=[],
+                         help='Гексаграммы для выделения')
+    p_hasse.add_argument('--numbers', action='store_true',
+                         help='Показать номера над глифами')
+    p_hasse.add_argument('--svg', metavar='FILE',
+                         help='Сохранить SVG-диаграмму Хассе с глифами')
+    p_hasse.add_argument('--no-edges', action='store_true',
+                         help='Не рисовать рёбра покрытия в SVG')
+    p_hasse.add_argument('--no-color', action='store_true')
 
     p_hex = sub.add_parser('hexagram', help='Показать гексаграмму')
     p_hex.add_argument('h', type=int)
@@ -474,12 +744,31 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.cmd == 'grid':
-        print(render_grid(
-            highlights=set(args.highlight),
-            color=not args.no_color,
-            title='Q6 — 64 гексаграммы (8×8 в коде Грея)',
-        ))
+    if args.cmd == 'hasse':
+        color = not args.no_color
+        hl = set(args.highlight)
+        print(render_hasse_glyphs(color=color, show_numbers=args.numbers, highlights=hl))
+        if args.svg:
+            svg = to_svg_hasse_glyphs(
+                highlights=hl, color=color, show_edges=not args.no_edges,
+            )
+            with open(args.svg, 'w') as f:
+                f.write(svg)
+            print(f"SVG сохранён: {args.svg}")
+
+    elif args.cmd == 'grid':
+        if args.glyphs:
+            print(render_glyph_grid(
+                highlights=set(args.highlight),
+                color=not args.no_color,
+                title='Q6 — 64 гексаграммы (8×8 глифов в коде Грея)',
+            ))
+        else:
+            print(render_grid(
+                highlights=set(args.highlight),
+                color=not args.no_color,
+                title='Q6 — 64 гексаграммы (8×8 в коде Грея)',
+            ))
 
     elif args.cmd == 'hexagram':
         print(render_hexagram(args.h, color=not args.no_color))

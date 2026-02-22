@@ -7,9 +7,11 @@ import tempfile
 import os
 import unittest
 from projects.hexspec.verifier import Spec, load_spec, verify
+from projects.hexspec.verifier import verify
 from projects.hexspec.generator import (
     bfs_path, all_states_paths, all_transitions_paths,
     round_trip_paths, negative_scenarios, generate_report,
+    path_to_hexforth, format_path,
 )
 
 
@@ -272,6 +274,95 @@ class TestNegativeScenarios(unittest.TestCase):
         )
         negs = negative_scenarios(spec)
         self.assertEqual(negs, [])
+
+
+class TestSpecInvariant(unittest.TestCase):
+    def setUp(self):
+        self.spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'C': '000011'},
+            transitions=[('A', 'B'), ('B', 'C'), ('C', 'A')],
+            initial='A',
+            final=['A'],
+        )
+
+    def test_invariant_all_pass(self):
+        """Инвариант, всегда True → пустой список нарушителей."""
+        violations = self.spec.check_invariant(lambda s: True, 'always_true')
+        self.assertEqual(violations, [])
+
+    def test_invariant_some_fail(self):
+        """Инвариант, ложный для состояния 1 → [1] в нарушителях."""
+        violations = self.spec.check_invariant(lambda s: s != 1, 'not_B')
+        self.assertIn(1, violations)
+
+
+class TestSpecBackwardReachable(unittest.TestCase):
+    def test_backward_from_final(self):
+        """Обратная достижимость из финального состояния включает начальное."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'C': '000011'},
+            transitions=[('A', 'B'), ('B', 'C')],
+            initial='A',
+            final=['C'],
+        )
+        back = spec.backward_reachable({3})   # 3 = C
+        self.assertIn(0, back)  # A достижима назад
+
+    def test_reverse_transitions(self):
+        """reverse_transitions содержит (B,A) для каждого (A,B)."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001'},
+            transitions=[('A', 'B')],
+            initial='A',
+        )
+        rev = spec.reverse_transitions()
+        self.assertIn((1, 0), rev)
+        self.assertNotIn((0, 1), rev)
+
+
+class TestVerifyFunction(unittest.TestCase):
+    def test_clean_spec_returns_true(self):
+        """verify() для чистой спецификации (без deadlock/forbidden) → True."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'C': '000011'},
+            transitions=[('A', 'B'), ('B', 'C'), ('C', 'A')],
+            initial='A',
+            final=['A'],
+        )
+        self.assertTrue(verify(spec))
+
+    def test_forbidden_spec_returns_false(self):
+        """verify() для спецификации с достижимым запрещённым → False."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'BAD': '000011'},
+            transitions=[('A', 'B'), ('B', 'BAD')],
+            initial='A',
+            forbidden=['BAD'],
+        )
+        self.assertFalse(verify(spec))
+
+
+class TestPathFormatting(unittest.TestCase):
+    def setUp(self):
+        self.spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'C': '000011'},
+            transitions=[('A', 'B'), ('B', 'C'), ('C', 'A')],
+            initial='A',
+        )
+
+    def test_path_to_hexforth_contains_goto(self):
+        s = path_to_hexforth(self.spec, [0, 1, 3])
+        self.assertIn('GOTO', s)
+        self.assertIn('ASSERT-EQ', s)
+
+    def test_format_path_contains_names(self):
+        s = format_path(self.spec, [0, 1])
+        self.assertIn('A', s)
+        self.assertIn('B', s)
+
+    def test_format_path_contains_steps(self):
+        s = format_path(self.spec, [0, 1, 3])
+        self.assertIn('Шагов: 2', s)
 
 
 if __name__ == '__main__':

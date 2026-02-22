@@ -357,5 +357,89 @@ class TestSpectralEmbed(unittest.TestCase):
             self.assertEqual(len(c), 1)
 
 
+class TestJsonSboxPredict(unittest.TestCase):
+    """Тесты ML-регрессии NL~SAC (SC-5 Шаг 3)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexcrypt.sbox_glyphs import json_avalanche
+        from projects.hexlearn.learn_glyphs import json_sbox_predict
+        avl = json_avalanche()
+        cls.result = json_sbox_predict(avl)
+
+    def test_command(self):
+        self.assertEqual(self.result['command'], 'predict')
+
+    def test_model_formula_string(self):
+        formula = self.result['model']['formula']
+        self.assertIsInstance(formula, str)
+        self.assertIn('NL', formula)
+        self.assertIn('SAC', formula)
+
+    def test_model_r_negative(self):
+        r = float(self.result['model']['r'])
+        self.assertLess(r, 0.0, 'NL и SAC должны быть отрицательно скоррелированы')
+
+    def test_model_r2_positive(self):
+        r2 = float(self.result['model']['r2'])
+        self.assertGreater(r2, 0.0)
+
+    def test_predictions_list(self):
+        preds = self.result['predictions']
+        self.assertGreater(len(preds), 0)
+        for p in preds:
+            self.assertIn('nl_actual', p)
+            self.assertIn('nl_pred', p)
+            self.assertIn('error', p)
+
+    def test_k3_k1_synthesis_present(self):
+        k3 = self.result['k3_k1_synthesis']
+        self.assertIn('nl_ceiling', k3)
+        self.assertGreaterEqual(k3['nl_ceiling'], 0)
+
+
+class TestJsonCodonCluster(unittest.TestCase):
+    """Тесты ML-кластеризации Андреев-партиции (TSC-3 Шаг 3)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexbio.codon_glyphs import json_codon_map
+        from projects.hextrimat.trimat_glyphs import json_twins_codon
+        from projects.hexlearn.learn_glyphs import json_codon_cluster
+        codon = json_codon_map()
+        twins = json_twins_codon(codon)
+        cls.result = json_codon_cluster(twins)
+
+    def test_command(self):
+        self.assertEqual(self.result['command'], 'cluster')
+
+    def test_clusters_nonempty(self):
+        self.assertGreater(len(self.result['clusters']), 0)
+
+    def test_summary_keys(self):
+        s = self.result['summary']
+        for key in ('total_clusters', 'pure_clusters', 'weighted_purity'):
+            self.assertIn(key, s)
+
+    def test_weighted_purity_in_01(self):
+        wp = self.result['summary']['weighted_purity']
+        self.assertGreaterEqual(wp, 0.0)
+        self.assertLessEqual(wp, 1.0)
+
+    def test_exact_matches_list(self):
+        em = self.result['exact_matches']
+        self.assertIsInstance(em, list)
+        for m in em:
+            self.assertIn('codons', m)
+            self.assertIn('majority_aa', m)
+            self.assertEqual(m['purity'], 1.0)
+
+    def test_resonance_score_above_random(self):
+        """TSC-3: резонанс-оценка >> случайная базовая линия."""
+        wp = self.result['summary']['weighted_purity']
+        # случайная базовая ≈ 0.06; резонанс ≈ 0.68
+        self.assertGreater(wp, 0.2)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

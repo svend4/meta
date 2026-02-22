@@ -323,5 +323,48 @@ class TestWeightDistribution(unittest.TestCase):
         self.assertEqual(sum(d.values()), len(code.codewords()))
 
 
+class TestJsonSboxCode(unittest.TestCase):
+    """Интеграционные тесты для json_sbox_code (SC-2 Шаг 3, K1×K8)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexcrypt.hexcrypt import affine_sbox
+        from projects.hexcrypt.sbox_glyphs import json_analyze
+        from projects.karnaugh6.kmap_glyphs import json_sbox_minimize
+        from projects.hexcode.code_glyphs import json_sbox_code
+        sb = affine_sbox()
+        sbox_data = json_analyze(sb, 'affine')
+        min_data = json_sbox_minimize(sbox_data)
+        cls.result = json_sbox_code(min_data)
+
+    def test_command(self):
+        self.assertEqual(self.result['command'], 'sbox_code')
+
+    def test_k8_theorem_present(self):
+        thm = self.result['k8_theorem']
+        self.assertIn('statement', thm)
+        self.assertIn('MDS', thm['statement'])
+
+    def test_max_achievable_d(self):
+        self.assertEqual(self.result['max_achievable_d'], 6)
+
+    def test_mds_impossible(self):
+        self.assertEqual(self.result['singleton_bound'], 7)
+        self.assertLess(self.result['max_achievable_d'],
+                        self.result['singleton_bound'])
+
+    def test_complement_equidistant(self):
+        ch = self.result['complement_highlight']
+        self.assertTrue(ch['is_equidistant'])
+        self.assertEqual(ch['code_d'], 6)
+
+    def test_analysis_nonempty(self):
+        self.assertGreater(len(self.result['analysis']), 0)
+
+    def test_k1_k8_finding_is_string(self):
+        self.assertIsInstance(self.result['k1_k8_finding'], str)
+        self.assertIn('K8', self.result['k1_k8_finding'])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
