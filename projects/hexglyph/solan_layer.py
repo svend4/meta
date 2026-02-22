@@ -341,9 +341,13 @@ def _cli() -> None:
     p.add_argument('--all-rules', action='store_true')
     p.add_argument('--table',     action='store_true')
     p.add_argument('--no-color',  action='store_true')
+    p.add_argument('--json',      action='store_true', help='JSON output')
     args = p.parse_args()
     color = not args.no_color and sys.stdout.isatty()
-    if args.table:
+    if args.json:
+        import json as _json
+        print(_json.dumps(layer_summary(args.word, args.rule), ensure_ascii=False, indent=2))
+    elif args.table:
         print_layer_table(color=color)
     elif args.all_rules:
         for rule in _RULES:

@@ -11783,7 +11783,7 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
-<h2>Rotational Symmetry Q6 — вращательная симметрия аттрактора</h2>
+<h2>Rotational Symmetry Q6 — вращательная симметрия аттрактора (solan_symm)</h2>
 <p class="meta">rot_period(S)=min k: rotate(S,k)=S · rot_order=N/rot_period · ТУМАН XOR rot_order=16 (максимум) · ГОРА AND=8 (чётные вращения) · ГОРА XOR3=4 (4 кластера) · ТУМАН XOR3=1 (нет симметрии)</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="sy-word"
@@ -11987,7 +11987,7 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
-<h2>Orbit Vocabulary Q6 — множество значений аттрактора</h2>
+<h2>Orbit Vocabulary Q6 — множество значений аттрактора (solan_vocab)</h2>
 <p class="meta">Уникальные Q6-значения (0–63) по всем N ячейкам и P шагам · ТУМАН XOR={0} · ГОРА AND={1,47} always_1={0} always_0={4} · ГОРА XOR3={8 знач.} all-bit0=1 H=3b · ГОРА OR={63} all-bits-1 · бит-профиль словаря</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="vo-word"
@@ -12179,7 +12179,7 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
-<h2>Bit-Layer Decomposition — разложение Q6 по 6 битовым плоскостям</h2>
+<h2>Bit-Layer Decomposition — разложение Q6 по 6 битовым плоскостям (solan_layer)</h2>
 <p class="meta">Все Q6-правила побитовые → 6 плоскостей независимы · lcm(p₀…p₅)=P (теорема) · ТУМАН XOR: все 0 · ГОРА XOR3: b0=frozen-1, b1–5 active · ГОРА AND: b0=frozen-1, b4=frozen-0 · ГОРА OR: все 1</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="ly-word"
@@ -12389,7 +12389,7 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
-<h2>Orbit Distance Map — попарные расстояния между шагами аттрактора</h2>
+<h2>Orbit Distance Map — попарные расстояния между шагами аттрактора (solan_dist)</h2>
 <p class="meta">M_Q6[t][s] = число ячеек, различных между шагами t и s · ТУМАН XOR3: near-return t=3 (dist=6) · ГОРА AND: все пары на расстоянии 16 (max) · packing_eff = mean/diam</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="dt-word"
@@ -12577,7 +12577,7 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
-<h2>Neighborhood Config Coverage — охват правила по битовым плоскостям</h2>
+<h2>Neighborhood Config Coverage — охват правила по битовым плоскостям (solan_config)</h2>
 <p class="meta">Для каждой 1-битовой плоскости b: какие из 8 конфигураций (l,c,r) встречаются в аттракторе · ТУМАН XOR3: все 8/8 для всех битов (эргодичность) · ГОРА XOR3: бит 4 только 4/8 (только l≠r) · ГОРА AND: 2/8 для активных битов</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="cf-word"
@@ -12776,7 +12776,7 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
-<h2>Period vs Width — масштабирование периода аттрактора по размеру кольца</h2>
+<h2>Period vs Width — масштабирование периода аттрактора по размеру кольца (solan_width)</h2>
 <p class="meta">P(N) — период при кольце N ячеек · ГОРА AND: P≡2 для всех N · ГОРА XOR3: P≡2 · ТУМАН XOR: P=1 при N=2^k · ТУМАН XOR3: P≈N/2 при N=2^k</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="wd-word"
