@@ -29206,5 +29206,180 @@ class TestRunPairProps(unittest.TestCase):
         self.assertEqual(len(self._r[0]), 8)
 
 
+# ---------------------------------------------------------------------------
+# TestFlipKBitsProps
+# ---------------------------------------------------------------------------
+class TestFlipKBitsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import random
+        from projects.hexglyph.solan_basin import flip_k_bits, random_ic
+        cls.flip_k_bits = staticmethod(flip_k_bits)
+        cls.random_ic   = staticmethod(random_ic)
+        rng = random.Random(42)
+        cls._cells = [49, 47, 15, 63] * 4
+        cls._flipped = flip_k_bits(cls._cells, 2, rng)
+        cls._ric = random_ic(16, rng)
+
+    def test_flip_k_bits_list(self):
+        self.assertIsInstance(self._flipped, list)
+
+    def test_flip_k_bits_same_length(self):
+        self.assertEqual(len(self._flipped), len(self._cells))
+
+    def test_random_ic_list(self):
+        self.assertIsInstance(self._ric, list)
+
+    def test_random_ic_length_16(self):
+        self.assertEqual(len(self._ric), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestBasinDictProps
+# ---------------------------------------------------------------------------
+class TestBasinDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_basin import basin_dict
+        cls._bd = basin_dict('ГОРА', max_k=4, n_per_k=10)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._bd, dict)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._bd['word'], 'ГОРА')
+
+    def test_has_rules(self):
+        self.assertIn('rules', self._bd)
+
+    def test_rules_four_keys(self):
+        self.assertEqual(len(self._bd['rules']), 4)
+
+    def test_max_k_correct(self):
+        self.assertEqual(self._bd['max_k'], 4)
+
+
+# ---------------------------------------------------------------------------
+# TestFlipSummaryProps
+# ---------------------------------------------------------------------------
+class TestFlipSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import flip_masks, flip_entropy, flip_summary
+        cls.flip_masks   = staticmethod(flip_masks)
+        cls.flip_entropy = staticmethod(flip_entropy)
+        cls._series = [49, 47, 15, 63] * 3
+        cls._fm = flip_masks(cls._series)
+        cls._fe = flip_entropy(cls._series)
+        cls._fs = flip_summary('ГОРА', 'xor3')
+
+    def test_flip_masks_list(self):
+        self.assertIsInstance(self._fm, list)
+
+    def test_flip_masks_nonempty(self):
+        self.assertGreater(len(self._fm), 0)
+
+    def test_flip_entropy_float(self):
+        self.assertIsInstance(self._fe, float)
+
+    def test_flip_entropy_nonneg(self):
+        self.assertGreaterEqual(self._fe, 0.0)
+
+    def test_flip_summary_dict(self):
+        self.assertIsInstance(self._fs, dict)
+
+    def test_flip_summary_word_preserved(self):
+        self.assertEqual(self._fs['word'], 'ГОРА')
+
+    def test_flip_summary_has_entropy_mean(self):
+        self.assertIn('entropy_mean', self._fs)
+
+
+# ---------------------------------------------------------------------------
+# TestBitPlaneSignatureProps
+# ---------------------------------------------------------------------------
+class TestBitPlaneSignatureProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import (
+            bit_plane_signature, extract_bit_plane, word_bit_planes,
+        )
+        cls.extract_bit_plane = staticmethod(extract_bit_plane)
+        cls._bps = bit_plane_signature('ГОРА')
+        cls._ebp = extract_bit_plane([49, 47, 63], 5)
+        cls._wbp = word_bit_planes('ГОРА', 'xor3')
+
+    def test_bit_plane_signature_dict(self):
+        self.assertIsInstance(self._bps, dict)
+
+    def test_bit_plane_signature_four_rules(self):
+        self.assertEqual(len(self._bps), 4)
+
+    def test_extract_bit_plane_list(self):
+        self.assertIsInstance(self._ebp, list)
+
+    def test_extract_bit_plane_same_length(self):
+        self.assertEqual(len(self._ebp), 3)
+
+    def test_word_bit_planes_dict(self):
+        self.assertIsInstance(self._wbp, dict)
+
+    def test_word_bit_planes_6_bits(self):
+        self.assertEqual(len(self._wbp), 6)
+
+
+# ---------------------------------------------------------------------------
+# TestNWPEProps
+# ---------------------------------------------------------------------------
+class TestNWPEProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import nwpe
+        cls.nwpe = staticmethod(nwpe)
+        cls._series = [49, 47, 15, 63] * 4
+        cls._r = nwpe(cls._series, m=3)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self._r, float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self._r, 0.0)
+
+    def test_constant_series_zero(self):
+        v = self.nwpe([42] * 20, m=3)
+        self.assertEqual(v, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestCoarseOrbitProps
+# ---------------------------------------------------------------------------
+class TestCoarseOrbitProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import coarse_orbit, dequantize
+        cls.dequantize = staticmethod(dequantize)
+        cls._co = coarse_orbit('ГОРА', 'xor3', k=3)
+        cls._dq = dequantize(0, 3)
+
+    def test_coarse_orbit_dict(self):
+        self.assertIsInstance(self._co, dict)
+
+    def test_coarse_orbit_has_period(self):
+        self.assertIn('period', self._co)
+
+    def test_coarse_orbit_has_entropy(self):
+        self.assertIn('entropy', self._co)
+
+    def test_entropy_nonneg(self):
+        self.assertGreaterEqual(self._co['entropy'], 0.0)
+
+    def test_dequantize_int(self):
+        self.assertIsInstance(self._dq, int)
+
+    def test_dequantize_zero_gives_zero(self):
+        v = self.dequantize(0, 2)
+        self.assertEqual(v, 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
