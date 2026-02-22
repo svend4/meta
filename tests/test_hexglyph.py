@@ -28308,5 +28308,158 @@ class TestBitPlaneDictShape(unittest.TestCase):
             self.assertIsInstance(v, dict)
 
 
+# ---------------------------------------------------------------------------
+# TestForbiddenDictShape
+# ---------------------------------------------------------------------------
+class TestForbiddenDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import forbidden_dict
+        cls.forbidden_dict = staticmethod(forbidden_dict)
+        cls._r = forbidden_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'm', 'M', 'n_observed', 'n_forbidden',
+                  'f_m', 'o_m', 'observed_set', 'forbidden_set', 'cell_profile'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_fm_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['f_m'], 0.0)
+        self.assertLessEqual(self._r['f_m'], 1.0)
+
+    def test_om_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['o_m'], 0.0)
+        self.assertLessEqual(self._r['o_m'], 1.0)
+
+    def test_cell_profile_list(self):
+        self.assertIsInstance(self._r['cell_profile'], list)
+
+    def test_observed_set_collection(self):
+        self.assertIsInstance(self._r['observed_set'], (list, frozenset, set))
+
+
+# ---------------------------------------------------------------------------
+# TestObservedPooledShape
+# ---------------------------------------------------------------------------
+class TestObservedPooledShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import observed_pooled
+        cls.observed_pooled = staticmethod(observed_pooled)
+        cls._r = observed_pooled('ГОРА', 'xor3')
+
+    def test_returns_frozenset(self):
+        self.assertIsInstance(self._r, frozenset)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_items_are_tuples_length_3(self):
+        for item in self._r:
+            self.assertIsInstance(item, tuple)
+            self.assertEqual(len(item), 3)
+
+    def test_deterministic(self):
+        r2 = self.observed_pooled('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestReturnDictShape
+# ---------------------------------------------------------------------------
+class TestReturnDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import return_dict
+        cls.return_dict = staticmethod(return_dict)
+        cls._r = return_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'jump_hist', 'n_distinct',
+                  'mean_jump', 'max_jump'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_mean_jump_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_jump'], 0.0)
+
+    def test_max_jump_nonneg(self):
+        self.assertGreaterEqual(self._r['max_jump'], 0)
+
+    def test_jump_hist_list(self):
+        self.assertIsInstance(self._r['jump_hist'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestReturnMapShape
+# ---------------------------------------------------------------------------
+class TestReturnMapShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import return_map
+        cls.return_map = staticmethod(return_map)
+        cls._series = [49, 47, 15, 63, 49, 47, 15, 63, 49, 47, 15, 63]
+        cls._r = return_map(cls._series)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_items_are_tuples(self):
+        for item in self._r:
+            self.assertIsInstance(item, tuple)
+            self.assertEqual(len(item), 2)
+
+    def test_length_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_deterministic(self):
+        r2 = self.return_map(self._series)
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestTEDictShape
+# ---------------------------------------------------------------------------
+class TestTEDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import te_dict
+        cls.te_dict = staticmethod(te_dict)
+        cls._r = te_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'period', 'matrix', 'max_te', 'mean_te'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_max_te_nonneg(self):
+        self.assertGreaterEqual(self._r['max_te'], 0.0)
+
+    def test_mean_te_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_te'], 0.0)
+
+    def test_matrix_16x16(self):
+        mat = self._r['matrix']
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 16)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
