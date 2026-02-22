@@ -3,11 +3,8 @@ import sys
 import os
 import io
 import json
-import tempfile
 from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-import pytest
 from projects.hexnav.hexnav import fmt_hex, print_current, print_path, TRIGRAM_NAMES, run
 
 

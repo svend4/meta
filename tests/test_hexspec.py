@@ -4,7 +4,6 @@ sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]
 
 import io
 import json
-import tempfile
 import os
 import unittest
 from contextlib import redirect_stdout
