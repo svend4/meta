@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from projects.hexstat.hexstat import (
     Q6Distribution, RandomWalk,
-    chi_square_statistic, chi_square_p_value, test_uniformity,
+    chi_square_statistic, chi_square_p_value, test_uniformity as uniformity_test,
     empirical_entropy, bootstrap_entropy_ci, kolmogorov_smirnov_yang,
     q6_mutual_information, q6_channel_capacity_bsc,
     yang_entropy, max_entropy_with_mean_yang,
@@ -383,14 +383,14 @@ class TestChiSquare(unittest.TestCase):
         # Все 500 выборок из yang_weighted(β=5)
         d = Q6Distribution.yang_weighted(5.0)
         samples = d.sample(500, seed=1)
-        chi2, df, p, reject = test_uniformity(samples)
+        chi2, df, p, reject = uniformity_test(samples)
         self.assertTrue(reject)
 
     def test_uniformity_uniform_not_rejected(self):
         """Равномерные данные (n=2000): не отвергаем H₀ (статистически)."""
         d = Q6Distribution.uniform()
         samples = d.sample(2000, seed=42)
-        chi2, df, p, reject = test_uniformity(samples)
+        chi2, df, p, reject = uniformity_test(samples)
         # p-значение должно быть разумным (не близко к 0)
         # Даём небольшой запас — иногда случайная выборка может дать низкий p
         # Проверяем просто что chi2/df близко к 1
