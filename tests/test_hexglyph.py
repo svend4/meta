@@ -25306,5 +25306,224 @@ class TestMomentsSummaryShape(unittest.TestCase):
             self.assertEqual(r['rule'], rule)
 
 
+class TestFlipSummaryShape(unittest.TestCase):
+    """Structure of flip_summary() from solan_bitflip."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import flip_summary
+        cls.flip_summary = staticmethod(flip_summary)
+        cls._r = flip_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_cell_stats_list(self):
+        self.assertIsInstance(self._r['cell_stats'], list)
+
+    def test_entropy_mean_float(self):
+        self.assertIsInstance(self._r['entropy_mean'], float)
+
+    def test_most_active_bit_int(self):
+        self.assertIsInstance(self._r['most_active_bit'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.flip_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestCoverageSummaryShape(unittest.TestCase):
+    """Structure of coverage_summary() from solan_coverage."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coverage import coverage_summary
+        cls.coverage_summary = staticmethod(coverage_summary)
+        cls._r = coverage_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_vocab_list(self):
+        self.assertIsInstance(self._r['vocab'], list)
+
+    def test_n_distinct_int(self):
+        self.assertIsInstance(self._r['n_distinct'], int)
+
+    def test_orbit_size_int(self):
+        self.assertIsInstance(self._r['orbit_size'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.coverage_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestVocabSummaryShape(unittest.TestCase):
+    """Structure of vocab_summary() from solan_vocab."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_vocab import vocab_summary
+        cls.vocab_summary = staticmethod(vocab_summary)
+        cls._r = vocab_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_vocab_list(self):
+        self.assertIsInstance(self._r['vocab'], list)
+
+    def test_vocab_size_int(self):
+        self.assertIsInstance(self._r['vocab_size'], int)
+
+    def test_dominant_frac_float(self):
+        self.assertIsInstance(self._r['dominant_frac'], float)
+
+    def test_hist_entropy_float(self):
+        self.assertIsInstance(self._r['hist_entropy'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.vocab_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestTESummaryShape(unittest.TestCase):
+    """Structure of te_summary() from solan_transfer."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import te_summary
+        cls.te_summary = staticmethod(te_summary)
+        cls._r = te_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_matrix_list(self):
+        self.assertIsInstance(self._r['matrix'], list)
+
+    def test_mean_te_float(self):
+        self.assertIsInstance(self._r['mean_te'], float)
+
+    def test_max_te_float(self):
+        self.assertIsInstance(self._r['max_te'], float)
+
+    def test_lr_asymmetry_float(self):
+        self.assertIsInstance(self._r['lr_asymmetry'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.te_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestRunSummaryShape(unittest.TestCase):
+    """Structure of run_summary() from solan_runs."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_runs import run_summary
+        cls.run_summary = staticmethod(run_summary)
+        cls._r = run_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_cell_stats_list(self):
+        self.assertIsInstance(self._r['cell_stats'], list)
+
+    def test_global_mean_run_float(self):
+        self.assertIsInstance(self._r['global_mean_run'], float)
+
+    def test_global_max_run_int(self):
+        self.assertIsInstance(self._r['global_max_run'], int)
+
+    def test_all_run_lengths_list(self):
+        self.assertIsInstance(self._r['all_run_lengths'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.run_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestProfileSummaryShape(unittest.TestCase):
+    """Structure of profile_summary() from solan_profile."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_profile import profile_summary
+        cls.profile_summary = staticmethod(profile_summary)
+        cls._r = profile_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_spatial_profiles_list(self):
+        self.assertIsInstance(self._r['spatial_profiles'], list)
+
+    def test_dominant_mode_n_int(self):
+        self.assertIsInstance(self._r['dominant_mode_n'], int)
+
+    def test_mean_spatial_var_float(self):
+        self.assertIsInstance(self._r['mean_spatial_var'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.profile_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
