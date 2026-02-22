@@ -24168,5 +24168,128 @@ class TestLZOfSeriesProps(unittest.TestCase):
         self.assertEqual(self.lz76(''), 0)
 
 
+class TestDistanceMatrixProps(unittest.TestCase):
+    """Properties of the solan_graph.distance_matrix() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import distance_matrix, LEXICON
+        cls._dm = distance_matrix()
+        cls._lex = LEXICON
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._dm, dict)
+
+    def test_length_49_squared(self):
+        self.assertEqual(len(self._dm), 49 * 49)
+
+    def test_diagonal_zero(self):
+        for w in self._lex:
+            self.assertEqual(self._dm[(w, w)], 0.0, f'diagonal {w}')
+
+    def test_all_values_nonneg(self):
+        for v in self._dm.values():
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_symmetric(self):
+        sample = [(self._lex[i], self._lex[j])
+                  for i in range(5) for j in range(i + 1, 5)]
+        for a, b in sample:
+            self.assertAlmostEqual(self._dm[(a, b)], self._dm[(b, a)], places=10,
+                                   msg=f'd({a},{b}) != d({b},{a})')
+
+    def test_all_values_at_most_one(self):
+        for v in self._dm.values():
+            self.assertLessEqual(v, 1.0)
+
+    def test_gora_rota_distance_zero(self):
+        # Same class → same signature → distance 0
+        self.assertEqual(self._dm[('ГОРА', 'РОТА')], 0.0)
+
+    def test_gora_tuман_distance_positive(self):
+        self.assertGreater(self._dm[('ГОРА', 'ТУМАН')], 0.0)
+
+
+class TestGraphSummaryShape(unittest.TestCase):
+    """Structure of graph_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import graph_summary
+        cls._gs = graph_summary()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._gs, dict)
+
+    def test_nodes_49(self):
+        self.assertEqual(self._gs['nodes'], 49)
+
+    def test_edges_positive(self):
+        self.assertGreater(self._gs['edges'], 0)
+
+    def test_components_positive(self):
+        self.assertGreater(self._gs['components'], 0)
+
+    def test_avg_degree_positive(self):
+        self.assertGreater(self._gs['avg_degree'], 0.0)
+
+    def test_max_degree_leq_48(self):
+        self.assertLessEqual(self._gs['max_degree'], 48)
+
+    def test_isolated_words_is_list(self):
+        self.assertIsInstance(self._gs['isolated_words'], list)
+
+    def test_threshold_stored(self):
+        self.assertIn('threshold', self._gs)
+
+    def test_largest_comp_size_positive(self):
+        self.assertGreater(self._gs['largest_comp_size'], 0)
+
+    def test_has_all_keys(self):
+        for key in ('nodes', 'edges', 'components', 'avg_degree',
+                    'max_degree', 'isolated', 'isolated_words',
+                    'largest_comp_size', 'threshold', 'width'):
+            self.assertIn(key, self._gs, f'key={key}')
+
+
+class TestBuildGraphProps(unittest.TestCase):
+    """Properties of build_graph() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import build_graph, LEXICON
+        cls._g = build_graph()
+        cls._lex = LEXICON
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._g, dict)
+
+    def test_node_count_49(self):
+        self.assertEqual(len(self._g), 49)
+
+    def test_all_lexicon_words_present(self):
+        for w in self._lex:
+            self.assertIn(w, self._g, f'{w} missing from graph')
+
+    def test_neighbor_lists_are_lists(self):
+        for w, neighbors in self._g.items():
+            self.assertIsInstance(neighbors, list, f'{w} neighbors not list')
+
+    def test_gora_has_class_mates_as_neighbors(self):
+        # ГОРА, РОТА, УДАР, УТРО are in the same class → all connected at threshold 0.1
+        gora_neighbors = set(self._g['ГОРА'])
+        for mate in ('РОТА', 'УДАР', 'УТРО'):
+            self.assertIn(mate, gora_neighbors, f'{mate} not neighbor of ГОРА')
+
+    def test_no_self_loops(self):
+        for w, neighbors in self._g.items():
+            self.assertNotIn(w, neighbors, f'{w} is its own neighbor')
+
+    def test_neighbor_words_in_lexicon(self):
+        for w, neighbors in self._g.items():
+            for n in neighbors:
+                self.assertIn(n, self._lex, f'{n} not in lexicon')
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
