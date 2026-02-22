@@ -11,6 +11,7 @@ from projects.hexspec.verifier import Spec, load_spec, verify
 from projects.hexspec.generator import (
     bfs_path, all_states_paths, all_transitions_paths,
     round_trip_paths, negative_scenarios, generate_report,
+    path_covers_transition, path_to_hexforth, format_path,
 )
 
 
@@ -371,6 +372,87 @@ class TestVerify(unittest.TestCase):
         )
         result = self._verify_silent(spec)
         self.assertIsInstance(result, bool)
+
+
+class TestPathUtils(unittest.TestCase):
+    """Тесты path_covers_transition, path_to_hexforth, format_path."""
+
+    def _simple_spec(self) -> Spec:
+        return make_spec(
+            states={'A': '000000', 'B': '000001', 'C': '000011'},
+            transitions=[('A', 'B'), ('B', 'C')],
+            initial='A',
+            final=['C'],
+        )
+
+    # path_covers_transition ---------------------------------------------------
+
+    def test_covers_present_transition(self):
+        # путь 0→1→3 покрывает ребро (0, 1)
+        self.assertTrue(path_covers_transition([0, 1, 3], (0, 1)))
+
+    def test_covers_second_transition(self):
+        self.assertTrue(path_covers_transition([0, 1, 3], (1, 3)))
+
+    def test_not_covers_absent_transition(self):
+        self.assertFalse(path_covers_transition([0, 1, 3], (3, 1)))  # в обратную сторону
+
+    def test_empty_path_covers_nothing(self):
+        self.assertFalse(path_covers_transition([], (0, 1)))
+
+    def test_single_node_covers_nothing(self):
+        self.assertFalse(path_covers_transition([5], (5, 6)))
+
+    # path_to_hexforth ---------------------------------------------------------
+
+    def test_hexforth_returns_string(self):
+        spec = self._simple_spec()
+        path = [0, 1, 3]
+        out = path_to_hexforth(spec, path)
+        self.assertIsInstance(out, str)
+
+    def test_hexforth_contains_goto(self):
+        spec = self._simple_spec()
+        out = path_to_hexforth(spec, [0, 1])
+        self.assertIn('GOTO', out)
+
+    def test_hexforth_contains_flip(self):
+        spec = self._simple_spec()
+        # 0→1: бит 0 → FLIP-0
+        out = path_to_hexforth(spec, [0, 1])
+        self.assertIn('FLIP-0', out)
+
+    def test_hexforth_contains_assert(self):
+        spec = self._simple_spec()
+        out = path_to_hexforth(spec, [0, 1])
+        self.assertIn('ASSERT-EQ', out)
+
+    def test_hexforth_multiline(self):
+        spec = self._simple_spec()
+        out = path_to_hexforth(spec, [0, 1, 3])
+        self.assertGreater(out.count('\n'), 2)
+
+    # format_path --------------------------------------------------------------
+
+    def test_format_path_returns_string(self):
+        spec = self._simple_spec()
+        out = format_path(spec, [0, 1, 3])
+        self.assertIsInstance(out, str)
+
+    def test_format_path_shows_steps(self):
+        spec = self._simple_spec()
+        out = format_path(spec, [0, 1, 3])
+        self.assertIn('2', out)  # 2 шага
+
+    def test_format_path_shows_bits(self):
+        spec = self._simple_spec()
+        out = format_path(spec, [0, 1])
+        self.assertIn('000000', out)  # to_bits(0)
+
+    def test_format_path_single_node(self):
+        spec = self._simple_spec()
+        out = format_path(spec, [0])
+        self.assertIn('0', out)
 
 
 if __name__ == '__main__':
