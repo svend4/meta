@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 from projects.hexpath.game import (
     GameState, GameResult, Player, new_game, best_move, minimax,
 )
-from projects.hexpath.cli import fmt_hex, draw_board, announce_result
+from projects.hexpath.cli import fmt_hex, draw_board, announce_result, ai_move
 from libs.hexcore.hexcore import neighbors, hamming
 
 
@@ -350,6 +350,35 @@ class TestCLIFunctions(unittest.TestCase):
         g = new_game(pos_a=63, capture_mode=False)
         out = self._capture(announce_result, g)
         self.assertIn('Путь', out)
+
+    # ai_move ------------------------------------------------------------------
+
+    def test_ai_move_returns_game_state(self):
+        g = new_game()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            g2 = ai_move(g, depth=2)
+        self.assertIsInstance(g2, GameState)
+
+    def test_ai_move_changes_player(self):
+        g = new_game()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            g2 = ai_move(g, depth=2)
+        self.assertEqual(g.current_player, Player.A)
+        self.assertEqual(g2.current_player, Player.B)
+
+    def test_ai_move_valid_position(self):
+        g = new_game()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            g2 = ai_move(g, depth=2)
+        self.assertIn(g2.pos_a, neighbors(g.pos_a))
+
+    def test_ai_move_prints_output(self):
+        g = new_game()
+        out = self._capture(ai_move, g, 2)
+        self.assertGreater(len(out), 0)
 
 
 if __name__ == '__main__':

@@ -12,6 +12,7 @@ from projects.hexspec.generator import (
     bfs_path, all_states_paths, all_transitions_paths,
     round_trip_paths, negative_scenarios, generate_report,
     path_covers_transition, path_to_hexforth, format_path,
+    print_text_report, print_hexforth_report,
 )
 
 
@@ -453,6 +454,72 @@ class TestPathUtils(unittest.TestCase):
         spec = self._simple_spec()
         out = format_path(spec, [0])
         self.assertIn('0', out)
+
+
+class TestPrintReports(unittest.TestCase):
+    """Тесты print_text_report и print_hexforth_report."""
+
+    def _make_spec(self):
+        return make_spec(
+            states={'A': '000000', 'B': '000001', 'C': '000011'},
+            transitions=[('A', 'B'), ('B', 'C'), ('C', 'A')],
+            initial='A', final=['C'],
+        )
+
+    def _capture(self, fn, *args, **kwargs) -> str:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(*args, **kwargs)
+        return buf.getvalue()
+
+    # print_text_report --------------------------------------------------------
+
+    def test_text_report_produces_output(self):
+        spec = self._make_spec()
+        out = self._capture(print_text_report, spec)
+        self.assertGreater(len(out), 0)
+
+    def test_text_report_contains_spec_name(self):
+        spec = self._make_spec()
+        out = self._capture(print_text_report, spec)
+        self.assertIn(spec.name, out)
+
+    def test_text_report_coverage_states(self):
+        spec = self._make_spec()
+        out = self._capture(print_text_report, spec, coverage='states')
+        self.assertIn('Покрытие состояний', out)
+
+    def test_text_report_coverage_transitions(self):
+        spec = self._make_spec()
+        out = self._capture(print_text_report, spec, coverage='transitions')
+        self.assertIn('переходов', out.lower())
+
+    def test_text_report_shows_total(self):
+        spec = self._make_spec()
+        out = self._capture(print_text_report, spec)
+        self.assertIn('Итого', out)
+
+    # print_hexforth_report ----------------------------------------------------
+
+    def test_hexforth_report_produces_output(self):
+        spec = self._make_spec()
+        out = self._capture(print_hexforth_report, spec)
+        self.assertGreater(len(out), 0)
+
+    def test_hexforth_report_contains_goto(self):
+        spec = self._make_spec()
+        out = self._capture(print_hexforth_report, spec)
+        self.assertIn('GOTO', out)
+
+    def test_hexforth_report_coverage_states(self):
+        spec = self._make_spec()
+        out = self._capture(print_hexforth_report, spec, coverage='states')
+        self.assertGreater(len(out), 0)
+
+    def test_hexforth_report_no_crash_all_coverages(self):
+        spec = self._make_spec()
+        for cov in ['states', 'transitions', 'roundtrip', 'all']:
+            self._capture(print_hexforth_report, spec, coverage=cov)
 
 
 if __name__ == '__main__':

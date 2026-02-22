@@ -6,6 +6,7 @@ import io
 import unittest
 from contextlib import redirect_stdout
 from projects.hexca.hexca import CA1D, CA2D, cell_char, demo_1d, demo_2d
+from projects.hexca.animate import animate_1d, animate_2d
 from projects.hexca.rules import (
     majority_vote, xor_rule, identity, conway_like, RULES, get_rule,
     smooth_rule, cyclic_rule, outer_totalistic, random_walk,
@@ -439,6 +440,48 @@ class TestDemoFunctions(unittest.TestCase):
     def test_demo_2d_contains_size(self):
         out = self._capture(demo_2d, 'identity', 4, 4, 2)
         self.assertIn('4', out)
+
+
+class TestAnimate(unittest.TestCase):
+    """Тесты animate_1d и animate_2d (fps=0 → мгновенный вывод)."""
+
+    def _capture(self, fn, *args, **kwargs) -> str:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(*args, **kwargs)
+        return buf.getvalue()
+
+    # animate_1d ---------------------------------------------------------------
+
+    def test_animate_1d_produces_output(self):
+        out = self._capture(animate_1d, 'xor_rule', 8, 2, 0, False, 'single')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_1d_shows_rule_name(self):
+        out = self._capture(animate_1d, 'majority_vote', 8, 2, 0, False, 'single')
+        self.assertIn('majority_vote', out)
+
+    def test_animate_1d_shows_step_count(self):
+        out = self._capture(animate_1d, 'xor_rule', 8, 3, 0, False, 'single')
+        self.assertIn('3', out)
+
+    def test_animate_1d_center_mode(self):
+        out = self._capture(animate_1d, 'identity', 8, 2, 0, False, 'center')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_1d_random_mode(self):
+        out = self._capture(animate_1d, 'identity', 8, 2, 0, False, 'random')
+        self.assertGreater(len(out), 0)
+
+    # animate_2d ---------------------------------------------------------------
+
+    def test_animate_2d_produces_output(self):
+        out = self._capture(animate_2d, 'xor_rule', 4, 4, 2, 0, False, 'single')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_2d_shows_rule_name(self):
+        out = self._capture(animate_2d, 'majority_vote', 4, 4, 2, 0, False, 'single')
+        self.assertIn('majority_vote', out)
 
 
 if __name__ == '__main__':
