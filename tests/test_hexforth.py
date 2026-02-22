@@ -8,7 +8,7 @@ import json as _json
 from projects.hexforth.compiler import compile_to_ir, to_python, to_json_bytecode, to_dot, path_stats
 from projects.hexforth.verifier import (
     build_transition_graph, reachable_from, shortest_path_in_graph,
-    analyze_source,
+    analyze_source, all_paths_bounded, fmt_path, ProgramAnalysis,
 )
 from libs.hexcore.hexcore import flip, antipode, hamming
 
@@ -324,6 +324,104 @@ class TestCompilerDOT(unittest.TestCase):
         self.assertIn('digraph', out)
         # Нет ни одного ребра bit-N
         self.assertNotIn('bit0', out)
+
+
+class TestAllPathsBounded(unittest.TestCase):
+    """Тесты all_paths_bounded — DFS с ограничением длины."""
+
+    def _simple_graph(self) -> dict[int, set[int]]:
+        """Граф: 0→1→2→3, 0→2."""
+        return {0: {1, 2}, 1: {2}, 2: {3}}
+
+    def test_direct_path_found(self):
+        g = self._simple_graph()
+        paths = all_paths_bounded(0, 3, g, max_len=10)
+        self.assertGreater(len(paths), 0)
+
+    def test_all_paths_end_at_target(self):
+        g = self._simple_graph()
+        for path in all_paths_bounded(0, 3, g, max_len=10):
+            self.assertEqual(path[-1], 3)
+            self.assertEqual(path[0], 0)
+
+    def test_max_len_limits_paths(self):
+        g = self._simple_graph()
+        paths_short = all_paths_bounded(0, 3, g, max_len=2)
+        paths_long = all_paths_bounded(0, 3, g, max_len=10)
+        self.assertLessEqual(len(paths_short), len(paths_long))
+
+    def test_no_path_returns_empty(self):
+        g = {0: {1}}  # 1 не ведёт никуда
+        paths = all_paths_bounded(0, 3, g, max_len=5)
+        self.assertEqual(paths, [])
+
+    def test_same_start_and_target_returns_empty(self):
+        """start == target, но путь длины 1 (только start) не считается."""
+        g = {0: {1}, 1: {0}}
+        paths = all_paths_bounded(0, 0, g, max_len=5)
+        # Требуется len(path) > 1, поэтому путь [0, 1, 0] может быть найден
+        for p in paths:
+            self.assertGreater(len(p), 1)
+
+
+class TestFmtPath(unittest.TestCase):
+    """Тесты fmt_path — форматирование пути как строки."""
+
+    def test_returns_string(self):
+        self.assertIsInstance(fmt_path([0, 1]), str)
+
+    def test_contains_arrow(self):
+        out = fmt_path([0, 1, 3])
+        self.assertIn('→', out)
+
+    def test_shows_bits(self):
+        out = fmt_path([0])
+        self.assertIn('000000', out)
+
+    def test_single_node(self):
+        out = fmt_path([42])
+        self.assertIn('42', out)
+
+    def test_path_length_reflected(self):
+        """Путь из N узлов содержит N-1 стрелок."""
+        out = fmt_path([0, 1, 3, 7])
+        self.assertEqual(out.count('→'), 3)
+
+
+class TestProgramAnalysis(unittest.TestCase):
+    """Тесты класса ProgramAnalysis и его метода is_ok."""
+
+    def test_empty_analysis_is_ok(self):
+        pa = ProgramAnalysis()
+        self.assertTrue(pa.is_ok())
+
+    def test_error_makes_not_ok(self):
+        pa = ProgramAnalysis()
+        pa.errors.append('some error')
+        self.assertFalse(pa.is_ok())
+
+    def test_warning_is_still_ok(self):
+        pa = ProgramAnalysis()
+        pa.warnings.append('some warning')
+        self.assertTrue(pa.is_ok())
+
+    def test_analyze_source_clean(self):
+        """Корректный код → is_ok()."""
+        src = 'FLIP-0\nFLIP-1'
+        pa = analyze_source(src)
+        self.assertTrue(pa.is_ok())
+
+    def test_analyze_source_define(self):
+        """DEFINE с непустым телом не вызывает ошибку."""
+        src = 'DEFINE myword : FLIP-0 ;'
+        pa = analyze_source(src)
+        self.assertTrue(pa.is_ok())
+
+    def test_analyze_source_empty_define_warning(self):
+        """DEFINE с пустым телом → предупреждение (warnings)."""
+        src = 'DEFINE myword : ;'
+        pa = analyze_source(src)
+        self.assertGreater(len(pa.warnings), 0)
 
 
 if __name__ == '__main__':

@@ -142,13 +142,13 @@ tests/
 ├── test_hexca.py        — 56 тестов
 ├── test_hexpath.py      — 31 тест
 ├── test_hexpath_puzzle.py — 41 тест
-├── test_hexforth.py     — 49 тестов
+├── test_hexforth.py     — 65 тестов
 ├── test_karnaugh6.py    — 44 теста
 ├── test_hexspec.py      — 49 тестов
 ... и ещё 18 файлов
 ```
 
-Полный прогон: `make test` (1527 теста).
+Полный прогон: `make test` (1543 теста).
 Smoke-тест CLI: `make smoke` (24/24 OK).
 
 ---
