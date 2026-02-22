@@ -26121,5 +26121,4371 @@ class TestAttractorBinaryShape(unittest.TestCase):
             self.assertGreater(len(r), 0)
 
 
+class TestCoarseOrbitShape(unittest.TestCase):
+    """Structure of coarse_orbit() from solan_coarse."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import coarse_orbit
+        cls.coarse_orbit = staticmethod(coarse_orbit)
+        cls._r = coarse_orbit('ГОРА', 'xor', 2)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_transient_nonneg(self):
+        self.assertGreaterEqual(self._r['transient'], 0)
+
+    def test_entropy_float(self):
+        self.assertIsInstance(self._r['entropy'], float)
+
+    def test_entropy_norm_in_0_1(self):
+        self.assertGreaterEqual(self._r['entropy_norm'], 0.0)
+        self.assertLessEqual(self._r['entropy_norm'], 1.0)
+
+    def test_n_unique_int(self):
+        self.assertIsInstance(self._r['n_unique'], int)
+
+
+class TestAttractorSpectrumShape(unittest.TestCase):
+    """Structure of attractor_spectrum() from solan_spectral."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spectral import attractor_spectrum
+        cls.attractor_spectrum = staticmethod(attractor_spectrum)
+        cls._r = attractor_spectrum('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_wavelengths_list(self):
+        self.assertIsInstance(self._r['wavelengths'], list)
+
+    def test_power_list(self):
+        self.assertIsInstance(self._r['power'], list)
+
+    def test_dominant_amp_float(self):
+        self.assertIsInstance(self._r['dominant_amp'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.attractor_spectrum('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestNWPEProps(unittest.TestCase):
+    """Properties of nwpe() from solan_wperm."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import nwpe
+        cls.nwpe = staticmethod(nwpe)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.nwpe([0, 1, 0, 1, 0, 1], 3), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.nwpe([0, 1, 0, 1, 0, 1], 3), 0.0)
+
+    def test_constant_series_low_entropy(self):
+        # Constant series has very low (near 0) NWPE
+        v = self.nwpe([0, 0, 0, 0, 0, 0, 0, 0], 3)
+        self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r1 = self.nwpe([0, 1, 2, 1, 0, 1, 2, 1], 3)
+        r2 = self.nwpe([0, 1, 2, 1, 0, 1, 2, 1], 3)
+        self.assertEqual(r1, r2)
+
+
+class TestMSEProfileShape(unittest.TestCase):
+    """Structure of mean_mse_profile() from solan_multiscale."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import mean_mse_profile
+        cls.mean_mse_profile = staticmethod(mean_mse_profile)
+        cls._r = mean_mse_profile('ГОРА', 'xor')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_default_length_8(self):
+        self.assertEqual(len(self._r), 8)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_all_four_rules_return_list(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.mean_mse_profile('ВОДА', rule)
+            self.assertIsInstance(r, list)
+            self.assertEqual(len(r), 8)
+
+
+# ---------------------------------------------------------------------------
+# TestGetOrbitShape
+# ---------------------------------------------------------------------------
+class TestGetOrbitShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import get_orbit
+        cls.get_orbit = staticmethod(get_orbit)
+        cls._xor3 = get_orbit('ГОРА', 'xor3', 16)
+        cls._xor  = get_orbit('ГОРА', 'xor',  16)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._xor3, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._xor3), 0)
+
+    def test_items_are_tuples(self):
+        for item in self._xor3:
+            self.assertIsInstance(item, tuple)
+
+    def test_item_length_equals_width(self):
+        for item in self._xor3:
+            self.assertEqual(len(item), 16)
+
+    def test_xor_period1_orbit_len1(self):
+        # ГОРА xor has period=1 → orbit contains 1 state
+        self.assertEqual(len(self._xor), 1)
+
+
+# ---------------------------------------------------------------------------
+# TestAllPatternsProps
+# ---------------------------------------------------------------------------
+class TestAllPatternsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import all_patterns
+        cls.all_patterns = staticmethod(all_patterns)
+        cls._r3 = all_patterns(3)
+        cls._r2 = all_patterns(2)
+
+    def test_returns_frozenset(self):
+        self.assertIsInstance(self._r3, frozenset)
+
+    def test_m3_has_six_patterns(self):
+        self.assertEqual(len(self._r3), 6)
+
+    def test_items_are_tuples(self):
+        for item in self._r3:
+            self.assertIsInstance(item, tuple)
+
+    def test_item_length_equals_m(self):
+        for item in self._r3:
+            self.assertEqual(len(item), 3)
+
+    def test_m2_has_two_patterns(self):
+        self.assertEqual(len(self._r2), 2)
+
+
+# ---------------------------------------------------------------------------
+# TestForbiddenCellProfileShape
+# ---------------------------------------------------------------------------
+class TestForbiddenCellProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import forbidden_cell_profile
+        cls.forbidden_cell_profile = staticmethod(forbidden_cell_profile)
+        cls._r = forbidden_cell_profile('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_items_are_dicts(self):
+        for item in self._r:
+            self.assertIsInstance(item, dict)
+
+    def test_required_keys(self):
+        for item in self._r:
+            for k in ('cell', 'n_observed', 'n_forbidden', 'f_m', 'o_m', 'patterns'):
+                self.assertIn(k, item)
+
+    def test_fm_in_unit_interval(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['f_m'], 0.0)
+            self.assertLessEqual(item['f_m'], 1.0)
+
+    def test_cell_index_in_range(self):
+        cells = [item['cell'] for item in self._r]
+        self.assertEqual(sorted(cells), list(range(16)))
+
+    def test_n_observed_nonneg(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['n_observed'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestAttractorAutocorrShape
+# ---------------------------------------------------------------------------
+class TestAttractorAutocorrShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import attractor_autocorr
+        cls.attractor_autocorr = staticmethod(attractor_autocorr)
+        cls._r = attractor_autocorr('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_first_element_is_one(self):
+        self.assertAlmostEqual(self._r[0], 1.0, places=5)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_values_in_minus1_to_1(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, -1.0 - 1e-9)
+            self.assertLessEqual(v, 1.0 + 1e-9)
+
+
+# ---------------------------------------------------------------------------
+# TestTEMatrixShape
+# ---------------------------------------------------------------------------
+class TestTEMatrixShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import te_matrix
+        cls.te_matrix = staticmethod(te_matrix)
+        cls._r = te_matrix('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_16_rows(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_each_row_has_16_elements(self):
+        for row in self._r:
+            self.assertEqual(len(row), 16)
+
+    def test_all_nonneg(self):
+        for row in self._r:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r2 = self.te_matrix('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestBasinProfileShape
+# ---------------------------------------------------------------------------
+class TestBasinProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_basin import basin_profile
+        cls.basin_profile = staticmethod(basin_profile)
+        cls._r = basin_profile('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_25(self):
+        self.assertEqual(len(self._r), 25)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_first_element_is_one(self):
+        # k=0: same IC → always in basin
+        self.assertAlmostEqual(self._r[0], 1.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestTrajectoryComplexityShape
+# ---------------------------------------------------------------------------
+class TestTrajectoryComplexityShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import trajectory_complexity
+        cls.trajectory_complexity = staticmethod(trajectory_complexity)
+        cls._r = trajectory_complexity('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'transient', 'period',
+                  'traj_bits', 'attr_bits', 'traj_norm', 'attr_norm'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_transient_nonneg(self):
+        self.assertGreaterEqual(self._r['transient'], 0)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_traj_norm_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['traj_norm'], 0.0)
+        self.assertLessEqual(self._r['traj_norm'], 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestPortraitCompareShape
+# ---------------------------------------------------------------------------
+class TestPortraitCompareShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import portrait_compare
+        cls.portrait_compare = staticmethod(portrait_compare)
+        cls._r = portrait_compare('ГОРА', 'ВОДА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word1', 'word2', 'rule', 'l2_distance', 'cosine_sim'):
+            self.assertIn(k, self._r)
+
+    def test_words_preserved(self):
+        self.assertEqual(self._r['word1'], 'ГОРА')
+        self.assertEqual(self._r['word2'], 'ВОДА')
+
+    def test_l2_distance_nonneg(self):
+        self.assertGreaterEqual(self._r['l2_distance'], 0.0)
+
+    def test_cosine_sim_in_range(self):
+        self.assertGreaterEqual(self._r['cosine_sim'], -1.0 - 1e-9)
+        self.assertLessEqual(self._r['cosine_sim'], 1.0 + 1e-9)
+
+    def test_self_compare_distance_zero(self):
+        r = self.portrait_compare('ГОРА', 'ГОРА', 'xor3')
+        self.assertAlmostEqual(r['l2_distance'], 0.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestLyapunovProfileShape
+# ---------------------------------------------------------------------------
+class TestLyapunovProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import lyapunov_profile
+        cls.lyapunov_profile = staticmethod(lyapunov_profile)
+        cls._r = lyapunov_profile('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'n_perturb',
+                  'mean_dist', 'peak_mean', 'peak_step', 'final_mean', 'converges'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_n_perturb_positive(self):
+        self.assertGreater(self._r['n_perturb'], 0)
+
+    def test_peak_mean_nonneg(self):
+        self.assertGreaterEqual(self._r['peak_mean'], 0.0)
+
+    def test_final_mean_nonneg(self):
+        self.assertGreaterEqual(self._r['final_mean'], 0.0)
+
+    def test_converges_bool(self):
+        self.assertIsInstance(self._r['converges'], bool)
+
+
+# ---------------------------------------------------------------------------
+# TestJumpHistogramShape
+# ---------------------------------------------------------------------------
+class TestJumpHistogramShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import jump_histogram
+        cls.jump_histogram = staticmethod(jump_histogram)
+        cls._r = jump_histogram('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_64(self):
+        self.assertEqual(len(self._r), 64)
+
+    def test_all_ints(self):
+        for v in self._r:
+            self.assertIsInstance(v, int)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0)
+
+    def test_total_positive(self):
+        self.assertGreater(sum(self._r), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestMapStatsShape
+# ---------------------------------------------------------------------------
+class TestMapStatsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import aggregate_map, map_stats
+        agg = aggregate_map('ГОРА', 'xor3')
+        cls._r = map_stats(list(agg.keys()))
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('n_pairs', 'n_distinct', 'diagonal_count', 'mean_jump', 'max_jump'):
+            self.assertIn(k, self._r)
+
+    def test_n_pairs_positive(self):
+        self.assertGreater(self._r['n_pairs'], 0)
+
+    def test_mean_jump_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_jump'], 0.0)
+
+    def test_max_jump_nonneg(self):
+        self.assertGreaterEqual(self._r['max_jump'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestAnalyticCurveShape
+# ---------------------------------------------------------------------------
+class TestAnalyticCurveShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import analytic_curve
+        cls.analytic_curve = staticmethod(analytic_curve)
+        cls._r = analytic_curve('xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_items_are_tuples(self):
+        for item in self._r:
+            self.assertIsInstance(item, tuple)
+            self.assertEqual(len(item), 2)
+
+    def test_first_point_origin(self):
+        self.assertAlmostEqual(self._r[0][0], 0.0, places=5)
+        self.assertAlmostEqual(self._r[0][1], 0.0, places=5)
+
+    def test_last_point_one(self):
+        self.assertAlmostEqual(self._r[-1][0], 1.0, places=5)
+        self.assertAlmostEqual(self._r[-1][1], 1.0, places=5)
+
+    def test_x_values_in_unit_interval(self):
+        for x, _ in self._r:
+            self.assertGreaterEqual(x, -1e-9)
+            self.assertLessEqual(x, 1.0 + 1e-9)
+
+
+# ---------------------------------------------------------------------------
+# TestClassifyRuleProps
+# ---------------------------------------------------------------------------
+class TestClassifyRuleProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import classify_rule
+        cls.classify_rule = staticmethod(classify_rule)
+
+    def test_returns_string(self):
+        self.assertIsInstance(self.classify_rule('xor3'), str)
+
+    def test_xor_is_complex(self):
+        self.assertEqual(self.classify_rule('xor'), 'complex')
+
+    def test_and_is_ordered(self):
+        self.assertEqual(self.classify_rule('and'), 'ordered')
+
+    def test_or_is_ordered(self):
+        self.assertEqual(self.classify_rule('or'), 'ordered')
+
+
+# ---------------------------------------------------------------------------
+# TestPermEntropyProps
+# ---------------------------------------------------------------------------
+class TestPermEntropyProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import perm_entropy
+        cls.perm_entropy = staticmethod(perm_entropy)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.perm_entropy([0,1,0,1,0,1,0,1], 3), float)
+
+    def test_constant_series_entropy_zero(self):
+        self.assertAlmostEqual(self.perm_entropy([0,0,0,0,0,0,0,0], 3), 0.0, places=5)
+
+    def test_in_unit_interval(self):
+        v = self.perm_entropy([0,1,0,1,0,1,0,1], 3)
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_deterministic(self):
+        v1 = self.perm_entropy([0,1,2,0,1,2,0,1], 3)
+        v2 = self.perm_entropy([0,1,2,0,1,2,0,1], 3)
+        self.assertEqual(v1, v2)
+
+
+# ---------------------------------------------------------------------------
+# TestSpatialPEShape
+# ---------------------------------------------------------------------------
+class TestSpatialPEShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import spatial_pe
+        cls.spatial_pe = staticmethod(spatial_pe)
+        cls._r = spatial_pe('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_deterministic(self):
+        r2 = self.spatial_pe('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestCHPointShape
+# ---------------------------------------------------------------------------
+class TestCHPointShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ch_plane import ch_point
+        cls.ch_point = staticmethod(ch_point)
+        cls._r = ch_point('ГОРА', 'xor3')
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self._r, tuple)
+
+    def test_length_3(self):
+        self.assertEqual(len(self._r), 3)
+
+    def test_h_s_in_unit_interval(self):
+        h_s = self._r[0]
+        self.assertGreaterEqual(h_s, 0.0)
+        self.assertLessEqual(h_s, 1.0)
+
+    def test_c_in_unit_interval(self):
+        c = self._r[2]
+        self.assertGreaterEqual(c, 0.0)
+        self.assertLessEqual(c, 1.0)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+
+# ---------------------------------------------------------------------------
+# TestCellCHShape
+# ---------------------------------------------------------------------------
+class TestCellCHShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ch_plane import cell_ch
+        cls.cell_ch = staticmethod(cell_ch)
+        cls._r = cell_ch('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_items_are_dicts(self):
+        for item in self._r:
+            self.assertIsInstance(item, dict)
+
+    def test_required_keys(self):
+        for item in self._r:
+            for k in ('cell', 'h_s', 'c', 'n_patterns'):
+                self.assertIn(k, item)
+
+    def test_h_s_in_unit_interval(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['h_s'], 0.0)
+            self.assertLessEqual(item['h_s'], 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestBlockEntropyProfileShape
+# ---------------------------------------------------------------------------
+class TestBlockEntropyProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import block_entropy_profile
+        cls.block_entropy_profile = staticmethod(block_entropy_profile)
+        seqs = [[0, 1, 0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0]]
+        cls._r = block_entropy_profile(seqs)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_6(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestBitPlaneTrajectoryShape
+# ---------------------------------------------------------------------------
+class TestBitPlaneTrajectoryShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import bit_plane_trajectory
+        cls.bit_plane_trajectory = staticmethod(bit_plane_trajectory)
+        cls._r = bit_plane_trajectory('ГОРА', 0, 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('bit', 'segment', 'rule', 'word', 'rows', 'transient', 'period', 'active'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_bit_preserved(self):
+        self.assertEqual(self._r['bit'], 0)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_rows_is_list(self):
+        self.assertIsInstance(self._r['rows'], list)
+
+    def test_active_is_bool(self):
+        self.assertIsInstance(self._r['active'], bool)
+
+
+# ---------------------------------------------------------------------------
+# TestAttractorActivityShape
+# ---------------------------------------------------------------------------
+class TestAttractorActivityShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import attractor_activity
+        cls.attractor_activity = staticmethod(attractor_activity)
+        cls._r = attractor_activity('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_has_6_bit_entries(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_items_are_dicts(self):
+        for v in self._r.values():
+            self.assertIsInstance(v, dict)
+
+    def test_item_keys(self):
+        for v in self._r.values():
+            for k in ('active', 'period', 'mean_attr', 'segment'):
+                self.assertIn(k, v)
+
+    def test_period_positive(self):
+        for v in self._r.values():
+            self.assertGreaterEqual(v['period'], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestCellFlipStatsShape
+# ---------------------------------------------------------------------------
+class TestCellFlipStatsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import cell_flip_stats
+        cls.cell_flip_stats = staticmethod(cell_flip_stats)
+        cls._r = cell_flip_stats([0, 1, 0, 1, 0, 1, 0, 1])
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('freqs', 'entropy', 'dominant_mask', 'n_distinct_masks', 'cooccurrence'):
+            self.assertIn(k, self._r)
+
+    def test_freqs_length_6(self):
+        self.assertEqual(len(self._r['freqs']), 6)
+
+    def test_freqs_in_unit_interval(self):
+        for v in self._r['freqs']:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_entropy_nonneg(self):
+        self.assertGreaterEqual(self._r['entropy'], 0.0)
+
+    def test_n_distinct_masks_positive(self):
+        self.assertGreater(self._r['n_distinct_masks'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestAggregateFlipFreqsShape
+# ---------------------------------------------------------------------------
+class TestAggregateFlipFreqsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import aggregate_flip_freqs
+        cls.aggregate_flip_freqs = staticmethod(aggregate_flip_freqs)
+        cls._r = aggregate_flip_freqs('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_6(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_deterministic(self):
+        r2 = self.aggregate_flip_freqs('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestCellAISKShape
+# ---------------------------------------------------------------------------
+class TestCellAISKShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import cell_ais_k
+        cls.cell_ais_k = staticmethod(cell_ais_k)
+        cls._r = cell_ais_k('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r2 = self.cell_ais_k('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestBitFlipFreqsShape
+# ---------------------------------------------------------------------------
+class TestBitFlipFreqsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import bit_flip_freqs
+        cls.bit_flip_freqs = staticmethod(bit_flip_freqs)
+        cls._r = bit_flip_freqs([0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1])
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_6(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+
+# ---------------------------------------------------------------------------
+# TestCoarsenProps
+# ---------------------------------------------------------------------------
+class TestCoarsenProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import coarsen
+        cls.coarsen = staticmethod(coarsen)
+
+    def test_returns_int(self):
+        self.assertIsInstance(self.coarsen(49, 4), int)
+
+    def test_result_in_range(self):
+        for v in (0, 32, 63):
+            r = self.coarsen(v, 4)
+            self.assertGreaterEqual(r, 0)
+            self.assertLess(r, 4)
+
+    def test_zero_maps_to_zero(self):
+        self.assertEqual(self.coarsen(0, 4), 0)
+
+    def test_deterministic(self):
+        self.assertEqual(self.coarsen(49, 8), self.coarsen(49, 8))
+
+
+# ---------------------------------------------------------------------------
+# TestCommutatorTrajShape
+# ---------------------------------------------------------------------------
+class TestCommutatorTrajShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import commutator_traj
+        cls.commutator_traj = staticmethod(commutator_traj)
+        cls._r = commutator_traj('ГОРА', 'xor3', 4)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_first_element_zero(self):
+        self.assertAlmostEqual(self._r[0], 0.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestMSECellShape
+# ---------------------------------------------------------------------------
+class TestMSECellShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import mse_cell
+        cls.mse_cell = staticmethod(mse_cell)
+        import random
+        rng = random.Random(42)
+        cls._series = [rng.random() for _ in range(200)]
+        cls._r = mse_cell(cls._series)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_8(self):
+        self.assertEqual(len(self._r), 8)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r2 = self.mse_cell(self._series)
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestCoarseGrainShape
+# ---------------------------------------------------------------------------
+class TestCoarseGrainShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import coarse_grain
+        cls.coarse_grain = staticmethod(coarse_grain)
+        cls._series = [0.1, 0.5, 0.9, 0.3, 0.7, 0.2, 0.8, 0.4]
+        cls._r = coarse_grain(cls._series, 2)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_half_length(self):
+        self.assertEqual(len(self._r), len(self._series) // 2)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_tau1_preserves_length(self):
+        r = self.coarse_grain(self._series, 1)
+        self.assertEqual(len(r), len(self._series))
+
+
+# ---------------------------------------------------------------------------
+# TestRowSpectrumShape
+# ---------------------------------------------------------------------------
+class TestRowSpectrumShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spectral import row_spectrum
+        cls.row_spectrum = staticmethod(row_spectrum)
+        cls._cells = [49, 47, 15, 63, 49, 47, 15, 63, 49, 47, 15, 63, 49, 47, 15, 63]
+        cls._r = row_spectrum(cls._cells)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_9(self):
+        self.assertEqual(len(self._r), 9)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_dc_component_positive(self):
+        # First element is the DC component (always positive for non-zero input)
+        self.assertGreater(self._r[0], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestCriticalPositionsShape
+# ---------------------------------------------------------------------------
+class TestCriticalPositionsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import critical_positions
+        cls.critical_positions = staticmethod(critical_positions)
+        cls._r = critical_positions('ГОРА')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_all_ints(self):
+        for v in self._r:
+            self.assertIsInstance(v, int)
+
+    def test_all_in_range(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0)
+            self.assertLess(v, 16)
+
+    def test_deterministic(self):
+        r2 = self.critical_positions('ГОРА')
+        self.assertEqual(self._r, r2)
+
+    def test_gora_has_two_critical(self):
+        self.assertEqual(self._r, [0, 2])
+
+
+# ---------------------------------------------------------------------------
+# TestNeutralPositionsShape
+# ---------------------------------------------------------------------------
+class TestNeutralPositionsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import neutral_positions
+        cls.neutral_positions = staticmethod(neutral_positions)
+        cls._r = neutral_positions('ГОРА')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_all_ints(self):
+        for v in self._r:
+            self.assertIsInstance(v, int)
+
+    def test_all_in_range(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0)
+            self.assertLess(v, 16)
+
+    def test_gora_has_one_neutral(self):
+        self.assertEqual(self._r, [1])
+
+
+# ---------------------------------------------------------------------------
+# TestPerRuleDistProps
+# ---------------------------------------------------------------------------
+class TestPerRuleDistProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import per_rule_dist
+        from projects.hexglyph.solan_word import word_signature
+        cls.per_rule_dist = staticmethod(per_rule_dist)
+        cls._sig_gora = word_signature('ГОРА')
+        cls._sig_voda = word_signature('ВОДА')
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.per_rule_dist(self._sig_gora, self._sig_voda, 'xor'), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.per_rule_dist(self._sig_gora, self._sig_voda, 'xor'), 0.0)
+
+    def test_same_word_distance_zero(self):
+        self.assertAlmostEqual(self.per_rule_dist(self._sig_gora, self._sig_gora, 'xor'), 0.0, places=5)
+
+    def test_symmetric(self):
+        d12 = self.per_rule_dist(self._sig_gora, self._sig_voda, 'xor3')
+        d21 = self.per_rule_dist(self._sig_voda, self._sig_gora, 'xor3')
+        self.assertAlmostEqual(d12, d21, places=8)
+
+
+# ---------------------------------------------------------------------------
+# TestSignatureClassesShape
+# ---------------------------------------------------------------------------
+class TestSignatureClassesShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import signature_classes
+        cls.signature_classes = staticmethod(signature_classes)
+        cls._r = signature_classes()
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_items_are_dicts(self):
+        for item in self._r:
+            self.assertIsInstance(item, dict)
+
+    def test_required_keys(self):
+        for item in self._r:
+            for k in ('key', 'words', 'count'):
+                self.assertIn(k, item)
+
+    def test_count_matches_words_length(self):
+        for item in self._r:
+            self.assertEqual(item['count'], len(item['words']))
+
+
+# ---------------------------------------------------------------------------
+# TestPhonemeTableShape
+# ---------------------------------------------------------------------------
+class TestPhonemeTableShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import phoneme_table
+        cls._r = phoneme_table()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_has_16_entries(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_keys_are_single_chars(self):
+        for k in self._r.keys():
+            self.assertIsInstance(k, str)
+            self.assertEqual(len(k), 1)
+
+    def test_values_are_dicts(self):
+        for v in self._r.values():
+            self.assertIsInstance(v, dict)
+
+    def test_values_have_q6_key(self):
+        for v in self._r.values():
+            self.assertIn('q6', v)
+
+
+# ---------------------------------------------------------------------------
+# TestPhoneticHProps
+# ---------------------------------------------------------------------------
+class TestPhoneticHProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import phonetic_h
+        cls.phonetic_h = staticmethod(phonetic_h)
+
+    def test_g_returns_49(self):
+        self.assertEqual(self.phonetic_h('Г'), 49)
+
+    def test_a_returns_63(self):
+        self.assertEqual(self.phonetic_h('А'), 63)
+
+    def test_returns_int(self):
+        self.assertIsInstance(self.phonetic_h('Г'), int)
+
+    def test_unknown_returns_none(self):
+        self.assertIsNone(self.phonetic_h('Q'))
+
+
+# ---------------------------------------------------------------------------
+# TestSingleDamageShape
+# ---------------------------------------------------------------------------
+class TestSingleDamageShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import single_damage
+        cls.single_damage = staticmethod(single_damage)
+        cls._r = single_damage('ГОРА', 'xor3', 0, 0)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'cell', 'bit', 'n_steps',
+                  'orig_grid', 'pert_grid', 'damage_grid',
+                  'total_damage', 'max_damage', 'final_damage'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_total_damage_is_list(self):
+        self.assertIsInstance(self._r['total_damage'], list)
+
+    def test_max_damage_nonneg(self):
+        self.assertGreaterEqual(self._r['max_damage'], 0.0)
+
+    def test_damage_grid_is_list(self):
+        self.assertIsInstance(self._r['damage_grid'], list)
+
+    def test_orig_grid_rows(self):
+        self.assertIsInstance(self._r['orig_grid'], list)
+        self.assertGreater(len(self._r['orig_grid']), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestPairStatsShape
+# ---------------------------------------------------------------------------
+class TestPairStatsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import pair_stats
+        cls._r = pair_stats()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_keys_are_tuples(self):
+        for k in self._r.keys():
+            self.assertIsInstance(k, tuple)
+            self.assertEqual(len(k), 2)
+
+    def test_values_have_required_keys(self):
+        for v in self._r.values():
+            if isinstance(v, list):
+                for item in v:
+                    for k in ('count', 'changed', 'rate'):
+                        self.assertIn(k, item)
+            else:
+                for k in ('count', 'changed', 'rate'):
+                    self.assertIn(k, v)
+
+
+# ---------------------------------------------------------------------------
+# TestSpacetimeShape
+# ---------------------------------------------------------------------------
+class TestSpacetimeShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spacetime import spacetime
+        cls.spacetime = staticmethod(spacetime)
+        cls._r = spacetime('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'transient', 'period', 'n_steps', 'grid'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_grid_is_list(self):
+        self.assertIsInstance(self._r['grid'], list)
+
+    def test_grid_nonempty(self):
+        self.assertGreater(len(self._r['grid']), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestSTDictShape
+# ---------------------------------------------------------------------------
+class TestSTDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spacetime import st_dict
+        cls.st_dict = staticmethod(st_dict)
+        cls._r = st_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'grid', 'spatial_entropy', 'temporal_entropy',
+                  'activity', 'mean_spatial_h', 'mean_temporal_h'):
+            self.assertIn(k, self._r)
+
+    def test_mean_spatial_h_float(self):
+        self.assertIsInstance(self._r['mean_spatial_h'], float)
+
+    def test_mean_temporal_h_float(self):
+        self.assertIsInstance(self._r['mean_temporal_h'], float)
+
+    def test_mean_spatial_h_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_spatial_h'], 0.0)
+
+    def test_spatial_entropy_list(self):
+        self.assertIsInstance(self._r['spatial_entropy'], list)
+
+    def test_temporal_entropy_list(self):
+        self.assertIsInstance(self._r['temporal_entropy'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestSTSpatialEntropyShape
+# ---------------------------------------------------------------------------
+class TestSTSpatialEntropyShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spacetime import spacetime, st_spatial_entropy
+        cls.st_spatial_entropy = staticmethod(st_spatial_entropy)
+        st = spacetime('ГОРА', 'xor3')
+        cls._grid = st['grid']
+        cls._r = st_spatial_entropy(cls._grid)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_length_matches_grid(self):
+        self.assertEqual(len(self._r), len(self._grid))
+
+
+# ---------------------------------------------------------------------------
+# TestAllWordTrajShape
+# ---------------------------------------------------------------------------
+class TestAllWordTrajShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_traj import all_word_trajectories
+        cls.all_word_trajectories = staticmethod(all_word_trajectories)
+        cls._r = all_word_trajectories('ГОРА', 16)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_has_all_4_rules(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r)
+
+    def test_values_are_dicts(self):
+        for v in self._r.values():
+            self.assertIsInstance(v, dict)
+
+    def test_required_inner_keys(self):
+        for v in self._r.values():
+            for k in ('rows', 'transient', 'period', 'n_rows', 'word', 'rule'):
+                self.assertIn(k, v)
+
+    def test_period_positive(self):
+        for v in self._r.values():
+            self.assertGreaterEqual(v['period'], 1)
+
+    def test_rows_is_list(self):
+        for v in self._r.values():
+            self.assertIsInstance(v['rows'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestMDSStressProps
+# ---------------------------------------------------------------------------
+class TestMDSStressProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import mds_stress
+        cls.mds_stress = staticmethod(mds_stress)
+
+    def test_returns_float(self):
+        dmat = [[0.0, 1.0], [1.0, 0.0]]
+        coords = [[0.0, 0.0], [1.0, 0.0]]
+        self.assertIsInstance(self.mds_stress(dmat, coords), float)
+
+    def test_perfect_fit_zero_stress(self):
+        dmat = [[0.0, 1.0], [1.0, 0.0]]
+        coords = [[0.0, 0.0], [1.0, 0.0]]
+        self.assertAlmostEqual(self.mds_stress(dmat, coords), 0.0, places=5)
+
+    def test_nonneg(self):
+        dmat = [[0.0, 2.0, 3.0], [2.0, 0.0, 1.0], [3.0, 1.0, 0.0]]
+        coords = [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]]
+        self.assertGreaterEqual(self.mds_stress(dmat, coords), 0.0)
+
+    def test_deterministic(self):
+        dmat = [[0.0, 1.0], [1.0, 0.0]]
+        coords = [[0.0, 0.0], [1.0, 0.0]]
+        r1 = self.mds_stress(dmat, coords)
+        r2 = self.mds_stress(dmat, coords)
+        self.assertEqual(r1, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestBitTEProps
+# ---------------------------------------------------------------------------
+class TestBitTEProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import bit_te
+        cls.bit_te = staticmethod(bit_te)
+        cls._y = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+        cls._x = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.bit_te(self._y, self._x), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.bit_te(self._y, self._x), 0.0)
+
+    def test_deterministic(self):
+        r1 = self.bit_te(self._y, self._x)
+        r2 = self.bit_te(self._y, self._x)
+        self.assertEqual(r1, r2)
+
+    def test_same_series_low_te(self):
+        # Identical series → TE = 0
+        r = self.bit_te(self._y, self._y)
+        self.assertAlmostEqual(r, 0.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestCellTEProps
+# ---------------------------------------------------------------------------
+class TestCellTEProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import cell_te
+        from projects.hexglyph.solan_network import get_orbit
+        cls.cell_te = staticmethod(cell_te)
+        cls._orbit = get_orbit('ГОРА', 'xor3', 16)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.cell_te(self._orbit, 0, 1), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.cell_te(self._orbit, 0, 1), 0.0)
+
+    def test_deterministic(self):
+        r1 = self.cell_te(self._orbit, 0, 1)
+        r2 = self.cell_te(self._orbit, 0, 1)
+        self.assertEqual(r1, r2)
+
+    def test_all_pairs_nonneg(self):
+        for i in range(4):
+            for j in range(4):
+                r = self.cell_te(self._orbit, i, j)
+                self.assertGreaterEqual(r, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestBlockEntropyNProps
+# ---------------------------------------------------------------------------
+class TestBlockEntropyNProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import block_entropy_n
+        cls.block_entropy_n = staticmethod(block_entropy_n)
+        cls._seqs = [[0, 1, 0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0]]
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.block_entropy_n(self._seqs, 2), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.block_entropy_n(self._seqs, 1), 0.0)
+
+    def test_n1_returns_1_for_uniform(self):
+        self.assertAlmostEqual(self.block_entropy_n(self._seqs, 1), 1.0, places=5)
+
+    def test_deterministic(self):
+        r1 = self.block_entropy_n(self._seqs, 2)
+        r2 = self.block_entropy_n(self._seqs, 2)
+        self.assertEqual(r1, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestHNGramsProps
+# ---------------------------------------------------------------------------
+class TestHNGramsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import h_ngrams
+        cls.h_ngrams = staticmethod(h_ngrams)
+        cls._seqs = [[0, 1, 0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0]]
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.h_ngrams(self._seqs, 2), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.h_ngrams(self._seqs, 1), 0.0)
+
+    def test_constant_seqs_zero_entropy(self):
+        const_seqs = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
+        r = self.h_ngrams(const_seqs, 1)
+        self.assertAlmostEqual(r, 0.0, places=5)
+
+    def test_deterministic(self):
+        r1 = self.h_ngrams(self._seqs, 2)
+        r2 = self.h_ngrams(self._seqs, 2)
+        self.assertEqual(r1, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestMSEProfileGridShape
+# ---------------------------------------------------------------------------
+class TestMSEProfileGridShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import mse_profile
+        cls.mse_profile = staticmethod(mse_profile)
+        cls._r = mse_profile('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16_cells(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_each_cell_has_8_taus(self):
+        for cell in self._r:
+            self.assertEqual(len(cell), 8)
+
+    def test_all_nonneg(self):
+        for cell in self._r:
+            for v in cell:
+                self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r2 = self.mse_profile('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestDerridaPointProps
+# ---------------------------------------------------------------------------
+class TestDerridaPointProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import derrida_point
+        cls.derrida_point = staticmethod(derrida_point)
+        cls._s1 = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+        cls._s2 = [1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self.derrida_point(self._s1, self._s2, 'xor3'), tuple)
+
+    def test_length_2(self):
+        self.assertEqual(len(self.derrida_point(self._s1, self._s2, 'xor3')), 2)
+
+    def test_values_in_unit_interval(self):
+        r = self.derrida_point(self._s1, self._s2, 'xor3')
+        for v in r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_identical_inputs_zero_point(self):
+        r = self.derrida_point(self._s1, self._s1, 'xor3')
+        self.assertAlmostEqual(r[0], 0.0, places=5)
+        self.assertAlmostEqual(r[1], 0.0, places=5)
+
+    def test_deterministic(self):
+        r1 = self.derrida_point(self._s1, self._s2, 'xor3')
+        r2 = self.derrida_point(self._s1, self._s2, 'xor3')
+        self.assertEqual(r1, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestToBitsProps
+# ---------------------------------------------------------------------------
+class TestToBitsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import to_bits
+        cls.to_bits = staticmethod(to_bits)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self.to_bits([49]), list)
+
+    def test_all_binary(self):
+        for v in self.to_bits([49, 47, 15, 63]):
+            self.assertIn(v, (0, 1))
+
+    def test_length_n_bits(self):
+        r = self.to_bits([63, 49], n_bits=6)
+        self.assertEqual(len(r), 12)
+
+    def test_all_ones_for_63(self):
+        r = self.to_bits([63], n_bits=6)
+        self.assertEqual(r, [1, 1, 1, 1, 1, 1])
+
+    def test_all_zeros_for_zero(self):
+        r = self.to_bits([0], n_bits=6)
+        self.assertEqual(r, [0, 0, 0, 0, 0, 0])
+
+
+# ---------------------------------------------------------------------------
+# TestLZ76PhrasesProps
+# ---------------------------------------------------------------------------
+class TestLZ76PhrasesProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import lz76_phrases
+        cls.lz76_phrases = staticmethod(lz76_phrases)
+
+    def test_returns_int(self):
+        self.assertIsInstance(self.lz76_phrases([0, 1, 0, 1]), int)
+
+    def test_positive_for_nonempty(self):
+        self.assertGreater(self.lz76_phrases([0, 1, 0, 1, 0, 1]), 0)
+
+    def test_deterministic(self):
+        r1 = self.lz76_phrases([0, 1, 0, 1, 1, 0])
+        r2 = self.lz76_phrases([0, 1, 0, 1, 1, 0])
+        self.assertEqual(r1, r2)
+
+    def test_constant_fewer_phrases(self):
+        const = [0] * 32
+        rand = [0,1,0,1,1,0,0,1,1,1,0,1,0,0,1,0,1,1,0,0,1,1,0,1,0,0,1,0,0,1,1,0]
+        self.assertLessEqual(self.lz76_phrases(const), self.lz76_phrases(rand))
+
+
+# ---------------------------------------------------------------------------
+# TestLZ76NormProps
+# ---------------------------------------------------------------------------
+class TestLZ76NormProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import lz76_norm
+        cls.lz76_norm = staticmethod(lz76_norm)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.lz76_norm([0, 1, 0, 1]), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.lz76_norm([0, 1, 0, 1, 0, 1]), 0.0)
+
+    def test_deterministic(self):
+        bits = [0, 1, 1, 0, 0, 1, 0, 1]
+        r1 = self.lz76_norm(bits)
+        r2 = self.lz76_norm(bits)
+        self.assertEqual(r1, r2)
+
+    def test_constant_lower_than_random(self):
+        const = [0] * 32
+        rand = [0,1,0,1,1,0,0,1,1,1,0,1,0,0,1,0,1,1,0,0,1,1,0,1,0,0,1,0,0,1,1,0]
+        self.assertLessEqual(self.lz76_norm(const), self.lz76_norm(rand))
+
+
+# ---------------------------------------------------------------------------
+# TestSensitivityProfileShape
+# ---------------------------------------------------------------------------
+class TestSensitivityProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import sensitivity_profile
+        cls.sensitivity_profile = staticmethod(sensitivity_profile)
+        cls._r = sensitivity_profile('ГОРА')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_matches_word(self):
+        self.assertEqual(len(self._r), 4)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_deterministic(self):
+        r2 = self.sensitivity_profile('ГОРА')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestSubstitutionMatrixShape
+# ---------------------------------------------------------------------------
+class TestSubstitutionMatrixShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import substitution_matrix
+        cls.substitution_matrix = staticmethod(substitution_matrix)
+        cls._r = substitution_matrix('ГОРА')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_4(self):
+        self.assertEqual(len(self._r), 4)
+
+    def test_items_are_dicts(self):
+        for item in self._r:
+            self.assertIsInstance(item, dict)
+
+    def test_required_keys(self):
+        for item in self._r:
+            for k in ('pos', 'letter', 'q6', 'orig_key', 'subs', 'n_changed', 'sensitivity'):
+                self.assertIn(k, item)
+
+    def test_n_changed_nonneg(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['n_changed'], 0)
+
+    def test_sensitivity_in_unit_interval(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['sensitivity'], 0.0)
+            self.assertLessEqual(item['sensitivity'], 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestSpatialWPEShape
+# ---------------------------------------------------------------------------
+class TestSpatialWPEShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import spatial_wpe
+        cls.spatial_wpe = staticmethod(spatial_wpe)
+        cls._r = spatial_wpe('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestWPEDictShape
+# ---------------------------------------------------------------------------
+class TestWPEDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import wpe_dict
+        cls.wpe_dict = staticmethod(wpe_dict)
+        cls._r = wpe_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'wpe_profile', 'mean_nwpe', 'mean_npe'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_wpe_profile_list(self):
+        self.assertIsInstance(self._r['wpe_profile'], list)
+
+    def test_mean_nwpe_float(self):
+        self.assertIsInstance(self._r['mean_nwpe'], float)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestMSEDictShape
+# ---------------------------------------------------------------------------
+class TestMSEDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import mse_dict
+        cls.mse_dict = staticmethod(mse_dict)
+        cls._r = mse_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'cell_profiles', 'mean_profile',
+                  'complexity_index', 'peak_tau', 'peak_se'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_cell_profiles_list(self):
+        self.assertIsInstance(self._r['cell_profiles'], list)
+
+    def test_mean_profile_list(self):
+        self.assertIsInstance(self._r['mean_profile'], list)
+
+    def test_complexity_index_float(self):
+        self.assertIsInstance(self._r['complexity_index'], float)
+
+
+# ---------------------------------------------------------------------------
+# TestSampleEntropyProps
+# ---------------------------------------------------------------------------
+class TestSampleEntropyProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import sample_entropy
+        cls.sample_entropy = staticmethod(sample_entropy)
+
+    def test_returns_float(self):
+        series = [0.1*i for i in range(20)]
+        self.assertIsInstance(self.sample_entropy(series, 2, 0.2), float)
+
+    def test_nonneg(self):
+        series = [0.1*i for i in range(20)]
+        self.assertGreaterEqual(self.sample_entropy(series, 2, 0.2), 0.0)
+
+    def test_deterministic(self):
+        series = [0.1, 0.5, 0.9, 0.3, 0.7, 0.2, 0.8, 0.4, 0.6, 0.1, 0.5, 0.9]
+        r1 = self.sample_entropy(series, 2, 0.2)
+        r2 = self.sample_entropy(series, 2, 0.2)
+        self.assertEqual(r1, r2)
+
+    def test_constant_series_high(self):
+        # Constant series has very high SampEn (no matches for longer patterns)
+        const = [0.5] * 20
+        r = self.sample_entropy(const, 2, 0.2)
+        self.assertGreaterEqual(r, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestWindowWeightProps
+# ---------------------------------------------------------------------------
+class TestWindowWeightProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import window_weight
+        cls.window_weight = staticmethod(window_weight)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.window_weight([0, 1, 2]), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.window_weight([0, 1, 2]), 0.0)
+
+    def test_deterministic(self):
+        r1 = self.window_weight([0, 1, 2, 1, 0])
+        r2 = self.window_weight([0, 1, 2, 1, 0])
+        self.assertEqual(r1, r2)
+
+    def test_identity_pattern_max_weight(self):
+        # Ascending pattern [0,1,2] → maximally weighted (weight = 1.0)
+        r = self.window_weight([0, 1, 2])
+        self.assertAlmostEqual(r, 1.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestWPEProps
+# ---------------------------------------------------------------------------
+class TestWPEProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import wpe
+        cls.wpe = staticmethod(wpe)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.wpe([0, 1, 2, 0, 1, 2], 3), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.wpe([0, 1, 2, 0, 1, 2], 3), 0.0)
+
+    def test_deterministic(self):
+        series = [0, 1, 2, 0, 1, 2, 0, 1, 2, 0]
+        r1 = self.wpe(series, 3)
+        r2 = self.wpe(series, 3)
+        self.assertEqual(r1, r2)
+
+    def test_constant_series_zero_wpe(self):
+        const = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        r = self.wpe(const, 3)
+        self.assertAlmostEqual(r, 0.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestAISDictShape
+# ---------------------------------------------------------------------------
+class TestAISDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import ais_dict
+        cls.ais_dict = staticmethod(ais_dict)
+        cls._r = ais_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'max_k', 'h1', 'ais_profile',
+                  'total_ais', 'mean_ais', 'cell_ais'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_ais_profile_list(self):
+        self.assertIsInstance(self._r['ais_profile'], list)
+
+    def test_ais_profile_length_max_k(self):
+        self.assertEqual(len(self._r['ais_profile']), self._r['max_k'])
+
+    def test_mean_ais_float(self):
+        self.assertIsInstance(self._r['mean_ais'], float)
+
+    def test_cell_ais_length_16(self):
+        self.assertEqual(len(self._r['cell_ais']), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestPhonemeDictShape
+# ---------------------------------------------------------------------------
+class TestPhonemeDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import phoneme_dict
+        cls.phoneme_dict = staticmethod(phoneme_dict)
+        cls._r = phoneme_dict('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'width', 'profile', 'positions'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_profile_length_matches_word(self):
+        self.assertEqual(len(self._r['profile']), 4)
+
+    def test_positions_length_matches_word(self):
+        self.assertEqual(len(self._r['positions']), 4)
+
+
+# ---------------------------------------------------------------------------
+# TestCoarseDictShape
+# ---------------------------------------------------------------------------
+class TestCoarseDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import coarse_dict
+        cls.coarse_dict = staticmethod(coarse_dict)
+        cls._r = coarse_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'levels', 'n_steps', 'q6_period',
+                  'q6_transient', 'by_level', 'max_inconsistency'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_q6_period_positive(self):
+        self.assertGreaterEqual(self._r['q6_period'], 1)
+
+    def test_levels_list(self):
+        self.assertIsInstance(self._r['levels'], list)
+
+    def test_by_level_dict(self):
+        self.assertIsInstance(self._r['by_level'], dict)
+
+    def test_max_inconsistency_dict(self):
+        self.assertIsInstance(self._r['max_inconsistency'], dict)
+
+
+# ---------------------------------------------------------------------------
+# TestCHDictShape
+# ---------------------------------------------------------------------------
+class TestCHDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ch_plane import ch_dict
+        cls.ch_dict = staticmethod(ch_dict)
+        cls._r = ch_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'm', 'h_s', 'c', 'cell_ch',
+                  'mean_h_s', 'mean_c'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_h_s_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['h_s'], 0.0)
+        self.assertLessEqual(self._r['h_s'], 1.0)
+
+    def test_c_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['c'], 0.0)
+        self.assertLessEqual(self._r['c'], 1.0)
+
+    def test_cell_ch_list(self):
+        self.assertIsInstance(self._r['cell_ch'], list)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestNetworkDictShape
+# ---------------------------------------------------------------------------
+class TestNetworkDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import network_dict
+        cls.network_dict = staticmethod(network_dict)
+        cls._r = network_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'period', 'transient',
+                  'te_mat', 'pagerank', 'total_te'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_te_mat_is_16x16(self):
+        te = self._r['te_mat']
+        self.assertEqual(len(te), 16)
+        for row in te:
+            self.assertEqual(len(row), 16)
+
+    def test_pagerank_list(self):
+        self.assertIsInstance(self._r['pagerank'], list)
+
+    def test_total_te_nonneg(self):
+        self.assertGreaterEqual(self._r['total_te'], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestPortraitDictShape
+# ---------------------------------------------------------------------------
+class TestPortraitDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import portrait_dict
+        cls.portrait_dict = staticmethod(portrait_dict)
+        cls._r = portrait_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'period', 'transient',
+                  'complexity', 'sensitivity'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_complexity_float(self):
+        self.assertIsInstance(self._r['complexity'], float)
+
+    def test_sensitivity_float(self):
+        self.assertIsInstance(self._r['sensitivity'], float)
+
+
+# ---------------------------------------------------------------------------
+# TestSymbolicDictShape
+# ---------------------------------------------------------------------------
+class TestSymbolicDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import symbolic_dict
+        cls.symbolic_dict = staticmethod(symbolic_dict)
+        cls._r = symbolic_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'threshold', 'period', 'transient',
+                  'binary_grid', 'temporal_seqs', 'temporal_entropy'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_binary_grid_list(self):
+        self.assertIsInstance(self._r['binary_grid'], list)
+
+    def test_temporal_entropy_float(self):
+        self.assertIsInstance(self._r['temporal_entropy'], float)
+
+    def test_temporal_seqs_list(self):
+        self.assertIsInstance(self._r['temporal_seqs'], list)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestDamageDictShape
+# ---------------------------------------------------------------------------
+class TestDamageDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import damage_dict
+        cls.damage_dict = staticmethod(damage_dict)
+        cls._r = damage_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'cell', 'bit', 'n_steps', 'width',
+                  'max_damage', 'final_mean_damage', 'kernel'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_max_damage_float(self):
+        self.assertIsInstance(self._r['max_damage'], float)
+
+    def test_max_damage_nonneg(self):
+        self.assertGreaterEqual(self._r['max_damage'], 0.0)
+
+    def test_kernel_list(self):
+        self.assertIsInstance(self._r['kernel'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestTrajectoryBasinShape
+# ---------------------------------------------------------------------------
+class TestTrajectoryBasinShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_basin import trajectory_basin
+        cls.trajectory_basin = staticmethod(trajectory_basin)
+        cls._r = trajectory_basin('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'max_k', 'n_per_k',
+                  'profile', 'mean_profile', 'k50', 'global_basin'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_profile_list_len_25(self):
+        self.assertIsInstance(self._r['profile'], list)
+        self.assertEqual(len(self._r['profile']), 25)
+
+    def test_k50_positive(self):
+        self.assertGreater(self._r['k50'], 0)
+
+    def test_mean_profile_float(self):
+        self.assertIsInstance(self._r['mean_profile'], float)
+
+
+# ---------------------------------------------------------------------------
+# TestBitPlaneDictShape
+# ---------------------------------------------------------------------------
+class TestBitPlaneDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import bit_plane_dict
+        cls.bit_plane_dict = staticmethod(bit_plane_dict)
+        cls._r = bit_plane_dict('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'width', 'segment_names', 'rules'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_segment_names_length_6(self):
+        self.assertEqual(len(self._r['segment_names']), 6)
+
+    def test_rules_has_all_4(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r['rules'])
+
+    def test_rules_values_are_dicts(self):
+        for v in self._r['rules'].values():
+            self.assertIsInstance(v, dict)
+
+
+# ---------------------------------------------------------------------------
+# TestForbiddenDictShape
+# ---------------------------------------------------------------------------
+class TestForbiddenDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import forbidden_dict
+        cls.forbidden_dict = staticmethod(forbidden_dict)
+        cls._r = forbidden_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'm', 'M', 'n_observed', 'n_forbidden',
+                  'f_m', 'o_m', 'observed_set', 'forbidden_set', 'cell_profile'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_fm_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['f_m'], 0.0)
+        self.assertLessEqual(self._r['f_m'], 1.0)
+
+    def test_om_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['o_m'], 0.0)
+        self.assertLessEqual(self._r['o_m'], 1.0)
+
+    def test_cell_profile_list(self):
+        self.assertIsInstance(self._r['cell_profile'], list)
+
+    def test_observed_set_collection(self):
+        self.assertIsInstance(self._r['observed_set'], (list, frozenset, set))
+
+
+# ---------------------------------------------------------------------------
+# TestObservedPooledShape
+# ---------------------------------------------------------------------------
+class TestObservedPooledShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import observed_pooled
+        cls.observed_pooled = staticmethod(observed_pooled)
+        cls._r = observed_pooled('ГОРА', 'xor3')
+
+    def test_returns_frozenset(self):
+        self.assertIsInstance(self._r, frozenset)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_items_are_tuples_length_3(self):
+        for item in self._r:
+            self.assertIsInstance(item, tuple)
+            self.assertEqual(len(item), 3)
+
+    def test_deterministic(self):
+        r2 = self.observed_pooled('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestReturnDictShape
+# ---------------------------------------------------------------------------
+class TestReturnDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import return_dict
+        cls.return_dict = staticmethod(return_dict)
+        cls._r = return_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'jump_hist', 'n_distinct',
+                  'mean_jump', 'max_jump'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_mean_jump_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_jump'], 0.0)
+
+    def test_max_jump_nonneg(self):
+        self.assertGreaterEqual(self._r['max_jump'], 0)
+
+    def test_jump_hist_list(self):
+        self.assertIsInstance(self._r['jump_hist'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestReturnMapShape
+# ---------------------------------------------------------------------------
+class TestReturnMapShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import return_map
+        cls.return_map = staticmethod(return_map)
+        cls._series = [49, 47, 15, 63, 49, 47, 15, 63, 49, 47, 15, 63]
+        cls._r = return_map(cls._series)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_items_are_tuples(self):
+        for item in self._r:
+            self.assertIsInstance(item, tuple)
+            self.assertEqual(len(item), 2)
+
+    def test_length_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_deterministic(self):
+        r2 = self.return_map(self._series)
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestTEDictShape
+# ---------------------------------------------------------------------------
+class TestTEDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import te_dict
+        cls.te_dict = staticmethod(te_dict)
+        cls._r = te_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'period', 'matrix', 'max_te', 'mean_te'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_max_te_nonneg(self):
+        self.assertGreaterEqual(self._r['max_te'], 0.0)
+
+    def test_mean_te_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_te'], 0.0)
+
+    def test_matrix_16x16(self):
+        mat = self._r['matrix']
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestWordSignatureProps
+# ---------------------------------------------------------------------------
+class TestWordSignatureProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import word_signature, sig_distance, word_distance
+        cls.word_signature = staticmethod(word_signature)
+        cls.sig_distance   = staticmethod(sig_distance)
+        cls.word_distance  = staticmethod(word_distance)
+        cls._sig1 = word_signature('ГОРА')
+        cls._sig2 = word_signature('ВОДА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._sig1, dict)
+
+    def test_four_rules(self):
+        self.assertEqual(set(self._sig1.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_values_are_tuples(self):
+        for v in self._sig1.values():
+            self.assertIsInstance(v, tuple)
+            self.assertEqual(len(v), 2)
+
+    def test_sig_distance_same_is_zero(self):
+        self.assertEqual(self.sig_distance(self._sig1, self._sig1), 0.0)
+
+    def test_sig_distance_nonneg(self):
+        self.assertGreaterEqual(self.sig_distance(self._sig1, self._sig2), 0.0)
+
+    def test_word_distance_nonneg(self):
+        d = self.word_distance('ГОРА', 'ВОДА')
+        self.assertGreaterEqual(d, 0.0)
+
+    def test_word_distance_same_is_zero(self):
+        d = self.word_distance('ГОРА', 'ГОРА')
+        self.assertEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestTransientClassesProps
+# ---------------------------------------------------------------------------
+class TestTransientClassesProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import transient_classes, all_full_signatures, transient_dist
+        from projects.hexglyph.solan_word import word_signature
+        cls.transient_classes    = staticmethod(transient_classes)
+        cls.all_full_signatures  = staticmethod(all_full_signatures)
+        cls.transient_dist       = staticmethod(transient_dist)
+        cls._classes             = transient_classes()
+        cls._afs                 = all_full_signatures()
+        cls._sig1                = word_signature('ГОРА')
+        cls._sig2                = word_signature('ВОДА')
+
+    def test_transient_classes_list(self):
+        self.assertIsInstance(self._classes, list)
+
+    def test_transient_classes_count_13(self):
+        self.assertEqual(len(self._classes), 13)
+
+    def test_classes_have_required_keys(self):
+        for c in self._classes:
+            self.assertIn('key', c)
+            self.assertIn('words', c)
+            self.assertIn('count', c)
+
+    def test_all_full_signatures_dict(self):
+        self.assertIsInstance(self._afs, dict)
+
+    def test_all_full_signatures_49_words(self):
+        self.assertEqual(len(self._afs), 49)
+
+    def test_transient_dist_same_is_zero(self):
+        d = self.transient_dist(self._sig1, self._sig1)
+        self.assertEqual(d, 0.0)
+
+    def test_transient_dist_nonneg(self):
+        d = self.transient_dist(self._sig1, self._sig2)
+        self.assertGreaterEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestTransientDictProps
+# ---------------------------------------------------------------------------
+class TestTransientDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import build_transient_data, transient_dict
+        data = build_transient_data()
+        cls._data = data
+        cls._td   = transient_dict(data)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._td, dict)
+
+    def test_n_classes_13(self):
+        self.assertEqual(self._td['n_classes'], 13)
+
+    def test_has_classes_key(self):
+        self.assertIn('classes', self._td)
+
+    def test_classes_length_13(self):
+        self.assertEqual(len(self._td['classes']), 13)
+
+    def test_has_by_rule_key(self):
+        self.assertIn('by_rule', self._td)
+
+
+# ---------------------------------------------------------------------------
+# TestLexiconProps
+# ---------------------------------------------------------------------------
+class TestLexiconProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lexicon import all_words, all_signatures, neighbors, orbital_clusters
+        cls.all_words        = staticmethod(all_words)
+        cls.all_signatures   = staticmethod(all_signatures)
+        cls.neighbors        = staticmethod(neighbors)
+        cls.orbital_clusters = staticmethod(orbital_clusters)
+        cls._words = all_words()
+        cls._sigs  = all_signatures()
+        cls._nb    = neighbors('ГОРА', n=3)
+        cls._oc    = orbital_clusters()
+
+    def test_all_words_list(self):
+        self.assertIsInstance(self._words, list)
+
+    def test_all_words_49(self):
+        self.assertEqual(len(self._words), 49)
+
+    def test_all_signatures_dict(self):
+        self.assertIsInstance(self._sigs, dict)
+
+    def test_all_signatures_49(self):
+        self.assertEqual(len(self._sigs), 49)
+
+    def test_neighbors_list(self):
+        self.assertIsInstance(self._nb, list)
+
+    def test_neighbors_length(self):
+        self.assertEqual(len(self._nb), 3)
+
+    def test_orbital_clusters_list_of_lists(self):
+        self.assertIsInstance(self._oc, list)
+        for cl in self._oc:
+            self.assertIsInstance(cl, list)
+
+
+# ---------------------------------------------------------------------------
+# TestLexiconSummaryProps
+# ---------------------------------------------------------------------------
+class TestLexiconSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lexicon import lexicon_summary
+        cls.lexicon_summary = staticmethod(lexicon_summary)
+        cls._r = lexicon_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_n_positive(self):
+        self.assertGreater(self._r['n'], 0)
+
+    def test_has_neighbors(self):
+        self.assertIn('neighbors', self._r)
+
+    def test_neighbors_list(self):
+        self.assertIsInstance(self._r['neighbors'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestGraphProps
+# ---------------------------------------------------------------------------
+class TestGraphProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import (
+            build_graph, graph_stats, graph_summary,
+            connected_components, degree, hub_words,
+        )
+        cls.build_graph         = staticmethod(build_graph)
+        cls.graph_stats         = staticmethod(graph_stats)
+        cls.graph_summary       = staticmethod(graph_summary)
+        cls.connected_components= staticmethod(connected_components)
+        cls.degree              = staticmethod(degree)
+        cls.hub_words           = staticmethod(hub_words)
+        cls._g  = build_graph()
+        cls._gs = graph_stats(cls._g)
+        cls._cc = connected_components(cls._g)
+        cls._deg= degree(cls._g)
+        cls._hw = hub_words(cls._g, n=3)
+
+    def test_build_graph_dict(self):
+        self.assertIsInstance(self._g, dict)
+
+    def test_graph_stats_dict(self):
+        self.assertIsInstance(self._gs, dict)
+
+    def test_graph_stats_nodes_49(self):
+        self.assertEqual(self._gs['nodes'], 49)
+
+    def test_connected_components_list(self):
+        self.assertIsInstance(self._cc, list)
+
+    def test_degree_dict(self):
+        self.assertIsInstance(self._deg, dict)
+
+    def test_degree_49_words(self):
+        self.assertEqual(len(self._deg), 49)
+
+    def test_hub_words_list(self):
+        self.assertIsInstance(self._hw, list)
+
+    def test_hub_words_length(self):
+        self.assertEqual(len(self._hw), 3)
+
+
+# ---------------------------------------------------------------------------
+# TestMDSProps
+# ---------------------------------------------------------------------------
+class TestMDSProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mds import build_mds, distance_matrix, mds_dict
+        cls.distance_matrix = staticmethod(distance_matrix)
+        cls.mds_dict        = staticmethod(mds_dict)
+        cls._dm = distance_matrix()
+        words, coords, stress = build_mds()
+        cls._words  = words
+        cls._coords = coords
+        cls._stress = stress
+        cls._md = mds_dict(words, coords, stress)
+
+    def test_distance_matrix_dict(self):
+        self.assertIsInstance(self._dm, dict)
+
+    def test_distance_matrix_size(self):
+        self.assertEqual(len(self._dm), 49 * 49)
+
+    def test_build_mds_words_49(self):
+        self.assertEqual(len(self._words), 49)
+
+    def test_stress_float(self):
+        self.assertIsInstance(self._stress, float)
+
+    def test_stress_nonneg(self):
+        self.assertGreaterEqual(self._stress, 0.0)
+
+    def test_mds_dict_keys(self):
+        self.assertIn('words', self._md)
+        self.assertIn('coords', self._md)
+        self.assertIn('stress', self._md)
+
+
+# ---------------------------------------------------------------------------
+# TestDendrogramProps
+# ---------------------------------------------------------------------------
+class TestDendrogramProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dendrogram import (
+            build_dendrogram, leaf_order, flat_clusters, dendrogram_dict,
+        )
+        cls.leaf_order      = staticmethod(leaf_order)
+        cls.flat_clusters   = staticmethod(flat_clusters)
+        cls.dendrogram_dict = staticmethod(dendrogram_dict)
+        nodes, root_id = build_dendrogram()
+        cls._nodes   = nodes
+        cls._root_id = root_id
+        cls._lo  = leaf_order(nodes, root_id)
+        cls._fc  = flat_clusters(nodes, root_id, 0.1)
+        cls._dd  = dendrogram_dict(nodes, root_id)
+
+    def test_nodes_dict(self):
+        self.assertIsInstance(self._nodes, dict)
+
+    def test_leaf_order_list(self):
+        self.assertIsInstance(self._lo, list)
+
+    def test_leaf_order_49_words(self):
+        self.assertEqual(len(self._lo), 49)
+
+    def test_flat_clusters_list(self):
+        self.assertIsInstance(self._fc, list)
+
+    def test_flat_clusters_nonempty(self):
+        self.assertGreater(len(self._fc), 0)
+
+    def test_dendrogram_dict_keys(self):
+        self.assertIn('nodes', self._dd)
+        self.assertIn('root', self._dd)
+
+    def test_dendrogram_dict_max_height_positive(self):
+        self.assertGreater(self._dd['max_height'], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestSpectralProps
+# ---------------------------------------------------------------------------
+class TestSpectralProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spectral import (
+            spectral_dict, spectral_fingerprint, attractor_spectrum, spectral_distance,
+        )
+        cls.spectral_distance   = staticmethod(spectral_distance)
+        cls._sd  = spectral_dict('ГОРА')
+        cls._sf  = spectral_fingerprint('ГОРА')
+        cls._as1 = attractor_spectrum('ГОРА',  'xor3')
+        cls._as2 = attractor_spectrum('ВОДА',  'xor3')
+
+    def test_spectral_dict_dict(self):
+        self.assertIsInstance(self._sd, dict)
+
+    def test_spectral_dict_has_rules(self):
+        self.assertIn('rules', self._sd)
+
+    def test_spectral_dict_four_rules(self):
+        self.assertEqual(len(self._sd['rules']), 4)
+
+    def test_spectral_fingerprint_list(self):
+        self.assertIsInstance(self._sf, list)
+
+    def test_attractor_spectrum_dict(self):
+        self.assertIsInstance(self._as1, dict)
+
+    def test_spectral_distance_same_is_zero(self):
+        d = self.spectral_distance(self._as1, self._as1)
+        self.assertEqual(d, 0.0)
+
+    def test_spectral_distance_nonneg(self):
+        d = self.spectral_distance(self._as1, self._as2)
+        self.assertGreaterEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestTrajectoryDictProps
+# ---------------------------------------------------------------------------
+class TestTrajectoryDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_traj import (
+            trajectory_dict, traj_stats, word_trajectory, trajectory_similarity,
+        )
+        cls.trajectory_similarity = staticmethod(trajectory_similarity)
+        cls._td  = trajectory_dict('ГОРА')
+        cls._ts  = traj_stats('ГОРА', 'xor3')
+        cls._wt1 = word_trajectory('ГОРА', 'xor3')
+        cls._wt2 = word_trajectory('ВОДА', 'xor3')
+
+    def test_trajectory_dict_dict(self):
+        self.assertIsInstance(self._td, dict)
+
+    def test_trajectory_dict_has_rules(self):
+        self.assertIn('rules', self._td)
+
+    def test_traj_stats_dict(self):
+        self.assertIsInstance(self._ts, dict)
+
+    def test_traj_stats_has_transient(self):
+        self.assertIn('transient', self._ts)
+
+    def test_word_trajectory_dict(self):
+        self.assertIsInstance(self._wt1, dict)
+
+    def test_trajectory_similarity_same_zero(self):
+        d = self.trajectory_similarity(self._wt1, self._wt1)
+        self.assertEqual(d, 0.0)
+
+    def test_trajectory_similarity_nonneg(self):
+        d = self.trajectory_similarity(self._wt1, self._wt2)
+        self.assertGreaterEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestNetworkMatrixProps
+# ---------------------------------------------------------------------------
+class TestNetworkMatrixProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import (
+            te_matrix, pagerank, hits, tarjan_scc, in_weights, out_weights, net_flow,
+        )
+        cls.pagerank    = staticmethod(pagerank)
+        cls.hits        = staticmethod(hits)
+        cls.tarjan_scc  = staticmethod(tarjan_scc)
+        cls.in_weights  = staticmethod(in_weights)
+        cls.out_weights = staticmethod(out_weights)
+        cls.net_flow    = staticmethod(net_flow)
+        cls._mat = te_matrix('ВОЛНА', 'xor3')
+        cls._pr  = pagerank(cls._mat)
+        cls._hi  = hits(cls._mat)
+        cls._scc = tarjan_scc(cls._mat)
+        cls._iw  = in_weights(cls._mat)
+        cls._ow  = out_weights(cls._mat)
+        cls._nf  = net_flow(cls._mat)
+
+    def test_pagerank_list(self):
+        self.assertIsInstance(self._pr, list)
+
+    def test_pagerank_length_16(self):
+        self.assertEqual(len(self._pr), 16)
+
+    def test_hits_tuple(self):
+        self.assertIsInstance(self._hi, tuple)
+        self.assertEqual(len(self._hi), 2)
+
+    def test_tarjan_scc_list(self):
+        self.assertIsInstance(self._scc, list)
+
+    def test_in_weights_list(self):
+        self.assertIsInstance(self._iw, list)
+
+    def test_out_weights_list(self):
+        self.assertIsInstance(self._ow, list)
+
+    def test_net_flow_length(self):
+        self.assertEqual(len(self._nf), 16)
+
+    def test_in_out_same_length(self):
+        self.assertEqual(len(self._iw), len(self._ow))
+
+
+# ---------------------------------------------------------------------------
+# TestMeanDamageProps
+# ---------------------------------------------------------------------------
+class TestMeanDamageProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import mean_damage, perturb
+        cls.perturb     = staticmethod(perturb)
+        cls._md = mean_damage('ГОРА', 'xor3')
+        cls._p  = perturb([49, 47, 15, 63], 0, 5)
+
+    def test_mean_damage_dict(self):
+        self.assertIsInstance(self._md, dict)
+
+    def test_mean_damage_word_preserved(self):
+        self.assertEqual(self._md['word'], 'ГОРА')
+
+    def test_mean_damage_has_kernel(self):
+        self.assertIn('kernel', self._md)
+
+    def test_max_mean_damage_nonneg(self):
+        self.assertGreaterEqual(self._md['max_mean_damage'], 0.0)
+
+    def test_perturb_list(self):
+        self.assertIsInstance(self._p, list)
+
+    def test_perturb_same_length(self):
+        self.assertEqual(len(self._p), 4)
+
+
+# ---------------------------------------------------------------------------
+# TestTESummaryProps
+# ---------------------------------------------------------------------------
+class TestTESummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import te_summary
+        cls.te_summary = staticmethod(te_summary)
+        cls._r = te_summary('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_preserved(self):
+        self.assertEqual(self._r['rule'], 'xor3')
+
+    def test_max_te_nonneg(self):
+        self.assertGreaterEqual(self._r['max_te'], 0.0)
+
+    def test_matrix_16x16(self):
+        mat = self._r['matrix']
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 16)
+
+    def test_lr_asymmetry_float(self):
+        self.assertIsInstance(self._r['lr_asymmetry'], float)
+
+
+# ---------------------------------------------------------------------------
+# TestAttractorSigProps
+# ---------------------------------------------------------------------------
+class TestAttractorSigProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import random
+        from projects.hexglyph.solan_basin import (
+            attractor_sig, attractors_match, word_ic, sample_global_basin,
+        )
+        cls.attractors_match = staticmethod(attractors_match)
+        cls._sig1 = attractor_sig('ГОРА', 'xor3')
+        cls._sig2 = attractor_sig('ВОДА', 'xor3')
+        cls._wic  = word_ic('ГОРА')
+        rng = random.Random(42)
+        cls._sgb = sample_global_basin('ГОРА', 'xor3', n=20, rng=rng)
+
+    def test_attractor_sig_frozenset(self):
+        self.assertIsInstance(self._sig1, frozenset)
+
+    def test_attractor_sig_nonempty(self):
+        self.assertGreater(len(self._sig1), 0)
+
+    def test_attractors_match_same(self):
+        self.assertTrue(self.attractors_match(self._sig1, self._sig1))
+
+    def test_word_ic_list(self):
+        self.assertIsInstance(self._wic, list)
+
+    def test_word_ic_length_16(self):
+        self.assertEqual(len(self._wic), 16)
+
+    def test_sample_global_basin_dict(self):
+        self.assertIsInstance(self._sgb, dict)
+
+    def test_sample_global_basin_fraction_in_01(self):
+        f = self._sgb['fraction']
+        self.assertGreaterEqual(f, 0.0)
+        self.assertLessEqual(f, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestAISKProps
+# ---------------------------------------------------------------------------
+class TestAISKProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import ais_k, ais_profile, cell_seqs
+        cls.ais_k       = staticmethod(ais_k)
+        cls.ais_profile = staticmethod(ais_profile)
+        cls._cs = cell_seqs('ГОРА', 'xor3')
+        cls._ak = ais_k(cls._cs, k=2)
+        cls._ap = ais_profile('ГОРА', 'xor3', max_k=6)
+
+    def test_cell_seqs_list(self):
+        self.assertIsInstance(self._cs, list)
+
+    def test_cell_seqs_16_cells(self):
+        self.assertEqual(len(self._cs), 16)
+
+    def test_ais_k_float(self):
+        self.assertIsInstance(self._ak, float)
+
+    def test_ais_k_nonneg(self):
+        self.assertGreaterEqual(self._ak, 0.0)
+
+    def test_ais_profile_list(self):
+        self.assertIsInstance(self._ap, list)
+
+    def test_ais_profile_length_6(self):
+        self.assertEqual(len(self._ap), 6)
+
+
+# ---------------------------------------------------------------------------
+# TestPEDictProps
+# ---------------------------------------------------------------------------
+class TestPEDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import pe_dict, ordinal_pattern
+        cls.ordinal_pattern = staticmethod(ordinal_pattern)
+        cls._pd = pe_dict('ГОРА', 'xor3')
+        cls._op = ordinal_pattern([1, 3, 2])
+
+    def test_pe_dict_dict(self):
+        self.assertIsInstance(self._pd, dict)
+
+    def test_pe_dict_word_preserved(self):
+        self.assertEqual(self._pd['word'], 'ГОРА')
+
+    def test_pe_dict_has_profile(self):
+        self.assertIn('profile', self._pd)
+
+    def test_pe_dict_mean_pe_in_01(self):
+        self.assertGreaterEqual(self._pd['mean_pe'], 0.0)
+        self.assertLessEqual(self._pd['mean_pe'], 1.0)
+
+    def test_ordinal_pattern_tuple(self):
+        self.assertIsInstance(self._op, tuple)
+
+    def test_ordinal_pattern_is_permutation(self):
+        self.assertEqual(sorted(self._op), list(range(len(self._op))))
+
+
+# ---------------------------------------------------------------------------
+# TestPatternDistProps
+# ---------------------------------------------------------------------------
+class TestPatternDistProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ch_plane import (
+            pattern_dist, h_norm, jsd_uniform, statistical_complexity,
+        )
+        cls.h_norm                = staticmethod(h_norm)
+        cls.jsd_uniform           = staticmethod(jsd_uniform)
+        cls.statistical_complexity = staticmethod(statistical_complexity)
+        cls._pd = pattern_dist('ВОЛНА', 'xor3')
+        cls._hn = h_norm(cls._pd)
+        cls._ju = jsd_uniform(cls._pd)
+        cls._sc = statistical_complexity(cls._pd)
+
+    def test_pattern_dist_dict(self):
+        self.assertIsInstance(self._pd, dict)
+
+    def test_pattern_dist_nonempty(self):
+        self.assertGreater(len(self._pd), 0)
+
+    def test_h_norm_in_01(self):
+        self.assertGreaterEqual(self._hn, 0.0)
+        self.assertLessEqual(self._hn, 1.0)
+
+    def test_jsd_uniform_nonneg(self):
+        self.assertGreaterEqual(self._ju, 0.0)
+
+    def test_statistical_complexity_nonneg(self):
+        self.assertGreaterEqual(self._sc, 0.0)
+
+    def test_pattern_values_sum_to_1(self):
+        total = sum(self._pd.values())
+        self.assertAlmostEqual(total, 1.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestDerridaCurveProps
+# ---------------------------------------------------------------------------
+class TestDerridaCurveProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import derrida_curve, derrida_summary, lexicon_points
+        cls.derrida_curve = staticmethod(derrida_curve)
+        cls._lp = lexicon_points('xor3')
+        cls._dc = derrida_curve(cls._lp)
+        cls._ds = derrida_summary()
+
+    def test_lexicon_points_list(self):
+        self.assertIsInstance(self._lp, list)
+
+    def test_lexicon_points_nonempty(self):
+        self.assertGreater(len(self._lp), 0)
+
+    def test_derrida_curve_dict(self):
+        self.assertIsInstance(self._dc, dict)
+
+    def test_derrida_curve_has_bins(self):
+        self.assertIn('bins', self._dc)
+
+    def test_derrida_summary_dict(self):
+        self.assertIsInstance(self._ds, dict)
+
+    def test_derrida_summary_has_rules(self):
+        self.assertIn('rules', self._ds)
+
+
+# ---------------------------------------------------------------------------
+# TestObservedCellProps
+# ---------------------------------------------------------------------------
+class TestObservedCellProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import observed_cell, ordinal_pattern
+        cls.ordinal_pattern = staticmethod(ordinal_pattern)
+        series = [49, 47, 15, 63] * 6
+        cls._oc = observed_cell(series, m=3)
+        cls._op = ordinal_pattern([2, 0, 1])
+
+    def test_observed_cell_frozenset(self):
+        self.assertIsInstance(self._oc, frozenset)
+
+    def test_observed_cell_nonempty(self):
+        self.assertGreater(len(self._oc), 0)
+
+    def test_items_are_tuples(self):
+        for item in self._oc:
+            self.assertIsInstance(item, tuple)
+
+    def test_ordinal_pattern_tuple(self):
+        self.assertIsInstance(self._op, tuple)
+
+    def test_ordinal_pattern_length(self):
+        self.assertEqual(len(self._op), 3)
+
+
+# ---------------------------------------------------------------------------
+# TestTEAsymmetryProps
+# ---------------------------------------------------------------------------
+class TestTEAsymmetryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import te_asymmetry
+        from projects.hexglyph.solan_network import te_matrix
+        cls._mat  = te_matrix('ВОЛНА', 'xor3')
+        cls._asym = te_asymmetry(cls._mat)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._asym, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._asym), 16)
+
+    def test_rows_length_16(self):
+        for row in self._asym:
+            self.assertEqual(len(row), 16)
+
+    def test_diagonal_zero(self):
+        for i in range(16):
+            self.assertEqual(self._asym[i][i], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestRunPairProps
+# ---------------------------------------------------------------------------
+class TestRunPairProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import run_pair, perturb
+        orig = [49, 47, 15, 63] * 4
+        pert = perturb(orig, 0, 5)
+        cls._r = run_pair(orig, pert, 'xor3', 8)
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self._r, tuple)
+
+    def test_tuple_length_3(self):
+        self.assertEqual(len(self._r), 3)
+
+    def test_orig_grid_list(self):
+        self.assertIsInstance(self._r[0], list)
+
+    def test_damage_grid_list(self):
+        self.assertIsInstance(self._r[2], list)
+
+    def test_n_steps(self):
+        self.assertEqual(len(self._r[0]), 8)
+
+
+# ---------------------------------------------------------------------------
+# TestFlipKBitsProps
+# ---------------------------------------------------------------------------
+class TestFlipKBitsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import random
+        from projects.hexglyph.solan_basin import flip_k_bits, random_ic
+        cls.flip_k_bits = staticmethod(flip_k_bits)
+        cls.random_ic   = staticmethod(random_ic)
+        rng = random.Random(42)
+        cls._cells = [49, 47, 15, 63] * 4
+        cls._flipped = flip_k_bits(cls._cells, 2, rng)
+        cls._ric = random_ic(16, rng)
+
+    def test_flip_k_bits_list(self):
+        self.assertIsInstance(self._flipped, list)
+
+    def test_flip_k_bits_same_length(self):
+        self.assertEqual(len(self._flipped), len(self._cells))
+
+    def test_random_ic_list(self):
+        self.assertIsInstance(self._ric, list)
+
+    def test_random_ic_length_16(self):
+        self.assertEqual(len(self._ric), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestBasinDictProps
+# ---------------------------------------------------------------------------
+class TestBasinDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_basin import basin_dict
+        cls._bd = basin_dict('ГОРА', max_k=4, n_per_k=10)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._bd, dict)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._bd['word'], 'ГОРА')
+
+    def test_has_rules(self):
+        self.assertIn('rules', self._bd)
+
+    def test_rules_four_keys(self):
+        self.assertEqual(len(self._bd['rules']), 4)
+
+    def test_max_k_correct(self):
+        self.assertEqual(self._bd['max_k'], 4)
+
+
+# ---------------------------------------------------------------------------
+# TestFlipSummaryProps
+# ---------------------------------------------------------------------------
+class TestFlipSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import flip_masks, flip_entropy, flip_summary
+        cls.flip_masks   = staticmethod(flip_masks)
+        cls.flip_entropy = staticmethod(flip_entropy)
+        cls._series = [49, 47, 15, 63] * 3
+        cls._fm = flip_masks(cls._series)
+        cls._fe = flip_entropy(cls._series)
+        cls._fs = flip_summary('ГОРА', 'xor3')
+
+    def test_flip_masks_list(self):
+        self.assertIsInstance(self._fm, list)
+
+    def test_flip_masks_nonempty(self):
+        self.assertGreater(len(self._fm), 0)
+
+    def test_flip_entropy_float(self):
+        self.assertIsInstance(self._fe, float)
+
+    def test_flip_entropy_nonneg(self):
+        self.assertGreaterEqual(self._fe, 0.0)
+
+    def test_flip_summary_dict(self):
+        self.assertIsInstance(self._fs, dict)
+
+    def test_flip_summary_word_preserved(self):
+        self.assertEqual(self._fs['word'], 'ГОРА')
+
+    def test_flip_summary_has_entropy_mean(self):
+        self.assertIn('entropy_mean', self._fs)
+
+
+# ---------------------------------------------------------------------------
+# TestBitPlaneSignatureProps
+# ---------------------------------------------------------------------------
+class TestBitPlaneSignatureProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import (
+            bit_plane_signature, extract_bit_plane, word_bit_planes,
+        )
+        cls.extract_bit_plane = staticmethod(extract_bit_plane)
+        cls._bps = bit_plane_signature('ГОРА')
+        cls._ebp = extract_bit_plane([49, 47, 63], 5)
+        cls._wbp = word_bit_planes('ГОРА', 'xor3')
+
+    def test_bit_plane_signature_dict(self):
+        self.assertIsInstance(self._bps, dict)
+
+    def test_bit_plane_signature_four_rules(self):
+        self.assertEqual(len(self._bps), 4)
+
+    def test_extract_bit_plane_list(self):
+        self.assertIsInstance(self._ebp, list)
+
+    def test_extract_bit_plane_same_length(self):
+        self.assertEqual(len(self._ebp), 3)
+
+    def test_word_bit_planes_dict(self):
+        self.assertIsInstance(self._wbp, dict)
+
+    def test_word_bit_planes_6_bits(self):
+        self.assertEqual(len(self._wbp), 6)
+
+
+# ---------------------------------------------------------------------------
+# TestNWPEProps
+# ---------------------------------------------------------------------------
+class TestNWPEProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import nwpe
+        cls.nwpe = staticmethod(nwpe)
+        cls._series = [49, 47, 15, 63] * 4
+        cls._r = nwpe(cls._series, m=3)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self._r, float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self._r, 0.0)
+
+    def test_constant_series_zero(self):
+        v = self.nwpe([42] * 20, m=3)
+        self.assertEqual(v, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestCoarseOrbitProps
+# ---------------------------------------------------------------------------
+class TestCoarseOrbitProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import coarse_orbit, dequantize
+        cls.dequantize = staticmethod(dequantize)
+        cls._co = coarse_orbit('ГОРА', 'xor3', k=3)
+        cls._dq = dequantize(0, 3)
+
+    def test_coarse_orbit_dict(self):
+        self.assertIsInstance(self._co, dict)
+
+    def test_coarse_orbit_has_period(self):
+        self.assertIn('period', self._co)
+
+    def test_coarse_orbit_has_entropy(self):
+        self.assertIn('entropy', self._co)
+
+    def test_entropy_nonneg(self):
+        self.assertGreaterEqual(self._co['entropy'], 0.0)
+
+    def test_dequantize_int(self):
+        self.assertIsInstance(self._dq, int)
+
+    def test_dequantize_zero_gives_zero(self):
+        v = self.dequantize(0, 2)
+        self.assertEqual(v, 0)
+
+
+# ---------------------------------------------------------------------------
+# TestAttractorBinaryProps
+# ---------------------------------------------------------------------------
+class TestAttractorBinaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import (
+            attractor_binary, binarize, ngrams, ngram_dist, transition_matrix,
+        )
+        cls.binarize          = staticmethod(binarize)
+        cls.ngrams            = staticmethod(ngrams)
+        cls.ngram_dist        = staticmethod(ngram_dist)
+        cls.transition_matrix = staticmethod(transition_matrix)
+        cls._ab = attractor_binary('ГОРА', 'xor3')
+
+    def test_attractor_binary_list(self):
+        self.assertIsInstance(self._ab, list)
+
+    def test_rows_are_lists(self):
+        for row in self._ab:
+            self.assertIsInstance(row, list)
+
+    def test_rows_have_16_cells(self):
+        for row in self._ab:
+            self.assertEqual(len(row), 16)
+
+    def test_binarize_above_threshold(self):
+        self.assertEqual(self.binarize(49), 1)
+
+    def test_binarize_below_threshold(self):
+        self.assertEqual(self.binarize(31), 0)
+
+    def test_ngrams_list(self):
+        g = self.ngrams([0, 1, 0, 1], n=2)
+        self.assertIsInstance(g, list)
+
+    def test_ngram_dist_dict(self):
+        d = self.ngram_dist(self._ab, n=2)
+        self.assertIsInstance(d, dict)
+
+    def test_transition_matrix_2x2(self):
+        tm = self.transition_matrix(self._ab)
+        self.assertEqual(len(tm), 2)
+        self.assertEqual(len(tm[0]), 2)
+
+
+# ---------------------------------------------------------------------------
+# TestGetCellSeriesProps
+# ---------------------------------------------------------------------------
+class TestGetCellSeriesProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import get_cell_series, mean_mse_profile
+        cls.mean_mse_profile = staticmethod(mean_mse_profile)
+        cls._gcs = get_cell_series('ВОЛНА', 'xor3', min_len=200)
+        cls._mmp = mean_mse_profile('ГОРА', 'xor3', max_tau=4)
+
+    def test_get_cell_series_list(self):
+        self.assertIsInstance(self._gcs, list)
+
+    def test_get_cell_series_16_cells(self):
+        self.assertEqual(len(self._gcs), 16)
+
+    def test_cell_series_min_length(self):
+        for cs in self._gcs:
+            self.assertGreaterEqual(len(cs), 200)
+
+    def test_mean_mse_profile_list(self):
+        self.assertIsInstance(self._mmp, list)
+
+    def test_mean_mse_profile_length(self):
+        self.assertEqual(len(self._mmp), 4)
+
+    def test_mean_mse_profile_nonneg(self):
+        for v in self._mmp:
+            self.assertGreaterEqual(v, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestPortraitEntropyProps
+# ---------------------------------------------------------------------------
+class TestPortraitEntropyProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import entropy
+        cls.entropy = staticmethod(entropy)
+        cls._uniform = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        cls._constant = [42] * 16
+        cls._eu = entropy(cls._uniform)
+        cls._ec = entropy(cls._constant)
+
+    def test_entropy_float(self):
+        self.assertIsInstance(self._eu, float)
+
+    def test_entropy_nonneg(self):
+        self.assertGreaterEqual(self._eu, 0.0)
+
+    def test_constant_entropy_zero(self):
+        self.assertEqual(self._ec, 0.0)
+
+    def test_uniform_higher_than_constant(self):
+        self.assertGreater(self._eu, self._ec)
+
+
+# ---------------------------------------------------------------------------
+# TestForbiddenNgramsProps
+# ---------------------------------------------------------------------------
+class TestForbiddenNgramsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import attractor_binary, forbidden_ngrams
+        cls.forbidden_ngrams = staticmethod(forbidden_ngrams)
+        # Use a long orbit (ВОЛНА has period > 1) for more ngrams
+        cls._ab = attractor_binary('ВОЛНА', 'xor3')
+        cls._fn2 = forbidden_ngrams(cls._ab, n=2)
+        cls._fn3 = forbidden_ngrams(cls._ab, n=3)
+
+    def test_forbidden_ngrams_list(self):
+        self.assertIsInstance(self._fn2, list)
+
+    def test_items_are_tuples(self):
+        for item in self._fn2:
+            self.assertIsInstance(item, tuple)
+
+    def test_fn3_is_list(self):
+        self.assertIsInstance(self._fn3, list)
+
+
+# ---------------------------------------------------------------------------
+# TestEncodeWordProps
+# ---------------------------------------------------------------------------
+class TestEncodeWordProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import encode_word, step, word_summary
+        cls.encode_word = staticmethod(encode_word)
+        cls.step        = staticmethod(step)
+        cls.word_summary= staticmethod(word_summary)
+        cls._enc = encode_word('ГОРА')
+        cls._stepped = step(cls._enc, 'xor3')
+        cls._ws  = word_summary('ГОРА')
+
+    def test_encode_word_list(self):
+        self.assertIsInstance(self._enc, list)
+
+    def test_encode_word_nonempty(self):
+        self.assertGreater(len(self._enc), 0)
+
+    def test_step_list(self):
+        self.assertIsInstance(self._stepped, list)
+
+    def test_step_same_length(self):
+        self.assertEqual(len(self._stepped), len(self._enc))
+
+    def test_word_summary_dict(self):
+        self.assertIsInstance(self._ws, dict)
+
+    def test_word_summary_has_signature(self):
+        self.assertIn('signature', self._ws)
+
+
+# ---------------------------------------------------------------------------
+# TestBuildAllRulesProps
+# ---------------------------------------------------------------------------
+class TestBuildAllRulesProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import build_all_rules
+        cls._bar = build_all_rules()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._bar, dict)
+
+    def test_four_rules(self):
+        self.assertEqual(len(self._bar), 4)
+
+    def test_has_xor3(self):
+        self.assertIn('xor3', self._bar)
+
+    def test_rule_has_words(self):
+        self.assertIn('words', self._bar['xor3'])
+
+    def test_rule_words_49(self):
+        self.assertEqual(len(self._bar['xor3']['words']), 49)
+
+
+# ---------------------------------------------------------------------------
+# TestFlipCooccurrenceProps
+# ---------------------------------------------------------------------------
+class TestFlipCooccurrenceProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import (
+            flip_cooccurrence, all_cell_flip_stats, all_flips,
+        )
+        cls._series = [49, 47, 15, 63] * 10
+        cls._fc   = flip_cooccurrence(cls._series)
+        cls._acfs = all_cell_flip_stats('ГОРА', 'xor3')
+        cls._af   = all_flips('ГОРА')
+
+    def test_flip_cooccurrence_list(self):
+        self.assertIsInstance(self._fc, list)
+
+    def test_flip_cooccurrence_6x6(self):
+        self.assertEqual(len(self._fc), 6)
+        for row in self._fc:
+            self.assertEqual(len(row), 6)
+
+    def test_all_cell_flip_stats_list(self):
+        self.assertIsInstance(self._acfs, list)
+
+    def test_all_cell_flip_stats_16_cells(self):
+        self.assertEqual(len(self._acfs), 16)
+
+    def test_all_flips_dict(self):
+        self.assertIsInstance(self._af, dict)
+
+    def test_all_flips_four_rules(self):
+        self.assertEqual(len(self._af), 4)
+
+    def test_all_flips_xor3_has_word(self):
+        self.assertEqual(self._af['xor3']['word'], 'ГОРА')
+
+
+# ---------------------------------------------------------------------------
+# TestAggregateMapProps
+# ---------------------------------------------------------------------------
+class TestAggregateMapProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import aggregate_map
+        cls._am = aggregate_map('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._am, dict)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._am), 0)
+
+    def test_keys_are_tuples(self):
+        for k in self._am.keys():
+            self.assertIsInstance(k, tuple)
+            self.assertEqual(len(k), 2)
+
+    def test_values_are_ints(self):
+        for v in self._am.values():
+            self.assertIsInstance(v, int)
+
+    def test_values_positive(self):
+        for v in self._am.values():
+            self.assertGreater(v, 0)
+
+
+# ---------------------------------------------------------------------------
+# TestDerridaDictProps
+# ---------------------------------------------------------------------------
+class TestDerridaDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import derrida_dict, random_points, state_dist_norm
+        cls.state_dist_norm = staticmethod(state_dist_norm)
+        cls._dd = derrida_dict(n_random=100)
+        cls._rp = random_points('xor3', n=10, seed=42)
+        cls._s1 = [49, 47, 15, 63]
+        cls._s2 = [49, 47, 15, 62]
+
+    def test_derrida_dict_dict(self):
+        self.assertIsInstance(self._dd, dict)
+
+    def test_derrida_dict_has_rules(self):
+        self.assertIn('rules', self._dd)
+
+    def test_random_points_list(self):
+        self.assertIsInstance(self._rp, list)
+
+    def test_random_points_length(self):
+        self.assertEqual(len(self._rp), 10)
+
+    def test_random_points_tuples(self):
+        for pt in self._rp:
+            self.assertIsInstance(pt, tuple)
+            self.assertEqual(len(pt), 2)
+
+    def test_state_dist_norm_same_is_zero(self):
+        d = self.state_dist_norm(self._s1, self._s1)
+        self.assertEqual(d, 0.0)
+
+    def test_state_dist_norm_nonneg(self):
+        d = self.state_dist_norm(self._s1, self._s2)
+        self.assertGreaterEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestAllAISProps
+# ---------------------------------------------------------------------------
+class TestAllAISProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import all_ais
+        cls._aa = all_ais('ГОРА', max_k=3)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._aa, dict)
+
+    def test_four_rules(self):
+        self.assertEqual(len(self._aa), 4)
+
+    def test_has_xor3(self):
+        self.assertIn('xor3', self._aa)
+
+    def test_rule_has_ais_profile(self):
+        self.assertIn('ais_profile', self._aa['xor3'])
+
+    def test_ais_profile_length(self):
+        self.assertEqual(len(self._aa['xor3']['ais_profile']), 3)
+
+
+# ---------------------------------------------------------------------------
+# TestCAMakeInitialProps
+# ---------------------------------------------------------------------------
+class TestCAMakeInitialProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import make_initial, h_to_char
+        cls.make_initial = staticmethod(make_initial)
+        cls.h_to_char    = staticmethod(h_to_char)
+        cls._mi = make_initial(16, ic='center', word='ГОРА')
+
+    def test_make_initial_list(self):
+        self.assertIsInstance(self._mi, list)
+
+    def test_make_initial_length_16(self):
+        self.assertEqual(len(self._mi), 16)
+
+    def test_h_to_char_returns_str(self):
+        result = self.h_to_char(49)
+        self.assertIsInstance(result, str)
+
+    def test_h_to_char_length_1(self):
+        result = self.h_to_char(49)
+        self.assertEqual(len(result), 1)
+
+    def test_make_initial_random(self):
+        mi_r = self.make_initial(16, ic='random', seed=42)
+        self.assertEqual(len(mi_r), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestCellAggProps
+# ---------------------------------------------------------------------------
+class TestCellAggProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cell import cell_mean, cell_hist, cell_agg, cell_is_frozen, cell_series
+        cls.cell_mean     = staticmethod(cell_mean)
+        cls.cell_hist     = staticmethod(cell_hist)
+        cls.cell_is_frozen= staticmethod(cell_is_frozen)
+        cls.cell_series   = staticmethod(cell_series)
+        cls._ca  = cell_agg('ГОРА', 'xor3')
+        cls._cm  = cell_mean('ГОРА', 'xor3', 0)
+        cls._ch  = cell_hist('ГОРА', 'xor3', 0)
+        cls._cif = cell_is_frozen('ГОРА', 'xor3', 0)
+        cls._cs  = cell_series('ГОРА', 'xor3', 0)
+
+    def test_cell_agg_dict(self):
+        self.assertIsInstance(self._ca, dict)
+
+    def test_cell_agg_has_n_cells(self):
+        self.assertEqual(self._ca['n_cells'], 16)
+
+    def test_cell_mean_float(self):
+        self.assertIsInstance(self._cm, float)
+
+    def test_cell_hist_dict(self):
+        self.assertIsInstance(self._ch, dict)
+
+    def test_cell_is_frozen_bool(self):
+        self.assertIsInstance(self._cif, bool)
+
+    def test_cell_series_list(self):
+        self.assertIsInstance(self._cs, list)
+
+    def test_cell_series_nonempty(self):
+        self.assertGreater(len(self._cs), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestEntropyProfileProps
+# ---------------------------------------------------------------------------
+class TestEntropyProfileProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_entropy import entropy, entropy_profile, max_spatial_entropy
+        cls.entropy = staticmethod(entropy)
+        cls._cells  = [49, 47, 15, 63, 49, 47, 15, 63]
+        cls._const  = [42] * 8
+        cls._ep  = entropy_profile(cls._cells, 'xor3', 4)
+        cls._mse = max_spatial_entropy('ГОРА', 'xor3')
+
+    def test_entropy_float(self):
+        self.assertIsInstance(self.entropy(self._cells), float)
+
+    def test_entropy_nonneg(self):
+        self.assertGreaterEqual(self.entropy(self._cells), 0.0)
+
+    def test_entropy_constant_zero(self):
+        self.assertEqual(self.entropy(self._const), 0.0)
+
+    def test_entropy_profile_list(self):
+        self.assertIsInstance(self._ep, list)
+
+    def test_max_spatial_entropy_nonneg(self):
+        self.assertGreaterEqual(self._mse, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestHammingProps
+# ---------------------------------------------------------------------------
+class TestHammingProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_hamming import consecutive_hamming, flip_mask, cell_mobility
+        from projects.hexglyph.solan_network import get_orbit
+        cls.consecutive_hamming = staticmethod(consecutive_hamming)
+        cls.flip_mask            = staticmethod(flip_mask)
+        cls.cell_mobility        = staticmethod(cell_mobility)
+        cls._orbit = get_orbit('ВОЛНА', 'xor3')
+        cls._ch  = consecutive_hamming(cls._orbit)
+        cls._fm  = flip_mask(cls._orbit)
+        cls._mob = cell_mobility(cls._orbit)
+
+    def test_consecutive_hamming_list(self):
+        self.assertIsInstance(self._ch, list)
+
+    def test_flip_mask_list(self):
+        self.assertIsInstance(self._fm, list)
+
+    def test_cell_mobility_list(self):
+        self.assertIsInstance(self._mob, list)
+
+    def test_cell_mobility_length_16(self):
+        self.assertEqual(len(self._mob), 16)
+
+    def test_cell_mobility_in_01(self):
+        for v in self._mob:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestFourierProps
+# ---------------------------------------------------------------------------
+class TestFourierProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_fourier import (
+            dft1, cell_spectrum, dominant_harmonic, normalised_spectral_entropy, fourier_dict,
+        )
+        cls.dominant_harmonic        = staticmethod(dominant_harmonic)
+        cls.normalised_spectral_entropy = staticmethod(normalised_spectral_entropy)
+        cls._series = [49, 47, 15, 63] * 3
+        cls._dft = dft1(cls._series)
+        cls._cs  = cell_spectrum(cls._series)
+        cls._fd  = fourier_dict(cls._cs)
+
+    def test_dft1_list(self):
+        self.assertIsInstance(self._dft, list)
+
+    def test_dft1_complex_elements(self):
+        self.assertIsInstance(self._dft[0], complex)
+
+    def test_cell_spectrum_dict(self):
+        self.assertIsInstance(self._cs, dict)
+
+    def test_cell_spectrum_has_power(self):
+        self.assertIn('power', self._cs)
+
+    def test_dominant_harmonic_int(self):
+        dh = self.dominant_harmonic(self._cs['power'])
+        self.assertIsInstance(dh, int)
+
+    def test_normalised_spectral_entropy_in_01(self):
+        nse = self.normalised_spectral_entropy(self._cs['power'])
+        self.assertGreaterEqual(nse, 0.0)
+        self.assertLessEqual(nse, 1.0)
+
+    def test_fourier_dict_dict(self):
+        self.assertIsInstance(self._fd, dict)
+
+    def test_fourier_dict_has_power(self):
+        self.assertIn('power', self._fd)
+
+
+# ---------------------------------------------------------------------------
+# TestLZProps
+# ---------------------------------------------------------------------------
+class TestLZProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import lz76, lz_of_series, lz_dict
+        cls.lz76 = staticmethod(lz76)
+        cls._los = lz_of_series([49, 47, 15, 63] * 4)
+        cls._ld  = lz_dict('ГОРА', 'xor3')
+
+    def test_lz76_int(self):
+        v = self.lz76('0101010101010101')
+        self.assertIsInstance(v, int)
+
+    def test_lz76_positive(self):
+        v = self.lz76('0101010101010101')
+        self.assertGreater(v, 0)
+
+    def test_lz_of_series_dict(self):
+        self.assertIsInstance(self._los, dict)
+
+    def test_lz_of_series_has_lz(self):
+        self.assertIn('lz', self._los)
+
+    def test_lz_dict_dict(self):
+        self.assertIsInstance(self._ld, dict)
+
+    def test_lz_dict_word_preserved(self):
+        self.assertEqual(self._ld['word'], 'ГОРА')
+
+
+# ---------------------------------------------------------------------------
+# TestMomentsProps
+# ---------------------------------------------------------------------------
+class TestMomentsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moments import temporal_moments, cell_moments_list
+        cls._tm  = temporal_moments([49, 47, 15, 63] * 4)
+        cls._cml = cell_moments_list('ГОРА', 'xor3')
+
+    def test_temporal_moments_dict(self):
+        self.assertIsInstance(self._tm, dict)
+
+    def test_temporal_moments_has_mean(self):
+        self.assertIn('mean', self._tm)
+
+    def test_temporal_moments_has_std(self):
+        self.assertIn('std', self._tm)
+
+    def test_cell_moments_list_list(self):
+        self.assertIsInstance(self._cml, list)
+
+    def test_cell_moments_list_16_cells(self):
+        self.assertEqual(len(self._cml), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestMoranProps
+# ---------------------------------------------------------------------------
+class TestMoranProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moran import morans_i, morans_i_series
+        cls.morans_i = staticmethod(morans_i)
+        cls._mis = morans_i_series('ГОРА', 'xor3')
+
+    def test_morans_i_float(self):
+        v = self.morans_i([1, 0, 1, 0, 1, 0, 1, 0])
+        self.assertIsInstance(v, float)
+
+    def test_morans_i_range(self):
+        v = self.morans_i([1, 0, 1, 0, 1, 0, 1, 0])
+        self.assertGreaterEqual(v, -1.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_morans_i_series_list(self):
+        self.assertIsInstance(self._mis, list)
+
+    def test_morans_i_series_nonempty(self):
+        self.assertGreater(len(self._mis), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestSolanPredictProps
+# ---------------------------------------------------------------------------
+class TestSolanPredictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import (
+            predict, predict_text, prediction_dict, batch_predict,
+        )
+        cls.predict         = staticmethod(predict)
+        cls.prediction_dict = staticmethod(prediction_dict)
+        cls.batch_predict   = staticmethod(batch_predict)
+        cls._r   = predict('ГОРА')
+        cls._pt  = predict_text('ГОРА ВОДА')
+        cls._bp  = batch_predict(['ГОРА', 'ВОДА'])
+        cls._pd  = prediction_dict(cls._r)
+
+    def test_predict_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_predict_required_keys(self):
+        for k in ('word', 'full_key', 'class_id', 'neighbors', 'is_new_class'):
+            self.assertIn(k, self._r)
+
+    def test_predict_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_predict_not_new_class(self):
+        self.assertFalse(self._r['is_new_class'])
+
+    def test_predict_neighbors_list(self):
+        self.assertIsInstance(self._r['neighbors'], list)
+
+    def test_predict_neighbor_self_first(self):
+        first_word, first_dist = self._r['neighbors'][0]
+        self.assertEqual(first_word, 'ГОРА')
+        self.assertEqual(first_dist, 0.0)
+
+    def test_predict_text_list(self):
+        self.assertIsInstance(self._pt, list)
+
+    def test_predict_text_two_words(self):
+        self.assertEqual(len(self._pt), 2)
+
+    def test_batch_predict_length(self):
+        self.assertEqual(len(self._bp), 2)
+
+    def test_prediction_dict_serializable(self):
+        import json
+        json.dumps(self._pd)   # must not raise
+
+
+# ---------------------------------------------------------------------------
+# TestAutocorrProps
+# ---------------------------------------------------------------------------
+class TestAutocorrProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_autocorr import (
+            temporal_ac, temporal_ac_profile, spatial_ac, cell_crosscorr,
+        )
+        from projects.hexglyph.solan_network import get_orbit
+        cls.temporal_ac = staticmethod(temporal_ac)
+        cls.spatial_ac  = staticmethod(spatial_ac)
+        cls._series = [49, 47, 15, 63] * 3
+        cls._orbit  = get_orbit('ВОЛНА', 'xor3')
+        cls._tap    = temporal_ac_profile(cls._series)
+        cls._cc     = cell_crosscorr(cls._series, cls._series)
+
+    def test_temporal_ac_float(self):
+        v = self.temporal_ac(self._series, lag=1)
+        self.assertIsInstance(v, float)
+
+    def test_temporal_ac_range(self):
+        v = self.temporal_ac(self._series, lag=0)
+        self.assertAlmostEqual(v, 1.0, places=5)
+
+    def test_temporal_ac_profile_list(self):
+        self.assertIsInstance(self._tap, list)
+
+    def test_spatial_ac_float(self):
+        v = self.spatial_ac(self._orbit, d=1)
+        self.assertIsInstance(v, float)
+
+    def test_cell_crosscorr_same_is_one(self):
+        self.assertAlmostEqual(self._cc, 1.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestBalanceProps
+# ---------------------------------------------------------------------------
+class TestBalanceProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_balance import bit_balance, aggregate_balance, bit_profile, balance_summary
+        cls._series = [49, 47, 15, 63] * 3
+        cls._bb = bit_balance(cls._series)
+        cls._ab = aggregate_balance('ГОРА', 'xor3')
+        cls._bp = bit_profile(cls._series)
+        cls._bs = balance_summary('ГОРА', 'xor3')
+
+    def test_bit_balance_list(self):
+        self.assertIsInstance(self._bb, list)
+
+    def test_bit_balance_6_items(self):
+        self.assertEqual(len(self._bb), 6)
+
+    def test_aggregate_balance_dict(self):
+        self.assertIsInstance(self._ab, dict)
+
+    def test_bit_profile_list(self):
+        self.assertIsInstance(self._bp, list)
+
+    def test_bit_profile_6_items(self):
+        self.assertEqual(len(self._bp), 6)
+
+    def test_balance_summary_dict(self):
+        self.assertIsInstance(self._bs, dict)
+
+    def test_balance_summary_word_preserved(self):
+        self.assertEqual(self._bs['word'], 'ГОРА')
+
+
+# ---------------------------------------------------------------------------
+# TestCorrelationProps
+# ---------------------------------------------------------------------------
+class TestCorrelationProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_correlation import correlation_dict, correlation_length, cross_corr
+        cls.correlation_length = staticmethod(correlation_length)
+        cls.cross_corr         = staticmethod(cross_corr)
+        cls._cd = correlation_dict('ГОРА')
+        cls._cl = correlation_length('ГОРА', 'xor3')
+        cls._xc = cross_corr('ГОРА', 'ВОДА', 'xor3')
+
+    def test_correlation_dict_dict(self):
+        self.assertIsInstance(self._cd, dict)
+
+    def test_correlation_dict_has_rules(self):
+        self.assertIn('rules', self._cd)
+
+    def test_correlation_length_float(self):
+        self.assertIsInstance(self._cl, float)
+
+    def test_correlation_length_positive(self):
+        self.assertGreater(self._cl, 0.0)
+
+    def test_cross_corr_list(self):
+        self.assertIsInstance(self._xc, list)
+
+    def test_cross_corr_nonempty(self):
+        self.assertGreater(len(self._xc), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestMutualProps
+# ---------------------------------------------------------------------------
+class TestMutualProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mutual import (
+            mi_matrix, mi_profile, mutual_dict, trajectory_mutual,
+        )
+        cls.mi_profile = staticmethod(mi_profile)
+        cls._mm = mi_matrix('ГОРА', 'xor3')
+        cls._mp = mi_profile(cls._mm)
+        cls._md = mutual_dict('ГОРА')
+        cls._tm = trajectory_mutual('ГОРА', 'xor3')
+
+    def test_mi_matrix_list(self):
+        self.assertIsInstance(self._mm, list)
+
+    def test_mi_matrix_16x16(self):
+        self.assertEqual(len(self._mm), 16)
+        self.assertEqual(len(self._mm[0]), 16)
+
+    def test_mi_profile_list(self):
+        self.assertIsInstance(self._mp, list)
+
+    def test_mutual_dict_dict(self):
+        self.assertIsInstance(self._md, dict)
+
+    def test_mutual_dict_has_rules(self):
+        self.assertIn('rules', self._md)
+
+    def test_trajectory_mutual_dict(self):
+        self.assertIsInstance(self._tm, dict)
+
+    def test_trajectory_mutual_has_period(self):
+        self.assertIn('period', self._tm)
+
+
+# ---------------------------------------------------------------------------
+# TestOrbitPCAProps
+# ---------------------------------------------------------------------------
+class TestOrbitPCAProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_pca import orbit_pca
+        cls._op = orbit_pca('ВОЛНА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._op, dict)
+
+    def test_has_eigenvalues(self):
+        self.assertIn('eigenvalues', self._op)
+
+    def test_has_eigenvecs(self):
+        self.assertIn('eigenvecs', self._op)
+
+    def test_eigenvalues_nonneg(self):
+        for v in self._op['eigenvalues']:
+            self.assertGreaterEqual(v, -1e-9)
+
+
+# ---------------------------------------------------------------------------
+# TestLyapunovDictProps
+# ---------------------------------------------------------------------------
+class TestLyapunovDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import (
+            divergence_trajectory, detect_period, lyapunov_dict, mean_d_profile,
+        )
+        cls.detect_period        = staticmethod(detect_period)
+        cls.mean_d_profile       = staticmethod(mean_d_profile)
+        cls._dt = divergence_trajectory('ГОРА', 0, 5, 'xor3', max_steps=10)
+        cls._ld = lyapunov_dict('ГОРА', max_steps=8)
+
+    def test_divergence_trajectory_list(self):
+        self.assertIsInstance(self._dt, list)
+
+    def test_divergence_trajectory_nonempty(self):
+        self.assertGreater(len(self._dt), 0)
+
+    def test_detect_period_int(self):
+        dp = self.detect_period([0.0, 1.0, 0.0, 1.0, 0.0, 1.0])
+        self.assertIsInstance(dp, int)
+
+    def test_lyapunov_dict_dict(self):
+        self.assertIsInstance(self._ld, dict)
+
+    def test_lyapunov_dict_has_rules(self):
+        self.assertIn('rules', self._ld)
+
+    def test_mean_d_profile_list(self):
+        mp = self.mean_d_profile([[0, 1, 2], [0, 2, 4]])
+        self.assertIsInstance(mp, list)
+
+
+# ---------------------------------------------------------------------------
+# TestMultistepProps
+# ---------------------------------------------------------------------------
+class TestMultistepProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multistep import orbit_dist_matrix, eccentricity, multistep_summary
+        from projects.hexglyph.solan_network import get_orbit
+        cls.eccentricity = staticmethod(eccentricity)
+        orbit = get_orbit('ВОЛНА', 'xor3')
+        cls._odm = orbit_dist_matrix(orbit)
+        cls._ec  = eccentricity(cls._odm)
+        cls._ms  = multistep_summary('ГОРА', 'xor3')
+
+    def test_orbit_dist_matrix_list(self):
+        self.assertIsInstance(self._odm, list)
+
+    def test_orbit_dist_matrix_square(self):
+        self.assertEqual(len(self._odm), len(self._odm[0]))
+
+    def test_eccentricity_list(self):
+        self.assertIsInstance(self._ec, list)
+
+    def test_multistep_summary_dict(self):
+        self.assertIsInstance(self._ms, dict)
+
+    def test_multistep_summary_has_diameter(self):
+        self.assertIn('diameter', self._ms)
+
+
+# ---------------------------------------------------------------------------
+# TestCoverageProps
+# ---------------------------------------------------------------------------
+class TestCoverageProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coverage import global_coverage, orbit_frequencies
+        cls._gc = global_coverage('xor3')
+        cls._of = orbit_frequencies('ГОРА', 'xor3')
+
+    def test_global_coverage_dict(self):
+        self.assertIsInstance(self._gc, dict)
+
+    def test_global_coverage_has_n_words(self):
+        self.assertIn('n_words', self._gc)
+
+    def test_orbit_frequencies_counter(self):
+        from collections import Counter
+        self.assertIsInstance(self._of, Counter)
+
+    def test_orbit_frequencies_nonempty(self):
+        self.assertGreater(len(self._of), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestPhoneticSummaryProps
+# ---------------------------------------------------------------------------
+class TestPhoneticSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phonetic import phonetic_h, phonetic_summary
+        cls.phonetic_h    = staticmethod(phonetic_h)
+        cls._ps = phonetic_summary('ГОРА')
+
+    def test_phonetic_h_int(self):
+        v = self.phonetic_h('Г')
+        self.assertIsInstance(v, int)
+
+    def test_phonetic_h_nonneg(self):
+        v = self.phonetic_h('Г')
+        self.assertGreater(v, 0)
+
+    def test_phonetic_summary_dict(self):
+        self.assertIsInstance(self._ps, dict)
+
+    def test_phonetic_summary_has_text(self):
+        self.assertIn('text', self._ps)
+
+
+# ---------------------------------------------------------------------------
+# TestSpatentProps
+# ---------------------------------------------------------------------------
+class TestSpatentProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spatent import orbit_spatial_entropy, spatent_summary
+        cls._ose = orbit_spatial_entropy('ГОРА', 'xor3')
+        cls._ss  = spatent_summary('ГОРА', 'xor3')
+
+    def test_orbit_spatial_entropy_list(self):
+        self.assertIsInstance(self._ose, list)
+
+    def test_orbit_spatial_entropy_nonempty(self):
+        self.assertGreater(len(self._ose), 0)
+
+    def test_spatent_summary_dict(self):
+        self.assertIsInstance(self._ss, dict)
+
+    def test_spatent_summary_word_preserved(self):
+        self.assertEqual(self._ss['word'], 'ГОРА')
+
+    def test_spatent_norm_mean_in_01(self):
+        v = self._ss['norm_mean_H']
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestWidthProps
+# ---------------------------------------------------------------------------
+class TestWidthProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_width import period_at_width, is_constant_period
+        cls.period_at_width  = staticmethod(period_at_width)
+        cls.is_constant_period = staticmethod(is_constant_period)
+
+    def test_period_at_width_int(self):
+        v = self.period_at_width('ГОРА', 'xor3', 16)
+        self.assertIsInstance(v, int)
+
+    def test_period_at_width_positive(self):
+        v = self.period_at_width('ГОРА', 'xor3', 16)
+        self.assertGreater(v, 0)
+
+    def test_is_constant_period_bool(self):
+        v = self.is_constant_period('ГОРА', 'xor3', [8, 16])
+        self.assertIsInstance(v, bool)
+
+
+# ---------------------------------------------------------------------------
+# TestVocabProps
+# ---------------------------------------------------------------------------
+class TestVocabProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_vocab import orbit_vocabulary, common_bits
+        cls.common_bits = staticmethod(common_bits)
+        cls._ov = orbit_vocabulary('ГОРА', 'xor3')
+
+    def test_orbit_vocabulary_list(self):
+        self.assertIsInstance(self._ov, list)
+
+    def test_orbit_vocabulary_nonempty(self):
+        self.assertGreater(len(self._ov), 0)
+
+    def test_common_bits_tuple(self):
+        cb = self.common_bits('ГОРА', 'xor3')
+        self.assertIsInstance(cb, tuple)
+
+
+# ---------------------------------------------------------------------------
+# TestSegmentProps
+# ---------------------------------------------------------------------------
+class TestSegmentProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_segment import max_seg_length, mean_seg_length, min_seg_length
+        cls._max = max_seg_length('ГОРА', 'xor3')
+        cls._mean = mean_seg_length('ГОРА', 'xor3')
+        cls._min  = min_seg_length('ГОРА', 'xor3')
+
+    def test_max_seg_length_list(self):
+        self.assertIsInstance(self._max, list)
+
+    def test_mean_seg_length_list(self):
+        self.assertIsInstance(self._mean, list)
+
+    def test_min_seg_length_list(self):
+        self.assertIsInstance(self._min, list)
+
+    def test_min_le_max(self):
+        for mn, mx in zip(self._min, self._max):
+            self.assertLessEqual(mn, mx)
+
+
+# ---------------------------------------------------------------------------
+# TestSymmProps
+# ---------------------------------------------------------------------------
+class TestSymmProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symm import orbit_rot_orders, orbit_rot_periods, max_rot_order
+        cls.max_rot_order = staticmethod(max_rot_order)
+        cls._oro = orbit_rot_orders('ГОРА', 'xor3')
+        cls._orp = orbit_rot_periods('ГОРА', 'xor3')
+        cls._mro = max_rot_order('ГОРА', 'xor3')
+
+    def test_orbit_rot_orders_list(self):
+        self.assertIsInstance(self._oro, list)
+
+    def test_orbit_rot_periods_list(self):
+        self.assertIsInstance(self._orp, list)
+
+    def test_max_rot_order_int(self):
+        self.assertIsInstance(self._mro, int)
+
+    def test_max_rot_order_positive(self):
+        self.assertGreater(self._mro, 0)
+
+
+# ---------------------------------------------------------------------------
+# TestRunsProps
+# ---------------------------------------------------------------------------
+class TestRunsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_runs import cell_run_stats, plateau_fraction
+        cls.plateau_fraction = staticmethod(plateau_fraction)
+        cls._series = [49, 47, 15, 63] * 4
+        cls._crs = cell_run_stats(cls._series)
+
+    def test_cell_run_stats_dict(self):
+        self.assertIsInstance(self._crs, dict)
+
+    def test_cell_run_stats_has_n_runs(self):
+        self.assertIn('n_runs', self._crs)
+
+    def test_plateau_fraction_float(self):
+        v = self.plateau_fraction(self._series)
+        self.assertIsInstance(v, float)
+
+    def test_plateau_fraction_in_01(self):
+        v = self.plateau_fraction(self._series)
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestCoactProps
+# ---------------------------------------------------------------------------
+class TestCoactProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coact import bit_pearson_corr, bit_joint_prob, aggregate_pearson
+        cls._series = [49, 47, 15, 63] * 4
+        cls._bpc = bit_pearson_corr(cls._series)
+        cls._bjp = bit_joint_prob(cls._series)
+        cls._ap  = aggregate_pearson('ГОРА', 'xor3')
+
+    def test_bit_pearson_corr_list(self):
+        self.assertIsInstance(self._bpc, list)
+
+    def test_bit_pearson_corr_6x6(self):
+        self.assertEqual(len(self._bpc), 6)
+        self.assertEqual(len(self._bpc[0]), 6)
+
+    def test_bit_joint_prob_list(self):
+        self.assertIsInstance(self._bjp, list)
+
+    def test_aggregate_pearson_6x6(self):
+        self.assertEqual(len(self._ap), 6)
+        self.assertEqual(len(self._ap[0]), 6)
+
+
+# ---------------------------------------------------------------------------
+# TestDistSummaryProps
+# ---------------------------------------------------------------------------
+class TestDistSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dist import distance_matrix_q6, dist_summary
+        cls._dm = distance_matrix_q6('ГОРА', 'xor3')
+        cls._ds = dist_summary('ГОРА', 'xor3')
+
+    def test_distance_matrix_q6_list(self):
+        self.assertIsInstance(self._dm, list)
+
+    def test_dist_summary_dict(self):
+        self.assertIsInstance(self._ds, dict)
+
+    def test_dist_summary_word_preserved(self):
+        self.assertEqual(self._ds['word'], 'ГОРА')
+
+    def test_dist_summary_has_mean_dist(self):
+        self.assertIn('mean_dist_q6', self._ds)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
