@@ -63,6 +63,16 @@ class TestRenderGrid(unittest.TestCase):
         grid = render_grid(color=False)
         self.assertNotIn('*', grid)
 
+    def test_color_mode_produces_output(self):
+        """color=True не ломает вывод."""
+        grid = render_grid(color=True)
+        self.assertGreater(len(grid), 0)
+
+    def test_color_highlight_produces_output(self):
+        """color=True + highlights работает без ошибок."""
+        grid = render_grid(color=True, highlights={0, 42})
+        self.assertGreater(len(grid), 0)
+
 
 class TestRenderPath(unittest.TestCase):
     def test_empty_path(self):
@@ -95,6 +105,11 @@ class TestRenderPath(unittest.TestCase):
         # [0→1→...→63] — показывает hamming distance
         # Но path=[0,63] сам по себе — 2 узла, расстояние 6
         self.assertIn('6', result)
+
+    def test_color_path_no_crash(self):
+        """render_path с color=True работает без ошибок."""
+        result = render_path([0, 1, 3, 7], color=True)
+        self.assertGreater(len(result), 0)
 
 
 class TestRenderHexagram(unittest.TestCase):
