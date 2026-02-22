@@ -9,6 +9,7 @@ from libs.hexcore.hexcore import (
     upper_trigram, lower_trigram, SIZE,
     orbit, orbit_length, all_orbits, subcubes, distance_spectrum,
     sphere, ball, apply_permutation,
+    from_bits, yin_count, all_hexagrams, hexagrams_by_yang, bfs_from,
 )
 
 
@@ -385,6 +386,129 @@ class TestApplyPermutation(unittest.TestCase):
             rng.shuffle(perm)
             h = rng.randrange(SIZE)
             self.assertEqual(yang_count(apply_permutation(h, perm)), yang_count(h))
+
+
+class TestFromBits(unittest.TestCase):
+    """Тесты from_bits: обратное преобразование к to_bits."""
+
+    def test_zero(self):
+        self.assertEqual(from_bits('000000'), 0)
+
+    def test_full(self):
+        self.assertEqual(from_bits('111111'), 63)
+
+    def test_roundtrip(self):
+        """to_bits → from_bits = identity."""
+        for h in range(SIZE):
+            self.assertEqual(from_bits(to_bits(h)), h)
+
+    def test_specific(self):
+        self.assertEqual(from_bits('000001'), 1)
+        self.assertEqual(from_bits('100000'), 32)
+        self.assertEqual(from_bits('101010'), 42)
+
+
+class TestYinCount(unittest.TestCase):
+    """Тесты yin_count: yin + yang == 6."""
+
+    def test_zero_all_yin(self):
+        self.assertEqual(yin_count(0), 6)
+
+    def test_full_all_yang(self):
+        self.assertEqual(yin_count(63), 0)
+
+    def test_complement_yang(self):
+        for h in range(SIZE):
+            self.assertEqual(yin_count(h) + yang_count(h), 6)
+
+    def test_specific(self):
+        self.assertEqual(yin_count(1), 5)    # один ян → пять инь
+        self.assertEqual(yin_count(42), 3)   # 101010 → 3 ян, 3 инь
+
+
+class TestAllHexagrams(unittest.TestCase):
+    """Тесты all_hexagrams: итератор всех 64 гексаграмм."""
+
+    def test_count(self):
+        self.assertEqual(len(list(all_hexagrams())), 64)
+
+    def test_unique(self):
+        lst = list(all_hexagrams())
+        self.assertEqual(len(set(lst)), 64)
+
+    def test_range(self):
+        for h in all_hexagrams():
+            self.assertGreaterEqual(h, 0)
+            self.assertLess(h, 64)
+
+    def test_ordered(self):
+        lst = list(all_hexagrams())
+        self.assertEqual(lst, list(range(64)))
+
+
+class TestHexagramsByYang(unittest.TestCase):
+    """Тесты hexagrams_by_yang: фильтрация по числу ян-линий."""
+
+    def test_zero_yang(self):
+        lst = hexagrams_by_yang(0)
+        self.assertEqual(lst, [0])   # только 000000
+
+    def test_six_yang(self):
+        lst = hexagrams_by_yang(6)
+        self.assertEqual(lst, [63])  # только 111111
+
+    def test_one_yang_count(self):
+        """C(6,1) = 6 гексаграмм с одной ян-линией."""
+        self.assertEqual(len(hexagrams_by_yang(1)), 6)
+
+    def test_three_yang_count(self):
+        """C(6,3) = 20 гексаграмм с тремя ян-линиями."""
+        self.assertEqual(len(hexagrams_by_yang(3)), 20)
+
+    def test_sum_equals_64(self):
+        """Сумма по всем уровням = 64."""
+        total = sum(len(hexagrams_by_yang(k)) for k in range(7))
+        self.assertEqual(total, 64)
+
+    def test_all_match_yang_count(self):
+        """Каждая возвращённая гексаграмма действительно имеет нужное число ян."""
+        for k in range(7):
+            for h in hexagrams_by_yang(k):
+                self.assertEqual(yang_count(h), k)
+
+
+class TestBfsFrom(unittest.TestCase):
+    """Тесты bfs_from: BFS-расстояния от заданного узла."""
+
+    def test_all_64_reachable(self):
+        dist = bfs_from(0)
+        self.assertEqual(len(dist), 64)
+
+    def test_self_distance_zero(self):
+        for start in [0, 42, 63]:
+            dist = bfs_from(start)
+            self.assertEqual(dist[start], 0)
+
+    def test_neighbor_distance_one(self):
+        dist = bfs_from(0)
+        for nb in neighbors(0):
+            self.assertEqual(dist[nb], 1)
+
+    def test_antipode_distance_six(self):
+        dist = bfs_from(0)
+        self.assertEqual(dist[63], 6)
+
+    def test_distances_match_hamming(self):
+        """В Q6 BFS-расстояние = расстояние Хэмминга."""
+        dist = bfs_from(0)
+        for h in range(64):
+            self.assertEqual(dist[h], hamming(0, h))
+
+    def test_all_starts(self):
+        """Для произвольного старта расстояние до антипода = 6."""
+        for start in [7, 21, 42]:
+            dist = bfs_from(start)
+            self.assertEqual(dist[antipode(start)], 6)
 
 
 if __name__ == '__main__':
