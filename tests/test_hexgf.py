@@ -14,7 +14,10 @@ from projects.hexgf import (
     build_zech_log_table,
     additive_character, additive_character_b,
     frobenius, frobenius_orbit,
+    character_sum,
+    bch_zeros, bch_generator_degree,
 )
+from projects.hexgf.hexgf import all_elements, nonzero_elements, is_subfield
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -426,6 +429,95 @@ class TestAdditiveCharacters(unittest.TestCase):
         for a in range(1, 64):
             has_one = any(trace_bilinear(a, b) == 1 for b in range(64))
             self.assertTrue(has_one, f"Tr(a·b)=1 не достигается для a={a}")
+
+
+class TestElementSets(unittest.TestCase):
+    """Тесты all_elements, nonzero_elements."""
+
+    def test_all_elements_count(self):
+        self.assertEqual(len(all_elements()), 64)
+
+    def test_all_elements_range(self):
+        self.assertEqual(sorted(all_elements()), list(range(64)))
+
+    def test_nonzero_elements_count(self):
+        self.assertEqual(len(nonzero_elements()), 63)
+
+    def test_nonzero_elements_no_zero(self):
+        self.assertNotIn(0, nonzero_elements())
+
+    def test_all_minus_zero_equals_nonzero(self):
+        self.assertEqual(set(all_elements()) - {0}, set(nonzero_elements()))
+
+
+class TestCharacterSum(unittest.TestCase):
+    """Тесты character_sum — суммы характеров над подмножеством."""
+
+    def test_character_sum_b0_equals_size(self):
+        """character_sum(0, S) = |S| (ψ_0 = 1 везде)."""
+        subset = list(range(10))
+        self.assertEqual(character_sum(0, subset), len(subset))
+
+    def test_character_sum_full_field_b_nonzero(self):
+        """Σ_{a∈GF(2^6)} ψ_b(a) = 0 для b ≠ 0."""
+        for b in [1, 2, 7, 63]:
+            result = character_sum(b, all_elements())
+            self.assertEqual(result, 0)
+
+    def test_character_sum_empty(self):
+        self.assertEqual(character_sum(1, []), 0)
+
+
+class TestBCH(unittest.TestCase):
+    """Тесты bch_zeros, bch_generator_degree."""
+
+    def test_bch_zeros_d1_empty(self):
+        """d=1: нет нулей (BCH с проектным расстоянием 1 = trivial код)."""
+        self.assertEqual(bch_zeros(1), [])
+
+    def test_bch_zeros_d2_one_element(self):
+        """d=2: один нуль {g^1}."""
+        z = bch_zeros(2)
+        self.assertEqual(len(z), 1)
+
+    def test_bch_zeros_d_n_minus_one(self):
+        """bch_zeros(d) содержит d-1 элементов."""
+        for d in range(1, 5):
+            self.assertEqual(len(bch_zeros(d)), d - 1)
+
+    def test_bch_generator_degree_d1_is_0(self):
+        """d=1: нет нулей → степень 0."""
+        self.assertEqual(bch_generator_degree(1), 0)
+
+    def test_bch_generator_degree_positive_for_d2(self):
+        """d=2: есть нули → степень > 0."""
+        self.assertGreater(bch_generator_degree(2), 0)
+
+    def test_bch_generator_degree_nondecreasing(self):
+        """Степень не убывает с ростом d."""
+        degs = [bch_generator_degree(d) for d in range(1, 6)]
+        for i in range(len(degs) - 1):
+            self.assertLessEqual(degs[i], degs[i + 1])
+
+
+class TestIsSubfield(unittest.TestCase):
+    """Тесты is_subfield."""
+
+    def test_gf2_is_subfield(self):
+        """GF(2) ⊂ GF(2^6): {0, 1} — подполе GF(2^1)."""
+        self.assertTrue(is_subfield(subfield_elements(1), 1))
+
+    def test_gf4_is_subfield(self):
+        """GF(4) ⊂ GF(64): подполе GF(2^2)."""
+        self.assertTrue(is_subfield(subfield_elements(2), 2))
+
+    def test_wrong_elements_not_subfield(self):
+        """Произвольное множество {0,1,2} не является подполем GF(2)."""
+        self.assertFalse(is_subfield([0, 1, 2], 1))
+
+    def test_full_field_is_subfield_6(self):
+        """GF(2^6) — подполе само себя."""
+        self.assertTrue(is_subfield(subfield_elements(6), 6))
 
 
 if __name__ == '__main__':
