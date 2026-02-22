@@ -4,7 +4,8 @@ sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]
 
 import unittest
 from projects.hexforth.interpreter import HexForth, HexForthError
-from projects.hexforth.compiler import compile_to_ir, to_python, to_json_bytecode, path_stats
+import json as _json
+from projects.hexforth.compiler import compile_to_ir, to_python, to_json_bytecode, to_dot, path_stats
 from projects.hexforth.verifier import (
     build_transition_graph, reachable_from, shortest_path_in_graph,
     analyze_source,
@@ -231,6 +232,98 @@ class TestStaticAnalysis(unittest.TestCase):
     def test_define_tracked(self):
         a = analyze_source('DEFINE MOVE : FLIP-0 FLIP-1 ;')
         self.assertIn('MOVE', a.defines)
+
+
+class TestCompilerJSON(unittest.TestCase):
+    """Тесты to_json_bytecode: валидный JSON, корректные поля."""
+
+    def _ir(self, src: str, start: int = 0):
+        return compile_to_ir(src, start=start)
+
+    def test_valid_json(self):
+        """to_json_bytecode должна возвращать валидный JSON."""
+        ir = self._ir('FLIP-0 FLIP-1', start=0)
+        out = to_json_bytecode(ir)
+        parsed = _json.loads(out)
+        self.assertIsInstance(parsed, dict)
+
+    def test_version_field(self):
+        ir = self._ir('FLIP-0', start=0)
+        parsed = _json.loads(to_json_bytecode(ir))
+        self.assertEqual(parsed['version'], 1)
+
+    def test_start_field(self):
+        ir = self._ir('FLIP-0', start=7)
+        parsed = _json.loads(to_json_bytecode(ir))
+        self.assertEqual(parsed['start'], 7)
+
+    def test_instructions_list(self):
+        ir = self._ir('FLIP-0 FLIP-1', start=0)
+        parsed = _json.loads(to_json_bytecode(ir))
+        self.assertIn('instructions', parsed)
+        self.assertIsInstance(parsed['instructions'], list)
+
+    def test_nop_empty_instructions(self):
+        """NOP не порождает FLIP-инструкции в JSON."""
+        ir = self._ir('NOP', start=0)
+        parsed = _json.loads(to_json_bytecode(ir))
+        flip_instrs = [i for i in parsed['instructions'] if i['op'] == 'FLIP']
+        self.assertEqual(len(flip_instrs), 0)
+
+    def test_goto_expands_flips(self):
+        """GOTO 63 от 0 порождает 6 FLIP-инструкций."""
+        ir = self._ir('GOTO 63', start=0)
+        parsed = _json.loads(to_json_bytecode(ir))
+        flip_count = sum(1 for i in parsed['instructions'] if i['op'] == 'FLIP')
+        self.assertEqual(flip_count, 6)
+
+
+class TestCompilerDOT(unittest.TestCase):
+    """Тесты to_dot: структура DOT-файла для Graphviz."""
+
+    def _ir(self, src: str, start: int = 0):
+        return compile_to_ir(src, start=start)
+
+    def test_returns_string(self):
+        ir = self._ir('FLIP-0', start=0)
+        out = to_dot(ir)
+        self.assertIsInstance(out, str)
+
+    def test_digraph_keyword(self):
+        ir = self._ir('FLIP-0', start=0)
+        out = to_dot(ir)
+        self.assertIn('digraph', out)
+
+    def test_closing_brace(self):
+        ir = self._ir('FLIP-0', start=0)
+        out = to_dot(ir)
+        self.assertIn('}', out)
+
+    def test_node_labels(self):
+        """Узлы должны содержать метки в формате h<n>."""
+        ir = self._ir('FLIP-0', start=0)
+        out = to_dot(ir)
+        self.assertIn('h0', out)
+        self.assertIn('h1', out)
+
+    def test_edge_label(self):
+        """Рёбра подписаны 'bit<n>'."""
+        ir = self._ir('FLIP-0', start=0)
+        out = to_dot(ir)
+        self.assertIn('bit0', out)
+
+    def test_custom_title(self):
+        ir = self._ir('FLIP-0', start=0)
+        out = to_dot(ir, title='MyPath')
+        self.assertIn('MyPath', out)
+
+    def test_nop_empty_graph(self):
+        """NOP → граф без рёбер (только завершающий FINAL, без FLIP)."""
+        ir = self._ir('NOP', start=0)
+        out = to_dot(ir)
+        self.assertIn('digraph', out)
+        # Нет ни одного ребра bit-N
+        self.assertNotIn('bit0', out)
 
 
 if __name__ == '__main__':
