@@ -459,5 +459,257 @@ class TestProgramAnalysis(unittest.TestCase):
         self.assertGreater(len(pa.warnings), 0)
 
 
+class TestVerifierExtended(unittest.TestCase):
+    """Дополнительные тесты для покрытия непокрытых ветвей verifier.py."""
+
+    def test_build_graph_with_explicit_states(self):
+        """build_transition_graph с явным параметром states."""
+        states = {0, 1, 2, 4}
+        graph = build_transition_graph([f'FLIP-{i}' for i in range(6)], states=states)
+        # Только указанные состояния входят в граф
+        for s in graph:
+            self.assertIn(s, states)
+
+    def test_shortest_path_start_equals_target(self):
+        """shortest_path_in_graph когда start == target → [start]."""
+        graph = build_transition_graph([f'FLIP-{i}' for i in range(6)])
+        path = shortest_path_in_graph(42, 42, graph)
+        self.assertEqual(path, [42])
+
+    def test_analyze_source_parse_error(self):
+        """Синтаксическая ошибка → errors содержит сообщение."""
+        # DEFINE без ':' вызывает HexForthError в parse()
+        pa = analyze_source('DEFINE bad')
+        self.assertFalse(pa.is_ok())
+        self.assertGreater(len(pa.errors), 0)
+
+    def test_analyze_recursive_define(self):
+        """DEFINE с прямой рекурсией → ошибка."""
+        pa = analyze_source('DEFINE LOOP : LOOP ;')
+        self.assertFalse(pa.is_ok())
+        self.assertTrue(any('рекурсия' in e for e in pa.errors))
+
+    def test_analyze_indirect_recursion(self):
+        """Взаимная рекурсия двух слов → ошибка."""
+        src = 'DEFINE A : B ;\nDEFINE B : A ;'
+        pa = analyze_source(src)
+        self.assertFalse(pa.is_ok())
+
+    def test_analyze_goto_no_arg(self):
+        """GOTO без аргумента → ошибка."""
+        pa = analyze_source('GOTO')
+        self.assertFalse(pa.is_ok())
+        self.assertTrue(any('требует аргумент' in e or 'GOTO' in e for e in pa.errors))
+
+    def test_analyze_goto_non_number(self):
+        """GOTO с нечисловым аргументом → ошибка."""
+        pa = analyze_source('GOTO foo')
+        self.assertFalse(pa.is_ok())
+
+    def test_analyze_assert_eq_out_of_range(self):
+        """ASSERT-EQ с аргументом вне диапазона → ошибка."""
+        pa = analyze_source('ASSERT-EQ 100')
+        self.assertFalse(pa.is_ok())
+
+    def test_analyze_assert_eq_non_number(self):
+        """ASSERT-EQ с нечисловым аргументом → ошибка."""
+        pa = analyze_source('ASSERT-EQ bar')
+        self.assertFalse(pa.is_ok())
+
+
+class TestInterpreterExtended(unittest.TestCase):
+    """Тесты для покрытия непокрытых ветвей interpreter.py."""
+
+    def test_start_out_of_range_raises(self):
+        """Стартовая гексаграмма вне диапазона → HexForthError."""
+        with self.assertRaises(HexForthError):
+            HexForth(start=100)
+
+    def test_debug_word_emits(self):
+        """DEBUG записывает информацию в output."""
+        h = HexForth(start=42)
+        h.run('DEBUG')
+        self.assertGreater(len(h.output), 0)
+        self.assertTrue(any('DEBUG' in s or '42' in s for s in h.output))
+
+    def test_print_word_emits_state(self):
+        """PRINT записывает текущее состояние в output."""
+        h = HexForth(start=7)
+        h.run('PRINT')
+        self.assertGreater(len(h.output), 0)
+        self.assertTrue(any('7' in s for s in h.output))
+
+    def test_render_word_emits(self):
+        """RENDER записывает несколько строк в output."""
+        h = HexForth(start=0)
+        h.run('RENDER')
+        self.assertGreater(len(h.output), 0)
+
+    def test_verbose_mode_prints(self):
+        """verbose=True выводит сообщения при DEBUG."""
+        import io
+        import sys
+        h = HexForth(start=0, verbose=True)
+        captured = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured
+        try:
+            h.run('DEBUG')
+        finally:
+            sys.stdout = old_stdout
+        self.assertGreater(len(captured.getvalue()), 0)
+
+    def test_goto_out_of_range_raises(self):
+        """GOTO с целью вне диапазона → HexForthError."""
+        h = HexForth(start=0)
+        with self.assertRaises(HexForthError):
+            h.run('GOTO 100')
+
+    def test_goto_no_arg_raises(self):
+        """GOTO без аргумента в run() → HexForthError."""
+        h = HexForth(start=0)
+        with self.assertRaises(HexForthError):
+            h.run('GOTO')
+
+    def test_unknown_word_raises(self):
+        """Неизвестное слово → HexForthError."""
+        h = HexForth(start=0)
+        with self.assertRaises(HexForthError):
+            h.run('NONEXISTENT_WORD')
+
+    def test_user_word_with_goto_inside(self):
+        """Пользовательское слово с GOTO внутри тела."""
+        h = HexForth(start=0)
+        h.run('DEFINE JUMP : GOTO 7 ; JUMP')
+        self.assertEqual(h.state, 7)
+
+    def test_user_word_goto_without_arg_raises(self):
+        """GOTO внутри пользовательского слова без аргумента → HexForthError."""
+        h = HexForth(start=0)
+        with self.assertRaises(HexForthError):
+            h.run('DEFINE BAD : GOTO ; BAD')
+
+    def test_assert_eq_success_emits_ok(self):
+        """ASSERT-EQ с правильным значением записывает [OK] в output."""
+        h = HexForth(start=42)
+        h.run('ASSERT-EQ 42')
+        self.assertTrue(any('OK' in s for s in h.output))
+
+
+# ── compiler.py — дополнительные тесты ───────────────────────────────────────
+
+class TestCompilerEmit(unittest.TestCase):
+    """Тесты TracingHexForth._emit и to_python с PRINT-инструкциями."""
+
+    def test_compile_debug_produces_print_op(self):
+        """DEBUG во время компиляции добавляет {'op': 'PRINT'} в IR."""
+        ir = compile_to_ir('DEBUG', start=42)
+        ops = [i['op'] for i in ir]
+        self.assertIn('PRINT', ops)
+
+    def test_to_python_with_print_instr(self):
+        """to_python с PRINT-инструкцией генерирует print(...)."""
+        ir = compile_to_ir('DEBUG', start=42)
+        code = to_python(ir)
+        self.assertIn('print(', code)
+
+    def test_to_python_no_final_in_ir(self):
+        """to_python без FINAL-инструкции добавляет 'return state'."""
+        ir_no_final = [{'op': 'FLIP', 'bit': 0, 'from': 0, 'to': 1}]
+        code = to_python(ir_no_final)
+        self.assertIn('return state', code)
+
+
+class TestCompilerCLI(unittest.TestCase):
+    """Тесты main() компилятора через sys.argv."""
+
+    def _run(self, args):
+        import io as _io
+        from projects.hexforth.compiler import main
+        old_argv = sys.argv
+        old_stdout = sys.stdout
+        sys.argv = ['compiler.py'] + args
+        sys.stdout = _io.StringIO()
+        try:
+            main()
+            return sys.stdout.getvalue()
+        finally:
+            sys.argv = old_argv
+            sys.stdout = old_stdout
+
+    def test_target_python(self):
+        out = self._run(['--program', 'FLIP-0', '--target', 'python'])
+        self.assertIn('def hexforth_program', out)
+
+    def test_target_json(self):
+        out = self._run(['--program', 'FLIP-0', '--target', 'json'])
+        self.assertIn('"op"', out)
+
+    def test_target_dot(self):
+        out = self._run(['--program', 'FLIP-0', '--target', 'dot'])
+        self.assertIn('digraph', out)
+
+    def test_target_stats(self):
+        out = self._run(['--program', 'FLIP-0', '--target', 'stats'])
+        self.assertIn('Шагов', out)
+
+    def test_compile_error_exits(self):
+        import io as _io
+        from projects.hexforth.compiler import main
+        sys.argv = ['compiler.py', '--program', 'NONEXISTENT_WORD_XYZ']
+        sys.stdout = _io.StringIO()
+        try:
+            with self.assertRaises(SystemExit) as cm:
+                main()
+            self.assertEqual(cm.exception.code, 1)
+        finally:
+            sys.argv = ['compiler.py']
+            sys.stdout = sys.__stdout__
+
+    def test_from_file(self):
+        import tempfile, os, io as _io
+        from projects.hexforth.compiler import main as compiler_main
+        src = 'FLIP-0 FLIP-1'
+        with tempfile.NamedTemporaryFile('w', suffix='.hf', delete=False) as f:
+            f.write(src)
+            fname = f.name
+        try:
+            old_argv = sys.argv
+            old_stdout = sys.stdout
+            sys.argv = ['compiler.py', fname, '--target', 'json']
+            sys.stdout = _io.StringIO()
+            try:
+                compiler_main()
+                out = sys.stdout.getvalue()
+            finally:
+                sys.argv = old_argv
+                sys.stdout = old_stdout
+            self.assertIn('"op"', out)
+        finally:
+            os.unlink(fname)
+
+    def test_out_to_file(self):
+        import tempfile, os, io as _io
+        from projects.hexforth.compiler import main as compiler_main
+        with tempfile.NamedTemporaryFile('w', suffix='.py', delete=False) as f:
+            outfile = f.name
+        try:
+            old_argv = sys.argv
+            old_stdout = sys.stdout
+            sys.argv = ['compiler.py', '--program', 'FLIP-0',
+                        '--target', 'python', '--out', outfile]
+            sys.stdout = _io.StringIO()
+            try:
+                compiler_main()
+            finally:
+                sys.argv = old_argv
+                sys.stdout = old_stdout
+            with open(outfile, encoding='utf-8') as f:
+                content = f.read()
+            self.assertIn('def hexforth_program', content)
+        finally:
+            os.unlink(outfile)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

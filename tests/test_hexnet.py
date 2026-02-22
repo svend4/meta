@@ -387,5 +387,56 @@ class TestAdaptiveRoute(unittest.TestCase):
         self.assertIsNone(path)
 
 
+class TestNetworkDiameterWithFailed(unittest.TestCase):
+    """Тесты network_diameter с отказавшими узлами."""
+
+    def test_two_active_connected(self):
+        """Два соседних активных узла → диаметр = 1."""
+        # Все кроме 0 и 1 отказали → только пара (0,1) в active
+        failed = set(range(2, 64))
+        d = network_diameter(failed_nodes=failed)
+        self.assertEqual(d, 1)
+
+    def test_one_active_returns_zero(self):
+        """Один активный узел → диаметр = 0."""
+        failed = set(range(63))  # 63 nodes fail → only 63 active
+        d = network_diameter(failed_nodes=failed)
+        self.assertEqual(d, 0)
+
+    def test_isolated_node_disconnected(self):
+        """Все соседи 0 отказали → сеть несвязна → inf."""
+        failed = {1, 2, 4, 8, 16, 32}  # all neighbors of 0
+        d = network_diameter(failed_nodes=failed)
+        self.assertEqual(d, float('inf'))
+
+
+class TestAdaptiveRouteFallback(unittest.TestCase):
+    """Тест fallback adaptive_route → BFS (строка 162)."""
+
+    def test_all_neighbors_blocked_returns_none(self):
+        """Все соседи src отказали → greedy нет пути → BFS → None."""
+        failed = {1, 2, 4, 8, 16, 32}  # все соседи 0
+        path = adaptive_route(0, 63, failed_nodes=failed)
+        self.assertIsNone(path)
+
+
+class TestSitePercolationAllFail(unittest.TestCase):
+    """Тест site_percolation когда все узлы отказывают (строки 362-363)."""
+
+    def test_p_fail_1_all_nodes_fail(self):
+        """p_fail=1.0: каждый узел отказывает → доля = 0."""
+        prob = site_percolation(p_fail=1.0, n_trials=5, seed=0)
+        self.assertEqual(prob, 0.0)
+
+
+class TestKFaultDiameterSkip(unittest.TestCase):
+    """Тест k_fault_diameter с k=63 → active < 2 → строка 399."""
+
+    def test_k63_skips_all_trials(self):
+        """k=63: только 1 активный узел → все итерации пропускаются → 0."""
+        d = k_fault_diameter(k=63, n_trials=5, seed=0)
+        self.assertEqual(d, 0)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

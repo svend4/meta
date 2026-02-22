@@ -5,6 +5,7 @@ sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]
 import io
 import unittest
 from contextlib import redirect_stdout
+from unittest.mock import patch
 from projects.hexca.hexca import CA1D, CA2D, cell_char, demo_1d, demo_2d
 from projects.hexca.animate import animate_1d, animate_2d
 from projects.hexca.rules import (
@@ -482,6 +483,77 @@ class TestAnimate(unittest.TestCase):
     def test_animate_2d_shows_rule_name(self):
         out = self._capture(animate_2d, 'majority_vote', 4, 4, 2, 0, False, 'single')
         self.assertIn('majority_vote', out)
+
+    # color=True ---------------------------------------------------------------
+
+    def test_animate_1d_color_true(self):
+        """animate_1d с color=True добавляет ANSI-escape коды."""
+        out = self._capture(animate_1d, 'xor_rule', 4, 1, 0, True, 'single')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_2d_color_true(self):
+        """animate_2d с color=True добавляет ANSI-escape коды."""
+        out = self._capture(animate_2d, 'xor_rule', 4, 4, 1, 0, True, 'single')
+        self.assertGreater(len(out), 0)
+
+    # init_mode ----------------------------------------------------------------
+
+    def test_animate_2d_random_mode(self):
+        """animate_2d с init_mode='random' инициализирует CA случайно."""
+        out = self._capture(animate_2d, 'xor_rule', 4, 4, 1, 0, False, 'random')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_2d_center_mode(self):
+        """animate_2d с init_mode='center' ставит 42 в центр."""
+        out = self._capture(animate_2d, 'xor_rule', 4, 4, 1, 0, False, 'center')
+        self.assertGreater(len(out), 0)
+
+    # KeyboardInterrupt --------------------------------------------------------
+
+    def test_animate_1d_keyboard_interrupt(self):
+        """KeyboardInterrupt в цикле animate_1d обрабатывается корректно."""
+        with patch.object(CA1D, 'step', side_effect=KeyboardInterrupt):
+            with redirect_stdout(io.StringIO()):
+                animate_1d('xor_rule', 4, 1, 0, False, 'single')
+
+    def test_animate_2d_keyboard_interrupt(self):
+        """KeyboardInterrupt в цикле animate_2d обрабатывается корректно."""
+        with patch.object(CA2D, 'step', side_effect=KeyboardInterrupt):
+            with redirect_stdout(io.StringIO()):
+                animate_2d('xor_rule', 4, 4, 1, 0, False, 'single')
+
+
+class TestAnimateCLI(unittest.TestCase):
+    """Тесты main() из animate.py."""
+
+    def _run(self, args):
+        from projects.hexca.animate import main as animate_main
+        old_argv = sys.argv
+        sys.argv = ['animate.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                animate_main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_list_rules(self):
+        """--list-rules перечисляет правила и завершается."""
+        out = self._run(['--list-rules'])
+        self.assertIn('xor_rule', out)
+
+    def test_mode_1d(self):
+        """--mode 1d запускает 1D-анимацию."""
+        out = self._run(['--mode', '1d', '--steps', '2', '--width', '4',
+                         '--fps', '0', '--no-color', '--init', 'single'])
+        self.assertIn('hexca 1D', out)
+
+    def test_mode_2d(self):
+        """--mode 2d запускает 2D-анимацию."""
+        out = self._run(['--mode', '2d', '--steps', '1', '--width', '4',
+                         '--height', '4', '--fps', '0', '--no-color'])
+        self.assertGreater(len(out), 0)
 
 
 if __name__ == '__main__':

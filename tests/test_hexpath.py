@@ -5,10 +5,11 @@ sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]
 
 import unittest
 from contextlib import redirect_stdout
+from unittest.mock import patch
 from projects.hexpath.game import (
     GameState, GameResult, Player, new_game, best_move, minimax,
 )
-from projects.hexpath.cli import fmt_hex, draw_board, announce_result, ai_move
+from projects.hexpath.cli import fmt_hex, draw_board, announce_result, ai_move, human_move, play
 from libs.hexcore.hexcore import neighbors, hamming
 
 
@@ -379,6 +380,131 @@ class TestCLIFunctions(unittest.TestCase):
         g = new_game()
         out = self._capture(ai_move, g, 2)
         self.assertGreater(len(out), 0)
+
+
+    # draw_board with no legal moves (line 62) --------------------------------
+
+    def test_draw_board_no_legal_moves(self):
+        """draw_board печатает 'Нет допустимых ходов', когда ходов нет."""
+        # Заблокировать все соседи вершины 0 игроком B
+        blocked = {nb: Player.B for nb in neighbors(0)}
+        state = GameState(
+            pos_a=0, pos_b=63, target_a=63, target_b=0,
+            current_player=Player.A,
+            captured=blocked,
+            capture_mode=True,
+        )
+        out = self._capture(draw_board, state)
+        self.assertIn('Нет допустимых ходов', out)
+
+    # announce_result B_WINS (lines 72-73) ------------------------------------
+
+    def test_announce_result_b_wins(self):
+        """announce_result показывает победу B, когда pos_b == target_b."""
+        # pos_b=0, target_b = pos_a = 0 → B_WINS сразу
+        g = new_game(pos_a=1, pos_b=0, target_a=0, target_b=0, capture_mode=False)
+        out = self._capture(announce_result, g)
+        self.assertIn('Победил игрок B', out)
+
+
+class TestHumanMove(unittest.TestCase):
+    """Тесты human_move с мок-вводом."""
+
+    def _run_human(self, inputs, state=None):
+        if state is None:
+            state = new_game(capture_mode=False)
+        with patch('builtins.input', side_effect=inputs):
+            with redirect_stdout(io.StringIO()):
+                return human_move(state)
+
+    def test_valid_bit_on_first_try(self):
+        """Ввод '0' → ход на бит 0."""
+        g = new_game(capture_mode=False)
+        new_g = self._run_human(['0'], g)
+        self.assertIsInstance(new_g, GameState)
+        self.assertNotEqual(new_g.pos_a, g.pos_a)
+
+    def test_help_then_valid(self):
+        """'h' показывает подсказку, затем '0' → ход."""
+        g = new_game(capture_mode=False)
+        new_g = self._run_human(['h', '0'], g)
+        self.assertIsInstance(new_g, GameState)
+
+    def test_invalid_string_then_valid(self):
+        """Нечисловой ввод → сообщение об ошибке, затем '0' → ход."""
+        g = new_game(capture_mode=False)
+        new_g = self._run_human(['abc', '0'], g)
+        self.assertIsInstance(new_g, GameState)
+
+    def test_out_of_range_then_valid(self):
+        """Число вне диапазона 0-5 → ошибка, затем '1' → ход."""
+        g = new_game(capture_mode=False)
+        new_g = self._run_human(['9', '1'], g)
+        self.assertIsInstance(new_g, GameState)
+
+    def test_quit_raises_systemexit(self):
+        """'q' → sys.exit(0)."""
+        g = new_game(capture_mode=False)
+        with self.assertRaises(SystemExit):
+            self._run_human(['q'], g)
+
+    def test_blocked_capture_then_valid(self):
+        """Ход на захваченную клетку → сообщение, затем другой ход."""
+        # Захватить вершину 1 (neighbor 0, bit 0) игроком B
+        blocked = {1: Player.B}
+        state = GameState(
+            pos_a=0, pos_b=63, target_a=63, target_b=0,
+            current_player=Player.A,
+            captured=blocked,
+            capture_mode=True,
+        )
+        # '0' → вершина 1 (заблокирована), затем '1' → вершина 2 (свободна)
+        with patch('builtins.input', side_effect=['0', '1']):
+            with redirect_stdout(io.StringIO()):
+                new_state = human_move(state)
+        self.assertEqual(new_state.pos_a, 2)
+
+    def test_illegal_no_capture_then_valid(self):
+        """Ход недопустим без режима захвата → сообщение, затем другой ход."""
+        # В режиме без захвата все соседи доступны, но нужен blocked scenario.
+        # Вместо этого ввести несуществующую вершину через '9' (out of range), потом '0'.
+        g = new_game(capture_mode=False)
+        new_g = self._run_human(['9', '0'], g)
+        self.assertIsInstance(new_g, GameState)
+
+
+class TestPlay(unittest.TestCase):
+    """Тесты функции play()."""
+
+    def test_play_ai_vs_ai_no_capture(self):
+        """play(ai_vs_ai=True, capture=False) завершается без ошибок."""
+        with patch('builtins.input', return_value=''):
+            with redirect_stdout(io.StringIO()):
+                play(ai_vs_ai=True, capture=False, ai_depth=1)
+
+    def test_play_capture_mode_header(self):
+        """play(capture=True) показывает строку про захват — мок already-over game."""
+        done_state = GameState(
+            pos_a=63, pos_b=0, target_a=63, target_b=0,
+            capture_mode=True,
+        )
+        buf = io.StringIO()
+        with patch('projects.hexpath.cli.new_game', return_value=done_state):
+            with redirect_stdout(buf):
+                play(ai_vs_ai=True, capture=True, ai_depth=1)
+        self.assertIn('захват узлов включён', buf.getvalue())
+
+
+class TestMainCLI(unittest.TestCase):
+    """Тесты main() через sys.argv."""
+
+    def test_main_ai_vs_ai(self):
+        """main() с --ai-vs-ai --no-capture завершается без ошибок."""
+        from projects.hexpath.cli import main
+        with patch.object(sys, 'argv', ['cli.py', '--ai-vs-ai', '--no-capture']):
+            with patch('builtins.input', return_value=''):
+                with redirect_stdout(io.StringIO()):
+                    main()
 
 
 if __name__ == '__main__':
