@@ -24408,5 +24408,97 @@ class TestCorrelationSummaryShape(unittest.TestCase):
         self.assertEqual(self._r['width'], 16)
 
 
+class TestAutocorrSummaryShape(unittest.TestCase):
+    """Structure of autocorr_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_autocorr import autocorr_summary
+        cls.autocorr_summary = staticmethod(autocorr_summary)
+        cls._r = autocorr_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_cell_ac_is_list(self):
+        self.assertIsInstance(self._r['cell_ac'], list)
+
+    def test_cell_ac_length_16(self):
+        self.assertEqual(len(self._r['cell_ac']), 16)
+
+    def test_mean_crosscorr_float(self):
+        self.assertIsInstance(self._r['mean_crosscorr'], float)
+
+    def test_is_palindrome_bool(self):
+        self.assertIsInstance(self._r['is_palindrome'], bool)
+
+    def test_dominant_lag_int(self):
+        self.assertIsInstance(self._r['dominant_lag'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.autocorr_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestHammingSummaryShape(unittest.TestCase):
+    """Structure of hamming_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_hamming import hamming_summary
+        cls.hamming_summary = staticmethod(hamming_summary)
+        cls._r = hamming_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_hamming_is_list(self):
+        self.assertIsInstance(self._r['hamming'], list)
+
+    def test_mean_hamming_float(self):
+        self.assertIsInstance(self._r['mean_hamming'], float)
+
+    def test_mean_hamming_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_hamming'], 0.0)
+
+    def test_frozen_cells_is_list(self):
+        self.assertIsInstance(self._r['frozen_cells'], list)
+
+    def test_mobile_symmetric_bool(self):
+        self.assertIsInstance(self._r['mobile_symmetric'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.hamming_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
