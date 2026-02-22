@@ -30113,5 +30113,131 @@ class TestCorrelationProps(unittest.TestCase):
         self.assertGreater(len(self._xc), 0)
 
 
+# ---------------------------------------------------------------------------
+# TestMutualProps
+# ---------------------------------------------------------------------------
+class TestMutualProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mutual import (
+            mi_matrix, mi_profile, mutual_dict, trajectory_mutual,
+        )
+        cls.mi_profile = staticmethod(mi_profile)
+        cls._mm = mi_matrix('ГОРА', 'xor3')
+        cls._mp = mi_profile(cls._mm)
+        cls._md = mutual_dict('ГОРА')
+        cls._tm = trajectory_mutual('ГОРА', 'xor3')
+
+    def test_mi_matrix_list(self):
+        self.assertIsInstance(self._mm, list)
+
+    def test_mi_matrix_16x16(self):
+        self.assertEqual(len(self._mm), 16)
+        self.assertEqual(len(self._mm[0]), 16)
+
+    def test_mi_profile_list(self):
+        self.assertIsInstance(self._mp, list)
+
+    def test_mutual_dict_dict(self):
+        self.assertIsInstance(self._md, dict)
+
+    def test_mutual_dict_has_rules(self):
+        self.assertIn('rules', self._md)
+
+    def test_trajectory_mutual_dict(self):
+        self.assertIsInstance(self._tm, dict)
+
+    def test_trajectory_mutual_has_period(self):
+        self.assertIn('period', self._tm)
+
+
+# ---------------------------------------------------------------------------
+# TestOrbitPCAProps
+# ---------------------------------------------------------------------------
+class TestOrbitPCAProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_pca import orbit_pca
+        cls._op = orbit_pca('ВОЛНА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._op, dict)
+
+    def test_has_eigenvalues(self):
+        self.assertIn('eigenvalues', self._op)
+
+    def test_has_eigenvecs(self):
+        self.assertIn('eigenvecs', self._op)
+
+    def test_eigenvalues_nonneg(self):
+        for v in self._op['eigenvalues']:
+            self.assertGreaterEqual(v, -1e-9)
+
+
+# ---------------------------------------------------------------------------
+# TestLyapunovDictProps
+# ---------------------------------------------------------------------------
+class TestLyapunovDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import (
+            divergence_trajectory, detect_period, lyapunov_dict, mean_d_profile,
+        )
+        cls.detect_period        = staticmethod(detect_period)
+        cls.mean_d_profile       = staticmethod(mean_d_profile)
+        cls._dt = divergence_trajectory('ГОРА', 0, 5, 'xor3', max_steps=10)
+        cls._ld = lyapunov_dict('ГОРА', max_steps=8)
+
+    def test_divergence_trajectory_list(self):
+        self.assertIsInstance(self._dt, list)
+
+    def test_divergence_trajectory_nonempty(self):
+        self.assertGreater(len(self._dt), 0)
+
+    def test_detect_period_int(self):
+        dp = self.detect_period([0.0, 1.0, 0.0, 1.0, 0.0, 1.0])
+        self.assertIsInstance(dp, int)
+
+    def test_lyapunov_dict_dict(self):
+        self.assertIsInstance(self._ld, dict)
+
+    def test_lyapunov_dict_has_rules(self):
+        self.assertIn('rules', self._ld)
+
+    def test_mean_d_profile_list(self):
+        mp = self.mean_d_profile([[0, 1, 2], [0, 2, 4]])
+        self.assertIsInstance(mp, list)
+
+
+# ---------------------------------------------------------------------------
+# TestMultistepProps
+# ---------------------------------------------------------------------------
+class TestMultistepProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multistep import orbit_dist_matrix, eccentricity, multistep_summary
+        from projects.hexglyph.solan_network import get_orbit
+        cls.eccentricity = staticmethod(eccentricity)
+        orbit = get_orbit('ВОЛНА', 'xor3')
+        cls._odm = orbit_dist_matrix(orbit)
+        cls._ec  = eccentricity(cls._odm)
+        cls._ms  = multistep_summary('ГОРА', 'xor3')
+
+    def test_orbit_dist_matrix_list(self):
+        self.assertIsInstance(self._odm, list)
+
+    def test_orbit_dist_matrix_square(self):
+        self.assertEqual(len(self._odm), len(self._odm[0]))
+
+    def test_eccentricity_list(self):
+        self.assertIsInstance(self._ec, list)
+
+    def test_multistep_summary_dict(self):
+        self.assertIsInstance(self._ms, dict)
+
+    def test_multistep_summary_has_diameter(self):
+        self.assertIn('diameter', self._ms)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
