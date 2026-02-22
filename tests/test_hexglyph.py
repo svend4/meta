@@ -8390,6 +8390,18 @@ class TestSolanBitflip(unittest.TestCase):
         self.assertIn('solan_bitflip', content)
 
 
+
+    def test_all_cell_flip_stats_returns_list(self):
+        from projects.hexglyph.solan_bitflip import all_cell_flip_stats
+        result = all_cell_flip_stats('ГОРА', 'xor3')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+
+    def test_all_cell_flip_stats_elements_are_dicts(self):
+        from projects.hexglyph.solan_bitflip import all_cell_flip_stats
+        result = all_cell_flip_stats('ГОРА', 'xor3')
+        for item in result:
+            self.assertIsInstance(item, dict)
 class TestSolanPhase(unittest.TestCase):
     """Tests for solan_phase.py and the viewer Phase Offset Analysis section."""
 
@@ -8967,6 +8979,18 @@ class TestSolanBalance(unittest.TestCase):
         self.assertIn('solan_balance', content)
 
 
+
+    def test_all_cell_balance_stats_returns_list(self):
+        from projects.hexglyph.solan_balance import all_cell_balance_stats
+        result = all_cell_balance_stats('ГОРА', 'xor3')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+
+    def test_all_cell_balance_stats_elements_are_dicts(self):
+        from projects.hexglyph.solan_balance import all_cell_balance_stats
+        result = all_cell_balance_stats('ГОРА', 'xor3')
+        for item in result:
+            self.assertIsInstance(item, dict)
 class TestSolanCoact(unittest.TestCase):
     """Tests for solan_coact.py and the viewer Bit Co-activation section."""
 
@@ -9500,6 +9524,18 @@ class TestSolanRuns(unittest.TestCase):
         self.assertIn('solan_runs', content)
 
 
+
+    def test_all_cell_stats_returns_list(self):
+        from projects.hexglyph.solan_runs import all_cell_stats
+        result = all_cell_stats('ГОРА', 'xor3')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+
+    def test_all_cell_stats_elements_are_dicts(self):
+        from projects.hexglyph.solan_runs import all_cell_stats
+        result = all_cell_stats('ГОРА', 'xor3')
+        for item in result:
+            self.assertIsInstance(item, dict)
 class TestSolanMoments(unittest.TestCase):
     """Tests for solan_moments.py and the viewer Temporal Moments section."""
 
