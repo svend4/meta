@@ -29381,5 +29381,133 @@ class TestCoarseOrbitProps(unittest.TestCase):
         self.assertEqual(v, 0)
 
 
+# ---------------------------------------------------------------------------
+# TestAttractorBinaryProps
+# ---------------------------------------------------------------------------
+class TestAttractorBinaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import (
+            attractor_binary, binarize, ngrams, ngram_dist, transition_matrix,
+        )
+        cls.binarize          = staticmethod(binarize)
+        cls.ngrams            = staticmethod(ngrams)
+        cls.ngram_dist        = staticmethod(ngram_dist)
+        cls.transition_matrix = staticmethod(transition_matrix)
+        cls._ab = attractor_binary('ГОРА', 'xor3')
+
+    def test_attractor_binary_list(self):
+        self.assertIsInstance(self._ab, list)
+
+    def test_rows_are_lists(self):
+        for row in self._ab:
+            self.assertIsInstance(row, list)
+
+    def test_rows_have_16_cells(self):
+        for row in self._ab:
+            self.assertEqual(len(row), 16)
+
+    def test_binarize_above_threshold(self):
+        self.assertEqual(self.binarize(49), 1)
+
+    def test_binarize_below_threshold(self):
+        self.assertEqual(self.binarize(31), 0)
+
+    def test_ngrams_list(self):
+        g = self.ngrams([0, 1, 0, 1], n=2)
+        self.assertIsInstance(g, list)
+
+    def test_ngram_dist_dict(self):
+        d = self.ngram_dist(self._ab, n=2)
+        self.assertIsInstance(d, dict)
+
+    def test_transition_matrix_2x2(self):
+        tm = self.transition_matrix(self._ab)
+        self.assertEqual(len(tm), 2)
+        self.assertEqual(len(tm[0]), 2)
+
+
+# ---------------------------------------------------------------------------
+# TestGetCellSeriesProps
+# ---------------------------------------------------------------------------
+class TestGetCellSeriesProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import get_cell_series, mean_mse_profile
+        cls.mean_mse_profile = staticmethod(mean_mse_profile)
+        cls._gcs = get_cell_series('ВОЛНА', 'xor3', min_len=200)
+        cls._mmp = mean_mse_profile('ГОРА', 'xor3', max_tau=4)
+
+    def test_get_cell_series_list(self):
+        self.assertIsInstance(self._gcs, list)
+
+    def test_get_cell_series_16_cells(self):
+        self.assertEqual(len(self._gcs), 16)
+
+    def test_cell_series_min_length(self):
+        for cs in self._gcs:
+            self.assertGreaterEqual(len(cs), 200)
+
+    def test_mean_mse_profile_list(self):
+        self.assertIsInstance(self._mmp, list)
+
+    def test_mean_mse_profile_length(self):
+        self.assertEqual(len(self._mmp), 4)
+
+    def test_mean_mse_profile_nonneg(self):
+        for v in self._mmp:
+            self.assertGreaterEqual(v, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestPortraitEntropyProps
+# ---------------------------------------------------------------------------
+class TestPortraitEntropyProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import entropy
+        cls.entropy = staticmethod(entropy)
+        cls._uniform = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        cls._constant = [42] * 16
+        cls._eu = entropy(cls._uniform)
+        cls._ec = entropy(cls._constant)
+
+    def test_entropy_float(self):
+        self.assertIsInstance(self._eu, float)
+
+    def test_entropy_nonneg(self):
+        self.assertGreaterEqual(self._eu, 0.0)
+
+    def test_constant_entropy_zero(self):
+        self.assertEqual(self._ec, 0.0)
+
+    def test_uniform_higher_than_constant(self):
+        self.assertGreater(self._eu, self._ec)
+
+
+# ---------------------------------------------------------------------------
+# TestForbiddenNgramsProps
+# ---------------------------------------------------------------------------
+class TestForbiddenNgramsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import attractor_binary, forbidden_ngrams
+        cls.forbidden_ngrams = staticmethod(forbidden_ngrams)
+        # Use a long orbit (ВОЛНА has period > 1) for more ngrams
+        cls._ab = attractor_binary('ВОЛНА', 'xor3')
+        cls._fn2 = forbidden_ngrams(cls._ab, n=2)
+        cls._fn3 = forbidden_ngrams(cls._ab, n=3)
+
+    def test_forbidden_ngrams_list(self):
+        self.assertIsInstance(self._fn2, list)
+
+    def test_items_are_tuples(self):
+        for item in self._fn2:
+            self.assertIsInstance(item, tuple)
+
+    def test_fn3_is_list(self):
+        self.assertIsInstance(self._fn3, list)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
