@@ -28244,5 +28244,69 @@ class TestDamageDictShape(unittest.TestCase):
         self.assertIsInstance(self._r['kernel'], list)
 
 
+# ---------------------------------------------------------------------------
+# TestTrajectoryBasinShape
+# ---------------------------------------------------------------------------
+class TestTrajectoryBasinShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_basin import trajectory_basin
+        cls.trajectory_basin = staticmethod(trajectory_basin)
+        cls._r = trajectory_basin('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'max_k', 'n_per_k',
+                  'profile', 'mean_profile', 'k50', 'global_basin'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_profile_list_len_25(self):
+        self.assertIsInstance(self._r['profile'], list)
+        self.assertEqual(len(self._r['profile']), 25)
+
+    def test_k50_positive(self):
+        self.assertGreater(self._r['k50'], 0)
+
+    def test_mean_profile_float(self):
+        self.assertIsInstance(self._r['mean_profile'], float)
+
+
+# ---------------------------------------------------------------------------
+# TestBitPlaneDictShape
+# ---------------------------------------------------------------------------
+class TestBitPlaneDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import bit_plane_dict
+        cls.bit_plane_dict = staticmethod(bit_plane_dict)
+        cls._r = bit_plane_dict('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'width', 'segment_names', 'rules'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_segment_names_length_6(self):
+        self.assertEqual(len(self._r['segment_names']), 6)
+
+    def test_rules_has_all_4(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r['rules'])
+
+    def test_rules_values_are_dicts(self):
+        for v in self._r['rules'].values():
+            self.assertIsInstance(v, dict)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
