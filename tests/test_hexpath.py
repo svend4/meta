@@ -162,5 +162,86 @@ class TestAI(unittest.TestCase):
             best_move(g2, depth=1)
 
 
+class TestGameStateCurrentMethods(unittest.TestCase):
+    """Тесты методов current_pos() и current_target()."""
+
+    def test_current_pos_a(self):
+        g = new_game(pos_a=10, pos_b=50, capture_mode=False)
+        self.assertEqual(g.current_pos(), 10)   # ходит A
+
+    def test_current_pos_b(self):
+        g = new_game(pos_a=10, pos_b=50, capture_mode=False)
+        move = list(neighbors(10))[0]
+        g2 = g.make_move(move)
+        self.assertEqual(g2.current_pos(), 50)  # ходит B
+
+    def test_current_target_a(self):
+        g = new_game(pos_a=0, pos_b=63, target_a=63, target_b=0, capture_mode=False)
+        self.assertEqual(g.current_target(), 63)
+
+    def test_current_target_b(self):
+        g = new_game(pos_a=0, pos_b=63, target_a=63, target_b=0, capture_mode=False)
+        move = list(neighbors(0))[0]
+        g2 = g.make_move(move)
+        self.assertEqual(g2.current_target(), 0)
+
+    def test_current_pos_changes_after_move(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        pos_before = g.current_pos()
+        move = list(neighbors(0))[0]
+        g2 = g.make_move(move)
+        self.assertNotEqual(g2.current_pos(), pos_before)
+
+
+class TestGameImmutability(unittest.TestCase):
+    """make_move() должна возвращать новый объект, не изменяя исходный."""
+
+    def test_returns_new_object(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        move = list(neighbors(0))[0]
+        g2 = g.make_move(move)
+        self.assertIsNot(g, g2)
+
+    def test_original_pos_unchanged(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        move = list(neighbors(0))[0]
+        g.make_move(move)
+        self.assertEqual(g.pos_a, 0)   # исходный объект не изменился
+
+    def test_original_history_unchanged(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        hist_len = len(g.history_a)
+        move = list(neighbors(0))[0]
+        g.make_move(move)
+        self.assertEqual(len(g.history_a), hist_len)
+
+
+class TestGameResultBlock(unittest.TestCase):
+    """Заблокированный игрок проигрывает."""
+
+    def test_a_blocked_b_wins(self):
+        """Если у A нет ходов (все соседи захвачены B) → B_WINS."""
+        from projects.hexpath.game import GameState
+        nbs = list(neighbors(0))
+        captured = {nb: Player.B for nb in nbs}
+        captured[0] = Player.A
+        captured[63] = Player.B
+        g = GameState(
+            pos_a=0, pos_b=63,
+            target_a=63, target_b=0,
+            current_player=Player.A,
+            captured=captured,
+            history_a=[0], history_b=[63],
+            capture_mode=True,
+        )
+        from projects.hexpath.game import GameResult
+        self.assertEqual(g.result(), GameResult.B_WINS)
+
+    def test_capture_mode_off_never_blocks(self):
+        """Без capture_mode у A всегда 6 ходов от любой вершины."""
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        self.assertEqual(len(g.legal_moves(Player.A)), 6)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
