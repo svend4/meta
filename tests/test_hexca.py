@@ -3,10 +3,10 @@ import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
 import unittest
-from projects.hexca.hexca import CA1D, CA2D
+from projects.hexca.hexca import CA1D, CA2D, cell_char
 from projects.hexca.rules import (
     majority_vote, xor_rule, identity, conway_like, RULES, get_rule,
-    smooth_rule, cyclic_rule, outer_totalistic,
+    smooth_rule, cyclic_rule, outer_totalistic, random_walk,
 )
 from libs.hexcore.hexcore import neighbors, yang_count, SIZE
 
@@ -293,6 +293,107 @@ class TestCA1DXorPattern(unittest.TestCase):
             nonzero_positions = [i for i, h in enumerate(ca.grid) if h != 0]
             # После k шагов должно быть как минимум 2 ненулевых клетки
             self.assertGreaterEqual(len(nonzero_positions), 2 if step > 0 else 1)
+
+
+class TestCellChar(unittest.TestCase):
+    """Тесты cell_char: символ ячейки по числу ян-черт."""
+
+    def test_returns_string(self):
+        for h in range(SIZE):
+            self.assertIsInstance(cell_char(h), str)
+
+    def test_zero_yang_is_space(self):
+        # h=0: 0 ян → первый символ CELL_CHARS (пробел)
+        self.assertEqual(cell_char(0), ' ')
+
+    def test_six_yang_is_block(self):
+        # h=63: 6 ян → последний символ перед зеркала
+        # CELL_CHARS = ' ·░▒▓█▓' → index 6 = '▓'
+        self.assertEqual(cell_char(63), '▓')
+
+    def test_monotone_with_yang(self):
+        """Символ определяется только yang_count, одинаков для одинакового rang."""
+        for h in range(SIZE):
+            yc = yang_count(h)
+            # Любой другой узел с тем же yang_count даёт тот же символ
+            same = [x for x in range(SIZE) if yang_count(x) == yc]
+            for x in same:
+                self.assertEqual(cell_char(x), cell_char(h))
+
+    def test_lower_yang_gives_different_char_than_higher(self):
+        """Крайние уровни ян (0 и 6) дают разные символы."""
+        self.assertNotEqual(cell_char(0), cell_char(63))
+
+
+class TestRandomWalk(unittest.TestCase):
+    """Тесты random_walk: переход к случайному соседу."""
+
+    def test_returns_neighbor(self):
+        for h in range(0, SIZE, 8):
+            result = random_walk(h, neighbors(h))
+            self.assertIn(result, neighbors(h))
+
+    def test_returns_int(self):
+        result = random_walk(0, neighbors(0))
+        self.assertIsInstance(result, int)
+
+    def test_in_valid_range(self):
+        for h in range(SIZE):
+            result = random_walk(h, neighbors(h))
+            self.assertGreaterEqual(result, 0)
+            self.assertLess(result, SIZE)
+
+    def test_stays_connected(self):
+        """За 20 шагов random_walk обходит несколько вершин."""
+        visited = {0}
+        h = 0
+        for _ in range(20):
+            h = random_walk(h, neighbors(h))
+            visited.add(h)
+        self.assertGreater(len(visited), 1)
+
+
+class TestOuterTotalistic(unittest.TestCase):
+    """Тесты outer_totalistic: правило зависит от (yang(current), sum_yang_nbrs)."""
+
+    def test_identity_when_no_match(self):
+        """Пустая таблица: правило не меняет состояние."""
+        rule = outer_totalistic({})
+        for h in range(0, SIZE, 7):
+            self.assertEqual(rule(h, neighbors(h)), h)
+
+    def test_returns_callable(self):
+        rule = outer_totalistic({})
+        self.assertTrue(callable(rule))
+
+    def test_specific_transition(self):
+        """При совпадении (c, s) правило делает 1 бит-флип к новому yang_count."""
+        # h=0 (yang=0), nbrs=neighbors(0) — у всех соседей yang=1 → sum=6
+        # Зададим таблицу: (0, 6) → 3 (увеличить ян)
+        h = 0
+        nbrs = neighbors(h)  # yang=1 у каждого
+        s = sum(yang_count(n) for n in nbrs)  # = 6
+        rule = outer_totalistic({(0, s): 3})
+        result = rule(h, nbrs)
+        # Правило делает ровно 1 флип: yang_count 0→1
+        self.assertEqual(yang_count(result), 1)
+        self.assertIn(result, neighbors(h))
+
+    def test_no_change_when_same_yang(self):
+        """Если new_yang == current_yang, состояние не меняется."""
+        h = 0
+        nbrs = neighbors(h)
+        s = sum(yang_count(n) for n in nbrs)
+        # Таблица: переход в то же yang_count — нет изменения
+        rule = outer_totalistic({(0, s): 0})
+        self.assertEqual(rule(h, nbrs), h)
+
+    def test_ca1d_with_outer_totalistic(self):
+        """CA1D с outer_totalistic правилом делает корректный шаг."""
+        rule = outer_totalistic({})   # тождество — всё 0 → 0
+        ca = CA1D(width=8, rule=rule, init=[0] * 8)
+        ca.step()
+        self.assertEqual(ca.grid, [0] * 8)
 
 
 if __name__ == '__main__':

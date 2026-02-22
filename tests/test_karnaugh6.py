@@ -2,9 +2,12 @@
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
+import io
 import unittest
+from contextlib import redirect_stdout
 from projects.karnaugh6.minimize import (
     Implicant, quine_mccluskey, essential_implicants, minimize,
+    print_truth_table, print_karnaugh_map, print_result,
 )
 
 
@@ -204,6 +207,99 @@ class TestEssentialImplicants(unittest.TestCase):
         for e in ess:
             covered.update(e.covered & set(minterms))
         self.assertEqual(covered, set(minterms))
+
+
+class TestPrintFunctions(unittest.TestCase):
+    """Тесты функций вывода: print_truth_table, print_karnaugh_map, print_result."""
+
+    def _capture(self, fn, *args, **kwargs) -> str:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(*args, **kwargs)
+        return buf.getvalue()
+
+    # print_truth_table -------------------------------------------------------
+
+    def test_truth_table_contains_header(self):
+        out = self._capture(print_truth_table, [0])
+        self.assertIn('x0', out)
+        self.assertIn('x5', out)
+
+    def test_truth_table_shows_minterm(self):
+        out = self._capture(print_truth_table, [42])
+        self.assertIn('42', out)
+        self.assertIn('1', out)
+
+    def test_truth_table_shows_dont_care(self):
+        out = self._capture(print_truth_table, [0], [1])
+        self.assertIn('-', out)
+
+    def test_truth_table_empty_no_crash(self):
+        out = self._capture(print_truth_table, [])
+        self.assertGreater(len(out), 0)  # header still printed
+
+    def test_truth_table_all_ones_shows_count(self):
+        out = self._capture(print_truth_table, list(range(64)))
+        # 64 minterm rows + header + separator = many lines
+        self.assertGreater(out.count('\n'), 64)
+
+    # print_karnaugh_map -------------------------------------------------------
+
+    def test_karnaugh_map_contains_header(self):
+        out = self._capture(print_karnaugh_map, [0])
+        self.assertIn('8×8', out)
+
+    def test_karnaugh_map_shows_one_for_minterm(self):
+        out = self._capture(print_karnaugh_map, [0])
+        self.assertIn('1', out)
+
+    def test_karnaugh_map_shows_dot_for_zero(self):
+        out = self._capture(print_karnaugh_map, [0])
+        self.assertIn('·', out)
+
+    def test_karnaugh_map_shows_dash_for_dont_care(self):
+        out = self._capture(print_karnaugh_map, [], [0])
+        self.assertIn('-', out)
+
+    def test_karnaugh_map_shows_star_for_essential(self):
+        minterms = [0, 1]
+        result = minimize(minterms)
+        out = self._capture(print_karnaugh_map, minterms, [], result['essential'])
+        self.assertIn('*', out)
+
+    def test_karnaugh_map_8_rows(self):
+        """Карта содержит 8 строк данных (коды Грея)."""
+        out = self._capture(print_karnaugh_map, [])
+        gray_labels = ['000', '001', '011', '010', '110', '111', '101', '100']
+        for label in gray_labels:
+            self.assertIn(label, out)
+
+    # print_result ------------------------------------------------------------
+
+    def test_print_result_shows_expression(self):
+        result = minimize([0, 1, 2, 3])
+        out = self._capture(print_result, result)
+        self.assertIn(result['expression'], out)
+
+    def test_print_result_shows_prime_implicants(self):
+        result = minimize([0, 1])
+        out = self._capture(print_result, result)
+        self.assertIn('импликант', out.lower())
+
+    def test_print_result_shows_essential(self):
+        result = minimize([42])
+        out = self._capture(print_result, result)
+        self.assertIn('существенн', out.lower())
+
+    def test_print_result_constant_zero(self):
+        result = minimize([])
+        out = self._capture(print_result, result)
+        self.assertIn('0', out)
+
+    def test_print_result_constant_one(self):
+        result = minimize(list(range(64)))
+        out = self._capture(print_result, result)
+        self.assertIn('1', out)
 
 
 if __name__ == '__main__':
