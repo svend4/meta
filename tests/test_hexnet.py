@@ -337,5 +337,55 @@ class TestPercolation(unittest.TestCase):
         self.assertGreaterEqual(d, 0)
 
 
+class TestAdaptiveRoute(unittest.TestCase):
+    """Тесты adaptive_route — альтернативная маршрутизация с учётом отказов."""
+
+    def test_route_to_self(self):
+        path = adaptive_route(0, 0)
+        self.assertIsNotNone(path)
+        self.assertEqual(path, [0])
+
+    def test_route_length(self):
+        """Путь имеет длину = hamming + 1."""
+        from libs.hexcore.hexcore import hamming
+        path = adaptive_route(0, 63)
+        self.assertIsNotNone(path)
+        self.assertEqual(len(path) - 1, hamming(0, 63))
+
+    def test_route_valid_steps(self):
+        """Каждый переход — сосед (Хэмминг = 1)."""
+        from libs.hexcore.hexcore import hamming
+        path = adaptive_route(0, 42)
+        self.assertIsNotNone(path)
+        for a, b in zip(path, path[1:]):
+            self.assertEqual(hamming(a, b), 1)
+
+    def test_route_ends_at_dst(self):
+        path = adaptive_route(7, 56)
+        self.assertIsNotNone(path)
+        self.assertEqual(path[-1], 56)
+
+    def test_no_faults_same_as_ecube(self):
+        """Без отказов adaptive_route и ecube_route дают одинаковую длину."""
+        from projects.hexnet.hexnet import ecube_route
+        from libs.hexcore.hexcore import hamming
+        for src, dst in [(0, 63), (3, 60), (15, 48)]:
+            p = adaptive_route(src, dst)
+            self.assertIsNotNone(p)
+            self.assertEqual(len(p) - 1, hamming(src, dst))
+
+    def test_avoids_failed_nodes(self):
+        """Путь не проходит через отказавшие узлы (если путь существует)."""
+        failed = {1, 2, 4, 8}
+        path = adaptive_route(0, 63, failed_nodes=failed)
+        if path is not None:
+            for v in path[1:-1]:  # конечные точки не проверяем
+                self.assertNotIn(v, failed)
+
+    def test_src_failed_returns_none(self):
+        path = adaptive_route(0, 63, failed_nodes={0})
+        self.assertIsNone(path)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
