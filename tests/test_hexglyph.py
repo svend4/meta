@@ -1698,6 +1698,17 @@ class TestSolanLexicon(unittest.TestCase):
         d = lexicon_summary('ГОРА', n=3)
         for k in ['word', 'n', 'width', 'neighbors']:
             self.assertIn(k, d)
+
+    def test_all_words_returns_list(self):
+        from projects.hexglyph.solan_lexicon import all_words, LEXICON
+        result = all_words()
+        self.assertIsInstance(result, list)
+        self.assertEqual(sorted(result), sorted(LEXICON))
+
+    def test_all_words_length(self):
+        from projects.hexglyph.solan_lexicon import all_words, LEXICON
+        self.assertEqual(len(all_words()), len(LEXICON))
+
 class TestSolanDendrogram(unittest.TestCase):
     """Tests for solan_dendrogram.py and the viewer Dendrogram section."""
 
@@ -22302,6 +22313,65 @@ class TestPrintSmoke(unittest.TestCase):
     def test_print_wpe_stats_runs(self):
         from projects.hexglyph.solan_wperm import print_wpe_stats
         self.assertNotEqual(self._capture(print_wpe_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+
+class TestViewerJSRuns(unittest.TestCase):
+    """Verify that every *Run JS entry-point is present in viewer.html."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    def test_acfRun_present(self):
+        self.assertIn('acfRun', self._content)
+
+    def test_baHmapRun_present(self):
+        self.assertIn('baHmapRun', self._content)
+
+    def test_baRun_present(self):
+        self.assertIn('baRun', self._content)
+
+    def test_dmRun_present(self):
+        self.assertIn('dmRun', self._content)
+
+    def test_fouRun_present(self):
+        self.assertIn('fouRun', self._content)
+
+    def test_hwRun_present(self):
+        self.assertIn('hwRun', self._content)
+
+    def test_lvRun_present(self):
+        self.assertIn('lvRun', self._content)
+
+    def test_lzAllRun_present(self):
+        self.assertIn('lzAllRun', self._content)
+
+    def test_miHmapRun_present(self):
+        self.assertIn('miHmapRun', self._content)
+
+    def test_netRun_present(self):
+        self.assertIn('netRun', self._content)
+
+    def test_peHmapRun_present(self):
+        self.assertIn('peHmapRun', self._content)
+
+    def test_peRun_present(self):
+        self.assertIn('peRun', self._content)
+
+    def test_prtRun_present(self):
+        self.assertIn('prtRun', self._content)
+
+    def test_rcHmapRun_present(self):
+        self.assertIn('rcHmapRun', self._content)
+
+    def test_rcRun_present(self):
+        self.assertIn('rcRun', self._content)
+
+    def test_stRun_present(self):
+        self.assertIn('stRun', self._content)
+
+    def test_symRun_present(self):
+        self.assertIn('symRun', self._content)
 
 
 if __name__ == "__main__":
