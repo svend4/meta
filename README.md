@@ -39,8 +39,14 @@ meta/
 │   ├── hexmat/        — линейная алгебра над GF(2): матрицы, GL(6,2), линейные коды
 │   ├── hexbio/        — биоинформатика: генетический код как граф мутаций на Q6
 │   └── hexlat/        — булева решётка B₆: Мёбиус, цепи, антицепи, многочлены
+├── tests/             — тест-сьют (26 файлов, 1362 теста)
 ├── docs/
-│   └── q6-math.md     — математические основы графа Q6
+│   ├── q6-math.md          — математические основы графа Q6
+│   ├── projects-overview.md — подробный обзор всех 24 проектов
+│   └── papers-index.md     — индекс 33 PDF-статей Franz German
+├── tools/
+│   └── extract_papers.py  — извлечение текста из PDF-статей
+├── pytest.ini         — конфигурация pytest
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
 └── README.md
 ```
@@ -226,6 +232,23 @@ python3 projects/hexlat/hexlat.py mobius 0 63
 python3 projects/hexlat/hexlat.py chains
 python3 projects/hexlat/hexlat.py antichain
 ```
+
+---
+
+## Тесты
+
+```bash
+# Запустить все тесты
+python3 -m pytest
+
+# Только конкретный проект
+python3 -m pytest tests/test_hexgraph.py -v
+
+# Краткий итог
+python3 -m pytest -q
+```
+
+**Статус**: 1362 теста, 26 файлов — все проходят.
 
 ---
 
