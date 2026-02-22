@@ -1,11 +1,14 @@
 """Тесты игровой логики hexpath."""
+import io
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
 import unittest
+from contextlib import redirect_stdout
 from projects.hexpath.game import (
-    GameState, GameResult, Player, new_game, best_move,
+    GameState, GameResult, Player, new_game, best_move, minimax,
 )
+from projects.hexpath.cli import fmt_hex, draw_board, announce_result
 from libs.hexcore.hexcore import neighbors, hamming
 
 
@@ -241,6 +244,112 @@ class TestGameResultBlock(unittest.TestCase):
         """Без capture_mode у A всегда 6 ходов от любой вершины."""
         g = new_game(pos_a=0, pos_b=63, capture_mode=False)
         self.assertEqual(len(g.legal_moves(Player.A)), 6)
+
+
+class TestMinimax(unittest.TestCase):
+    """Тесты minimax с альфа-бета отсечением."""
+
+    def test_returns_float_at_depth_0(self):
+        g = new_game()
+        val = minimax(g, depth=0, alpha=float('-inf'), beta=float('inf'), maximizing=True)
+        self.assertIsInstance(val, float)
+
+    def test_returns_finite_value(self):
+        g = new_game()
+        val = minimax(g, 1, float('-inf'), float('inf'), True)
+        self.assertFalse(val == float('inf') or val == float('-inf'))
+
+    def test_maximizing_ge_minimizing_at_same_depth(self):
+        """Максимизирующий вызов ≥ минимизирующего из того же состояния."""
+        g = new_game()
+        v_max = minimax(g, 1, float('-inf'), float('inf'), True)
+        v_min = minimax(g, 1, float('-inf'), float('inf'), False)
+        self.assertGreaterEqual(v_max, v_min)
+
+    def test_deeper_search_consistent(self):
+        """Поиск на глубину 2 тоже возвращает float."""
+        g = new_game()
+        val = minimax(g, 2, float('-inf'), float('inf'), True)
+        self.assertIsInstance(val, float)
+
+    def test_over_state_returns_evaluation(self):
+        """Для завершённой игры глубина не важна."""
+        g = new_game(pos_a=63, pos_b=63, capture_mode=False)
+        # pos_a достиг target_a=63 → игра завершена
+        if g.is_over():
+            val = minimax(g, 3, float('-inf'), float('inf'), True)
+            self.assertIsInstance(val, float)
+
+
+class TestCLIFunctions(unittest.TestCase):
+    """Тесты fmt_hex, draw_board, announce_result из cli.py."""
+
+    def _capture(self, fn, *args):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(*args)
+        return buf.getvalue()
+
+    # fmt_hex ------------------------------------------------------------------
+
+    def test_fmt_hex_returns_string(self):
+        self.assertIsInstance(fmt_hex(0), str)
+
+    def test_fmt_hex_contains_number(self):
+        self.assertIn('42', fmt_hex(42))
+
+    def test_fmt_hex_contains_bits(self):
+        out = fmt_hex(0)
+        self.assertIn('000000', out)
+
+    def test_fmt_hex_all_valid(self):
+        for h in range(64):
+            self.assertIsInstance(fmt_hex(h), str)
+
+    # draw_board ---------------------------------------------------------------
+
+    def test_draw_board_produces_output(self):
+        g = new_game()
+        out = self._capture(draw_board, g)
+        self.assertGreater(len(out), 0)
+
+    def test_draw_board_shows_positions(self):
+        g = new_game()
+        out = self._capture(draw_board, g)
+        self.assertIn('000000', out)  # pos_a=0 → 000000
+
+    def test_draw_board_shows_player_labels(self):
+        g = new_game()
+        out = self._capture(draw_board, g)
+        self.assertIn('A', out)
+        self.assertIn('B', out)
+
+    def test_draw_board_capture_mode_shows_captures(self):
+        g = new_game(capture_mode=True)
+        out = self._capture(draw_board, g)
+        self.assertIn('Захвачено', out)
+
+    def test_draw_board_no_capture_mode_no_captures(self):
+        g = new_game(capture_mode=False)
+        out = self._capture(draw_board, g)
+        self.assertNotIn('Захвачено', out)
+
+    # announce_result ----------------------------------------------------------
+
+    def test_announce_result_produces_output(self):
+        g = new_game(pos_a=63, capture_mode=False)
+        out = self._capture(announce_result, g)
+        self.assertGreater(len(out), 0)
+
+    def test_announce_result_shows_separator(self):
+        g = new_game(pos_a=63, capture_mode=False)
+        out = self._capture(announce_result, g)
+        self.assertIn('═', out)
+
+    def test_announce_result_shows_paths(self):
+        g = new_game(pos_a=63, capture_mode=False)
+        out = self._capture(announce_result, g)
+        self.assertIn('Путь', out)
 
 
 if __name__ == '__main__':

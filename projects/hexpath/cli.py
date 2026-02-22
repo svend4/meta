@@ -56,7 +56,7 @@ def draw_board(state: GameState) -> None:
             if nb in moves:
                 marker = '*' if nb == state.current_target() else ' '
                 dist = hamming(nb, state.current_target())
-                print(f"    [{bin(pos ^ nb).bit_length() - 1}] {fmt_hex(nb)}"
+                print(f"    [{(pos ^ nb).bit_length() - 1}] {fmt_hex(nb)}"
                       f"  (до цели: {dist}){marker}")
     else:
         print("  Нет допустимых ходов!")
