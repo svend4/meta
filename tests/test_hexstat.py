@@ -555,6 +555,10 @@ class TestStatCLI(unittest.TestCase):
         out = self._run(['info'])
         self.assertIn('H =', out)
 
+    def test_cmd_walk(self):
+        out = self._run(['walk', '100'])
+        self.assertIn('блуждание', out)
+
     def test_cmd_sample(self):
         out = self._run(['sample', '200'])
         self.assertIn('χ²', out)

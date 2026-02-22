@@ -361,6 +361,42 @@ class TestProblems(unittest.TestCase):
         val_empty = obj(empty)
         self.assertGreater(val_full, val_empty)
 
+    def test_max_hamming_spread_small_set(self):
+        """max_hamming_spread: mask с < 2 элементами → штраф (line 566)."""
+        obj = max_hamming_spread(3)
+        # mask=0 → S=[] → len < 2 → return -PENALTY*abs(0-3) = negative
+        val_empty = obj(0)
+        self.assertLess(val_empty, 0)
+        # mask=1 → S=[0] → len < 2 → return -PENALTY*abs(1-3) = negative
+        val_single = obj(1)
+        self.assertLess(val_single, 0)
+
+
+class TestTabuAllForbidden(unittest.TestCase):
+    def test_all_neighbors_tabu_uses_aspiration(self):
+        """tabu_search: все соседи запрещены → берём лучшего из запрещённых (lines 345-346)."""
+        # Custom neighborhood that always returns [1, 2, 4]
+        # Flat objective so aspiration never triggers
+        # tabu_size=4, start=1: visits 1→2→4→... until all nbrs in tabu
+        def fixed_nbrs(x):
+            return [1, 2, 4]
+
+        flat_obj = lambda x: 0.0
+        # With tabu_size=4 and start=1, queue fills to [1,2,4,<next>]
+        # At some point all of [1,2,4] are in tabu → lines 345-346
+        r = tabu_search(flat_obj, start=1, tabu_size=4, max_iter=10,
+                        neighborhood=fixed_nbrs, seed=0)
+        self.assertIsInstance(r, OptResult)
+
+
+class TestSetOptimizerMinimize(unittest.TestCase):
+    def test_local_search_minimize(self):
+        """SetOptimizer.local_search с maximize=False → line 431."""
+        obj = max_hamming_spread(2)
+        opt = SetOptimizer(obj, maximize=False, seed=0)
+        r = opt.local_search(max_iter=50, n_restarts=2)
+        self.assertIsInstance(r, OptResult)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

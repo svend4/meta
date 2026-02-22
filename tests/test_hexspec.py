@@ -522,5 +522,94 @@ class TestPrintReports(unittest.TestCase):
             self._capture(print_hexforth_report, spec, coverage=cov)
 
 
+class TestSpecCLI(unittest.TestCase):
+    """CLI-тесты для hexspec generator и verifier main()."""
+
+    SPEC_JSON = json.dumps({
+        "name": "test_fsm",
+        "bits": ["b0", "b1", "b2", "b3", "b4", "b5"],
+        "states": {"S0": "000000", "S1": "000001", "S2": "000011"},
+        "transitions": [["S0", "S1"], ["S1", "S2"]],
+        "initial": "S0",
+        "final": ["S2"],
+        "forbidden": [],
+    })
+
+    def setUp(self):
+        import tempfile
+        self._tmpfile = tempfile.NamedTemporaryFile(
+            'w', suffix='.json', delete=False
+        )
+        self._tmpfile.write(self.SPEC_JSON)
+        self._tmpfile.close()
+        self.spec_path = self._tmpfile.name
+
+    def tearDown(self):
+        import os
+        os.unlink(self.spec_path)
+
+    def _run_gen(self, extra_args):
+        from projects.hexspec.generator import main as gen_main
+        old_argv = sys.argv
+        sys.argv = ['generator.py', self.spec_path] + extra_args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                gen_main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def _run_ver(self, extra_args, expect_exit=None):
+        from projects.hexspec.verifier import main as ver_main
+        old_argv = sys.argv
+        sys.argv = ['verifier.py', self.spec_path] + extra_args
+        buf = io.StringIO()
+        try:
+            if expect_exit is not None:
+                with self.assertRaises(SystemExit) as cm:
+                    with redirect_stdout(buf):
+                        ver_main()
+                self.assertEqual(cm.exception.code, expect_exit)
+            else:
+                with redirect_stdout(buf):
+                    ver_main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_gen_text_all(self):
+        out = self._run_gen(['--coverage', 'all', '--format', 'text'])
+        self.assertGreater(len(out), 0)
+
+    def test_gen_json(self):
+        out = self._run_gen(['--format', 'json'])
+        data = json.loads(out)
+        self.assertIsInstance(data, dict)
+
+    def test_gen_hexforth(self):
+        out = self._run_gen(['--format', 'hexforth'])
+        self.assertGreater(len(out), 0)
+
+    def test_ver_ok(self):
+        out = self._run_ver([], expect_exit=0)
+
+    def test_ver_verbose(self):
+        out = self._run_ver(['--verbose'], expect_exit=0)
+        self.assertGreater(len(out), 0)
+
+    def test_ver_path_valid(self):
+        out = self._run_ver(['--path', 'S0', 'S2'], expect_exit=0)
+        self.assertGreater(len(out), 0)
+
+    def test_ver_path_invalid_from(self):
+        out = self._run_ver(['--path', 'UNKNOWN', 'S2'], expect_exit=1)
+        self.assertIn('Неизвестное', out)
+
+    def test_ver_path_invalid_to(self):
+        out = self._run_ver(['--path', 'S0', 'UNKNOWN'], expect_exit=1)
+        self.assertIn('Неизвестное', out)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -519,5 +519,45 @@ class TestCountInvertible(unittest.TestCase):
         self.assertGreater(count_invertible_6x6(), 0)
 
 
+class TestMatCLI(unittest.TestCase):
+    def _run(self, args):
+        import io, sys
+        from contextlib import redirect_stdout
+        from projects.hexmat.hexmat import main
+        old_argv = sys.argv
+        sys.argv = ['hexmat.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        self.assertIn('GL(6,2)', out)
+
+    def test_cmd_mul_no_args(self):
+        out = self._run(['mul'])
+        self.assertIn('A·B', out)
+
+    def test_cmd_rank_no_args(self):
+        out = self._run(['rank'])
+        self.assertIn('Ранг', out)
+
+    def test_cmd_code(self):
+        out = self._run(['code'])
+        self.assertIn('код', out)
+
+    def test_cmd_help(self):
+        out = self._run([])
+        self.assertIn('hexmat', out)
+
+    def test_cmd_unknown(self):
+        out = self._run(['unknown'])
+        self.assertIn('hexmat', out)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

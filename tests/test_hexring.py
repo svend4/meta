@@ -693,5 +693,30 @@ class TestBoolFuncDisplay(unittest.TestCase):
         self.assertIn('True', result)
 
 
+class TestEncodeNonZero(unittest.TestCase):
+    """Тест encode с ненулевым сообщением (line 465)."""
+
+    def test_encode_nonzero_message(self):
+        """Кодирование ненулевого сообщения — входит в ветку if bit: (line 465)."""
+        rm = ReedMullerCode(1)
+        # RM(1,6) has k=7: constant + 6 linear functions
+        msg = [1, 0, 0, 0, 0, 0, 0]  # only the first bit set
+        cw = rm.encode(msg)
+        # Should produce a valid codeword (not zero)
+        self.assertNotEqual(cw, zero_func())
+
+
+class TestFindBentExhaustAll(unittest.TestCase):
+    """Тест find_bent_examples с n_max > доступного — line 603."""
+
+    def test_find_bent_large_nmax_exhausts_loop(self):
+        """find_bent_examples с большим n_max исчерпывает аффинные сдвиги → line 603."""
+        result = find_bent_examples(n_max=200)
+        # Should return all found results (< 200) and hit line 603
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertLess(len(result), 200)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
