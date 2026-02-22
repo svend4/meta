@@ -27664,5 +27664,268 @@ class TestDerridaPointProps(unittest.TestCase):
         self.assertEqual(r1, r2)
 
 
+# ---------------------------------------------------------------------------
+# TestToBitsProps
+# ---------------------------------------------------------------------------
+class TestToBitsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import to_bits
+        cls.to_bits = staticmethod(to_bits)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self.to_bits([49]), list)
+
+    def test_all_binary(self):
+        for v in self.to_bits([49, 47, 15, 63]):
+            self.assertIn(v, (0, 1))
+
+    def test_length_n_bits(self):
+        r = self.to_bits([63, 49], n_bits=6)
+        self.assertEqual(len(r), 12)
+
+    def test_all_ones_for_63(self):
+        r = self.to_bits([63], n_bits=6)
+        self.assertEqual(r, [1, 1, 1, 1, 1, 1])
+
+    def test_all_zeros_for_zero(self):
+        r = self.to_bits([0], n_bits=6)
+        self.assertEqual(r, [0, 0, 0, 0, 0, 0])
+
+
+# ---------------------------------------------------------------------------
+# TestLZ76PhrasesProps
+# ---------------------------------------------------------------------------
+class TestLZ76PhrasesProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import lz76_phrases
+        cls.lz76_phrases = staticmethod(lz76_phrases)
+
+    def test_returns_int(self):
+        self.assertIsInstance(self.lz76_phrases([0, 1, 0, 1]), int)
+
+    def test_positive_for_nonempty(self):
+        self.assertGreater(self.lz76_phrases([0, 1, 0, 1, 0, 1]), 0)
+
+    def test_deterministic(self):
+        r1 = self.lz76_phrases([0, 1, 0, 1, 1, 0])
+        r2 = self.lz76_phrases([0, 1, 0, 1, 1, 0])
+        self.assertEqual(r1, r2)
+
+    def test_constant_fewer_phrases(self):
+        const = [0] * 32
+        rand = [0,1,0,1,1,0,0,1,1,1,0,1,0,0,1,0,1,1,0,0,1,1,0,1,0,0,1,0,0,1,1,0]
+        self.assertLessEqual(self.lz76_phrases(const), self.lz76_phrases(rand))
+
+
+# ---------------------------------------------------------------------------
+# TestLZ76NormProps
+# ---------------------------------------------------------------------------
+class TestLZ76NormProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import lz76_norm
+        cls.lz76_norm = staticmethod(lz76_norm)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.lz76_norm([0, 1, 0, 1]), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.lz76_norm([0, 1, 0, 1, 0, 1]), 0.0)
+
+    def test_deterministic(self):
+        bits = [0, 1, 1, 0, 0, 1, 0, 1]
+        r1 = self.lz76_norm(bits)
+        r2 = self.lz76_norm(bits)
+        self.assertEqual(r1, r2)
+
+    def test_constant_lower_than_random(self):
+        const = [0] * 32
+        rand = [0,1,0,1,1,0,0,1,1,1,0,1,0,0,1,0,1,1,0,0,1,1,0,1,0,0,1,0,0,1,1,0]
+        self.assertLessEqual(self.lz76_norm(const), self.lz76_norm(rand))
+
+
+# ---------------------------------------------------------------------------
+# TestSensitivityProfileShape
+# ---------------------------------------------------------------------------
+class TestSensitivityProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import sensitivity_profile
+        cls.sensitivity_profile = staticmethod(sensitivity_profile)
+        cls._r = sensitivity_profile('ГОРА')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_matches_word(self):
+        self.assertEqual(len(self._r), 4)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_deterministic(self):
+        r2 = self.sensitivity_profile('ГОРА')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestSubstitutionMatrixShape
+# ---------------------------------------------------------------------------
+class TestSubstitutionMatrixShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import substitution_matrix
+        cls.substitution_matrix = staticmethod(substitution_matrix)
+        cls._r = substitution_matrix('ГОРА')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_4(self):
+        self.assertEqual(len(self._r), 4)
+
+    def test_items_are_dicts(self):
+        for item in self._r:
+            self.assertIsInstance(item, dict)
+
+    def test_required_keys(self):
+        for item in self._r:
+            for k in ('pos', 'letter', 'q6', 'orig_key', 'subs', 'n_changed', 'sensitivity'):
+                self.assertIn(k, item)
+
+    def test_n_changed_nonneg(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['n_changed'], 0)
+
+    def test_sensitivity_in_unit_interval(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['sensitivity'], 0.0)
+            self.assertLessEqual(item['sensitivity'], 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestSpatialWPEShape
+# ---------------------------------------------------------------------------
+class TestSpatialWPEShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import spatial_wpe
+        cls.spatial_wpe = staticmethod(spatial_wpe)
+        cls._r = spatial_wpe('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestWPEDictShape
+# ---------------------------------------------------------------------------
+class TestWPEDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import wpe_dict
+        cls.wpe_dict = staticmethod(wpe_dict)
+        cls._r = wpe_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'wpe_profile', 'mean_nwpe', 'mean_npe'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_wpe_profile_list(self):
+        self.assertIsInstance(self._r['wpe_profile'], list)
+
+    def test_mean_nwpe_float(self):
+        self.assertIsInstance(self._r['mean_nwpe'], float)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestMSEDictShape
+# ---------------------------------------------------------------------------
+class TestMSEDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import mse_dict
+        cls.mse_dict = staticmethod(mse_dict)
+        cls._r = mse_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'cell_profiles', 'mean_profile',
+                  'complexity_index', 'peak_tau', 'peak_se'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_cell_profiles_list(self):
+        self.assertIsInstance(self._r['cell_profiles'], list)
+
+    def test_mean_profile_list(self):
+        self.assertIsInstance(self._r['mean_profile'], list)
+
+    def test_complexity_index_float(self):
+        self.assertIsInstance(self._r['complexity_index'], float)
+
+
+# ---------------------------------------------------------------------------
+# TestSampleEntropyProps
+# ---------------------------------------------------------------------------
+class TestSampleEntropyProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import sample_entropy
+        cls.sample_entropy = staticmethod(sample_entropy)
+
+    def test_returns_float(self):
+        series = [0.1*i for i in range(20)]
+        self.assertIsInstance(self.sample_entropy(series, 2, 0.2), float)
+
+    def test_nonneg(self):
+        series = [0.1*i for i in range(20)]
+        self.assertGreaterEqual(self.sample_entropy(series, 2, 0.2), 0.0)
+
+    def test_deterministic(self):
+        series = [0.1, 0.5, 0.9, 0.3, 0.7, 0.2, 0.8, 0.4, 0.6, 0.1, 0.5, 0.9]
+        r1 = self.sample_entropy(series, 2, 0.2)
+        r2 = self.sample_entropy(series, 2, 0.2)
+        self.assertEqual(r1, r2)
+
+    def test_constant_series_high(self):
+        # Constant series has very high SampEn (no matches for longer patterns)
+        const = [0.5] * 20
+        r = self.sample_entropy(const, 2, 0.2)
+        self.assertGreaterEqual(r, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
