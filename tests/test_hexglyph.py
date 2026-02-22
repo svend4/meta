@@ -28951,5 +28951,260 @@ class TestTESummaryProps(unittest.TestCase):
         self.assertIsInstance(self._r['lr_asymmetry'], float)
 
 
+# ---------------------------------------------------------------------------
+# TestAttractorSigProps
+# ---------------------------------------------------------------------------
+class TestAttractorSigProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import random
+        from projects.hexglyph.solan_basin import (
+            attractor_sig, attractors_match, word_ic, sample_global_basin,
+        )
+        cls.attractors_match = staticmethod(attractors_match)
+        cls._sig1 = attractor_sig('ГОРА', 'xor3')
+        cls._sig2 = attractor_sig('ВОДА', 'xor3')
+        cls._wic  = word_ic('ГОРА')
+        rng = random.Random(42)
+        cls._sgb = sample_global_basin('ГОРА', 'xor3', n=20, rng=rng)
+
+    def test_attractor_sig_frozenset(self):
+        self.assertIsInstance(self._sig1, frozenset)
+
+    def test_attractor_sig_nonempty(self):
+        self.assertGreater(len(self._sig1), 0)
+
+    def test_attractors_match_same(self):
+        self.assertTrue(self.attractors_match(self._sig1, self._sig1))
+
+    def test_word_ic_list(self):
+        self.assertIsInstance(self._wic, list)
+
+    def test_word_ic_length_16(self):
+        self.assertEqual(len(self._wic), 16)
+
+    def test_sample_global_basin_dict(self):
+        self.assertIsInstance(self._sgb, dict)
+
+    def test_sample_global_basin_fraction_in_01(self):
+        f = self._sgb['fraction']
+        self.assertGreaterEqual(f, 0.0)
+        self.assertLessEqual(f, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestAISKProps
+# ---------------------------------------------------------------------------
+class TestAISKProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import ais_k, ais_profile, cell_seqs
+        cls.ais_k       = staticmethod(ais_k)
+        cls.ais_profile = staticmethod(ais_profile)
+        cls._cs = cell_seqs('ГОРА', 'xor3')
+        cls._ak = ais_k(cls._cs, k=2)
+        cls._ap = ais_profile('ГОРА', 'xor3', max_k=6)
+
+    def test_cell_seqs_list(self):
+        self.assertIsInstance(self._cs, list)
+
+    def test_cell_seqs_16_cells(self):
+        self.assertEqual(len(self._cs), 16)
+
+    def test_ais_k_float(self):
+        self.assertIsInstance(self._ak, float)
+
+    def test_ais_k_nonneg(self):
+        self.assertGreaterEqual(self._ak, 0.0)
+
+    def test_ais_profile_list(self):
+        self.assertIsInstance(self._ap, list)
+
+    def test_ais_profile_length_6(self):
+        self.assertEqual(len(self._ap), 6)
+
+
+# ---------------------------------------------------------------------------
+# TestPEDictProps
+# ---------------------------------------------------------------------------
+class TestPEDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import pe_dict, ordinal_pattern
+        cls.ordinal_pattern = staticmethod(ordinal_pattern)
+        cls._pd = pe_dict('ГОРА', 'xor3')
+        cls._op = ordinal_pattern([1, 3, 2])
+
+    def test_pe_dict_dict(self):
+        self.assertIsInstance(self._pd, dict)
+
+    def test_pe_dict_word_preserved(self):
+        self.assertEqual(self._pd['word'], 'ГОРА')
+
+    def test_pe_dict_has_profile(self):
+        self.assertIn('profile', self._pd)
+
+    def test_pe_dict_mean_pe_in_01(self):
+        self.assertGreaterEqual(self._pd['mean_pe'], 0.0)
+        self.assertLessEqual(self._pd['mean_pe'], 1.0)
+
+    def test_ordinal_pattern_tuple(self):
+        self.assertIsInstance(self._op, tuple)
+
+    def test_ordinal_pattern_is_permutation(self):
+        self.assertEqual(sorted(self._op), list(range(len(self._op))))
+
+
+# ---------------------------------------------------------------------------
+# TestPatternDistProps
+# ---------------------------------------------------------------------------
+class TestPatternDistProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ch_plane import (
+            pattern_dist, h_norm, jsd_uniform, statistical_complexity,
+        )
+        cls.h_norm                = staticmethod(h_norm)
+        cls.jsd_uniform           = staticmethod(jsd_uniform)
+        cls.statistical_complexity = staticmethod(statistical_complexity)
+        cls._pd = pattern_dist('ВОЛНА', 'xor3')
+        cls._hn = h_norm(cls._pd)
+        cls._ju = jsd_uniform(cls._pd)
+        cls._sc = statistical_complexity(cls._pd)
+
+    def test_pattern_dist_dict(self):
+        self.assertIsInstance(self._pd, dict)
+
+    def test_pattern_dist_nonempty(self):
+        self.assertGreater(len(self._pd), 0)
+
+    def test_h_norm_in_01(self):
+        self.assertGreaterEqual(self._hn, 0.0)
+        self.assertLessEqual(self._hn, 1.0)
+
+    def test_jsd_uniform_nonneg(self):
+        self.assertGreaterEqual(self._ju, 0.0)
+
+    def test_statistical_complexity_nonneg(self):
+        self.assertGreaterEqual(self._sc, 0.0)
+
+    def test_pattern_values_sum_to_1(self):
+        total = sum(self._pd.values())
+        self.assertAlmostEqual(total, 1.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestDerridaCurveProps
+# ---------------------------------------------------------------------------
+class TestDerridaCurveProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import derrida_curve, derrida_summary, lexicon_points
+        cls.derrida_curve = staticmethod(derrida_curve)
+        cls._lp = lexicon_points('xor3')
+        cls._dc = derrida_curve(cls._lp)
+        cls._ds = derrida_summary()
+
+    def test_lexicon_points_list(self):
+        self.assertIsInstance(self._lp, list)
+
+    def test_lexicon_points_nonempty(self):
+        self.assertGreater(len(self._lp), 0)
+
+    def test_derrida_curve_dict(self):
+        self.assertIsInstance(self._dc, dict)
+
+    def test_derrida_curve_has_bins(self):
+        self.assertIn('bins', self._dc)
+
+    def test_derrida_summary_dict(self):
+        self.assertIsInstance(self._ds, dict)
+
+    def test_derrida_summary_has_rules(self):
+        self.assertIn('rules', self._ds)
+
+
+# ---------------------------------------------------------------------------
+# TestObservedCellProps
+# ---------------------------------------------------------------------------
+class TestObservedCellProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import observed_cell, ordinal_pattern
+        cls.ordinal_pattern = staticmethod(ordinal_pattern)
+        series = [49, 47, 15, 63] * 6
+        cls._oc = observed_cell(series, m=3)
+        cls._op = ordinal_pattern([2, 0, 1])
+
+    def test_observed_cell_frozenset(self):
+        self.assertIsInstance(self._oc, frozenset)
+
+    def test_observed_cell_nonempty(self):
+        self.assertGreater(len(self._oc), 0)
+
+    def test_items_are_tuples(self):
+        for item in self._oc:
+            self.assertIsInstance(item, tuple)
+
+    def test_ordinal_pattern_tuple(self):
+        self.assertIsInstance(self._op, tuple)
+
+    def test_ordinal_pattern_length(self):
+        self.assertEqual(len(self._op), 3)
+
+
+# ---------------------------------------------------------------------------
+# TestTEAsymmetryProps
+# ---------------------------------------------------------------------------
+class TestTEAsymmetryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import te_asymmetry
+        from projects.hexglyph.solan_network import te_matrix
+        cls._mat  = te_matrix('ВОЛНА', 'xor3')
+        cls._asym = te_asymmetry(cls._mat)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._asym, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._asym), 16)
+
+    def test_rows_length_16(self):
+        for row in self._asym:
+            self.assertEqual(len(row), 16)
+
+    def test_diagonal_zero(self):
+        for i in range(16):
+            self.assertEqual(self._asym[i][i], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestRunPairProps
+# ---------------------------------------------------------------------------
+class TestRunPairProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import run_pair, perturb
+        orig = [49, 47, 15, 63] * 4
+        pert = perturb(orig, 0, 5)
+        cls._r = run_pair(orig, pert, 'xor3', 8)
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self._r, tuple)
+
+    def test_tuple_length_3(self):
+        self.assertEqual(len(self._r), 3)
+
+    def test_orig_grid_list(self):
+        self.assertIsInstance(self._r[0], list)
+
+    def test_damage_grid_list(self):
+        self.assertIsInstance(self._r[2], list)
+
+    def test_n_steps(self):
+        self.assertEqual(len(self._r[0]), 8)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
