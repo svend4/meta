@@ -7,6 +7,7 @@ from projects.hexphys import (
     quantum_state_uniform, hadamard_on_qubit,
     apply_all_hadamard, measure_probabilities,
     entanglement_entropy,
+    exact_ising_thermodynamics, compare_exact_and_mcmc,
 )
 from projects.hexphys.hexphys import ising_spins
 
@@ -481,6 +482,64 @@ class TestIsingYangConnection(unittest.TestCase):
         yang_mean = gas.mean_yang(beta)
 
         self.assertAlmostEqual(ising_mean, yang_mean, places=6)
+
+
+class TestExactIsingThermodynamics(unittest.TestCase):
+    """Тесты exact_ising_thermodynamics — точный расчёт термодинамики Изинга."""
+
+    def test_returns_dict(self):
+        result = exact_ising_thermodynamics(J=1.0, beta_values=[1.0])
+        self.assertIsInstance(result, dict)
+
+    def test_beta_key_in_result(self):
+        beta = 1.0
+        result = exact_ising_thermodynamics(J=1.0, beta_values=[beta])
+        self.assertIn(beta, result)
+
+    def test_expected_keys(self):
+        result = exact_ising_thermodynamics(J=1.0, beta_values=[1.0])
+        thermo = result[1.0]
+        for key in ['Z', 'F', 'E', 'C_v']:
+            self.assertIn(key, thermo)
+
+    def test_partition_function_positive(self):
+        """Статсумма Z > 0."""
+        result = exact_ising_thermodynamics(J=1.0, beta_values=[1.0])
+        self.assertGreater(result[1.0]['Z'], 0)
+
+    def test_multiple_beta_values(self):
+        betas = [0.5, 1.0, 2.0]
+        result = exact_ising_thermodynamics(J=1.0, beta_values=betas)
+        self.assertEqual(len(result), 3)
+
+    def test_default_beta_values(self):
+        """Без beta_values должны использоваться значения по умолчанию."""
+        result = exact_ising_thermodynamics(J=1.0)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(len(result), 0)
+
+
+class TestCompareExactAndMCMC(unittest.TestCase):
+    """Тесты compare_exact_and_mcmc — сравнение точных и MCMC значений."""
+
+    def test_returns_dict(self):
+        result = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=100, seed=42)
+        self.assertIsInstance(result, dict)
+
+    def test_expected_keys(self):
+        result = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=100, seed=42)
+        for key in ['exact_E', 'mcmc_E', 'error_E']:
+            self.assertIn(key, result)
+
+    def test_error_is_nonnegative(self):
+        result = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=100, seed=42)
+        self.assertGreaterEqual(result['error_E'], 0)
+
+    def test_deterministic_with_seed(self):
+        """С одним seed результаты воспроизводимы."""
+        r1 = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=50, seed=7)
+        r2 = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=50, seed=7)
+        self.assertEqual(r1['mcmc_E'], r2['mcmc_E'])
 
 
 if __name__ == '__main__':

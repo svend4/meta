@@ -16,6 +16,7 @@ from projects.hexbio.hexbio import (
     amino_acids, codon_table_summary,
     synonymous_mutation_fraction, mutation_graph_edges,
     q6_vs_mutation_comparison,
+    evolutionary_distance_matrix,
 )
 
 
@@ -414,3 +415,51 @@ class TestGranthamDistance:
     def test_cw_distance_max(self):
         # C-W = 215 (наиболее разные)
         assert amino_acid_distance('C', 'W') == 215
+
+
+# ============================================================
+# Матрица эволюционных расстояний
+# ============================================================
+
+class TestEvolutionaryDistanceMatrix:
+    def test_returns_dict(self):
+        edm = evolutionary_distance_matrix()
+        assert isinstance(edm, dict)
+
+    def test_size(self):
+        """Пар (a, b) с a < b: C(64, 2) = 2016."""
+        edm = evolutionary_distance_matrix()
+        assert len(edm) == 2016
+
+    def test_keys_are_pairs(self):
+        edm = evolutionary_distance_matrix()
+        for key in list(edm.keys())[:5]:
+            assert isinstance(key, tuple)
+            assert len(key) == 2
+
+    def test_ordered_pairs(self):
+        """Ключ (a, b) всегда a < b."""
+        edm = evolutionary_distance_matrix()
+        for a, b in edm:
+            assert a < b
+
+    def test_distance_positive(self):
+        """Расстояние между разными кодонами > 0."""
+        edm = evolutionary_distance_matrix()
+        for dist in edm.values():
+            assert dist > 0
+
+    def test_distance_at_most_6(self):
+        """В Q6 расстояние не превышает диаметр = 6."""
+        edm = evolutionary_distance_matrix()
+        for dist in edm.values():
+            assert dist <= 6
+
+    def test_neighbors_have_distance_1(self):
+        """Соседи в Q6 имеют расстояние = 1."""
+        from libs.hexcore.hexcore import neighbors
+        edm = evolutionary_distance_matrix()
+        h = 0
+        for nb in neighbors(h):
+            key = (min(h, nb), max(h, nb))
+            assert edm[key] == 1

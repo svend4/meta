@@ -13,6 +13,7 @@ from projects.hexmat import (
     orthogonal_complement,
     linear_code_from_generator, parity_check_matrix, minimum_distance,
 )
+from projects.hexmat.hexmat import mat_projection
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -431,6 +432,44 @@ class TestOrthogonalComplement(unittest.TestCase):
         """Ортогональное дополнение {0} = весь Q6."""
         comp = orthogonal_complement([])
         self.assertEqual(len(comp), 6)
+
+
+class TestMatProjection(unittest.TestCase):
+    """Тесты mat_projection — ортогональный проектор (над GF(2))."""
+
+    def test_empty_basis_is_zero(self):
+        """Проекция на {0} = нулевая матрица."""
+        self.assertEqual(mat_projection([]), mat_zero())
+
+    def test_full_basis_is_identity(self):
+        """Проекция на весь GF(2)^6 = единичная матрица."""
+        full_basis = [1 << i for i in range(6)]
+        self.assertEqual(mat_projection(full_basis), mat_identity())
+
+    def test_single_basis_vector(self):
+        """Проекция на ⟨e0⟩ = матрица с единственной ненулевой строкой."""
+        p = mat_projection([1])  # e0 = 000001
+        self.assertIsNotNone(p)
+        self.assertIsInstance(p, list)
+        self.assertEqual(len(p), 6)
+
+    def test_single_basis_first_row(self):
+        """Проекция на ⟨e0⟩: нулевая строка 0 = 1 (P[0]=1 → бит 0)."""
+        p = mat_projection([1])
+        self.assertEqual(p[0], 1)  # строка 0: только бит 0
+
+    def test_two_independent_basis(self):
+        """Проекция на ⟨e0, e1⟩: ненулевая матрица."""
+        p = mat_projection([1, 2])  # e0=000001, e1=000010
+        self.assertIsNotNone(p)
+        # Первые две строки ненулевые
+        self.assertNotEqual(p[0], 0)
+        self.assertNotEqual(p[1], 0)
+
+    def test_linearly_dependent_returns_none(self):
+        """Линейно зависимый базис → None (необратимая матрица)."""
+        result = mat_projection([1, 1])  # оба вектора одинаковы
+        self.assertIsNone(result)
 
 
 if __name__ == '__main__':

@@ -11,6 +11,7 @@ from projects.hexring.hexring import (
     best_affine_approximation, auto_correlation, auto_correlation_table,
     power_moment, find_bent_examples, hamming_distance_func,
     nonlinearity_profile, _wht_inplace, _mobius_inplace,
+    count_bent_in_rm2, find_resilient,
 )
 from libs.hexcore.hexcore import SIZE
 
@@ -485,6 +486,39 @@ class TestUtils(unittest.TestCase):
         profile = nonlinearity_profile(f)
         self.assertEqual(profile[1], 0)
         self.assertEqual(profile[2], 0)
+
+
+class TestCountBentInRM2(unittest.TestCase):
+    """Тест count_bent_in_rm2 — заглушка с NotImplementedError."""
+
+    def test_raises_not_implemented(self):
+        with self.assertRaises(NotImplementedError):
+            count_bent_in_rm2()
+
+
+class TestFindResilient(unittest.TestCase):
+    """Тесты find_resilient — поиск сбалансированных функций с CI."""
+
+    def test_returns_list(self):
+        result = find_resilient(ci_order=0, n_max=3)
+        self.assertIsInstance(result, list)
+
+    def test_ci0_finds_functions(self):
+        """ci_order=0 (просто сбалансированные) — находит n_max функций."""
+        result = find_resilient(ci_order=0, n_max=5)
+        self.assertGreater(len(result), 0)
+
+    def test_result_are_boolfuncs(self):
+        """Все найденные объекты — BoolFunc."""
+        result = find_resilient(ci_order=0, n_max=3)
+        for f in result:
+            self.assertIsInstance(f, BoolFunc)
+
+    def test_n_max_limits_output(self):
+        """Количество результатов ≤ n_max."""
+        for n in [1, 3, 5]:
+            result = find_resilient(ci_order=0, n_max=n)
+            self.assertLessEqual(len(result), n)
 
 
 if __name__ == '__main__':
