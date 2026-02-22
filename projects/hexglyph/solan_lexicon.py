@@ -312,10 +312,17 @@ if __name__ == '__main__':
                         help='ширина CA (default: 16)')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--json',     action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     _color = not args.no_color
 
+    if args.json:
+        import json as _json
+        nbrs = neighbors(args.word, n=args.neighbors, width=args.width)
+        print(_json.dumps({'word': args.word.upper(), 'neighbors': [[w, d] for w, d in nbrs]}, ensure_ascii=False, indent=2))
+        import sys; sys.exit(0)
     if args.table:
         print_lexicon_table(width=args.width, color=_color)
     elif args.clusters:

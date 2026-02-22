@@ -248,11 +248,18 @@ if __name__ == '__main__':
     parser.add_argument('--steps', type=int, default=15,
                         help='число шагов для --show-ca (default: 15)')
     parser.add_argument('--no-color', action='store_true',
-                        help='без ANSI-цветов')
+                        help='без АНSI-цветов')
+    parser.add_argument('--json',     action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     _color = not args.no_color
 
+    if args.json:
+        import json as _json
+        sig = word_signature(args.word, args.width)
+        print(_json.dumps({'word': args.word.upper(), 'signature': {r: list(v) for r, v in sig.items()}}, ensure_ascii=False, indent=2))
+        import sys; sys.exit(0)
     if args.compare:
         words = list(dict.fromkeys([args.word] + args.compare))  # уникальные, порядок
         print_comparison(words, width=args.width, color=_color)

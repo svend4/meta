@@ -289,9 +289,14 @@ def _main() -> None:
     parser.add_argument('--rule',    default=_DEFAULT_RULE, choices=_ALL_RULES)
     parser.add_argument('--ranking', action='store_true')
     parser.add_argument('--no-color',action='store_true')
+    parser.add_argument('--json',    action='store_true', help='JSON output')
     args  = parser.parse_args()
     color = not args.no_color
 
+    if args.json:
+        import json as _json
+        print(_json.dumps(portrait_dict(args.word, args.rule), ensure_ascii=False, indent=2))
+        return
     if args.compare:
         c = portrait_compare(args.compare[0], args.compare[1], args.rule)
         print_portrait(c['word1'], args.rule, color)

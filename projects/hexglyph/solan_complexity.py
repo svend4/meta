@@ -349,8 +349,13 @@ def _main() -> None:
     parser.add_argument('--ranking',  action='store_true')
     parser.add_argument('--width',    type=int, default=_DEFAULT_WIDTH)
     parser.add_argument('--no-color', action='store_true')
+    parser.add_argument('--json',     action='store_true', help='JSON output')
     args = parser.parse_args()
     color = not args.no_color
+    if args.json:
+        import json as _json
+        print(_json.dumps(complexity_dict(args.word, args.width), ensure_ascii=False, indent=2))
+        return
     if args.ranking:
         print_complexity_ranking(color=color, width=args.width)
     else:

@@ -266,11 +266,18 @@ if __name__ == '__main__':
                         help='только статистика')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--json',     action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     _words = args.words if args.words else None
     _color = not args.no_color
 
+    if args.json:
+        import json as _json
+        g = build_graph(_words, threshold=args.threshold, width=args.width)
+        print(_json.dumps(graph_stats(g), ensure_ascii=False, indent=2))
+        import sys; sys.exit(0)
     if args.stats:
         g = build_graph(_words, threshold=args.threshold, width=args.width)
         st = graph_stats(g)

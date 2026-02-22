@@ -429,9 +429,14 @@ def _main() -> None:
     parser.add_argument('--table', action='store_true', help='Таблица 16 фонем')
     parser.add_argument('--pairs', action='store_true', help='Пары замен')
     parser.add_argument('--no-color', action='store_true')
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     args = parser.parse_args()
 
     color = not args.no_color
+    if args.json:
+        import json as _json
+        print(_json.dumps(phoneme_dict(args.word), ensure_ascii=False, indent=2))
+        return
     if args.table:
         print_phoneme_table(color)
     elif args.pairs:

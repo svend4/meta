@@ -605,6 +605,17 @@ class TestSolanTriangle(unittest.TestCase):
         self.assertIn('solan_triangle', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_triangle'] + ['--stats', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanPhonetic(unittest.TestCase):
 
     @classmethod
@@ -1404,6 +1415,17 @@ class TestSolanWord(unittest.TestCase):
         self.assertIn('solan_word', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_word'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanLexicon(unittest.TestCase):
     """Tests for solan_lexicon.py and the viewer Lexicon section."""
 
@@ -1556,6 +1578,17 @@ class TestSolanLexicon(unittest.TestCase):
         self.assertIn('solan_lexicon', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_lexicon'] + ['--word', 'ГОРА', '--neighbors', '3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanDendrogram(unittest.TestCase):
     """Tests for solan_dendrogram.py and the viewer Dendrogram section."""
 
@@ -2929,6 +2962,17 @@ class TestSolanGraph(unittest.TestCase):
         self.assertIn('solan_graph', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_graph'] + ['--words', 'ГОРА', 'ВОДА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanMatrix(unittest.TestCase):
     """Tests for solan_matrix.py and the viewer Matrix section."""
 
@@ -3093,6 +3137,17 @@ class TestSolanMatrix(unittest.TestCase):
         self.assertIn('solan_matrix', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_matrix'] + ['--words', 'ГОРА', 'ВОДА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanSpectral(unittest.TestCase):
     """Tests for solan_spectral.py and the viewer Spectral section."""
 
@@ -3352,6 +3407,17 @@ class TestSolanSpectral(unittest.TestCase):
         self.assertIn('solan_spectral', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_spectral'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanPhonemeAnalysis(unittest.TestCase):
     """Tests for solan_phoneme.py and the viewer Phoneme Analysis section."""
 
@@ -3626,6 +3692,17 @@ class TestSolanPhonemeAnalysis(unittest.TestCase):
         self.assertIn('solan_phoneme', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_phoneme'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanComplexity(unittest.TestCase):
     """Tests for solan_complexity.py and the viewer LZ76 section."""
 
@@ -3859,6 +3936,17 @@ class TestSolanComplexity(unittest.TestCase):
         self.assertIn('solan_complexity', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_complexity'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanSpacetime(unittest.TestCase):
     """Tests for solan_spacetime.py and the viewer Space-time section."""
 
@@ -4104,6 +4192,17 @@ class TestSolanSpacetime(unittest.TestCase):
         self.assertIn('solan_spacetime', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_spacetime'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanDamage(unittest.TestCase):
     """Tests for solan_damage.py and the viewer Damage Spreading section."""
 
@@ -4384,6 +4483,17 @@ class TestSolanDamage(unittest.TestCase):
         self.assertIn('solan_damage', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_damage'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanSymbolic(unittest.TestCase):
     """Tests for solan_symbolic.py and the viewer Symbolic Dynamics section."""
 
@@ -4754,6 +4864,17 @@ class TestSolanSymbolic(unittest.TestCase):
         self.assertIn('solan_symbolic', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_symbolic'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanNetwork(unittest.TestCase):
     """Tests for solan_network.py and the viewer Network section."""
 
@@ -5069,6 +5190,17 @@ class TestSolanNetwork(unittest.TestCase):
         self.assertIn('solan_network', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_network'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanPortrait(unittest.TestCase):
     """Tests for solan_portrait.py and the viewer Portrait section."""
 
@@ -5293,6 +5425,17 @@ class TestSolanPortrait(unittest.TestCase):
         self.assertIn('solan_portrait', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_portrait'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanCoarse(unittest.TestCase):
     """Tests for solan_coarse.py and the viewer Coarse-Graining section."""
 
@@ -5573,6 +5716,17 @@ class TestSolanCoarse(unittest.TestCase):
         self.assertIn('solan_coarse', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_coarse'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanActive(unittest.TestCase):
     """Tests for solan_active.py and the viewer AIS section."""
 
@@ -5846,6 +6000,17 @@ class TestSolanActive(unittest.TestCase):
         self.assertIn('solan_active', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_active'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanTemporal(unittest.TestCase):
     """Tests for solan_temporal.py and the viewer Temporal DFT section."""
 
@@ -6122,6 +6287,17 @@ class TestSolanTemporal(unittest.TestCase):
         self.assertIn('solan_temporal', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_temporal'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanPersistence(unittest.TestCase):
     """Tests for solan_persistence.py and the viewer Persistence section."""
 
@@ -6396,6 +6572,17 @@ class TestSolanPersistence(unittest.TestCase):
         self.assertIn('solan_persistence', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_persistence'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanBlock(unittest.TestCase):
     """Tests for solan_block.py and the viewer Block Entropy section."""
 
@@ -9788,6 +9975,17 @@ class TestSolanPerm(unittest.TestCase):
         self.assertIn('solan_perm', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_perm'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanBasin(unittest.TestCase):
     """Tests for solan_basin.py and the viewer Basin section."""
 
@@ -10066,6 +10264,17 @@ class TestSolanBasin(unittest.TestCase):
         self.assertIn('solan_basin', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_basin'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanBit(unittest.TestCase):
     """Tests for solan_bit.py and the viewer Bit-Plane section."""
 
@@ -10346,6 +10555,17 @@ class TestSolanBit(unittest.TestCase):
         self.assertIn('solan_bit', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_bit'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanTraj(unittest.TestCase):
     """Tests for solan_traj.py and the viewer Trajectory section."""
 
@@ -10614,6 +10834,17 @@ class TestSolanTraj(unittest.TestCase):
         self.assertIn('solan_traj', content)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_traj'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 class TestSolanSpatent(unittest.TestCase):
     """Tests for solan_spatent.py and the viewer Spatial Entropy section."""
 

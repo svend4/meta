@@ -371,9 +371,15 @@ def _main() -> None:
     parser.add_argument('--stats',     action='store_true')
     parser.add_argument('--width',     type=int, default=_DEFAULT_WIDTH)
     parser.add_argument('--no-color',  action='store_true')
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     args = parser.parse_args()
 
     color = not args.no_color
+    if args.json:
+        import json as _json
+        print(_json.dumps(bit_plane_dict(args.word), ensure_ascii=False, indent=2))
+        return
+
     if args.stats:
         print_bit_plane_summary(color=color)
     elif args.all_rules:

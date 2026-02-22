@@ -274,11 +274,20 @@ if __name__ == '__main__':
                         help='ширина CA (default: 16)')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--json',     action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     _words = args.words if args.words else None
     _color = not args.no_color
 
+    if args.json:
+        import json as _json
+        _wlist = list(_words) if _words else list(LEXICON)
+        _mat = distance_matrix(words=_wlist, width=args.width)
+        _pairs = nearest_pairs(_mat, n=args.n)
+        print(_json.dumps({'words': _wlist, 'nearest_pairs': [[w1, w2, d] for w1, w2, d in _pairs]}, ensure_ascii=False, indent=2))
+        import sys; sys.exit(0)
     if args.csv:
         print(export_csv(words=_words, width=args.width))
     elif args.pairs:
