@@ -192,5 +192,158 @@ class TestHexcoreInvariants(unittest.TestCase):
         self.assertEqual(d['antipode'], 0)
 
 
+# ── Межмодульные интеграционные тесты ────────────────────────────────────────
+from libs.hexcore.hexcore import (
+    SIZE, yang_count, to_bits,
+)
+
+
+class TestCrossModule(unittest.TestCase):
+    """
+    Проверяем взаимодействие нескольких модулей.
+    Каждый тест использует ≥2 проекта и проверяет совместную корректность.
+    """
+
+    # hexforth + hexcore -------------------------------------------------------
+
+    def test_hexforth_flip_sequence_reaches_target(self):
+        """HexForth: FLIP-0 FLIP-1 FLIP-2 на вершине 0 даёт 7."""
+        from projects.hexforth.interpreter import HexForth
+        vm = HexForth(start=0)
+        vm.run("FLIP-0 FLIP-1 FLIP-2")
+        self.assertEqual(vm.state, 7)
+
+    def test_hexforth_state_stays_on_q6(self):
+        """HexForth: после любой последовательности FLIP состояние в 0..63."""
+        from projects.hexforth.interpreter import HexForth
+        vm = HexForth(start=0)
+        vm.run("FLIP-5 FLIP-4 FLIP-3")
+        self.assertGreaterEqual(vm.state, 0)
+        self.assertLess(vm.state, SIZE)
+
+    # hexpath + hexcore --------------------------------------------------------
+
+    def test_hexpath_ai_moves_are_neighbors(self):
+        """ai_move: ход AI — переход к соседней вершине Q6."""
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexpath.game import new_game, Player
+        from projects.hexpath.cli import ai_move
+        g = new_game()
+        prev_a = g.pos_a
+        with redirect_stdout(io.StringIO()):
+            g = ai_move(g, depth=1)
+        self.assertIn(g.pos_a, neighbors(prev_a))
+
+    def test_hexpath_game_over_when_at_target(self):
+        """Игра завершается, когда pos_a == target_a."""
+        from projects.hexpath.game import new_game
+        g = new_game(pos_a=63, capture_mode=False)
+        self.assertTrue(g.is_over())
+
+    # hexcode + hexcore --------------------------------------------------------
+
+    def test_hexcode_min_distance_matches_hamming(self):
+        """min_distance кода совпадает с минимальным hamming между кодовыми словами."""
+        from projects.hexcode.hexcode import even_weight_code
+        code = even_weight_code()
+        words = sorted(code.codewords())
+        min_d = min(
+            hamming(a, b) for i, a in enumerate(words)
+            for b in words[i + 1:]
+        )
+        self.assertEqual(min_d, code.min_distance())
+
+    def test_hexcode_codewords_are_valid_q6_vertices(self):
+        """Все кодовые слова — допустимые вершины Q6 (0..63)."""
+        from projects.hexcode.hexcode import even_weight_code
+        code = even_weight_code()
+        for w in code.codewords():
+            self.assertGreaterEqual(w, 0)
+            self.assertLess(w, SIZE)
+
+    # hexgeom + hexcore --------------------------------------------------------
+
+    def test_hexgeom_ball_size_matches_manual(self):
+        """ball_size(r) = количество вершин на расстоянии ≤r от 0."""
+        from projects.hexgeom.hexgeom import ball_size
+        for r in range(7):
+            expected = sum(1 for v in range(SIZE) if hamming(0, v) <= r)
+            self.assertEqual(ball_size(r), expected)
+
+    # hexsym + hexcore ---------------------------------------------------------
+
+    def test_hexsym_identity_orbits_partition_q6(self):
+        """all_orbits([identity]) разбивает все 64 вершины на синглтоны."""
+        from projects.hexsym.hexsym import all_orbits, Automorphism
+        identity = Automorphism(tuple(range(6)), 0)
+        orbits = all_orbits([identity])
+        all_verts = set()
+        for orb in orbits:
+            for v in orb:
+                self.assertNotIn(v, all_verts, "вершина встречается в двух орбитах")
+                all_verts.add(v)
+        self.assertEqual(all_verts, set(range(SIZE)))
+
+    # hexca + hexcore ----------------------------------------------------------
+
+    def test_hexca_step_keeps_valid_states(self):
+        """После шага CA все состояния ячеек остаются в 0..63."""
+        from projects.hexca.hexca import CA1D
+        from projects.hexca.rules import xor_rule
+        ca = CA1D(width=8, rule=xor_rule, init=[0, 1, 3, 7, 15, 31, 63, 42])
+        ca.step()
+        for state in ca.grid:
+            self.assertGreaterEqual(state, 0)
+            self.assertLess(state, SIZE)
+
+    # hexgraph + hexcore -------------------------------------------------------
+
+    def test_hexgraph_subgraph_edges_are_q6_edges(self):
+        """Все рёбра подграфа — рёбра Q6 (Хэмминг = 1)."""
+        from projects.hexgraph.hexgraph import Subgraph
+        sub = Subgraph(vertices={0, 1, 3, 7, 15})
+        for a, b in sub.edges:
+            self.assertEqual(hamming(a, b), 1)
+
+    # karnaugh6 + hexcore ------------------------------------------------------
+
+    def test_karnaugh6_minimize_yang_ge4(self):
+        """Минимизация функции {yang≥4} даёт непустой словарь."""
+        from projects.karnaugh6.minimize import minimize
+        support = [v for v in range(SIZE) if yang_count(v) >= 4]
+        result = minimize(support, dont_cares=[])
+        self.assertIsNotNone(result)
+
+    # hexvis + hexcore ---------------------------------------------------------
+
+    def test_hexvis_path_render_shows_all_nodes(self):
+        """render_path показывает все вершины кратчайшего пути 0→63."""
+        from projects.hexvis.hexvis import render_path
+        path = shortest_path(0, 63)
+        result = render_path(path, color=False)
+        for v in path:
+            self.assertIn(str(v), result)
+
+    # hexstat + hexcore --------------------------------------------------------
+
+    def test_hexstat_random_walk_stays_on_q6(self):
+        """RandomWalk.walk() возвращает вершины Q6 (0..63)."""
+        from projects.hexstat.hexstat import RandomWalk
+        rw = RandomWalk(start=0, seed=42)
+        trajectory = rw.walk(20)
+        for v in trajectory:
+            self.assertGreaterEqual(v, 0)
+            self.assertLess(v, SIZE)
+
+    def test_hexstat_walk_consecutive_are_neighbors(self):
+        """Последовательные вершины RandomWalk — соседи в Q6."""
+        from projects.hexstat.hexstat import RandomWalk
+        rw = RandomWalk(start=0, seed=7)
+        trajectory = rw.walk(10)
+        for a, b in zip(trajectory, trajectory[1:]):
+            self.assertEqual(hamming(a, b), 1)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
