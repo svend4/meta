@@ -1745,6 +1745,17 @@ class TestSolanDendrogram(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_dendrogram', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_dendrogram', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
 
 class TestSolanPredict(unittest.TestCase):
     """Tests for solan_predict.py and the viewer Prediction section."""
@@ -1960,6 +1971,18 @@ class TestSolanPredict(unittest.TestCase):
     def test_viewer_has_solan_predict(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_predict', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_predict',
+             '--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanTransient(unittest.TestCase):
@@ -13699,6 +13722,18 @@ class TestSolanEntropyOrbit(unittest.TestCase):
     def test_viewer_has_solan_entropy(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_entropy', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_entropy',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
 
 class TestSolanBoundary(unittest.TestCase):
