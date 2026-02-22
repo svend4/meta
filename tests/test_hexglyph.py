@@ -600,6 +600,10 @@ class TestSolanTriangle(unittest.TestCase):
         st = self.detection_stats()
         self.assertGreaterEqual(st['by_rank'][6]['detected'], 1)
 
+    def test_viewer_has_solan_triangle(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_triangle', content)
+
 
 class TestSolanPhonetic(unittest.TestCase):
 
@@ -1395,6 +1399,10 @@ class TestSolanWord(unittest.TestCase):
         for r in ('xor', 'xor3', 'and', 'or'):
             self.assertIn(f'wordSetRule(\'{r}\')', content)
 
+    def test_viewer_has_solan_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_word', content)
+
 
 class TestSolanLexicon(unittest.TestCase):
     """Tests for solan_lexicon.py and the viewer Lexicon section."""
@@ -1542,6 +1550,10 @@ class TestSolanLexicon(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('lex-sig', content)
         self.assertIn('Сигнатура', content)
+
+    def test_viewer_has_solan_lexicon(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_lexicon', content)
 
 
 class TestSolanDendrogram(unittest.TestCase):
@@ -1728,6 +1740,10 @@ class TestSolanDendrogram(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('dend-info', content)
         self.assertIn('_hovLeaf', content)
+
+    def test_viewer_has_solan_dendrogram(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_dendrogram', content)
 
 
 class TestSolanPredict(unittest.TestCase):
@@ -1940,6 +1956,10 @@ class TestSolanPredict(unittest.TestCase):
     def test_viewer_has_sigl_export(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('window.sigL', content)
+
+    def test_viewer_has_solan_predict(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_predict', content)
 
 
 class TestSolanTransient(unittest.TestCase):
@@ -2196,6 +2216,10 @@ class TestSolanTransient(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_transient(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_transient', content)
 
 
 class TestSolanRules(unittest.TestCase):
@@ -2459,6 +2483,10 @@ class TestSolanRules(unittest.TestCase):
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_rules(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_rules', content)
+
 
 class TestSolanMds(unittest.TestCase):
     """Tests for solan_mds.py and the viewer MDS section."""
@@ -2683,6 +2711,10 @@ class TestSolanMds(unittest.TestCase):
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_mds(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_mds', content)
+
 
 class TestSolanGraph(unittest.TestCase):
     """Tests for solan_graph.py and the viewer Graph section."""
@@ -2869,6 +2901,10 @@ class TestSolanGraph(unittest.TestCase):
         self.assertIn('graph-reset', content)
         self.assertIn('перезапуск', content)
 
+    def test_viewer_has_solan_graph(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_graph', content)
+
 
 class TestSolanMatrix(unittest.TestCase):
     """Tests for solan_matrix.py and the viewer Matrix section."""
@@ -3028,6 +3064,10 @@ class TestSolanMatrix(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('drawMatrix', content)
         self.assertIn('setTimeout', content)
+
+    def test_viewer_has_solan_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_matrix', content)
 
 
 class TestSolanSpectral(unittest.TestCase):
@@ -3283,6 +3323,10 @@ class TestSolanSpectral(unittest.TestCase):
     def test_viewer_has_draw_lexicon_map(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('drawLexiconMap', content)
+
+    def test_viewer_has_solan_spectral(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_spectral', content)
 
 
 class TestSolanPhonemeAnalysis(unittest.TestCase):
@@ -3554,6 +3598,10 @@ class TestSolanPhonemeAnalysis(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('phon-word', content)
 
+    def test_viewer_has_solan_phoneme(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_phoneme', content)
+
 
 class TestSolanComplexity(unittest.TestCase):
     """Tests for solan_complexity.py and the viewer LZ76 section."""
@@ -3782,6 +3830,10 @@ class TestSolanComplexity(unittest.TestCase):
     def test_viewer_has_all_btn(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('lz-all-btn', content)
+
+    def test_viewer_has_solan_complexity(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_complexity', content)
 
 
 class TestSolanSpacetime(unittest.TestCase):
@@ -4023,6 +4075,10 @@ class TestSolanSpacetime(unittest.TestCase):
     def test_viewer_has_draw_spacetime(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('drawSpacetime', content)
+
+    def test_viewer_has_solan_spacetime(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_spacetime', content)
 
 
 class TestSolanDamage(unittest.TestCase):
@@ -4299,6 +4355,10 @@ class TestSolanDamage(unittest.TestCase):
     def test_viewer_has_damage_heading(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('конус влияния', content)
+
+    def test_viewer_has_solan_damage(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_damage', content)
 
 
 class TestSolanSymbolic(unittest.TestCase):
@@ -4666,6 +4726,10 @@ class TestSolanSymbolic(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('бинарная грамматика', content)
 
+    def test_viewer_has_solan_symbolic(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_symbolic', content)
+
 
 class TestSolanNetwork(unittest.TestCase):
     """Tests for solan_network.py and the viewer Network section."""
@@ -4977,6 +5041,10 @@ class TestSolanNetwork(unittest.TestCase):
         self.assertIn('PageRank', content)
         self.assertIn('СКС', content)
 
+    def test_viewer_has_solan_network(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_network', content)
+
 
 class TestSolanPortrait(unittest.TestCase):
     """Tests for solan_portrait.py and the viewer Portrait section."""
@@ -5196,6 +5264,10 @@ class TestSolanPortrait(unittest.TestCase):
     def test_viewer_has_portrait_heading(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('радарный отпечаток', content)
+
+    def test_viewer_has_solan_portrait(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_portrait', content)
 
 
 class TestSolanCoarse(unittest.TestCase):
@@ -5473,6 +5545,10 @@ class TestSolanCoarse(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Огрубление Q6', content)
 
+    def test_viewer_has_solan_coarse(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_coarse', content)
+
 
 class TestSolanActive(unittest.TestCase):
     """Tests for solan_active.py and the viewer AIS section."""
@@ -5741,6 +5817,10 @@ class TestSolanActive(unittest.TestCase):
     def test_viewer_has_ais_heading(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Active Information Storage', content)
+
+    def test_viewer_has_solan_active(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_active', content)
 
 
 class TestSolanTemporal(unittest.TestCase):
@@ -6014,6 +6094,10 @@ class TestSolanTemporal(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Временной спектр Q6', content)
 
+    def test_viewer_has_solan_temporal(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_temporal', content)
+
 
 class TestSolanPersistence(unittest.TestCase):
     """Tests for solan_persistence.py and the viewer Persistence section."""
@@ -6283,6 +6367,10 @@ class TestSolanPersistence(unittest.TestCase):
     def test_viewer_has_persistence_heading(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Персистентность Q6', content)
+
+    def test_viewer_has_solan_persistence(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_persistence', content)
 
 
 class TestSolanBlock(unittest.TestCase):
@@ -9672,6 +9760,10 @@ class TestSolanPerm(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('spatialPE', content)
 
+    def test_viewer_has_solan_perm(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_perm', content)
+
 
 class TestSolanBasin(unittest.TestCase):
     """Tests for solan_basin.py and the viewer Basin section."""
@@ -9945,6 +10037,10 @@ class TestSolanBasin(unittest.TestCase):
     def test_viewer_has_ba_attractor_sig(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('baAttractorSig', content)
+
+    def test_viewer_has_solan_basin(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_basin', content)
 
 
 class TestSolanBit(unittest.TestCase):
@@ -10222,6 +10318,10 @@ class TestSolanBit(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('computeBitPlanes', content)
 
+    def test_viewer_has_solan_bit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_bit', content)
+
 
 class TestSolanTraj(unittest.TestCase):
     """Tests for solan_traj.py and the viewer Trajectory section."""
@@ -10485,6 +10585,10 @@ class TestSolanTraj(unittest.TestCase):
     def test_viewer_has_traj_run(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('trajRun', content)
+
+    def test_viewer_has_solan_traj(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_traj', content)
 
 
 class TestSolanSpatent(unittest.TestCase):
@@ -13592,6 +13696,10 @@ class TestSolanEntropyOrbit(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('enTemporalH', content)
 
+    def test_viewer_has_solan_entropy(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_entropy', content)
+
 
 class TestSolanBoundary(unittest.TestCase):
     """Tests for solan_boundary.py — Spatial XOR-Boundary Analysis."""
@@ -15128,6 +15236,10 @@ class TestSolanMultistep(unittest.TestCase):
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_multistep(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_multistep', content)
+
 
 class TestSolanSemantic(unittest.TestCase):
     """Tests for solan_semantic.py — semantic orbit trajectory."""
@@ -15451,6 +15563,10 @@ class TestSolanSemantic(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_semantic(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_semantic', content)
 
 
 class TestSolanBitplane(unittest.TestCase):
@@ -15810,6 +15926,10 @@ class TestSolanBitplane(unittest.TestCase):
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_bitplane(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_bitplane', content)
+
 
 class TestSolanProfile(unittest.TestCase):
     """Tests for solan_profile.py — statistical moment profile."""
@@ -16105,6 +16225,10 @@ class TestSolanProfile(unittest.TestCase):
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_profile(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_profile', content)
+
 
 class TestSolanCoverage(unittest.TestCase):
     """Tests for solan_coverage.py — Q6 value coverage of CA orbits."""
@@ -16386,6 +16510,10 @@ class TestSolanCoverage(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_coverage(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_coverage', content)
 
 
 class TestSolanRun(unittest.TestCase):
