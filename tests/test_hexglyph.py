@@ -24500,5 +24500,127 @@ class TestHammingSummaryShape(unittest.TestCase):
             self.assertEqual(r['rule'], rule)
 
 
+class TestLyapunovSummaryShape(unittest.TestCase):
+    """Structure of lyapunov_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import lyapunov_summary
+        cls._r = lyapunov_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_has_four_rules(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r, f'rule={rule}')
+
+    def test_each_rule_value_is_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIsInstance(self._r[rule], dict, f'rule={rule}')
+
+    def test_has_converges_bool(self):
+        self.assertIsInstance(self._r['xor']['converges'], bool)
+
+    def test_has_final_mean_float(self):
+        self.assertIsInstance(self._r['xor']['final_mean'], float)
+
+    def test_has_peak_mean_float(self):
+        self.assertIsInstance(self._r['xor']['peak_mean'], float)
+
+    def test_has_peak_step_int(self):
+        self.assertIsInstance(self._r['xor']['peak_step'], int)
+
+    def test_xor3_has_all_keys(self):
+        for key in ('converges', 'final_mean', 'peak_mean', 'peak_step'):
+            self.assertIn(key, self._r['xor3'], f'key={key}')
+
+
+class TestRecurrenceSummaryShape(unittest.TestCase):
+    """Structure of recurrence_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_recurrence import recurrence_summary
+        cls.recurrence_summary = staticmethod(recurrence_summary)
+        cls._r = recurrence_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_steps_positive(self):
+        self.assertGreater(self._r['n_steps'], 0)
+
+    def test_R_is_list(self):
+        self.assertIsInstance(self._r['R'], list)
+
+    def test_rqa_is_dict(self):
+        self.assertIsInstance(self._r['rqa'], dict)
+
+    def test_rqa_has_RR(self):
+        self.assertIn('RR', self._r['rqa'])
+
+    def test_rqa_has_DET(self):
+        self.assertIn('DET', self._r['rqa'])
+
+    def test_rqa_has_N(self):
+        self.assertIn('N', self._r['rqa'])
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.recurrence_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['word'], 'ВОДА')
+
+
+class TestMutualSummaryShape(unittest.TestCase):
+    """Structure of mutual_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mutual import mutual_summary
+        cls.mutual_summary = staticmethod(mutual_summary)
+        cls._r = mutual_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_M_is_list(self):
+        self.assertIsInstance(self._r['M'], list)
+
+    def test_mi_by_dist_is_list(self):
+        self.assertIsInstance(self._r['mi_by_dist'], list)
+
+    def test_mean_entropy_float(self):
+        self.assertIsInstance(self._r['mean_entropy'], float)
+
+    def test_max_mi_float(self):
+        self.assertIsInstance(self._r['max_mi'], float)
+
+    def test_max_mi_pair_tuple(self):
+        self.assertIsInstance(self._r['max_mi_pair'], tuple)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.mutual_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
