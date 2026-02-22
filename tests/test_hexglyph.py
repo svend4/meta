@@ -31007,5 +31007,119 @@ class TestMoranSummaryProps(unittest.TestCase):
         self.assertEqual(v, 'dispersed')
 
 
+# ---------------------------------------------------------------------------
+# TestCASummaryProps
+# ---------------------------------------------------------------------------
+class TestCASummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import ca_summary
+        cls._cs = ca_summary('ГОРА', 'xor3', width=16)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._cs, dict)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._cs['word'], 'ГОРА')
+
+    def test_has_period(self):
+        self.assertIn('period', self._cs)
+
+    def test_period_positive(self):
+        self.assertGreater(self._cs['period'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestAutocorrSummaryProps
+# ---------------------------------------------------------------------------
+class TestAutocorrSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_autocorr import (
+            autocorr_summary, cell_ac_all, crosscorr_matrix, mean_temporal_ac,
+        )
+        from projects.hexglyph.solan_network import get_orbit
+        cls.cell_ac_all       = staticmethod(cell_ac_all)
+        cls.crosscorr_matrix  = staticmethod(crosscorr_matrix)
+        cls.mean_temporal_ac  = staticmethod(mean_temporal_ac)
+        cls._orbit = get_orbit('ВОЛНА', 'xor3')
+        cls._aus = autocorr_summary('ГОРА', 'xor3')
+        cls._ca  = cell_ac_all(cls._orbit)
+        cls._ccm = crosscorr_matrix(cls._orbit)
+        cls._mta = mean_temporal_ac(cls._orbit)
+
+    def test_autocorr_summary_dict(self):
+        self.assertIsInstance(self._aus, dict)
+
+    def test_autocorr_summary_word_preserved(self):
+        self.assertEqual(self._aus['word'], 'ГОРА')
+
+    def test_cell_ac_all_list(self):
+        self.assertIsInstance(self._ca, list)
+
+    def test_crosscorr_matrix_16x16(self):
+        self.assertEqual(len(self._ccm), 16)
+        self.assertEqual(len(self._ccm[0]), 16)
+
+    def test_mean_temporal_ac_list(self):
+        self.assertIsInstance(self._mta, list)
+
+
+# ---------------------------------------------------------------------------
+# TestTriangleProps
+# ---------------------------------------------------------------------------
+class TestTriangleProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_triangle import char_to_h, yang_count, triangle_summary
+        cls.char_to_h   = staticmethod(char_to_h)
+        cls.yang_count  = staticmethod(yang_count)
+        cls._ts = triangle_summary()
+
+    def test_char_to_h_int(self):
+        v = self.char_to_h('a')
+        self.assertIsInstance(v, int)
+
+    def test_char_to_h_nonneg(self):
+        v = self.char_to_h('a')
+        self.assertGreaterEqual(v, 0)
+
+    def test_yang_count_int(self):
+        v = self.yang_count(49)
+        self.assertIsInstance(v, int)
+
+    def test_yang_count_nonneg(self):
+        v = self.yang_count(49)
+        self.assertGreaterEqual(v, 0)
+
+    def test_triangle_summary_dict(self):
+        self.assertIsInstance(self._ts, dict)
+
+
+# ---------------------------------------------------------------------------
+# TestDistMetricsProps
+# ---------------------------------------------------------------------------
+class TestDistMetricsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dist import distance_matrix_bits, mean_distance_q6, near_returns
+        cls.near_returns = staticmethod(near_returns)
+        cls._dmb = distance_matrix_bits('ГОРА', 'xor3')
+        cls._mdq = mean_distance_q6('ГОРА', 'xor3')
+        cls._nr  = near_returns('ВОЛНА', 'xor3')
+
+    def test_distance_matrix_bits_list(self):
+        self.assertIsInstance(self._dmb, list)
+
+    def test_mean_distance_q6_float(self):
+        self.assertIsInstance(self._mdq, float)
+
+    def test_mean_distance_q6_nonneg(self):
+        self.assertGreaterEqual(self._mdq, 0.0)
+
+    def test_near_returns_list(self):
+        self.assertIsInstance(self._nr, list)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
