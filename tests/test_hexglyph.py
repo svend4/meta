@@ -23224,5 +23224,115 @@ class TestViewerJSConstants(unittest.TestCase):
         self.assertIn('WLABELS', self._content)
 
 
+class TestRegressionValues(unittest.TestCase):
+    """Regression tests: verify specific known output values for key functions."""
+
+    # ── word_signature — exact (T, P) for ГОРА ───────────────────────────────
+
+    def test_gora_xor_signature(self):
+        from projects.hexglyph.solan_word import word_signature
+        self.assertEqual(word_signature('ГОРА')['xor'],  (2, 1))
+
+    def test_gora_xor3_signature(self):
+        from projects.hexglyph.solan_word import word_signature
+        self.assertEqual(word_signature('ГОРА')['xor3'], (0, 2))
+
+    def test_gora_and_signature(self):
+        from projects.hexglyph.solan_word import word_signature
+        self.assertEqual(word_signature('ГОРА')['and'],  (1, 2))
+
+    def test_gora_or_signature(self):
+        from projects.hexglyph.solan_word import word_signature
+        self.assertEqual(word_signature('ГОРА')['or'],   (1, 1))
+
+    # ── full_key for specific words ───────────────────────────────────────────
+
+    def test_full_key_gora(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ГОРА'),   (2, 1, 2, 1, 1))
+
+    def test_full_key_voda(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ВОДА'),   (2, 1, 2, 1, 2))
+
+    def test_full_key_zhurnal(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ЖУРНАЛ'), (8, 4, 2, 4, 2))
+
+    def test_full_key_vzlom(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ВЗЛОМ'),  (8, 2, 1, 7, 1))
+
+    def test_full_key_tuman(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ТУМАН'),  (8, 7, 1, 7, 1))
+
+    # ── word_distance — exact values for specific pairs ───────────────────────
+
+    def test_word_dist_gora_voda(self):
+        from projects.hexglyph.solan_word import word_distance
+        self.assertAlmostEqual(word_distance('ГОРА', 'ВОДА'),  0.125,  places=6)
+
+    def test_word_dist_gora_tuman(self):
+        from projects.hexglyph.solan_word import word_distance
+        self.assertAlmostEqual(word_distance('ГОРА', 'ТУМАН'), 0.3125, places=6)
+
+    def test_word_dist_voda_nora(self):
+        from projects.hexglyph.solan_word import word_distance
+        self.assertAlmostEqual(word_distance('ВОДА', 'НОРА'),  0.0,    places=6)
+
+    def test_word_dist_mat_tuman(self):
+        from projects.hexglyph.solan_word import word_distance
+        self.assertAlmostEqual(word_distance('МАТ', 'ТУМАН'),  0.0,    places=6)
+
+    # ── lz76 — exact complexity for specific bit strings ──────────────────────
+
+    def test_lz76_single_zero(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('0'), 1)
+
+    def test_lz76_two_symbols(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('01'), 2)
+
+    def test_lz76_six_symbols(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('001011'), 3)
+
+    def test_lz76_periodic_8(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('01010101'), 4)
+
+    def test_lz76_periodic_16(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('0011001100110011'), 5)
+
+    # ── lz_summary — regression for ГОРА/xor3 ────────────────────────────────
+
+    def test_lz_summary_gora_xor3_period(self):
+        from projects.hexglyph.solan_lz import lz_summary
+        self.assertEqual(lz_summary('ГОРА', 'xor3')['period'], 2)
+
+    def test_lz_summary_gora_xor3_full_lz(self):
+        from projects.hexglyph.solan_lz import lz_summary
+        self.assertEqual(lz_summary('ГОРА', 'xor3')['full_lz']['lz'], 15)
+
+    # ── fourier_summary — regression for ГОРА/xor3 ───────────────────────────
+
+    def test_fourier_gora_xor3_period(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        self.assertEqual(fourier_summary('ГОРА', 'xor3')['period'], 2)
+
+    def test_fourier_gora_xor3_mean_spec_entropy(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        # Period-2 attractor → single dominant harmonic → entropy = 0
+        self.assertAlmostEqual(
+            fourier_summary('ГОРА', 'xor3')['mean_spec_entropy'], 0.0, places=6)
+
+    def test_fourier_gora_xor3_dominant_k(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        self.assertEqual(fourier_summary('ГОРА', 'xor3')['dominant_k'], 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
