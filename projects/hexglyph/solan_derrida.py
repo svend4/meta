@@ -297,6 +297,15 @@ def derrida_dict(
     return {'width': width, 'n_random': n_random, 'rules': rules_out}
 
 
+def derrida_summary(
+    width:    int = _DEFAULT_WIDTH,
+    n_random: int = _DEFAULT_N,
+    seed:     int = _DEFAULT_SEED,
+) -> dict:
+    """Alias for build_derrida_data — standard *_summary convention."""
+    return build_derrida_data(width, n_random, seed)
+
+
 # ── ASCII display ─────────────────────────────────────────────────────────────
 
 _CLASSIFY_LABEL = {
@@ -407,10 +416,15 @@ def _main() -> None:
     parser.add_argument('--all',     action='store_true')
     parser.add_argument('--n',       type=int, default=_DEFAULT_N)
     parser.add_argument('--width',   type=int, default=_DEFAULT_WIDTH)
+    parser.add_argument('--json',     action='store_true', help='JSON output')
     parser.add_argument('--no-color', action='store_true')
     args = parser.parse_args()
     color = not args.no_color
-    if args.summary:
+    if args.json:
+        import json as _json
+        print(_json.dumps(derrida_dict(args.width, args.n),
+                          ensure_ascii=False, indent=2))
+    elif args.summary:
         print_derrida_summary(args.width, color)
     elif args.all:
         for rule in _ALL_RULES:
