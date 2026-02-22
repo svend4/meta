@@ -302,5 +302,88 @@ class TestPrintFunctions(unittest.TestCase):
         self.assertIn('1', out)
 
 
+class TestImplicantReprAndEq(unittest.TestCase):
+    """Тесты для __repr__ (line 92) и __eq__ NotImplemented (line 96)."""
+
+    def test_repr_returns_string(self):
+        imp = Implicant.from_minterm(42)
+        r = repr(imp)
+        self.assertIn('Implicant', r)
+        self.assertIn('101010', r)
+
+    def test_eq_with_non_implicant_returns_not_implemented(self):
+        imp = Implicant.from_minterm(0)
+        result = imp.__eq__(42)
+        self.assertIs(result, NotImplemented)
+
+
+class TestGreedyCover(unittest.TestCase):
+    """Тесты жадного покрытия в essential_implicants (lines 184-191)."""
+
+    def test_cyclic_cover_uses_greedy_selection(self):
+        # Cyclic covering: each minterm covered by exactly 2 PIs → no essential PIs
+        # Greedy loop must select them
+        p1 = Implicant('00000-', frozenset({0, 1}))  # covers 0, 1
+        p2 = Implicant('0000-0', frozenset({0, 2}))  # covers 0, 2
+        p3 = Implicant('0000-1', frozenset({1, 3}))  # covers 1, 3
+        p4 = Implicant('00001-', frozenset({2, 3}))  # covers 2, 3
+        selected = essential_implicants([p1, p2, p3, p4], [0, 1, 2, 3])
+        # All minterms must be covered
+        covered = set()
+        for imp in selected:
+            covered |= imp.covered
+        self.assertGreaterEqual(covered, {0, 1, 2, 3})
+
+    def test_greedy_break_when_no_coverage(self):
+        # PI that doesn't cover any of the specified minterms → greedy breaks, returns []
+        p_other = Implicant('100000', frozenset({32}))  # covers only 32
+        selected = essential_implicants([p_other], [5, 10])
+        self.assertEqual(selected, [])
+
+
+class TestKarnaughCLI(unittest.TestCase):
+    """Тесты для main() функции (lines 348-402)."""
+
+    def _run(self, args, expect_exit=None):
+        from projects.karnaugh6.minimize import main
+        old_argv = sys.argv
+        sys.argv = ['minimize.py'] + args
+        buf = io.StringIO()
+        try:
+            if expect_exit is not None:
+                with self.assertRaises(SystemExit) as cm:
+                    with redirect_stdout(buf):
+                        main()
+                self.assertEqual(cm.exception.code, expect_exit)
+            else:
+                with redirect_stdout(buf):
+                    main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_main_no_args_shows_example(self):
+        out = self._run([])
+        self.assertIn('Пример', out)
+
+    def test_main_with_minterms(self):
+        out = self._run(['0', '1', '2', '3'])
+        self.assertIn('karnaugh6', out.lower())
+
+    def test_main_with_table_flag(self):
+        out = self._run(['0', '1', '--table'])
+        self.assertIn('x5', out)
+
+    def test_main_with_map_flag(self):
+        out = self._run(['0', '1', '--map'])
+        self.assertGreater(len(out), 0)
+
+    def test_main_out_of_range_exits_1(self):
+        self._run(['99'], expect_exit=1)
+
+    def test_main_overlapping_dc_exits_1(self):
+        self._run(['0', '1', '--dc', '1'], expect_exit=1)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

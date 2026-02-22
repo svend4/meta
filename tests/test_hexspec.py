@@ -610,6 +610,154 @@ class TestSpecCLI(unittest.TestCase):
         out = self._run_ver(['--path', 'S0', 'UNKNOWN'], expect_exit=1)
         self.assertIn('Неизвестное', out)
 
+    def test_ver_path_not_from_initial(self):
+        # from_h != spec.initial → path=None → prints "недостижимо" (line 388)
+        out = self._run_ver(['--path', 'S1', 'S2'], expect_exit=0)
+        self.assertIn('недостижимо', out)
+
+
+class TestSpecReverseMethods(unittest.TestCase):
+    """Тесты для reverse_transitions() и backward_reachable() (lines 94, 98-107)."""
+
+    def setUp(self):
+        self.spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'C': '000011'},
+            transitions=[('A', 'B'), ('B', 'C')],
+            initial='A',
+        )
+
+    def test_reverse_transitions(self):
+        rev = self.spec.reverse_transitions()
+        self.assertIn((1, 0), rev)   # B→A reversed
+        self.assertIn((3, 1), rev)   # C→B reversed
+
+    def test_backward_reachable(self):
+        # Backward from {C=3}: C←B←A, so all reachable backwards
+        br = self.spec.backward_reachable({3})
+        self.assertIn(0, br)   # A is backward reachable from C
+        self.assertIn(1, br)   # B is backward reachable from C
+        self.assertIn(3, br)   # C itself
+
+    def test_backward_reachable_single(self):
+        br = self.spec.backward_reachable({1})  # from B
+        self.assertIn(0, br)   # A can reach B
+        self.assertIn(1, br)   # B itself
+
+
+class TestSpecCheckInvariant(unittest.TestCase):
+    """Тест для check_invariant() (line 148)."""
+
+    def test_check_invariant_no_violations(self):
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001'},
+            transitions=[('A', 'B')],
+            initial='A',
+        )
+        # All reachable states have h < 10 → no violations
+        violations = spec.check_invariant(lambda h: h < 10)
+        self.assertEqual(violations, [])
+
+    def test_check_invariant_with_violation(self):
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001'},
+            transitions=[('A', 'B')],
+            initial='A',
+        )
+        # State B=1 violates h == 0
+        violations = spec.check_invariant(lambda h: h == 0)
+        self.assertIn(1, violations)
+
+
+class TestLoadSpecErrors(unittest.TestCase):
+    """Тесты ошибок в from_json() (lines 200, 202, 207)."""
+
+    def _write_spec(self, data):
+        import tempfile
+        f = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False)
+        json.dump(data, f)
+        f.close()
+        return f.name
+
+    def test_load_spec_unknown_transition_src(self):
+        spec_data = {
+            'states': {'A': '000000', 'B': '000001'},
+            'transitions': [['UNKNOWN', 'B']],
+            'initial': 'A',
+        }
+        path = self._write_spec(spec_data)
+        try:
+            with self.assertRaises(ValueError) as cm:
+                load_spec(path)
+            self.assertIn('UNKNOWN', str(cm.exception))
+        finally:
+            os.unlink(path)
+
+    def test_load_spec_unknown_transition_dst(self):
+        spec_data = {
+            'states': {'A': '000000', 'B': '000001'},
+            'transitions': [['A', 'MISSING']],
+            'initial': 'A',
+        }
+        path = self._write_spec(spec_data)
+        try:
+            with self.assertRaises(ValueError) as cm:
+                load_spec(path)
+            self.assertIn('MISSING', str(cm.exception))
+        finally:
+            os.unlink(path)
+
+    def test_load_spec_unknown_initial(self):
+        spec_data = {
+            'states': {'A': '000000'},
+            'transitions': [],
+            'initial': 'NOPE',
+        }
+        path = self._write_spec(spec_data)
+        try:
+            with self.assertRaises(ValueError) as cm:
+                load_spec(path)
+            self.assertIn('NOPE', str(cm.exception))
+        finally:
+            os.unlink(path)
+
+
+class TestVerifyWithDescription(unittest.TestCase):
+    """Тесты для print_verification_report с description (line 237) и forbidden OK (line 322)."""
+
+    def test_verify_spec_with_description(self):
+        # Create spec with description → hits line 237
+        s = Spec(
+            name='desc_test',
+            description='Test description',
+            bit_names=[f'b{i}' for i in range(6)],
+            states={'A': 0, 'B': 1},
+            transitions=[(0, 1)],
+            initial=0,
+            final=set(),
+            forbidden=set(),
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            verify(s, verbose=True)
+        self.assertIn('Test description', buf.getvalue())
+
+    def test_verify_spec_with_unreachable_forbidden(self):
+        # Forbidden state exists but is not reachable → prints [OK] (line 322)
+        s = Spec(
+            name='forbidden_test',
+            description='',
+            bit_names=[f'b{i}' for i in range(6)],
+            states={'A': 0, 'B': 1, 'F': 63},
+            transitions=[(0, 1), (1, 0)],  # cycle to avoid deadlock
+            initial=0,
+            final=set(),
+            forbidden={63},  # F=63 is forbidden but unreachable
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            result = verify(s, verbose=True)
+        self.assertIn('[OK]', buf.getvalue())
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

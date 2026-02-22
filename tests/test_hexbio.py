@@ -617,3 +617,18 @@ class TestSynonymousPath:
         ugc = codon_to_int('UGC')  # Cys
         path = synonymous_path(aug, ugc)  # different AA → None at line 105
         assert path is None
+
+    def test_synonymous_path_leu_multi_hop_triggers_visited(self):
+        """BFS revisits visited nodes (line 112) for CUU(31)→UUA(60), both Leu."""
+        path = synonymous_path(31, 60)   # CUU=31, UUA=60 both Leu
+        assert path is not None
+        assert path[0] == 31
+        assert path[-1] == 60
+        assert all(translate(c) == 'L' for c in path)
+
+    def test_synonymous_path_ser_disconnected_returns_none(self):
+        """BFS exhaustion (line 120): UCU(55) and AGU(11) both Ser but disconnected."""
+        ucu = codon_to_int('UCU')  # 55, Ser (UC* group)
+        agu = codon_to_int('AGU')  # 11, Ser (AG* group)
+        path = synonymous_path(ucu, agu)
+        assert path is None
