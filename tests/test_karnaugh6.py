@@ -145,5 +145,66 @@ class TestMinimize(unittest.TestCase):
         self.assertEqual(covered, set(minterms))
 
 
+class TestEssentialImplicants(unittest.TestCase):
+    """Тесты функции essential_implicants (жадный выбор покрытия)."""
+
+    def test_single_minterm_single_pi(self):
+        """Один минтерм → одна существенная импликанта."""
+        pis = quine_mccluskey([42])
+        ess = essential_implicants(pis, [42])
+        self.assertEqual(len(ess), 1)
+        self.assertTrue(ess[0].covers(42))
+
+    def test_covers_all_minterms(self):
+        """Существенные импликанты покрывают все входные минтермы."""
+        minterms = [0, 1, 2, 4, 8, 16, 32]
+        pis = quine_mccluskey(minterms)
+        ess = essential_implicants(pis, minterms)
+        covered = set()
+        for e in ess:
+            covered.update(e.covered & set(minterms))
+        self.assertEqual(covered, set(minterms))
+
+    def test_empty_minterms(self):
+        """Пустой список минтермов → пустое покрытие."""
+        ess = essential_implicants([], [])
+        self.assertEqual(ess, [])
+
+    def test_all_minterms_one_implicant(self):
+        """Все 64 минтерма → одна тавтологическая импликанта '------'."""
+        minterms = list(range(64))
+        pis = quine_mccluskey(minterms)
+        ess = essential_implicants(pis, minterms)
+        self.assertEqual(len(ess), 1)
+        self.assertEqual(ess[0].bits, '------')
+
+    def test_no_duplicates(self):
+        """Одна импликанта не выбирается дважды."""
+        minterms = [0, 1, 2, 3]
+        pis = quine_mccluskey(minterms)
+        ess = essential_implicants(pis, minterms)
+        self.assertEqual(len(ess), len(set(id(e) for e in ess)))
+
+    def test_result_is_subset_of_pis(self):
+        """Существенные импликанты — подмножество простых импликант."""
+        minterms = [0, 1, 4, 5, 16, 17, 20, 21]
+        pis = quine_mccluskey(minterms)
+        ess = essential_implicants(pis, minterms)
+        for e in ess:
+            self.assertIn(e, pis)
+
+    def test_random_function_covered(self):
+        """Случайная функция (seed=7) — все минтермы покрыты."""
+        import random
+        random.seed(7)
+        minterms = sorted(random.sample(range(64), 15))
+        pis = quine_mccluskey(minterms)
+        ess = essential_implicants(pis, minterms)
+        covered = set()
+        for e in ess:
+            covered.update(e.covered & set(minterms))
+        self.assertEqual(covered, set(minterms))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
