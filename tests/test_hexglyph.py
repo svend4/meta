@@ -30858,5 +30858,154 @@ class TestMomentsSummaryProps(unittest.TestCase):
         self.assertIn('var_stats', self._ms)
 
 
+# ---------------------------------------------------------------------------
+# TestRunSummaryProps
+# ---------------------------------------------------------------------------
+class TestRunSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_run import run_summary, run_dict
+        cls._rs = run_summary('ГОРА', 'xor3')
+        cls._rd = run_dict(cls._rs)
+
+    def test_run_summary_dict(self):
+        self.assertIsInstance(self._rs, dict)
+
+    def test_run_summary_word_preserved(self):
+        self.assertEqual(self._rs['word'], 'ГОРА')
+
+    def test_run_summary_n_cells_16(self):
+        self.assertEqual(self._rs['n_cells'], 16)
+
+    def test_run_dict_dict(self):
+        self.assertIsInstance(self._rd, dict)
+
+    def test_run_dict_word_preserved(self):
+        self.assertEqual(self._rd['word'], 'ГОРА')
+
+
+# ---------------------------------------------------------------------------
+# TestSemanticSummaryProps
+# ---------------------------------------------------------------------------
+class TestSemanticSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_semantic import semantic_summary
+        cls._ss = semantic_summary('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._ss, dict)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._ss['word'], 'ГОРА')
+
+    def test_has_nearest(self):
+        self.assertIn('nearest', self._ss)
+
+    def test_has_n_unique_words(self):
+        self.assertIn('n_unique_words', self._ss)
+
+    def test_n_unique_words_positive(self):
+        self.assertGreater(self._ss['n_unique_words'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestCoactSummaryProps
+# ---------------------------------------------------------------------------
+class TestCoactSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coact import coact_summary, top_corr_pairs
+        cls.top_corr_pairs = staticmethod(top_corr_pairs)
+        cls._cs = coact_summary('ГОРА', 'xor3')
+        mat = [[float(i == j) for j in range(6)] for i in range(6)]
+        cls._tcp = top_corr_pairs(mat, n=3)
+
+    def test_coact_summary_dict(self):
+        self.assertIsInstance(self._cs, dict)
+
+    def test_coact_summary_word_preserved(self):
+        self.assertEqual(self._cs['word'], 'ГОРА')
+
+    def test_top_corr_pairs_list(self):
+        self.assertIsInstance(self._tcp, list)
+
+
+# ---------------------------------------------------------------------------
+# TestPersistenceProps
+# ---------------------------------------------------------------------------
+class TestPersistenceProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_persistence import (
+            persistence, run_lengths, run_stats, persistence_dict,
+        )
+        cls.persistence  = staticmethod(persistence)
+        cls.run_lengths  = staticmethod(run_lengths)
+        cls.run_stats    = staticmethod(run_stats)
+        cls._series = [49, 47, 15, 63] * 4
+        cls._pd = persistence_dict('ГОРА', 'xor3')
+
+    def test_persistence_float(self):
+        v = self.persistence(self._series)
+        self.assertIsInstance(v, float)
+
+    def test_persistence_in_01(self):
+        v = self.persistence(self._series)
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_run_lengths_list(self):
+        v = self.run_lengths(self._series)
+        self.assertIsInstance(v, list)
+
+    def test_run_stats_dict(self):
+        v = self.run_stats(self._series)
+        self.assertIsInstance(v, dict)
+
+    def test_persistence_dict_dict(self):
+        self.assertIsInstance(self._pd, dict)
+
+    def test_persistence_dict_word_preserved(self):
+        self.assertEqual(self._pd['word'], 'ГОРА')
+
+    def test_persistence_dict_has_mean_persistence(self):
+        self.assertIn('mean_persistence', self._pd)
+
+
+# ---------------------------------------------------------------------------
+# TestMoranSummaryProps
+# ---------------------------------------------------------------------------
+class TestMoranSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moran import (
+            moran_summary, morans_i_dict, spatial_classification,
+        )
+        cls.spatial_classification = staticmethod(spatial_classification)
+        cls._ms  = moran_summary('ГОРА', 'xor3')
+        cls._mid = morans_i_dict('ГОРА', 'xor3')
+
+    def test_moran_summary_dict(self):
+        self.assertIsInstance(self._ms, dict)
+
+    def test_moran_summary_has_mean_i(self):
+        self.assertIn('mean_i', self._ms)
+
+    def test_morans_i_dict_dict(self):
+        self.assertIsInstance(self._mid, dict)
+
+    def test_morans_i_dict_word_preserved(self):
+        self.assertEqual(self._mid['word'], 'ГОРА')
+
+    def test_spatial_classification_str(self):
+        v = self.spatial_classification(0.5)
+        self.assertIsInstance(v, str)
+
+    def test_spatial_classification_neg_dispersed(self):
+        v = self.spatial_classification(-0.5)
+        self.assertEqual(v, 'dispersed')
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
