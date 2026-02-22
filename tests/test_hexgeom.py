@@ -13,7 +13,7 @@ from projects.hexgeom.hexgeom import (
     distance_distribution, dual_distance_distribution,
     minimum_distance, diameter_of_set,
     vertex_boundary, edge_boundary, isoperimetric_ratio,
-    johnson_bound, singleton_bound, plotkin_bound,
+    johnson_bound, singleton_bound, plotkin_bound, clique_number_at_distance,
 )
 from math import comb
 
@@ -410,6 +410,33 @@ class TestBounds(unittest.TestCase):
         """Singleton bound строго убывает с d."""
         for d in range(1, 6):
             self.assertGreater(singleton_bound(d), singleton_bound(d + 1))
+
+
+class TestCliqueAtDistance(unittest.TestCase):
+    """Тесты clique_number_at_distance — максимальное d-равноудалённое множество."""
+
+    def test_returns_positive_int(self):
+        for d in range(1, 7):
+            result = clique_number_at_distance(d)
+            self.assertIsInstance(result, int)
+            self.assertGreater(result, 0)
+
+    def test_d1_has_two(self):
+        """d=1: максимальная пара соседей = 2."""
+        self.assertEqual(clique_number_at_distance(1), 2)
+
+    def test_d2_has_six(self):
+        """d=2: 6 равноудалённых на расстоянии 2 соответствует атомам B₆."""
+        self.assertEqual(clique_number_at_distance(2), 6)
+
+    def test_d6_has_two(self):
+        """d=6: только антиподальная пара (diameter = 6)."""
+        self.assertEqual(clique_number_at_distance(6), 2)
+
+    def test_at_most_64(self):
+        """Размер не превышает 64 (мощность Q6)."""
+        for d in range(1, 7):
+            self.assertLessEqual(clique_number_at_distance(d), 64)
 
 
 if __name__ == '__main__':

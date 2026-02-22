@@ -7,6 +7,7 @@ from projects.hexcode.hexcode import (
     BinaryCode, repetition_code, parity_check_code, shortened_hamming_code,
     hexcode_312, full_space_code, even_weight_code,
     singleton_bound, hamming_bound, plotkin_bound, feasible,
+    dual_repetition_code, find_codes, min_covering_code,
     _gf2_dot, _int_to_bits, _bits_to_int, _row_reduce_gf2,
 )
 from libs.hexcore.hexcore import hamming, SIZE
@@ -321,6 +322,84 @@ class TestWeightDistribution(unittest.TestCase):
         code = hexcode_312()
         d = code.weight_distribution()
         self.assertEqual(sum(d.values()), len(code.codewords()))
+
+
+class TestDualRepetitionCode(unittest.TestCase):
+    """Тесты dual_repetition_code — [6,5,2]-код."""
+
+    def test_returns_binary_code(self):
+        code = dual_repetition_code()
+        self.assertIsInstance(code, BinaryCode)
+
+    def test_n_equals_6(self):
+        code = dual_repetition_code()
+        self.assertEqual(code.n, 6)
+
+    def test_k_equals_5(self):
+        code = dual_repetition_code()
+        self.assertEqual(code.k, 5)
+
+    def test_min_distance_2(self):
+        code = dual_repetition_code()
+        self.assertEqual(code.min_distance(), 2)
+
+    def test_codewords_count(self):
+        """[6,5,2] имеет 2^5 = 32 кодовых слова."""
+        code = dual_repetition_code()
+        self.assertEqual(len(code.codewords()), 32)
+
+
+class TestFindCodes(unittest.TestCase):
+    """Тесты find_codes — поиск линейных кодов."""
+
+    def test_returns_list(self):
+        codes = find_codes(d_min=1, k=1)
+        self.assertIsInstance(codes, list)
+
+    def test_k1_d1_finds_63_codes(self):
+        """При k=1, d_min=1 находит все 63 ненулевых однострочных кода."""
+        codes = find_codes(d_min=1, k=1)
+        self.assertEqual(len(codes), 63)
+
+    def test_k1_d6_finds_one_code(self):
+        """Код d=6 при k=1 — только repetition code ([6,1,6])."""
+        codes = find_codes(d_min=6, k=1)
+        self.assertEqual(len(codes), 1)
+        self.assertEqual(codes[0].min_distance(), 6)
+
+    def test_all_found_meet_d_min(self):
+        """Все найденные коды имеют min_distance ≥ d_min."""
+        codes = find_codes(d_min=3, k=1)
+        for c in codes:
+            self.assertGreaterEqual(c.min_distance(), 3)
+
+
+class TestMinCoveringCode(unittest.TestCase):
+    """Тесты min_covering_code — минимальный линейный код с покрывающим радиусом."""
+
+    def test_returns_binary_code(self):
+        code = min_covering_code(radius=3)
+        self.assertIsInstance(code, BinaryCode)
+
+    def test_n_equals_6(self):
+        code = min_covering_code(radius=3)
+        self.assertEqual(code.n, 6)
+
+    def test_k_is_positive(self):
+        code = min_covering_code(radius=3)
+        self.assertGreater(code.k, 0)
+
+    def test_covering_radius_satisfied(self):
+        """Покрывающий радиус ≤ заданному radius=3."""
+        from projects.hexgeom.hexgeom import hamming_ball
+        code = min_covering_code(radius=3)
+        cws = code.codewords()
+        # Каждая из 64 вершин Q6 на расстоянии ≤ 3 от какого-то кодового слова
+        covered = set()
+        for cw in cws:
+            for h in hamming_ball(cw, 3):
+                covered.add(h)
+        self.assertEqual(len(covered), 64)
 
 
 if __name__ == '__main__':
