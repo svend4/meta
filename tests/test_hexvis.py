@@ -152,6 +152,16 @@ class TestRenderTransition(unittest.TestCase):
         result = render_transition(1, 0, color=False)
         self.assertIn('↓', result)
 
+    def test_color_transition_no_crash(self):
+        """render_transition с color=True работает без ошибок."""
+        result = render_transition(0, 1, color=True)
+        self.assertGreater(len(result), 0)
+
+    def test_color_transition_down_no_crash(self):
+        """render_transition color=True, направление ↓."""
+        result = render_transition(1, 0, color=True)
+        self.assertGreater(len(result), 0)
+
 
 class TestToDot(unittest.TestCase):
     def test_dot_header(self):

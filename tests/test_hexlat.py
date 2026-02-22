@@ -1,6 +1,8 @@
 """Тесты для hexlat — булева решётка B₆ на Q6."""
 import sys
 import os
+import io
+from contextlib import redirect_stdout
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from math import comb
@@ -16,6 +18,7 @@ from projects.hexlat.hexlat import (
     lattice_diameter, comparable_pairs_count, incomparable_pairs_count,
     sublattice_boolean,
     mirsky_decomposition, chain_partition_count,
+    _cmd_info, _cmd_interval, _cmd_mobius, _cmd_chains, _cmd_antichain,
 )
 
 
@@ -410,3 +413,43 @@ class TestLatticeStructure:
     def test_total_elements(self):
         all_count = sum(len(rank_elements(k)) for k in range(7))
         assert all_count == 64
+
+
+# ============================================================
+# CLI-функции
+# ============================================================
+
+class TestCLI:
+    def _capture(self, fn, args=None):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(args or [])
+        return buf.getvalue()
+
+    def test_cmd_info_produces_output(self):
+        out = self._capture(_cmd_info)
+        assert 'Уитни' in out or 'B' in out
+
+    def test_cmd_interval_valid(self):
+        out = self._capture(_cmd_interval, ['0', '7'])
+        assert 'нтервал' in out or '0' in out
+
+    def test_cmd_interval_no_args(self):
+        out = self._capture(_cmd_interval, [])
+        assert 'Использование' in out
+
+    def test_cmd_mobius_valid(self):
+        out = self._capture(_cmd_mobius, ['0', '7'])
+        assert 'μ' in out or '0' in out
+
+    def test_cmd_mobius_no_args(self):
+        out = self._capture(_cmd_mobius, [])
+        assert 'Использование' in out
+
+    def test_cmd_chains_produces_output(self):
+        out = self._capture(_cmd_chains)
+        assert '720' in out
+
+    def test_cmd_antichain_produces_output(self):
+        out = self._capture(_cmd_antichain)
+        assert '20' in out

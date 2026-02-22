@@ -40,6 +40,11 @@ class TestSubgraphBasic(unittest.TestCase):
         self.assertIn(5, g)
         self.assertNotIn(42, g)
 
+    def test_len_returns_vertex_count(self):
+        """len(g) возвращает число вершин."""
+        g = induced_subgraph({0, 1, 3, 7})
+        self.assertEqual(len(g), 4)
+
     def test_degree_q6(self):
         """Каждая вершина Q6 имеет степень 6."""
         g = q6_full()
@@ -72,6 +77,11 @@ class TestConnectivity(unittest.TestCase):
 
     def test_single_vertex_connected(self):
         self.assertTrue(induced_subgraph({42}).is_connected())
+
+    def test_empty_subgraph_is_connected(self):
+        """Пустой подграф тривиально связен."""
+        g = induced_subgraph(set())
+        self.assertTrue(g.is_connected())
 
     def test_disconnected(self):
         # 0 и 42 не соединены напрямую, но через других вершин
@@ -205,6 +215,12 @@ class TestHamiltonian(unittest.TestCase):
         self.assertEqual(cycle[0], cycle[-1])
         self.assertEqual(len(set(cycle)), 4)
 
+    def test_hamiltonian_cycle_too_small_returns_none(self):
+        """< 3 вершин → гамильтонов цикл невозможен (None)."""
+        g = induced_subgraph({0, 1})
+        cycle = g.find_hamiltonian_cycle()
+        self.assertIsNone(cycle)
+
     def test_no_hamiltonian_path_isolated(self):
         """Изолированная вершина — нет гамильтонова пути через все 3."""
         g = induced_subgraph({0, 42, 63})   # 0-42 и 0-63 не смежны (hamming>1)
@@ -274,6 +290,12 @@ class TestSpectral(unittest.TestCase):
         g = induced_subgraph({0, 1})
         lam = largest_eigenvalue(g)
         self.assertAlmostEqual(lam, 1.0, places=2)
+
+    def test_largest_eigenvalue_empty(self):
+        """λ_max для пустого графа = 0."""
+        g = induced_subgraph(set())
+        lam = largest_eigenvalue(g)
+        self.assertEqual(lam, 0.0)
 
     def test_spectrum_length(self):
         g = induced_subgraph({0, 1, 2, 3})

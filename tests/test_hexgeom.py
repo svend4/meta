@@ -295,6 +295,11 @@ class TestPackingCovering(unittest.TestCase):
         """is_perfect_code работает: {весь Q6} с r=0."""
         self.assertTrue(is_perfect_code(list(range(64)), 0))
 
+    def test_perfect_code_overlapping_balls_false(self):
+        """Перекрывающиеся шары → не совершенный код."""
+        # B(0,1) и B(1,1) пересекаются (оба содержат вершину 0 и 1)
+        self.assertFalse(is_perfect_code([0, 1], 1))
+
     def test_packing_r0_is_all(self):
         """Пакинг с r=0: все 64 вершины (шары — точки)."""
         centers = packing_number(0)
@@ -326,6 +331,14 @@ class TestDistanceDistribution(unittest.TestCase):
         # d(0, 7) = popcount(7) = 3
         code = [0, 7, 56]
         self.assertEqual(minimum_distance(code), 3)
+
+    def test_minimum_distance_single_element(self):
+        """minimum_distance с 1 элементом → 0."""
+        self.assertEqual(minimum_distance([42]), 0)
+
+    def test_minimum_distance_empty(self):
+        """minimum_distance с пустым кодом → 0."""
+        self.assertEqual(minimum_distance([]), 0)
 
     def test_diameter_of_set_correct(self):
         """diameter_of_set: max попарное расстояние."""
@@ -371,6 +384,10 @@ class TestIsoperimetric(unittest.TestCase):
         S = {0, 1, 3}
         self.assertGreaterEqual(isoperimetric_ratio(S), 0.0)
 
+    def test_isoperimetric_ratio_empty_returns_zero(self):
+        """Пустое множество → 0.0."""
+        self.assertEqual(isoperimetric_ratio(set()), 0.0)
+
 
 # ── границы кодов ─────────────────────────────────────────────────────────────
 
@@ -391,6 +408,10 @@ class TestBounds(unittest.TestCase):
     def test_plotkin_bound_small_d(self):
         """Plotkin не применима при d ≤ 3 (n/2 = 3)."""
         self.assertIsNone(plotkin_bound(3))
+
+    def test_johnson_bound_d0_is_64(self):
+        """Johnson(6, 0) = 2^6 = 64."""
+        self.assertEqual(johnson_bound(0), 64)
 
     def test_johnson_bound_d1_is_64(self):
         """Johnson(6,1) = 64."""

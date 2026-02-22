@@ -56,6 +56,13 @@ class TestSBoxBasic(unittest.TestCase):
         for x in range(64):
             self.assertEqual(inv_inv(x), sb(x))
 
+    def test_repr_contains_nl(self):
+        """SBox.__repr__ содержит нелинейность и дифф. унифомность."""
+        sb = random_sbox(seed=0)
+        r = repr(sb)
+        self.assertIn('nl=', r)
+        self.assertIn('du=', r)
+
     def test_component_binary(self):
         """Компонентная функция возвращает только 0 и 1."""
         sb = random_sbox()

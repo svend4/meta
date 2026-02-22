@@ -124,10 +124,22 @@ class TestIsingChainThermodynamics(unittest.TestCase):
         """При β→∞ ⟨E⟩ → min E = −6 (фм. основное состояние)."""
         self.assertAlmostEqual(self.chain.mean_energy(20.0), -6.0, places=2)
 
+    def test_free_energy_at_beta_zero(self):
+        """F(0) = 0 (предел β→0: F = −(1/β)ln Z → 0)."""
+        self.assertEqual(self.chain.free_energy(0), 0.0)
+
     def test_heat_capacity_nonneg(self):
         """C_v = β² Var[E] ≥ 0."""
         for beta in [0.1, 0.5, 1.0, 2.0]:
             self.assertGreaterEqual(self.chain.heat_capacity(beta), -1e-10)
+
+    def test_heat_capacity_at_beta_zero(self):
+        """C_v(0) = 0."""
+        self.assertEqual(self.chain.heat_capacity(0), 0.0)
+
+    def test_susceptibility_at_beta_zero(self):
+        """χ(0) = 0."""
+        self.assertEqual(self.chain.susceptibility(0), 0.0)
 
     def test_magnetization_zero_at_B0(self):
         """При B=0 ⟨M⟩=0 по симметрии."""
@@ -211,6 +223,30 @@ class TestIsingChainCorrelators(unittest.TestCase):
         xi2 = self.chain.correlation_length(2.0)
         self.assertGreater(xi2, xi1)
 
+    def test_correlation_length_with_field(self):
+        """correlation_length при B≠0 вычисляется численно."""
+        chain_B = IsingChain(J=1.0, B=1.0)
+        xi = chain_B.correlation_length(1.0)
+        self.assertGreater(xi, 0.0)
+
+    def test_correlation_length_with_field_small_beta_returns_inf(self):
+        """При β→0 и B≠0 коррелятор ≈1, длина = inf."""
+        import math
+        chain_B = IsingChain(J=1.0, B=1.0)
+        xi = chain_B.correlation_length(1e-10)
+        self.assertEqual(xi, math.inf)
+
+    def test_correlation_length_zero_J(self):
+        """При J=0 корреляционная длина = 0."""
+        chain_J0 = IsingChain(J=0.0, B=0.0)
+        xi = chain_J0.correlation_length(1.0)
+        self.assertEqual(xi, 0.0)
+
+    def test_correlation_length_very_small_beta(self):
+        """При β≈0 корреляционная длина = 0 (tanh(β·J)≈0)."""
+        xi = self.chain.correlation_length(1e-10)
+        self.assertEqual(xi, 0.0)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 class TestYangGas(unittest.TestCase):
@@ -282,6 +318,23 @@ class TestYangGas(unittest.TestCase):
         """F < 0 при μ > 0, β > 0 (Z > 1)."""
         gas = YangGas(mu=1.0)
         self.assertLess(gas.free_energy(1.0), 0.0)
+
+    def test_free_energy_at_beta_zero(self):
+        """YangGas.free_energy(0) = 0."""
+        gas = YangGas(mu=1.0)
+        self.assertEqual(gas.free_energy(0), 0.0)
+
+    def test_pressure_at_beta_zero(self):
+        """YangGas.pressure(0) = 0."""
+        gas = YangGas(mu=1.0)
+        self.assertEqual(gas.pressure(0), 0.0)
+
+    def test_compressibility_very_negative_mu(self):
+        """При μ → −∞ фугитивность → 0, ⟨N⟩ = 0, сжимаемость → inf."""
+        gas = YangGas(mu=-1e300)
+        import math
+        result = gas.compressibility(1.0)
+        self.assertEqual(result, math.inf)
 
     def test_chemical_potential_for_mean(self):
         """chemical_potential_for_mean находит μ с нужным ⟨N⟩."""

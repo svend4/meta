@@ -30,6 +30,10 @@ class TestUtilities(unittest.TestCase):
     def test_medoid_single(self):
         self.assertEqual(medoid([42]), 42)
 
+    def test_medoid_empty_raises(self):
+        with self.assertRaises(ValueError):
+            medoid([])
+
     def test_medoid_antipodes(self):
         """Медоид {0, 63} = 0 или 63 (равноудалены)."""
         m = medoid([0, 63])
@@ -51,6 +55,10 @@ class TestUtilities(unittest.TestCase):
 
     def test_centroid_hex_single(self):
         self.assertEqual(centroid_hex([42]), 42)
+
+    def test_centroid_hex_empty_raises(self):
+        with self.assertRaises(ValueError):
+            centroid_hex([])
 
     def test_centroid_hex_valid_range(self):
         import random as rng
@@ -129,6 +137,11 @@ class TestKNN(unittest.TestCase):
         knn = KNN()
         with self.assertRaises(RuntimeError):
             knn.predict(0)
+
+    def test_predict_proba_not_fitted_raises(self):
+        knn = KNN()
+        with self.assertRaises(RuntimeError):
+            knn.predict_proba(0)
 
     def test_weighted_knn(self):
         knn = KNN(k=3, weighted=True)
@@ -272,6 +285,28 @@ class TestMarkovChain(unittest.TestCase):
         path = mc.simulate(63, 10, seed=42)
         # Должно двигаться вниз по yang_count
         self.assertLessEqual(yang_count(path[-1]), yang_count(path[0]))
+
+    def test_custom_weights_zero_total_fallback(self):
+        """Если все веса = 0, используется равномерное распределение."""
+        def zero_weight(u, v):
+            return 0.0
+        mc = MarkovChain(zero_weight)
+        rng = random.Random(42)
+        next_h = mc.step(0, rng)
+        # Fallback к равномерному → любой сосед валиден
+        self.assertEqual(hamming(0, next_h), 1)
+
+    def test_hitting_time_empirical_self(self):
+        """Эмпирическое время попадания из h в h = 0 шагов."""
+        mc = MarkovChain()
+        ht = mc.hitting_time_empirical(5, 5, n_trials=10, seed=0)
+        self.assertEqual(ht, 0.0)
+
+    def test_hitting_time_empirical_neighbor(self):
+        """Эмпирическое время попадания к соседу ~ 1."""
+        mc = MarkovChain()
+        ht = mc.hitting_time_empirical(0, 1, n_trials=100, seed=7)
+        self.assertGreater(ht, 0.0)
 
 
 class TestHammingBayes(unittest.TestCase):

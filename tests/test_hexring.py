@@ -260,6 +260,26 @@ class TestArithmetic(unittest.TestCase):
         h = coordinate(2)
         self.assertEqual(f * (g + h), f * g + f * h)
 
+    def test_add_non_boolfunc_returns_not_implemented(self):
+        f = coordinate(0)
+        self.assertIs(f.__add__(42), NotImplemented)
+
+    def test_mul_non_boolfunc_returns_not_implemented(self):
+        f = coordinate(0)
+        self.assertIs(f.__mul__(42), NotImplemented)
+
+    def test_xor_two_boolfuncs(self):
+        f = coordinate(0)
+        g = coordinate(1)
+        result = f ^ g
+        self.assertIsInstance(result, BoolFunc)
+
+    def test_display_one_func_has_constant_1(self):
+        """one_func ANF содержит '1' (константный терм, покрывает _anf_str mask==0)."""
+        f = one_func()
+        d = f.display()
+        self.assertIn('1', d)
+
 
 # ---------------------------------------------------------------------------
 # Тест стандартных функций
@@ -395,6 +415,18 @@ class TestReedMullerCode(unittest.TestCase):
 
     def test_repr(self):
         self.assertIn('RM(2, 6)', repr(ReedMullerCode(2)))
+
+    def test_info_returns_string(self):
+        rm = ReedMullerCode(1)
+        info = rm.info()
+        self.assertIsInstance(info, str)
+        self.assertIn('RM(1, 6)', info)
+
+    def test_info_contains_params(self):
+        rm = ReedMullerCode(2)
+        info = rm.info()
+        self.assertIn('Длина', info)
+        self.assertIn('Мин. расстояние', info)
 
     def test_invalid_r_raises(self):
         with self.assertRaises(ValueError):

@@ -8,7 +8,7 @@ from projects.hexcode.hexcode import (
     hexcode_312, full_space_code, even_weight_code,
     singleton_bound, hamming_bound, plotkin_bound, feasible,
     dual_repetition_code, find_codes, min_covering_code,
-    _gf2_dot, _int_to_bits, _bits_to_int, _row_reduce_gf2,
+    _gf2_dot, _int_to_bits, _bits_to_int, _row_reduce_gf2, _gf2_matmul,
 )
 from libs.hexcore.hexcore import hamming, SIZE
 
@@ -35,11 +35,38 @@ class TestGF2Utils(unittest.TestCase):
         _, pivots = _row_reduce_gf2(M)
         self.assertEqual(len(pivots), 1)
 
+    def test_row_reduce_empty(self):
+        """Пустая матрица → пустые пивоты."""
+        _, pivots = _row_reduce_gf2([])
+        self.assertEqual(pivots, [])
+
+    def test_gf2_matmul_identity(self):
+        """Умножение на единичную матрицу = исходная матрица."""
+        I = [[1, 0], [0, 1]]
+        A = [[1, 1], [0, 1]]
+        result = _gf2_matmul(I, A)
+        self.assertEqual(result, A)
+
+    def test_gf2_matmul_gf2_arithmetic(self):
+        """В GF(2): 1+1=0."""
+        A = [[1, 1], [1, 0]]
+        B = [[1, 1], [1, 1]]
+        result = _gf2_matmul(A, B)
+        self.assertEqual(result[0][0], 0)   # (1*1 + 1*1) mod 2 = 0
+
 
 class TestBinaryCodeBasic(unittest.TestCase):
     def test_creates_code(self):
         code = BinaryCode([[1, 0, 0, 1, 1, 0], [0, 1, 0, 1, 0, 1]])
         self.assertIsInstance(code, BinaryCode)
+
+    def test_repr_contains_params(self):
+        """BinaryCode.__repr__ содержит n, k, d."""
+        code = repetition_code()
+        r = repr(code)
+        self.assertIn('n=', r)
+        self.assertIn('k=', r)
+        self.assertIn('d=', r)
 
     def test_dimension(self):
         code = BinaryCode([[1, 0, 0, 1, 1, 0], [0, 1, 0, 1, 0, 1]])

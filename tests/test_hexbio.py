@@ -1,6 +1,8 @@
 """Тесты для hexbio — биоинформатика на Q6."""
 import sys
 import os
+import io
+from contextlib import redirect_stdout
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
@@ -17,6 +19,7 @@ from projects.hexbio.hexbio import (
     synonymous_mutation_fraction, mutation_graph_edges,
     q6_vs_mutation_comparison,
     evolutionary_distance_matrix,
+    _cmd_info, _cmd_codon, _cmd_mutation, _cmd_graph, _cmd_wobble,
 )
 
 
@@ -284,6 +287,22 @@ class TestSynonymousMutations:
         assert path[0] == a
         assert path[-1] == b
 
+    def test_synonymous_path_different_aa_returns_none(self):
+        """synonymous_path возвращает None для кодонов разных аминокислот."""
+        a = codon_to_int('GCU')  # Ala
+        b = codon_to_int('AUG')  # Met
+        assert translate(a) != translate(b)
+        path = synonymous_path(a, b)
+        assert path is None
+
+    def test_is_synonymous_mutation_non_adjacent_returns_false(self):
+        """is_synonymous_mutation возвращает False при расстоянии != 1."""
+        # GCU и CGU отличаются в двух позициях (расстояние > 1)
+        a = codon_to_int('GCU')
+        b = codon_to_int('CGU')
+        assert mutation_distance(a, b) > 1
+        assert is_synonymous_mutation(a, b) is False
+
 
 # ============================================================
 # Структура 3-й позиции, wobble
@@ -470,3 +489,44 @@ class TestEvolutionaryDistanceMatrix:
         for nb in neighbors(h):
             key = (min(h, nb), max(h, nb))
             assert edm[key] == 1
+
+
+# ============================================================
+# CLI-функции
+# ============================================================
+
+class TestCLI:
+    def _capture(self, fn, args=None):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(args or [])
+        return buf.getvalue()
+
+    def test_cmd_info_produces_output(self):
+        out = self._capture(_cmd_info)
+        assert len(out) > 0
+        assert 'кодон' in out.lower() or 'Q6' in out
+
+    def test_cmd_codon_valid(self):
+        out = self._capture(_cmd_codon, ['GCU'])
+        assert 'GCU' in out or 'Ala' in out
+
+    def test_cmd_codon_no_args(self):
+        out = self._capture(_cmd_codon, [])
+        assert 'Использование' in out
+
+    def test_cmd_mutation_valid(self):
+        out = self._capture(_cmd_mutation, ['GCU', 'GCG'])
+        assert 'расстояние' in out.lower() or 'GCU' in out
+
+    def test_cmd_mutation_no_args(self):
+        out = self._capture(_cmd_mutation, [])
+        assert 'Использование' in out
+
+    def test_cmd_graph_produces_output(self):
+        out = self._capture(_cmd_graph)
+        assert len(out) > 0
+
+    def test_cmd_wobble_produces_output(self):
+        out = self._capture(_cmd_wobble)
+        assert len(out) > 0

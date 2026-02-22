@@ -116,6 +116,19 @@ class TestEntropies(unittest.TestCase):
         h1 = Q6Distribution.yang_weighted(2.0).entropy()
         self.assertLess(h1, h0)
 
+    def test_renyi_invalid_alpha_raises(self):
+        """renyi_entropy(α ≤ 0) → ValueError."""
+        d = Q6Distribution.uniform()
+        with self.assertRaises(ValueError):
+            d.renyi_entropy(0)
+        with self.assertRaises(ValueError):
+            d.renyi_entropy(-1)
+
+    def test_bsc_invalid_p_error_raises(self):
+        """binary_symmetric_channel с p_error < 0 → ValueError."""
+        with self.assertRaises(ValueError):
+            Q6Distribution.binary_symmetric_channel(0, -0.1)
+
 
 # ── дивергенции ───────────────────────────────────────────────────────────────
 
@@ -137,6 +150,14 @@ class TestDivergences(unittest.TestCase):
         p = Q6Distribution.uniform()
         q = Q6Distribution.yang_weighted(5.0)
         self.assertGreater(p.kl_divergence(q), 0.0)
+
+    def test_kl_disjoint_support_returns_inf(self):
+        """KL(P ‖ Q) = +∞ когда support(P) ⊄ support(Q)."""
+        counts_p = [100 if h == 0 else 0 for h in range(64)]
+        counts_q = [100 if h == 1 else 0 for h in range(64)]
+        p = Q6Distribution.from_counts(counts_p)
+        q = Q6Distribution.from_counts(counts_q)
+        self.assertEqual(p.kl_divergence(q), math.inf)
 
     def test_tv_self_zero(self):
         """TV(P, P) = 0."""
