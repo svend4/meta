@@ -23413,5 +23413,94 @@ class TestRegressionValues2(unittest.TestCase):
         self.assertEqual(te_summary('ГОРА', 'xor3')['period'], 2)
 
 
+class TestCARuleRegression(unittest.TestCase):
+    """Regression tests for CA step() rule outputs on specific inputs."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import step
+        cls.step = staticmethod(step)
+        cls.ALT  = [63, 0] * 8   # alternating 16-cell IC
+        cls.FULL = [63] * 16     # all-max 16-cell IC
+        cls.ZERO = [0]  * 16     # all-zero 16-cell IC
+
+    # ── xor rule: new[i] = prev[i-1] XOR prev[i+1] ───────────────────────────
+
+    def test_xor_alternating_all_zero(self):
+        # 63 XOR 63 = 0 and 0 XOR 0 = 0 for all positions
+        self.assertEqual(self.step(self.ALT, 'xor'), [0] * 16)
+
+    def test_xor_full_all_zero(self):
+        # 63 XOR 63 = 0 for all positions
+        self.assertEqual(self.step(self.FULL, 'xor'), [0] * 16)
+
+    def test_xor_zero_stays_zero(self):
+        self.assertEqual(self.step(self.ZERO, 'xor'), [0] * 16)
+
+    # ── xor3 rule: new[i] = prev[i-1] XOR prev[i] XOR prev[i+1] ─────────────
+
+    def test_xor3_alternating_preserves(self):
+        # 0 XOR 63 XOR 0 = 63; 63 XOR 0 XOR 63 = 0 — period-1 pattern
+        result = self.step(self.ALT, 'xor3')
+        self.assertEqual(result, self.ALT)
+
+    def test_xor3_full_all_zero(self):
+        # 63 XOR 63 XOR 63 = 63 XOR 63 = 0... wait: 63^63=0, 0^63=63
+        # Actually: 63^63^63 = (63^63)^63 = 0^63 = 63
+        result = self.step(self.FULL, 'xor3')
+        self.assertEqual(result, self.FULL)
+
+    def test_xor3_zero_stays_zero(self):
+        self.assertEqual(self.step(self.ZERO, 'xor3'), [0] * 16)
+
+    # ── and rule: new[i] = prev[i-1] AND prev[i+1] ───────────────────────────
+
+    def test_and_alternating_shifts(self):
+        # cell[0]: prev[-1]=0, prev[1]=0 → 0 AND 0 = 0
+        # cell[1]: prev[0]=63, prev[2]=63 → 63 AND 63 = 63
+        result = self.step(self.ALT, 'and')
+        self.assertEqual(result[:4], [0, 63, 0, 63])
+
+    def test_and_full_stays_full(self):
+        # 63 AND 63 = 63 for all positions
+        self.assertEqual(self.step(self.FULL, 'and'), self.FULL)
+
+    def test_and_zero_stays_zero(self):
+        self.assertEqual(self.step(self.ZERO, 'and'), [0] * 16)
+
+    # ── or rule: new[i] = prev[i-1] OR prev[i+1] ─────────────────────────────
+
+    def test_or_alternating_shifts(self):
+        # cell[0]: prev[-1]=0, prev[1]=0 → 0 OR 0 = 0
+        # cell[1]: prev[0]=63, prev[2]=63 → 63 OR 63 = 63
+        result = self.step(self.ALT, 'or')
+        self.assertEqual(result[:4], [0, 63, 0, 63])
+
+    def test_or_full_stays_full(self):
+        # 63 OR 63 = 63 for all positions
+        self.assertEqual(self.step(self.FULL, 'or'), self.FULL)
+
+    def test_or_zero_stays_zero(self):
+        self.assertEqual(self.step(self.ZERO, 'or'), [0] * 16)
+
+    # ── char_to_h / h_to_char boundary regression ────────────────────────────
+
+    def test_char_to_h_a(self):
+        from projects.hexglyph.hexglyph import char_to_h
+        self.assertEqual(char_to_h('a'), 42)
+
+    def test_char_to_h_A(self):
+        from projects.hexglyph.hexglyph import char_to_h
+        self.assertEqual(char_to_h('A'), 9)
+
+    def test_h_to_char_0(self):
+        from projects.hexglyph.hexglyph import h_to_char
+        self.assertEqual(h_to_char(0), '0')
+
+    def test_h_to_char_63(self):
+        from projects.hexglyph.hexglyph import h_to_char
+        self.assertEqual(h_to_char(63), '#')
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
