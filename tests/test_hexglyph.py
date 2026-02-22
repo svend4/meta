@@ -26528,5 +26528,258 @@ class TestLyapunovProfileShape(unittest.TestCase):
         self.assertIsInstance(self._r['converges'], bool)
 
 
+# ---------------------------------------------------------------------------
+# TestJumpHistogramShape
+# ---------------------------------------------------------------------------
+class TestJumpHistogramShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import jump_histogram
+        cls.jump_histogram = staticmethod(jump_histogram)
+        cls._r = jump_histogram('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_64(self):
+        self.assertEqual(len(self._r), 64)
+
+    def test_all_ints(self):
+        for v in self._r:
+            self.assertIsInstance(v, int)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0)
+
+    def test_total_positive(self):
+        self.assertGreater(sum(self._r), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestMapStatsShape
+# ---------------------------------------------------------------------------
+class TestMapStatsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import aggregate_map, map_stats
+        agg = aggregate_map('ГОРА', 'xor3')
+        cls._r = map_stats(list(agg.keys()))
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('n_pairs', 'n_distinct', 'diagonal_count', 'mean_jump', 'max_jump'):
+            self.assertIn(k, self._r)
+
+    def test_n_pairs_positive(self):
+        self.assertGreater(self._r['n_pairs'], 0)
+
+    def test_mean_jump_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_jump'], 0.0)
+
+    def test_max_jump_nonneg(self):
+        self.assertGreaterEqual(self._r['max_jump'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestAnalyticCurveShape
+# ---------------------------------------------------------------------------
+class TestAnalyticCurveShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import analytic_curve
+        cls.analytic_curve = staticmethod(analytic_curve)
+        cls._r = analytic_curve('xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_items_are_tuples(self):
+        for item in self._r:
+            self.assertIsInstance(item, tuple)
+            self.assertEqual(len(item), 2)
+
+    def test_first_point_origin(self):
+        self.assertAlmostEqual(self._r[0][0], 0.0, places=5)
+        self.assertAlmostEqual(self._r[0][1], 0.0, places=5)
+
+    def test_last_point_one(self):
+        self.assertAlmostEqual(self._r[-1][0], 1.0, places=5)
+        self.assertAlmostEqual(self._r[-1][1], 1.0, places=5)
+
+    def test_x_values_in_unit_interval(self):
+        for x, _ in self._r:
+            self.assertGreaterEqual(x, -1e-9)
+            self.assertLessEqual(x, 1.0 + 1e-9)
+
+
+# ---------------------------------------------------------------------------
+# TestClassifyRuleProps
+# ---------------------------------------------------------------------------
+class TestClassifyRuleProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import classify_rule
+        cls.classify_rule = staticmethod(classify_rule)
+
+    def test_returns_string(self):
+        self.assertIsInstance(self.classify_rule('xor3'), str)
+
+    def test_xor_is_complex(self):
+        self.assertEqual(self.classify_rule('xor'), 'complex')
+
+    def test_and_is_ordered(self):
+        self.assertEqual(self.classify_rule('and'), 'ordered')
+
+    def test_or_is_ordered(self):
+        self.assertEqual(self.classify_rule('or'), 'ordered')
+
+
+# ---------------------------------------------------------------------------
+# TestPermEntropyProps
+# ---------------------------------------------------------------------------
+class TestPermEntropyProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import perm_entropy
+        cls.perm_entropy = staticmethod(perm_entropy)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.perm_entropy([0,1,0,1,0,1,0,1], 3), float)
+
+    def test_constant_series_entropy_zero(self):
+        self.assertAlmostEqual(self.perm_entropy([0,0,0,0,0,0,0,0], 3), 0.0, places=5)
+
+    def test_in_unit_interval(self):
+        v = self.perm_entropy([0,1,0,1,0,1,0,1], 3)
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_deterministic(self):
+        v1 = self.perm_entropy([0,1,2,0,1,2,0,1], 3)
+        v2 = self.perm_entropy([0,1,2,0,1,2,0,1], 3)
+        self.assertEqual(v1, v2)
+
+
+# ---------------------------------------------------------------------------
+# TestSpatialPEShape
+# ---------------------------------------------------------------------------
+class TestSpatialPEShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import spatial_pe
+        cls.spatial_pe = staticmethod(spatial_pe)
+        cls._r = spatial_pe('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_deterministic(self):
+        r2 = self.spatial_pe('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestCHPointShape
+# ---------------------------------------------------------------------------
+class TestCHPointShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ch_plane import ch_point
+        cls.ch_point = staticmethod(ch_point)
+        cls._r = ch_point('ГОРА', 'xor3')
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self._r, tuple)
+
+    def test_length_3(self):
+        self.assertEqual(len(self._r), 3)
+
+    def test_h_s_in_unit_interval(self):
+        h_s = self._r[0]
+        self.assertGreaterEqual(h_s, 0.0)
+        self.assertLessEqual(h_s, 1.0)
+
+    def test_c_in_unit_interval(self):
+        c = self._r[2]
+        self.assertGreaterEqual(c, 0.0)
+        self.assertLessEqual(c, 1.0)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+
+# ---------------------------------------------------------------------------
+# TestCellCHShape
+# ---------------------------------------------------------------------------
+class TestCellCHShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ch_plane import cell_ch
+        cls.cell_ch = staticmethod(cell_ch)
+        cls._r = cell_ch('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_items_are_dicts(self):
+        for item in self._r:
+            self.assertIsInstance(item, dict)
+
+    def test_required_keys(self):
+        for item in self._r:
+            for k in ('cell', 'h_s', 'c', 'n_patterns'):
+                self.assertIn(k, item)
+
+    def test_h_s_in_unit_interval(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['h_s'], 0.0)
+            self.assertLessEqual(item['h_s'], 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestBlockEntropyProfileShape
+# ---------------------------------------------------------------------------
+class TestBlockEntropyProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import block_entropy_profile
+        cls.block_entropy_profile = staticmethod(block_entropy_profile)
+        seqs = [[0, 1, 0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0]]
+        cls._r = block_entropy_profile(seqs)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_6(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
