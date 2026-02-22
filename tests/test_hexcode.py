@@ -421,7 +421,6 @@ class TestMinCoveringCode(unittest.TestCase):
         from projects.hexgeom.hexgeom import hamming_ball
         code = min_covering_code(radius=3)
         cws = code.codewords()
-        # Каждая из 64 вершин Q6 на расстоянии ≤ 3 от какого-то кодового слова
         covered = set()
         for cw in cws:
             for h in hamming_ball(cw, 3):
@@ -448,7 +447,6 @@ class TestBinaryCodeDisplay(unittest.TestCase):
         from projects.hexcode.hexcode import even_weight_code
         code = even_weight_code()
         result = code.display()
-        # should contain bit strings of codewords
         self.assertIn('000000', result)
 
 
@@ -456,63 +454,51 @@ class TestPlotkinBoundHighD(unittest.TestCase):
     """Тесты plotkin_bound с 2*d > n (фактическое применение границы)."""
 
     def test_plotkin_bound_high_d_true(self):
-        """[6,1,6] repetition code: 2*6=12>6, 2^1=2 ≤ 12/(12-6)=2 → True."""
         self.assertTrue(plotkin_bound(1, 6))
 
     def test_plotkin_bound_high_d_false(self):
-        """[6,3,4] — если бы k=3, d=4: 2^3=8 > 2*4/(2*4-6) = 8/2 = 4 → False."""
         self.assertFalse(plotkin_bound(3, 4))
 
 
 class TestFullSpaceCodeEdgeCases(unittest.TestCase):
-    """Тесты для full_space_code (k=n=6, r=0) — непокрытые ветви."""
+    """Тесты для full_space_code (k=n=6, r=0)."""
 
     def test_parity_check_matrix_full_space_empty(self):
-        """full_space_code имеет пустую проверочную матрицу (r=0)."""
         code = full_space_code()
         H = code.parity_check_matrix()
         self.assertEqual(H, [])
 
     def test_syndrome_table_full_space_empty(self):
-        """Синдромная таблица для full_space_code пустая (нет проверочной матрицы)."""
         code = full_space_code()
         table = code._build_syndrome_table()
         self.assertEqual(table, {})
 
     def test_decode_full_space_codeword(self):
-        """decode для full_space_code (без H): валидное слово возвращается."""
         code = full_space_code()
-        # Все 64 слова — кодовые
         result = code.decode(42)
         self.assertEqual(result, 42)
 
     def test_decode_full_space_all_codewords(self):
-        """decode для full_space_code: любое слово является кодовым."""
         code = full_space_code()
         for h in [0, 1, 63]:
             result = code.decode(h)
             self.assertEqual(result, h)
 
     def test_dual_full_space_raises(self):
-        """dual(full_space_code) → ValueError (нет нетривиального двойственного)."""
         code = full_space_code()
         with self.assertRaises(ValueError):
             BinaryCode.dual(code)
 
     def test_decode_uncorrectable_error(self):
-        """decode с синдромом вне таблицы → None."""
-        code = repetition_code()  # [6,1,6], t=2
-        # Слова с весом 3 (на равном расстоянии от 0 и 63): синдром не в таблице
-        # Проверено: decode(7) = None
+        code = repetition_code()
         result = code.decode(7)
         self.assertIsNone(result)
 
 
 class TestFindCodesExtended(unittest.TestCase):
-    """Тесты find_codes с параметром k>1 для покрытия ветвей поиска."""
+    """Тесты find_codes с параметром k>1."""
 
     def test_find_codes_k2_d3(self):
-        """find_codes(d_min=3, k=2) находит [6,2,≥3] коды."""
         codes = find_codes(d_min=3, k=2)
         self.assertIsInstance(codes, list)
         for c in codes:
@@ -520,27 +506,64 @@ class TestFindCodesExtended(unittest.TestCase):
             self.assertGreaterEqual(c.min_distance(), 3)
 
     def test_find_codes_k2_d2(self):
-        """find_codes(d_min=2, k=2) находит некоторые коды."""
         codes = find_codes(d_min=2, k=2)
         self.assertIsInstance(codes, list)
         self.assertGreater(len(codes), 0)
 
     def test_find_codes_high_d_empty_k1(self):
-        """find_codes(d_min=7, k=1) → пусто (нет кодов с d≥7 на 6 битах)."""
         codes = find_codes(d_min=7, k=1)
         self.assertEqual(codes, [])
 
     def test_find_codes_k2_deduplication(self):
-        """find_codes(d_min=5, k=2) → dedup of codeword sets (line 495)."""
         codes = find_codes(d_min=5, k=2)
-        # No [6,2,5] code exists, but dedup runs via seen set during dim=2 iteration
         self.assertIsInstance(codes, list)
 
     def test_find_codes_k3_rank_filter(self):
-        """find_codes(d_min=5, k=3) → linearly dependent rows skip (line 492)."""
         codes = find_codes(d_min=5, k=3)
-        # [1,2,3] is dependent → code.k=2 != dim=3 → continue at line 492
         self.assertIsInstance(codes, list)
+
+
+class TestJsonSboxCode(unittest.TestCase):
+    """Интеграционные тесты для json_sbox_code (SC-2 Шаг 3, K1×K8)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexcrypt.hexcrypt import affine_sbox
+        from projects.hexcrypt.sbox_glyphs import json_analyze
+        from projects.karnaugh6.kmap_glyphs import json_sbox_minimize
+        from projects.hexcode.code_glyphs import json_sbox_code
+        sb = affine_sbox()
+        sbox_data = json_analyze(sb, 'affine')
+        min_data = json_sbox_minimize(sbox_data)
+        cls.result = json_sbox_code(min_data)
+
+    def test_command(self):
+        self.assertEqual(self.result['command'], 'sbox_code')
+
+    def test_k8_theorem_present(self):
+        thm = self.result['k8_theorem']
+        self.assertIn('statement', thm)
+        self.assertIn('MDS', thm['statement'])
+
+    def test_max_achievable_d(self):
+        self.assertEqual(self.result['max_achievable_d'], 6)
+
+    def test_mds_impossible(self):
+        self.assertEqual(self.result['singleton_bound'], 7)
+        self.assertLess(self.result['max_achievable_d'],
+                        self.result['singleton_bound'])
+
+    def test_complement_equidistant(self):
+        ch = self.result['complement_highlight']
+        self.assertTrue(ch['is_equidistant'])
+        self.assertEqual(ch['code_d'], 6)
+
+    def test_analysis_nonempty(self):
+        self.assertGreater(len(self.result['analysis']), 0)
+
+    def test_k1_k8_finding_is_string(self):
+        self.assertIsInstance(self.result['k1_k8_finding'], str)
+        self.assertIn('K8', self.result['k1_k8_finding'])
 
 
 if __name__ == '__main__':

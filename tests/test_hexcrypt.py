@@ -463,7 +463,6 @@ class TestCryptCLI(unittest.TestCase):
         self.assertIn('перестановкой', out)
 
     def test_cmd_search_not_found(self):
-        # high min_nl → no result found quickly
         out = self._run(['search', '100', '5'])
         self.assertIn('найден', out.lower())
 
@@ -496,7 +495,6 @@ class TestCryptCLI(unittest.TestCase):
         self.assertGreater(len(out), 0)
 
     def test_cmd_search_found(self):
-        # low min_nl → result found quickly
         out = self._run(['search', '1', '20'])
         self.assertIn('найден', out.lower())
 
@@ -506,6 +504,43 @@ class TestGetSboxUnknown(unittest.TestCase):
         from projects.hexcrypt.hexcrypt import _get_sbox
         with self.assertRaises(ValueError):
             _get_sbox('unknown_box')
+
+
+class TestJsonAvalanche(unittest.TestCase):
+    """Интеграционные тесты для json_avalanche (SC-5 Шаг 2)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexcrypt.sbox_glyphs import json_avalanche
+        cls.result = json_avalanche()
+
+    def test_command_key(self):
+        self.assertEqual(self.result['command'], 'avalanche')
+
+    def test_sboxes_list_nonempty(self):
+        self.assertGreater(len(self.result['sboxes']), 0)
+
+    def test_each_sbox_has_avalanche_matrix(self):
+        for sb in self.result['sboxes']:
+            mat = sb['avalanche_matrix']
+            self.assertEqual(len(mat), 6)
+            for row in mat:
+                self.assertEqual(len(row), 6)
+
+    def test_sac_deviation_in_01(self):
+        for sb in self.result['sboxes']:
+            dev = sb['sac_deviation']
+            self.assertGreaterEqual(dev, 0.0)
+            self.assertLessEqual(dev, 0.5)
+
+    def test_r_nl_sac_is_negative(self):
+        r = self.result['r_nl_sac']
+        self.assertLess(r, 0.0)
+
+    def test_best_sac_key_exists(self):
+        best = self.result['best_sac']
+        names = [sb['name'] for sb in self.result['sboxes']]
+        self.assertIn(best, names)
 
 
 if __name__ == '__main__':

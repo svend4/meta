@@ -6,6 +6,8 @@ import unittest
 from projects.hexvis.hexvis import (
     render_grid, render_path, render_hexagram, render_transition,
     to_dot, to_svg, _GRAY3,
+    render_glyph, render_hasse_glyphs,
+    render_glyph_grid, to_svg_hasse_glyphs,
 )
 from libs.hexcore.hexcore import neighbors, hamming, yang_count, SIZE
 
@@ -256,6 +258,240 @@ class TestToSvg(unittest.TestCase):
         # Path includes vertex 42 which is not in vertices {0, 1}
         svg = to_svg({0, 1}, path=[0, 1, 42])
         self.assertIn('<svg', svg)
+
+
+class TestRenderGlyph(unittest.TestCase):
+    def test_returns_three_rows(self):
+        """render_glyph always returns exactly 3 strings."""
+        for h in range(64):
+            self.assertEqual(len(render_glyph(h)), 3)
+
+    def test_rows_width_3(self):
+        """Every row of every glyph is exactly 3 characters wide."""
+        for h in range(64):
+            for row in render_glyph(h):
+                self.assertEqual(len(row), 3, f"h={h}, row={row!r}")
+
+    def test_all_64_unique(self):
+        """All 64 glyphs are visually distinct (different string tuples)."""
+        glyphs = [tuple(render_glyph(h)) for h in range(64)]
+        self.assertEqual(len(set(glyphs)), 64)
+
+    def test_glyph_zero_all_spaces(self):
+        """h=0 (no bits set) → all three rows are spaces."""
+        rows = render_glyph(0)
+        for row in rows:
+            self.assertEqual(row, '   ')
+
+    def test_glyph_63_full(self):
+        """h=63 (all bits set) → top bar, X centre, bottom bar."""
+        rows = render_glyph(63)
+        self.assertEqual(rows[0], ' _ ')
+        self.assertEqual(rows[1], '|X|')
+        self.assertEqual(rows[2], ' _ ')
+
+    def test_glyph_bit0_top_bar(self):
+        """bit 0 = top bar: h=1 → row0 contains '_'."""
+        rows = render_glyph(1)
+        self.assertIn('_', rows[0])
+
+    def test_glyph_bit1_bottom_bar(self):
+        """bit 1 = bottom bar: h=2 → row2 contains '_'."""
+        rows = render_glyph(2)
+        self.assertIn('_', rows[2])
+
+    def test_glyph_bit2_left_bar(self):
+        """bit 2 = left bar: h=4 → row1 starts with '|'."""
+        rows = render_glyph(4)
+        self.assertEqual(rows[1][0], '|')
+
+    def test_glyph_bit3_right_bar(self):
+        """bit 3 = right bar: h=8 → row1 ends with '|'."""
+        rows = render_glyph(8)
+        self.assertEqual(rows[1][2], '|')
+
+    def test_glyph_bit4_backslash(self):
+        """bit 4 only → centre of row1 is '\\'."""
+        rows = render_glyph(16)
+        self.assertEqual(rows[1][1], '\\')
+
+    def test_glyph_bit5_slash(self):
+        """bit 5 only → centre of row1 is '/'."""
+        rows = render_glyph(32)
+        self.assertEqual(rows[1][1], '/')
+
+    def test_glyph_both_diag(self):
+        """bits 4 and 5 → centre of row1 is 'X'."""
+        rows = render_glyph(48)   # 0b110000
+        self.assertEqual(rows[1][1], 'X')
+
+    def test_no_segments_no_bar_or_pipe(self):
+        """h=0 → no '_', '|', '\\', '/', 'X' characters."""
+        rows = render_glyph(0)
+        combined = ''.join(rows)
+        for ch in '_|/\\X':
+            self.assertNotIn(ch, combined)
+
+
+class TestRenderHasseGlyphs(unittest.TestCase):
+    def test_nonempty(self):
+        out = render_hasse_glyphs(color=False)
+        self.assertGreater(len(out), 0)
+
+    def test_no_crash_color(self):
+        """Does not raise with color=True."""
+        render_hasse_glyphs(color=True)
+
+    def test_seven_rank_bands(self):
+        """Output has content for all 7 ranks (0–6)."""
+        out = render_hasse_glyphs(color=False)
+        # Use 'if l' (not 'if l.strip()') so rank-0's all-space rows are counted.
+        lines = [l for l in out.split('\n') if l]
+        # 7 ranks × 3 glyph rows = 21 lines (rank-0 rows are spaces, still non-empty)
+        self.assertGreaterEqual(len(lines), 21)
+
+    def test_show_numbers_contains_63(self):
+        """show_numbers=True → '63' appears in the output."""
+        out = render_hasse_glyphs(color=False, show_numbers=True)
+        self.assertIn('63', out)
+
+    def test_show_numbers_contains_0(self):
+        out = render_hasse_glyphs(color=False, show_numbers=True)
+        self.assertIn(' 0', out)
+
+    def test_highlight_no_crash(self):
+        """Highlighting a subset doesn't raise."""
+        render_hasse_glyphs(color=True, highlights={0, 42, 63})
+
+    def test_rank3_is_widest_band(self):
+        """The rank-3 glyph rows are the widest lines in the output."""
+        out = render_hasse_glyphs(color=False)
+        line_widths = [len(l) for l in out.split('\n') if l.strip()]
+        max_w = max(line_widths)
+        # rank-3 band: 20 glyphs × 3 chars + 19 separators = 79 chars
+        self.assertEqual(max_w, 79)
+
+    def test_rank0_single_glyph_shorter_than_rank3(self):
+        """Rank-0 row (1 glyph, centred) is shorter than rank-3 row (20 glyphs)."""
+        out = render_hasse_glyphs(color=False)
+        lines = [l for l in out.split('\n') if l]  # non-empty strings
+        max_w = max(len(l) for l in lines)   # rank-3 row = 79
+        min_w = min(len(l) for l in lines)   # rank-0/6 row < 79
+        self.assertEqual(max_w, 79)
+        self.assertLess(min_w, 79)
+
+    def test_glyph_segments_visible_in_rank1(self):
+        """Rank-1 elements (single-bit) each show exactly one active segment."""
+        out = render_hasse_glyphs(color=False)
+        # rank-1 elements: 1,2,4,8,16,32 — each has one bar or diagonal
+        # The combined output must contain at least one '_' and one '|'
+        self.assertIn('_', out)
+        self.assertIn('|', out)
+
+
+class TestRenderGlyphGrid(unittest.TestCase):
+    def test_nonempty(self):
+        out = render_glyph_grid(color=False)
+        self.assertGreater(len(out), 0)
+
+    def test_contains_separator(self):
+        """Grid contains a column-header separator line."""
+        out = render_glyph_grid(color=False)
+        self.assertIn('─', out)
+
+    def test_8x8_glyph_rows(self):
+        """8 Gray-code rows × 3 glyph lines each = 24 glyph content lines."""
+        out = render_glyph_grid(color=False)
+        # Count lines that start with the row prefix pattern '  xxx │ '
+        glyph_lines = [l for l in out.split('\n') if '│ ' in l]
+        self.assertEqual(len(glyph_lines), 8 * 3)
+
+    def test_all_segments_visible(self):
+        """Grid output contains '_', '|', '\\', '/' and 'X' characters."""
+        out = render_glyph_grid(color=False)
+        for ch in '_|/\\X':
+            self.assertIn(ch, out, f"Missing character {ch!r} in glyph grid")
+
+    def test_gray_code_labels_present(self):
+        """All 8 Gray-code 3-bit labels appear in the header."""
+        out = render_glyph_grid(color=False)
+        for g in _GRAY3:
+            self.assertIn(format(g, '03b'), out)
+
+    def test_title_displayed(self):
+        out = render_glyph_grid(color=False, title='Test title')
+        self.assertIn('Test title', out)
+
+    def test_highlight_no_crash(self):
+        render_glyph_grid(color=True, highlights={0, 42, 63})
+
+    def test_neighbor_cells_differ_by_one_bit(self):
+        """Adjacent cells in a row are Q6 neighbours (hamming distance = 1)."""
+        for row_idx in range(7):
+            for col_idx in range(7):
+                h1 = (_GRAY3[row_idx] << 3) | _GRAY3[col_idx]
+                h2 = (_GRAY3[row_idx] << 3) | _GRAY3[col_idx + 1]
+                self.assertEqual(hamming(h1, h2), 1)
+
+    def test_glyph_63_appears(self):
+        """The full glyph (h=63) row1='|X|' appears in the grid."""
+        out = render_glyph_grid(color=False)
+        self.assertIn('|X|', out)
+
+
+class TestToSvgHasseGlyphs(unittest.TestCase):
+    def test_returns_svg(self):
+        svg = to_svg_hasse_glyphs()
+        self.assertIn('<svg', svg)
+        self.assertIn('</svg>', svg)
+
+    def test_contains_64_rects(self):
+        """One <rect> per glyph node (plus the background rect = 65 total)."""
+        svg = to_svg_hasse_glyphs()
+        # background rect + 64 node rects = 65
+        self.assertEqual(svg.count('<rect'), 65)
+
+    def test_contains_paths(self):
+        """Non-empty elements produce <path> segments."""
+        svg = to_svg_hasse_glyphs()
+        self.assertIn('<path', svg)
+
+    def test_title_in_svg(self):
+        svg = to_svg_hasse_glyphs(title='MyHasse')
+        self.assertIn('MyHasse', svg)
+
+    def test_edges_present_by_default(self):
+        """Cover-relation edges (lines) are drawn by default."""
+        svg = to_svg_hasse_glyphs(show_edges=True)
+        self.assertIn('<line', svg)
+
+    def test_no_edges_option(self):
+        """show_edges=False removes all <line> elements."""
+        svg = to_svg_hasse_glyphs(show_edges=False)
+        self.assertNotIn('<line', svg)
+
+    def test_highlight_no_crash(self):
+        to_svg_hasse_glyphs(highlights={0, 42, 63})
+
+    def test_no_color_no_crash(self):
+        to_svg_hasse_glyphs(color=False)
+
+    def test_custom_cell_size(self):
+        """Different cell sizes produce different SVG dimensions."""
+        svg_small = to_svg_hasse_glyphs(cell=12)
+        svg_large = to_svg_hasse_glyphs(cell=24)
+        # Extract width attribute
+        import re
+        w_small = int(re.search(r'width="(\d+)"', svg_small).group(1))
+        w_large = int(re.search(r'width="(\d+)"', svg_large).group(1))
+        self.assertLess(w_small, w_large)
+
+    def test_element_0_has_no_path(self):
+        """h=0 has no segments, so its node produces no <path>."""
+        # All segments come from bits 1-6; h=0 has no bits set → no path.
+        # The total path count equals the number of non-zero elements (63).
+        svg = to_svg_hasse_glyphs(color=False, show_edges=False)
+        self.assertEqual(svg.count('<path'), 63)
 
 
 if __name__ == '__main__':

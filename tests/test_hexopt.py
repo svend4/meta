@@ -398,5 +398,50 @@ class TestSetOptimizerMinimize(unittest.TestCase):
         self.assertIsInstance(r, OptResult)
 
 
+class TestJsonBayesianSbox(unittest.TestCase):
+    """Интеграционные тесты для json_bayesian_sbox (SC-5 Шаг 1)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexopt.opt_glyphs import json_bayesian_sbox
+        cls.result = json_bayesian_sbox(n_seeds=10, n_exploit=5)
+
+    def test_command_key(self):
+        self.assertEqual(self.result['command'], 'bayesian')
+
+    def test_n_seeds(self):
+        self.assertEqual(self.result['n_seeds'], 10)
+
+    def test_n_exploit(self):
+        self.assertEqual(self.result['n_exploit'], 5)
+
+    def test_exploration_has_nl_distribution(self):
+        ex = self.result['exploration']
+        self.assertIn('nl_distribution', ex)
+        # NL ≥ 0
+        for nl_str in ex['nl_distribution']:
+            self.assertGreaterEqual(int(nl_str), 0)
+
+    def test_exploration_best_nl_valid(self):
+        best_nl = self.result['exploration']['best_nl']
+        self.assertGreaterEqual(best_nl, 0)
+        self.assertLessEqual(best_nl, 24)
+
+    def test_exploitation_has_steps(self):
+        steps = self.result['exploitation']['steps']
+        self.assertEqual(len(steps), 5)
+
+    def test_q6_ceiling_equals_best_nl(self):
+        self.assertEqual(self.result['q6_ceiling'], self.result['best_found']['nl'])
+
+    def test_best_found_table_length(self):
+        tbl = self.result['best_found']['table']
+        self.assertEqual(len(tbl), 64)
+
+    def test_k3_finding_is_string(self):
+        self.assertIsInstance(self.result['k3_finding'], str)
+        self.assertIn('SC-5', self.result['k3_finding'])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

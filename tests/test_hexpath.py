@@ -171,13 +171,13 @@ class TestGameStateCurrentMethods(unittest.TestCase):
 
     def test_current_pos_a(self):
         g = new_game(pos_a=10, pos_b=50, capture_mode=False)
-        self.assertEqual(g.current_pos(), 10)   # ходит A
+        self.assertEqual(g.current_pos(), 10)
 
     def test_current_pos_b(self):
         g = new_game(pos_a=10, pos_b=50, capture_mode=False)
         move = list(neighbors(10))[0]
         g2 = g.make_move(move)
-        self.assertEqual(g2.current_pos(), 50)  # ходит B
+        self.assertEqual(g2.current_pos(), 50)
 
     def test_current_target_a(self):
         g = new_game(pos_a=0, pos_b=63, target_a=63, target_b=0, capture_mode=False)
@@ -210,7 +210,7 @@ class TestGameImmutability(unittest.TestCase):
         g = new_game(pos_a=0, pos_b=63, capture_mode=False)
         move = list(neighbors(0))[0]
         g.make_move(move)
-        self.assertEqual(g.pos_a, 0)   # исходный объект не изменился
+        self.assertEqual(g.pos_a, 0)
 
     def test_original_history_unchanged(self):
         g = new_game(pos_a=0, pos_b=63, capture_mode=False)
@@ -505,6 +505,57 @@ class TestMainCLI(unittest.TestCase):
             with patch('builtins.input', return_value=''):
                 with redirect_stdout(io.StringIO()):
                     main()
+
+
+class TestCurrentPosTarget(unittest.TestCase):
+    def test_player_symbol_nonempty(self):
+        """symbol() обоих игроков — непустая строка."""
+        for p in (Player.A, Player.B):
+            s = p.symbol()
+            self.assertIsInstance(s, str)
+            self.assertGreater(len(s), 0)
+
+    def test_new_game_default_capture_mode_initializes_captured(self):
+        g = new_game()
+        self.assertTrue(g.capture_mode)
+        self.assertIn(g.pos_a, g.captured)
+        self.assertIn(g.pos_b, g.captured)
+
+    def test_legal_moves_player_b(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        moves_b = g.legal_moves(Player.B)
+        self.assertEqual(set(moves_b), set(neighbors(63)))
+
+    def test_is_over_a_wins(self):
+        g = new_game(pos_a=63, pos_b=0, target_a=63, target_b=63,
+                     capture_mode=False)
+        self.assertEqual(g.result(), GameResult.A_WINS)
+        self.assertTrue(g.is_over())
+
+
+class TestGameStateExtra(unittest.TestCase):
+    def test_gameresult_draw_exists(self):
+        self.assertIsNotNone(GameResult.DRAW)
+
+    def test_current_player_b_after_a_move(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        move = list(neighbors(0))[0]
+        g2 = g.make_move(move)
+        self.assertEqual(g2.current_player, Player.B)
+
+    def test_history_b_unchanged_after_a_move(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        move = list(neighbors(0))[0]
+        g2 = g.make_move(move)
+        self.assertEqual(len(g2.history_b), 1)
+
+    def test_legal_moves_default_equals_current_player(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        self.assertEqual(set(g.legal_moves()), set(g.legal_moves(Player.A)))
+
+    def test_new_game_capture_false_empty_captured(self):
+        g = new_game(pos_a=0, pos_b=63, capture_mode=False)
+        self.assertEqual(g.captured, {})
 
 
 if __name__ == '__main__':

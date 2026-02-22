@@ -158,6 +158,12 @@ class TestEssentialImplicants(unittest.TestCase):
         self.assertEqual(len(ess), 1)
         self.assertTrue(ess[0].covers(42))
 
+    def test_single_covering_implicant(self):
+        """Минтерм, покрытый только одним импликантом, → существенный."""
+        pis = quine_mccluskey([0, 1])
+        ess = essential_implicants(pis, [0, 1])
+        self.assertTrue(any(e.covers(0) and e.covers(1) for e in ess))
+
     def test_covers_all_minterms(self):
         """Существенные импликанты покрывают все входные минтермы."""
         minterms = [0, 1, 2, 4, 8, 16, 32]
@@ -383,6 +389,43 @@ class TestKarnaughCLI(unittest.TestCase):
 
     def test_main_overlapping_dc_exits_1(self):
         self._run(['0', '1', '--dc', '1'], expect_exit=1)
+
+
+class TestImplicantExtra(unittest.TestCase):
+    def setUp(self):
+        self.imp5 = Implicant.from_minterm(5)
+        self.imp3 = Implicant.from_minterm(3)
+
+    def test_repr_contains_implicant(self):
+        """repr содержит 'Implicant'."""
+        self.assertIn("Implicant", repr(self.imp5))
+
+    def test_eq_same_minterm(self):
+        """Два implicant от одного минтерма равны."""
+        self.assertEqual(self.imp5, Implicant.from_minterm(5))
+
+    def test_eq_different_minterm(self):
+        """Implicant'ы от разных минтермов не равны."""
+        self.assertNotEqual(self.imp5, self.imp3)
+
+    def test_hash_consistent(self):
+        """hash совпадает для одинаковых implicant'ов."""
+        self.assertEqual(hash(self.imp5), hash(Implicant.from_minterm(5)))
+
+
+class TestMinimizeExtra(unittest.TestCase):
+    def test_minimize_with_dont_cares_has_expression(self):
+        """minimize с don't-care содержит ключ 'expression'."""
+        res = minimize([0, 2], dont_cares=[4, 6])
+        self.assertIn("expression", res)
+
+    def test_quine_mccluskey_dc_covers_all_minterms(self):
+        """Все минтермы покрыты хотя бы одним импликантом из QMC."""
+        minterms = [0, 2]
+        implicants = quine_mccluskey(minterms, dont_cares=[4, 6])
+        for m in minterms:
+            self.assertTrue(any(imp.covers(m) for imp in implicants),
+                            f"Минтерм {m} не покрыт")
 
 
 if __name__ == '__main__':
