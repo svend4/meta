@@ -2375,6 +2375,17 @@ class TestSolanTransient(unittest.TestCase):
         self.assertIn('solan_transient', content)
 
 
+
+    def test_all_full_signatures_returns_dict(self):
+        from projects.hexglyph.solan_transient import all_full_signatures
+        d = all_full_signatures(['ГОРА', 'ВОДА'])
+        self.assertIsInstance(d, dict)
+
+    def test_all_full_signatures_has_words_as_keys(self):
+        from projects.hexglyph.solan_transient import all_full_signatures
+        d = all_full_signatures(['ГОРА', 'ВОДА'])
+        self.assertIn('ГОРА', d)
+        self.assertIn('ВОДА', d)
 class TestSolanRules(unittest.TestCase):
     """Tests for solan_rules.py and the viewer Rules section."""
 
@@ -4066,6 +4077,18 @@ class TestSolanComplexity(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_complexities_returns_4_rules(self):
+        from projects.hexglyph.solan_complexity import all_complexities
+        d = all_complexities('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_complexities_values_are_dicts(self):
+        from projects.hexglyph.solan_complexity import all_complexities
+        d = all_complexities('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanSpacetime(unittest.TestCase):
     """Tests for solan_spacetime.py and the viewer Space-time section."""
 
@@ -4322,6 +4345,18 @@ class TestSolanSpacetime(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_st_returns_4_rules(self):
+        from projects.hexglyph.solan_spacetime import all_st
+        d = all_st('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_st_values_are_dicts(self):
+        from projects.hexglyph.solan_spacetime import all_st
+        d = all_st('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanDamage(unittest.TestCase):
     """Tests for solan_damage.py and the viewer Damage Spreading section."""
 
@@ -4613,6 +4648,18 @@ class TestSolanDamage(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_damage_returns_4_rules(self):
+        from projects.hexglyph.solan_damage import all_damage
+        d = all_damage('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_damage_values_are_dicts(self):
+        from projects.hexglyph.solan_damage import all_damage
+        d = all_damage('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanSymbolic(unittest.TestCase):
     """Tests for solan_symbolic.py and the viewer Symbolic Dynamics section."""
 
@@ -4994,6 +5041,18 @@ class TestSolanSymbolic(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_symbolic_returns_4_rules(self):
+        from projects.hexglyph.solan_symbolic import all_symbolic
+        d = all_symbolic('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_symbolic_values_are_dicts(self):
+        from projects.hexglyph.solan_symbolic import all_symbolic
+        d = all_symbolic('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanNetwork(unittest.TestCase):
     """Tests for solan_network.py and the viewer Network section."""
 
@@ -5320,6 +5379,18 @@ class TestSolanNetwork(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_network_returns_4_rules(self):
+        from projects.hexglyph.solan_network import all_network
+        d = all_network('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_network_values_are_dicts(self):
+        from projects.hexglyph.solan_network import all_network
+        d = all_network('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanPortrait(unittest.TestCase):
     """Tests for solan_portrait.py and the viewer Portrait section."""
 
@@ -6429,6 +6500,18 @@ class TestSolanTemporal(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_temporal_returns_4_rules(self):
+        from projects.hexglyph.solan_temporal import all_temporal
+        d = all_temporal('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_temporal_values_are_dicts(self):
+        from projects.hexglyph.solan_temporal import all_temporal
+        d = all_temporal('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanPersistence(unittest.TestCase):
     """Tests for solan_persistence.py and the viewer Persistence section."""
 
@@ -6714,6 +6797,18 @@ class TestSolanPersistence(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_persistence_returns_4_rules(self):
+        from projects.hexglyph.solan_persistence import all_persistence
+        d = all_persistence('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_persistence_values_are_dicts(self):
+        from projects.hexglyph.solan_persistence import all_persistence
+        d = all_persistence('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanBlock(unittest.TestCase):
     """Tests for solan_block.py and the viewer Block Entropy section."""
 
@@ -7002,6 +7097,18 @@ class TestSolanBlock(unittest.TestCase):
         self.assertIn('solan_block', content)
 
 
+
+    def test_all_block_returns_4_rules(self):
+        from projects.hexglyph.solan_block import all_block
+        d = all_block('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_block_values_are_dicts(self):
+        from projects.hexglyph.solan_block import all_block
+        d = all_block('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanMultiscale(unittest.TestCase):
     """Tests for solan_multiscale.py and the viewer MSE section."""
 
@@ -7252,6 +7359,18 @@ class TestSolanMultiscale(unittest.TestCase):
         self.assertIn('solan_multiscale', content)
 
 
+
+    def test_all_mse_returns_4_rules(self):
+        from projects.hexglyph.solan_multiscale import all_mse
+        d = all_mse('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_mse_values_are_dicts(self):
+        from projects.hexglyph.solan_multiscale import all_mse
+        d = all_mse('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanChPlane(unittest.TestCase):
     """Tests for solan_ch_plane.py and the viewer C-H plane section."""
 
@@ -7541,6 +7660,18 @@ class TestSolanChPlane(unittest.TestCase):
         self.assertIn('solan_ch_plane', content)
 
 
+
+    def test_all_ch_returns_4_rules(self):
+        from projects.hexglyph.solan_ch_plane import all_ch
+        d = all_ch('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_ch_values_are_dicts(self):
+        from projects.hexglyph.solan_ch_plane import all_ch
+        d = all_ch('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanWperm(unittest.TestCase):
     """Tests for solan_wperm.py and the viewer WPE section."""
 
@@ -10117,6 +10248,18 @@ class TestSolanPerm(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_pe_returns_4_rules(self):
+        from projects.hexglyph.solan_perm import all_pe
+        d = all_pe('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_pe_values_are_dicts(self):
+        from projects.hexglyph.solan_perm import all_pe
+        d = all_pe('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanBasin(unittest.TestCase):
     """Tests for solan_basin.py and the viewer Basin section."""
 
@@ -10406,6 +10549,18 @@ class TestSolanBasin(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_basins_returns_4_rules(self):
+        from projects.hexglyph.solan_basin import all_basins
+        d = all_basins('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_basins_values_are_dicts(self):
+        from projects.hexglyph.solan_basin import all_basins
+        d = all_basins('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanBit(unittest.TestCase):
     """Tests for solan_bit.py and the viewer Bit-Plane section."""
 
@@ -19969,6 +20124,18 @@ class TestSolanRecurrence2(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_all_recurrences_returns_4_rules(self):
+        from projects.hexglyph.solan_recurrence import all_recurrences
+        d = all_recurrences('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_recurrences_values_are_dicts(self):
+        from projects.hexglyph.solan_recurrence import all_recurrences
+        d = all_recurrences('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanCorrelation2(unittest.TestCase):
     """Replacement tests for solan_correlation.py (standard *_summary convention)."""
 
@@ -20197,6 +20364,18 @@ class TestSolanCorrelation2(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_all_autocorrs_returns_4_rules(self):
+        from projects.hexglyph.solan_correlation import all_autocorrs
+        d = all_autocorrs('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_autocorrs_values_are_lists(self):
+        from projects.hexglyph.solan_correlation import all_autocorrs
+        d = all_autocorrs('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, list)
 class TestSolanLyapunov3(unittest.TestCase):
     """Merged replacement tests for solan_lyapunov.py — both A & B interfaces."""
 
@@ -20555,6 +20734,18 @@ class TestSolanLyapunov3(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_all_lyapunov_returns_4_rules(self):
+        from projects.hexglyph.solan_lyapunov import all_lyapunov
+        d = all_lyapunov('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_lyapunov_values_are_dicts(self):
+        from projects.hexglyph.solan_lyapunov import all_lyapunov
+        d = all_lyapunov('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanAutocorr2(unittest.TestCase):
     """Merged replacement tests for solan_autocorr.py."""
 
@@ -20854,6 +21045,18 @@ class TestSolanAutocorr2(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_all_autocorr_returns_4_rules(self):
+        from projects.hexglyph.solan_autocorr import all_autocorr
+        d = all_autocorr('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_autocorr_values_are_dicts(self):
+        from projects.hexglyph.solan_autocorr import all_autocorr
+        d = all_autocorr('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanHamming3(unittest.TestCase):
     """Tests for solan_hamming.py — Consecutive-step Hamming Distances & Cell Mobility."""
 
