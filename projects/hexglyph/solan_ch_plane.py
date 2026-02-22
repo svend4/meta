@@ -330,9 +330,13 @@ def _cli() -> None:
     p.add_argument('--all-rules', action='store_true')
     p.add_argument('--stats',     action='store_true')
     p.add_argument('--no-color',  action='store_true')
+    p.add_argument('--json',      action='store_true', help='JSON output')
     args = p.parse_args()
     color = not args.no_color and sys.stdout.isatty()
-    if args.stats:
+    if args.json:
+        import json as _json
+        print(_json.dumps(ch_dict(args.word, args.rule), ensure_ascii=False, indent=2))
+    elif args.stats:
         print_ch_stats(m=args.m, color=color)
     elif args.all_rules:
         for rule in _RULES:

@@ -7725,7 +7725,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>C-H плоскость Q6 — энтропийная сложность (Rosso 2007)</h2>
+<h2>C-H плоскость Q6 — энтропийная сложность (Rosso 2007) (solan_ch_plane)</h2>
 <p class="meta">x = H_S = H_PE / log₂(m!) ∈ [0,1] нормированная энтропия перестановок · y = C = H_S · D_JS(P‖U) ∈ [0,1] статистическая сложность · фиксированная точка → (0,0); период-2 → (0.39, 0.18); сложный P=8 → (0.98, 0.01)</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="chp-word"
@@ -7952,7 +7952,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Мультимасштабная энтропия Q6 (MSE) — сложность по шкалам</h2>
+<h2>Мультимасштабная энтропия Q6 (MSE) — сложность по шкалам (solan_multiscale)</h2>
 <p class="meta">Для каждой шкалы τ=1..6: огрублённый ряд y_j^(τ)=(1/τ)Σ x_i, затем Sample Entropy SampEn(m=2, r=0.15σ) · CI = среднее по шкалам · τ* = шкала пика · постоянные → SampEn≈0; P=8 XOR3 → осциллирующий профиль</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="mse-word"
@@ -8163,7 +8163,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Блочная энтропия Q6 — H_n, скорость энтропии, избыточность</h2>
+<h2>Блочная энтропия Q6 — H_n, скорость энтропии, избыточность (solan_block)</h2>
 <p class="meta">H_n = −Σ P(x) log₂ P(x) для n-граммного распределения всех клеток аттрактора (бинаризация порог=32) · h_n = H_{n+1} − H_n — условная энтропия (убывает) · E ≈ H_{max_n} — избыточная энтропия (сложность) · n* — насыщение контекста</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="blo-word"
@@ -8354,7 +8354,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Взвешенная энтропия перестановок Q6 — WPE vs PE (Fadlallah 2013)</h2>
+<h2>Взвешенная энтропия перестановок Q6 — WPE vs PE (Fadlallah 2013) (solan_wperm)</h2>
 <p class="meta">nWPE = WPE / log₂(m!) — взвешенная PE с весом = дисперсия окна · ΔWPE = nWPE − nPE &gt; 0 → амплитуда усиливает сложность; &lt; 0 → концентрирует · фиксированная точка → WPE=PE=0; период-2 → ΔWPE≈0; P=8 → ΔWPE≈−0.018</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="wpe-word"
@@ -8789,7 +8789,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Запрещённые паттерны Q6 — детерминизм в ординальном пространстве</h2>
+<h2>Запрещённые паттерны Q6 — детерминизм в ординальном пространстве (solan_forbidden)</h2>
 <p class="meta">F = M − |{наблюдаемые}| — число запрещённых паттернов · f = F/M! ∈ [0,1] · фиксированная точка → f=0.833 (1/6); период-2 → f=0.667 (2/6); ТУМАН XOR3 → f=0 (все 6 паттернов); ячейки: 3–6 паттернов</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="for-word"
@@ -9573,7 +9573,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>First-Return Map Q6 — x(t)→x(t+1) клеток аттрактора</h2>
+<h2>First-Return Map Q6 — x(t)→x(t+1) клеток аттрактора (solan_return)</h2>
 <p class="meta">RM(i)={(x_t, x_{t+1 mod P})} на решётке 64×64 · ТУМАН XOR: 1 точка на диагонали · ГОРА AND: 2 точки вне диагонали, прыжок=46 · ТУМАН XOR3: 46 пар, mean_Δx≈20</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="ret-word"
@@ -9745,7 +9745,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Temporal Moments Q6 — μ, σ², skew, kurt клеток аттрактора</h2>
+<h2>Temporal Moments Q6 — μ, σ², skew, kurt клеток аттрактора (solan_moments)</h2>
 <p class="meta">Статистические моменты ряда {x_t} каждой клетки за один период · kurt=−2 ↔ биномиальное (двухточечное) распределение · kurt=0 ↔ гауссово</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="mom-word"
@@ -10115,7 +10115,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Bit-Flip Dynamics Q6 — битовая подпись переходов аттрактора</h2>
+<h2>Bit-Flip Dynamics Q6 — битовая подпись переходов аттрактора (solan_bitflip)</h2>
 <p class="meta">flip[t] = x_t ⊕ x_{t+1} — какие биты переключаются на каждом шаге · ГОРА AND: всегда 0b101110 (биты 1,2,3,5), H=0 · XOR3: разнообразные маски, H&gt;0</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="bf-word"
@@ -10282,7 +10282,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Phase Offset Analysis Q6 — фазовая синхронизация клеток аттрактора</h2>
+<h2>Phase Offset Analysis Q6 — фазовая синхронизация клеток аттрактора (solan_phase)</h2>
 <p class="meta">M[i][j] = min k: series_j = shift(series_i, k) · ГОРА AND: 100% sync, антифаза offset=1 · XOR3: 6% (только self) · XOR3 ГОРА: 4 кластера без антифазы</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="ph-word"
@@ -10494,7 +10494,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Bit Balance × Flip Analysis Q6 — баланс и волатильность каждого бита</h2>
+<h2>Bit Balance × Flip Analysis Q6 — баланс и волатильность каждого бита (solan_balance)</h2>
 <p class="meta">balance_b = доля времени бит b=1 · flip_b = доля шагов где бит b меняется · ГОРА AND: b0=(1,0) FROZEN_ON · b4=(0,0) FROZEN_OFF · b1,2,3,5=(0.5,1) STRICT_ALT</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="bl-word"
@@ -10903,7 +10903,7 @@ h2 { color: #81c784; font-size: 1em; margin: 20px 0 8px; }
 </script>
 </div>
 <div class="section">
-<h2>Bit Co-activation Q6 — корреляции между битами аттрактора</h2>
+<h2>Bit Co-activation Q6 — корреляции между битами аттрактора (solan_coact)</h2>
 <p class="meta">r[b][b'] = Pearson корреляция между битами b и b' · ГОРА AND: {1,2,3,5}→r=+1 блок · ТУМАН XOR3: b0=b1 везде (r=+1), диаг&lt;1 = замороженные ячейки</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="ca-word"
@@ -11323,7 +11323,7 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
-<h2>Spatial Entropy Profile Q6 — разнообразие значений в пространстве</h2>
+<h2>Spatial Entropy Profile Q6 — разнообразие значений в пространстве (solan_spatent)</h2>
 <p class="meta">H_t = Shannon-энтропия распределения Q6-значений по N=16 ячейкам на шаге t аттрактора · ТУМАН XOR=0, ГОРА AND=1 бит (бинарная), ГОРА XOR3=2 бита (4 кластера) · ТУМАН XOR3: delta_H≈1.2 (богатая модуляция)</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="se-word"
@@ -11549,7 +11549,7 @@ setTimeout(function(){
 </script>
 </div>
 <div class="section">
-<h2>Spatial Edge Density Q6 — границы между соседними ячейками</h2>
+<h2>Spatial Edge Density Q6 — границы между соседними ячейками (solan_edge)</h2>
 <p class="meta">E_t = доля пар соседних ячеек с различными Q6-значениями · ТУМАН XOR=0, ГОРА AND=1.0 бит[0,4]=ZERO бит[1,2,3,5]=FULL · ГОРА XOR3 бит0=ZERO (везде=1) остальные=HALF · сетка 6-битовых границ</p>
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
   <select id="ed-word"
