@@ -237,6 +237,14 @@ def detection_stats() -> dict:
     return stats
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def triangle_summary() -> dict:
+    """Alias for detection_stats(); for API consistency."""
+    return detection_stats()
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -250,10 +258,16 @@ if __name__ == '__main__':
                         help='без ANSI-цветов')
     parser.add_argument('--stats',        action='store_true',
                         help='показать статистику детектирования')
+    parser.add_argument('--json',         action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     color = not args.no_color
 
+    if args.json:
+        import json as _json
+        print(_json.dumps(triangle_summary(), ensure_ascii=False, indent=2))
+        import sys; sys.exit(0)
     if args.stats:
         st = detection_stats()
         print(f"Пиксельно подтверждено:  {st['detected']}/{st['total']}")

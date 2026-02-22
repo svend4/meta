@@ -464,8 +464,14 @@ def _main() -> None:
     parser.add_argument('--seed',      type=int, default=_DEFAULT_SEED)
     parser.add_argument('--width',     type=int, default=_DEFAULT_WIDTH)
     parser.add_argument('--no-color',  action='store_true')
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     args  = parser.parse_args()
     color = not args.no_color
+    if args.json:
+        import json as _json
+        print(_json.dumps(basin_dict(args.word), ensure_ascii=False, indent=2))
+        return
+
     if args.stats:
         print_basin_stats(color=color, n_per_k=args.n, seed=args.seed)
     elif args.all_rules:

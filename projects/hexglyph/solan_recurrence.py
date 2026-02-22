@@ -219,6 +219,17 @@ def trajectory_recurrence(
     }
 
 
+def recurrence_summary(
+    word:     str,
+    rule:     str   = 'xor3',
+    width:    int   = _DEFAULT_WIDTH,
+    eps:      int   = _DEFAULT_EPS,
+    n_cycles: int   = _N_CYCLES,
+) -> dict:
+    """Alias for trajectory_recurrence — standard *_summary convention."""
+    return trajectory_recurrence(word, rule, width, eps, n_cycles)
+
+
 def all_recurrences(
     word:     str,
     width:    int = _DEFAULT_WIDTH,
@@ -386,10 +397,15 @@ def _main() -> None:
     parser.add_argument('--stats',     action='store_true')
     parser.add_argument('--eps',       type=int, default=_DEFAULT_EPS)
     parser.add_argument('--width',     type=int, default=_DEFAULT_WIDTH)
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     parser.add_argument('--no-color',  action='store_true')
     args   = parser.parse_args()
     color  = not args.no_color
-    if args.stats:
+    if args.json:
+        import json as _json
+        print(_json.dumps(recurrence_dict(args.word, args.width, args.eps),
+                          ensure_ascii=False, indent=2))
+    elif args.stats:
         print_rqa_stats(color=color)
     elif args.all_rules:
         for rule in _ALL_RULES:

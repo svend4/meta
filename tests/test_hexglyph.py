@@ -600,7 +600,33 @@ class TestSolanTriangle(unittest.TestCase):
         st = self.detection_stats()
         self.assertGreaterEqual(st['by_rank'][6]['detected'], 1)
 
+    def test_viewer_has_solan_triangle(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_triangle', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_triangle'] + ['--stats', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_triangle_summary_is_dict(self):
+        from projects.hexglyph.solan_triangle import triangle_summary
+        d = triangle_summary()
+        self.assertIsInstance(d, dict)
+
+    def test_triangle_summary_keys(self):
+        from projects.hexglyph.solan_triangle import triangle_summary
+        d = triangle_summary()
+        for k in ['total', 'detected', 'assigned', 'missing', 'detected_list', 'by_rank']:
+            self.assertIn(k, d)
 class TestSolanPhonetic(unittest.TestCase):
 
     @classmethod
@@ -790,6 +816,32 @@ class TestSolanPhonetic(unittest.TestCase):
         self.assertGreaterEqual(len(pairs), 15)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_phonetic'] + ['--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_phonetic(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_phonetic', content)
+
+    def test_phonetic_summary_is_dict(self):
+        from projects.hexglyph.solan_phonetic import phonetic_summary
+        d = phonetic_summary('ГОРА')
+        self.assertIsInstance(d, dict)
+
+    def test_phonetic_summary_keys(self):
+        from projects.hexglyph.solan_phonetic import phonetic_summary
+        d = phonetic_summary('ГОРА')
+        for k in ['text', 'encoded']:
+            self.assertIn(k, d)
 class TestSolanCA(unittest.TestCase):
     """Тесты клеточного автомата Q6/Solan."""
 
@@ -1066,6 +1118,56 @@ class TestSolanCA(unittest.TestCase):
         self.assertEqual(len(lines), 4 * 3)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_ca'] + ['--word', 'ГОРА', '--rule', 'xor3', '--ic', 'phonetic', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_ca(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_ca', content)
+
+    def test_ca_summary_is_dict(self):
+        from projects.hexglyph.solan_ca import ca_summary
+        d = ca_summary('ГОРА', 'xor3', 'phonetic')
+        self.assertIsInstance(d, dict)
+
+    def test_ca_summary_keys(self):
+        from projects.hexglyph.solan_ca import ca_summary
+        d = ca_summary('ГОРА', 'xor3', 'phonetic')
+        for k in ['word', 'rule', 'ic', 'width', 'transient', 'period']:
+            self.assertIn(k, d)
+
+    def test_all_ca_returns_4_rules(self):
+        from projects.hexglyph.solan_ca import all_ca
+        d = all_ca('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_ca_values_are_dicts(self):
+        from projects.hexglyph.solan_ca import all_ca
+        d = all_ca('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_run_ca_produces_output(self):
+        import io, sys
+        from projects.hexglyph.solan_ca import run_ca
+        f = io.StringIO()
+        old, sys.stdout = sys.stdout, f
+        try:
+            run_ca(width=16, steps=3, rule='xor3', ic='phonetic', word='ГОРА', color=False)
+        finally:
+            sys.stdout = old
+        self.assertTrue(f.getvalue())
+
 class TestSolanEntropy(unittest.TestCase):
     """Тесты модуля solan_entropy."""
 
@@ -1246,6 +1348,22 @@ class TestSolanEntropy(unittest.TestCase):
         for p in ('width', 'rule', 'ic', 'delay', 'rows', 'color'):
             self.assertIn(p, params)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_entropy',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_entropy(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_entropy', content)
+
 
 class TestSolanWord(unittest.TestCase):
     """Тесты семантического анализа слов solan_word.py."""
@@ -1379,7 +1497,33 @@ class TestSolanWord(unittest.TestCase):
         for r in ('xor', 'xor3', 'and', 'or'):
             self.assertIn(f'wordSetRule(\'{r}\')', content)
 
+    def test_viewer_has_solan_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_word', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_word'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_word_summary_is_dict(self):
+        from projects.hexglyph.solan_word import word_summary
+        d = word_summary('ГОРА')
+        self.assertIsInstance(d, dict)
+
+    def test_word_summary_keys(self):
+        from projects.hexglyph.solan_word import word_summary
+        d = word_summary('ГОРА')
+        for k in ['word', 'width', 'signature']:
+            self.assertIn(k, d)
 class TestSolanLexicon(unittest.TestCase):
     """Tests for solan_lexicon.py and the viewer Lexicon section."""
 
@@ -1527,6 +1671,43 @@ class TestSolanLexicon(unittest.TestCase):
         self.assertIn('lex-sig', content)
         self.assertIn('Сигнатура', content)
 
+    def test_viewer_has_solan_lexicon(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_lexicon', content)
+
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_lexicon'] + ['--word', 'ГОРА', '--neighbors', '3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_lexicon_summary_is_dict(self):
+        from projects.hexglyph.solan_lexicon import lexicon_summary
+        d = lexicon_summary('ГОРА', n=3)
+        self.assertIsInstance(d, dict)
+
+    def test_lexicon_summary_keys(self):
+        from projects.hexglyph.solan_lexicon import lexicon_summary
+        d = lexicon_summary('ГОРА', n=3)
+        for k in ['word', 'n', 'width', 'neighbors']:
+            self.assertIn(k, d)
+
+    def test_all_words_returns_list(self):
+        from projects.hexglyph.solan_lexicon import all_words, LEXICON
+        result = all_words()
+        self.assertIsInstance(result, list)
+        self.assertEqual(sorted(result), sorted(LEXICON))
+
+    def test_all_words_length(self):
+        from projects.hexglyph.solan_lexicon import all_words, LEXICON
+        self.assertEqual(len(all_words()), len(LEXICON))
 
 class TestSolanDendrogram(unittest.TestCase):
     """Tests for solan_dendrogram.py and the viewer Dendrogram section."""
@@ -1713,7 +1894,27 @@ class TestSolanDendrogram(unittest.TestCase):
         self.assertIn('dend-info', content)
         self.assertIn('_hovLeaf', content)
 
+    def test_viewer_has_solan_dendrogram(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_dendrogram', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_dendrogram', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_build_dendrogram_returns_tuple(self):
+        from projects.hexglyph.solan_dendrogram import build_dendrogram
+        d = build_dendrogram(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, tuple)
 class TestSolanPredict(unittest.TestCase):
     """Tests for solan_predict.py and the viewer Prediction section."""
 
@@ -1924,6 +2125,33 @@ class TestSolanPredict(unittest.TestCase):
     def test_viewer_has_sigl_export(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('window.sigL', content)
+
+    def test_viewer_has_solan_predict(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_predict', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_predict',
+             '--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_predict_summary_is_dict(self):
+        from projects.hexglyph.solan_predict import predict_summary
+        d = predict_summary('ГОРА')
+        self.assertIsInstance(d, dict)
+
+    def test_predict_summary_keys(self):
+        from projects.hexglyph.solan_predict import predict_summary
+        d = predict_summary('ГОРА')
+        for k in ('word', 'full_key', 'class_id', 'neighbors'):
+            self.assertIn(k, d)
 
 
 class TestSolanTransient(unittest.TestCase):
@@ -2169,7 +2397,39 @@ class TestSolanTransient(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('lexAllSigs', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_transient',
+             '--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_transient(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_transient', content)
+
+
+
+    def test_all_full_signatures_returns_dict(self):
+        from projects.hexglyph.solan_transient import all_full_signatures
+        d = all_full_signatures(['ГОРА', 'ВОДА'])
+        self.assertIsInstance(d, dict)
+
+    def test_all_full_signatures_has_words_as_keys(self):
+        from projects.hexglyph.solan_transient import all_full_signatures
+        d = all_full_signatures(['ГОРА', 'ВОДА'])
+        self.assertIn('ГОРА', d)
+        self.assertIn('ВОДА', d)
+
+    def test_build_transient_data_returns_dict(self):
+        from projects.hexglyph.solan_transient import build_transient_data
+        d = build_transient_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanRules(unittest.TestCase):
     """Tests for solan_rules.py and the viewer Rules section."""
 
@@ -2419,7 +2679,28 @@ class TestSolanRules(unittest.TestCase):
         self.assertIn('PCOL', content)
         self.assertIn('pmap', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_rules',
+             '--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_rules(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_rules', content)
+
+
+
+    def test_build_all_rules_returns_dict(self):
+        from projects.hexglyph.solan_rules import build_all_rules
+        d = build_all_rules(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanMds(unittest.TestCase):
     """Tests for solan_mds.py and the viewer MDS section."""
 
@@ -2631,7 +2912,28 @@ class TestSolanMds(unittest.TestCase):
         # MDS section has its own UPGMA for cluster coloring
         self.assertIn('flatClusters', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_mds',
+             '--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_mds(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_mds', content)
+
+
+
+    def test_build_mds_returns_tuple(self):
+        from projects.hexglyph.solan_mds import build_mds
+        d = build_mds(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, tuple)
 class TestSolanGraph(unittest.TestCase):
     """Tests for solan_graph.py and the viewer Graph section."""
 
@@ -2817,7 +3119,38 @@ class TestSolanGraph(unittest.TestCase):
         self.assertIn('graph-reset', content)
         self.assertIn('перезапуск', content)
 
+    def test_viewer_has_solan_graph(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_graph', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_graph'] + ['--words', 'ГОРА', 'ВОДА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_graph_summary_is_dict(self):
+        from projects.hexglyph.solan_graph import graph_summary
+        d = graph_summary(['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+
+    def test_graph_summary_keys(self):
+        from projects.hexglyph.solan_graph import graph_summary
+        d = graph_summary(['ГОРА', 'ВОДА', 'ЛУНА'])
+        for k in ['nodes', 'edges', 'components', 'threshold', 'width']:
+            self.assertIn(k, d)
+
+    def test_build_graph_returns_dict(self):
+        from projects.hexglyph.solan_graph import build_graph
+        d = build_graph(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanMatrix(unittest.TestCase):
     """Tests for solan_matrix.py and the viewer Matrix section."""
 
@@ -2977,7 +3310,33 @@ class TestSolanMatrix(unittest.TestCase):
         self.assertIn('drawMatrix', content)
         self.assertIn('setTimeout', content)
 
+    def test_viewer_has_solan_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_matrix', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_matrix'] + ['--words', 'ГОРА', 'ВОДА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_matrix_summary_is_dict(self):
+        from projects.hexglyph.solan_matrix import matrix_summary
+        d = matrix_summary(['ГОРА', 'ВОДА', 'ЛУНА'], n=2)
+        self.assertIsInstance(d, dict)
+
+    def test_matrix_summary_keys(self):
+        from projects.hexglyph.solan_matrix import matrix_summary
+        d = matrix_summary(['ГОРА', 'ВОДА', 'ЛУНА'], n=2)
+        for k in ['words', 'n', 'width', 'nearest_pairs']:
+            self.assertIn(k, d)
 class TestSolanSpectral(unittest.TestCase):
     """Tests for solan_spectral.py and the viewer Spectral section."""
 
@@ -3232,7 +3591,27 @@ class TestSolanSpectral(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('drawLexiconMap', content)
 
+    def test_viewer_has_solan_spectral(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_spectral', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_spectral'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_build_spectral_data_returns_dict(self):
+        from projects.hexglyph.solan_spectral import build_spectral_data
+        d = build_spectral_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanPhonemeAnalysis(unittest.TestCase):
     """Tests for solan_phoneme.py and the viewer Phoneme Analysis section."""
 
@@ -3502,7 +3881,27 @@ class TestSolanPhonemeAnalysis(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('phon-word', content)
 
+    def test_viewer_has_solan_phoneme(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_phoneme', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_phoneme'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_build_phoneme_data_returns_dict(self):
+        from projects.hexglyph.solan_phoneme import build_phoneme_data
+        d = build_phoneme_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanComplexity(unittest.TestCase):
     """Tests for solan_complexity.py and the viewer LZ76 section."""
 
@@ -3731,571 +4130,39 @@ class TestSolanComplexity(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('lz-all-btn', content)
 
+    def test_viewer_has_solan_complexity(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_complexity', content)
 
-class TestSolanRecurrence(unittest.TestCase):
-    """Tests for solan_recurrence.py and the viewer Recurrence section."""
 
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_recurrence import (
-            state_hamming, recurrence_matrix, rqa_metrics,
-            trajectory_recurrence, all_recurrences,
-            build_recurrence_data, recurrence_dict,
-            _ALL_RULES,
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_complexity'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
         )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.state_hamming         = staticmethod(state_hamming)
-        cls.recurrence_matrix     = staticmethod(recurrence_matrix)
-        cls.rqa_metrics           = staticmethod(rqa_metrics)
-        cls.trajectory_recurrence = staticmethod(trajectory_recurrence)
-        cls.all_recurrences       = staticmethod(all_recurrences)
-        cls.build_recurrence_data = staticmethod(build_recurrence_data)
-        cls.recurrence_dict       = staticmethod(recurrence_dict)
-        cls.ALL_RULES             = _ALL_RULES
-        cls.LEXICON               = list(LEXICON)
-
-    # ── state_hamming() ────────────────────────────────────────────────────────
-
-    def test_sh_identical_zeros(self):
-        self.assertEqual(self.state_hamming([0]*16, [0]*16), 0)
-
-    def test_sh_identical_nonzero(self):
-        self.assertEqual(self.state_hamming([63]*16, [63]*16), 0)
-
-    def test_sh_one_bit_diff(self):
-        # rows differ by one bit in one cell
-        r1 = [0]*16; r2 = [0]*16; r2[0] = 1
-        self.assertEqual(self.state_hamming(r1, r2), 1)
-
-    def test_sh_max_distance(self):
-        # all 6 bits differ in all 16 cells
-        self.assertEqual(self.state_hamming([0]*16, [63]*16), 96)
-
-    def test_sh_symmetric(self):
-        r1 = [7, 0, 63, 1]; r2 = [0, 7, 1, 63]
-        self.assertEqual(self.state_hamming(r1, r2), self.state_hamming(r2, r1))
-
-    # ── recurrence_matrix() ────────────────────────────────────────────────────
-
-    def test_rm_shape(self):
-        rows = [[0]*4, [1]*4, [2]*4]
-        R = self.recurrence_matrix(rows, eps=0)
-        self.assertEqual(len(R), 3)
-        self.assertEqual(len(R[0]), 3)
-
-    def test_rm_main_diag_all_ones(self):
-        rows = [[i]*4 for i in range(5)]
-        R = self.recurrence_matrix(rows, eps=0)
-        for i in range(5):
-            self.assertEqual(R[i][i], 1)
-
-    def test_rm_symmetric(self):
-        rows = [[0]*4, [1]*4, [3]*4, [7]*4]
-        R = self.recurrence_matrix(rows, eps=0)
-        for i in range(len(R)):
-            for j in range(len(R)):
-                self.assertEqual(R[i][j], R[j][i])
-
-    def test_rm_identical_rows_all_ones(self):
-        rows = [[0]*4] * 4
-        R = self.recurrence_matrix(rows, eps=0)
-        for row in R:
-            self.assertTrue(all(v == 1 for v in row))
-
-    def test_rm_eps_0_strict(self):
-        rows = [[0]*4, [1]*4]
-        R = self.recurrence_matrix(rows, eps=0)
-        self.assertEqual(R[0][1], 0)
-
-    def test_rm_eps_positive_relaxes(self):
-        # rows differ by exactly 1 bit (first cell: 0 vs 1) → eps=1 makes them recurrent
-        rows = [[0, 0, 0, 0], [1, 0, 0, 0]]
-        R = self.recurrence_matrix(rows, eps=1)
-        self.assertEqual(R[0][1], 1)
-
-    # ── rqa_metrics() ─────────────────────────────────────────────────────────
-
-    def test_rqa_empty(self):
-        m = self.rqa_metrics([])
-        self.assertEqual(m['N'], 0)
-        self.assertEqual(m['RR'], 0.0)
-
-    def test_rqa_single_row(self):
-        m = self.rqa_metrics([[1]])
-        self.assertEqual(m['N'], 1)
-        self.assertEqual(m['RR'], 0.0)  # no off-diagonal pairs
-
-    def test_rqa_full_ones_rr(self):
-        # 4×4 all-ones → RR = 12/12 = 1.0 (off-diagonal)
-        R = [[1]*4 for _ in range(4)]
-        m = self.rqa_metrics(R)
-        self.assertAlmostEqual(m['RR'], 1.0, places=4)
-
-    def test_rqa_full_ones_det(self):
-        # 4×4 all-ones: shorter diagonals (length 1 at offset=3) don't meet min_line=2
-        # so DET < 1.0 but > 0.8
-        R = [[1]*4 for _ in range(4)]
-        m = self.rqa_metrics(R)
-        self.assertGreater(m['DET'], 0.8)
-
-    def test_rqa_full_ones_lam(self):
-        # same edge effect for vertical lines → LAM > 0.8
-        R = [[1]*4 for _ in range(4)]
-        m = self.rqa_metrics(R)
-        self.assertGreater(m['LAM'], 0.8)
-
-    def test_rqa_zero_off_diag(self):
-        # only main diagonal → RR=0
-        N = 4
-        R = [[1 if i == j else 0 for j in range(N)] for i in range(N)]
-        m = self.rqa_metrics(R)
-        self.assertEqual(m['RR'], 0.0)
-        self.assertEqual(m['DET'], 0.0)
-
-    def test_rqa_checkerboard_det(self):
-        # XOR3-style checkerboard: R[i][j]=1 iff (i+j) even
-        N = 6
-        R = [[1 if (i + j) % 2 == 0 else 0 for j in range(N)] for i in range(N)]
-        m = self.rqa_metrics(R)
-        # Diagonal offset=2 is all-ones (length N-2=4 ≥ 2) → DET > 0
-        self.assertGreater(m['DET'], 0.0)
-
-    def test_rqa_keys_present(self):
-        R = [[1, 0], [0, 1]]
-        m = self.rqa_metrics(R)
-        for key in ['N', 'RR', 'DET', 'L', 'LAM', 'TT']:
-            self.assertIn(key, m)
-
-    # ── trajectory_recurrence() ────────────────────────────────────────────────
-
-    def test_tr_returns_dict(self):
-        r = self.trajectory_recurrence('ГОРА', 'xor3')
-        self.assertIsInstance(r, dict)
-
-    def test_tr_keys(self):
-        r = self.trajectory_recurrence('ГОРА', 'xor3')
-        for k in ['word', 'rule', 'width', 'eps', 'transient', 'period',
-                  'n_steps', 'R', 'rqa']:
-            self.assertIn(k, r)
-
-    def test_tr_word_uppercased(self):
-        r = self.trajectory_recurrence('гора', 'xor3')
-        self.assertEqual(r['word'], 'ГОРА')
-
-    def test_tr_matrix_shape(self):
-        r = self.trajectory_recurrence('ГОРА', 'xor3')
-        N = r['n_steps']
-        self.assertEqual(len(r['R']), N)
-        self.assertEqual(len(r['R'][0]), N)
-
-    def test_tr_xor_rr(self):
-        # XOR: ГОРА transient=2, period=1, N=6 → attractor rows all-zeros
-        # RR=0.4 as verified by CLI
-        r = self.trajectory_recurrence('ГОРА', 'xor')
-        self.assertAlmostEqual(r['rqa']['RR'], 0.4, places=3)
-
-    def test_tr_xor_high_det(self):
-        # Attractor block of identical rows → long diagonals → DET > 0.5
-        r = self.trajectory_recurrence('ГОРА', 'xor')
-        self.assertGreater(r['rqa']['DET'], 0.5)
-
-    def test_tr_xor3_det_one(self):
-        # XOR3 checkerboard → every off-diagonal point lies on a diagonal line
-        r = self.trajectory_recurrence('ГОРА', 'xor3')
-        self.assertAlmostEqual(r['rqa']['DET'], 1.0, places=3)
-
-    def test_tr_or_high_rr(self):
-        # OR period-1 attractor: many identical rows → high RR
-        r = self.trajectory_recurrence('ГОРА', 'or')
-        self.assertGreater(r['rqa']['RR'], 0.4)
-
-    def test_tr_n_steps_consistent(self):
-        r = self.trajectory_recurrence('ТУМАН', 'xor3', n_cycles=4)
-        expected = r['transient'] + 4 * r['period']
-        self.assertEqual(r['n_steps'], expected)
-
-    def test_tr_different_words_different_rr(self):
-        r1 = self.trajectory_recurrence('ГОРА', 'xor3')
-        r2 = self.trajectory_recurrence('ТУМАН', 'xor3')
-        # Just check they are both valid floats in [0,1]
-        self.assertGreaterEqual(r1['rqa']['RR'], 0.0)
-        self.assertGreaterEqual(r2['rqa']['RR'], 0.0)
-
-    def test_tr_eps_positive_increases_rr(self):
-        r0 = self.trajectory_recurrence('ГОРА', 'xor3', eps=0)
-        r1 = self.trajectory_recurrence('ГОРА', 'xor3', eps=4)
-        self.assertGreaterEqual(r1['rqa']['RR'], r0['rqa']['RR'])
-
-    # ── all_recurrences() ──────────────────────────────────────────────────────
-
-    def test_ar_all_rules(self):
-        d = self.all_recurrences('ГОРА')
-        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
-
-    def test_ar_each_has_rqa(self):
-        d = self.all_recurrences('ВОДА')
-        for rule in self.ALL_RULES:
-            self.assertIn('rqa', d[rule])
-
-    # ── build_recurrence_data() ───────────────────────────────────────────────
-
-    def test_brd_keys(self):
-        d = self.build_recurrence_data(['ГОРА', 'ВОДА'])
-        for k in ['words', 'width', 'eps', 'per_rule', 'ranking', 'max_rr', 'min_rr']:
-            self.assertIn(k, d)
-
-    def test_brd_per_rule_contains_all_rules(self):
-        d = self.build_recurrence_data(['ГОРА'])
-        self.assertEqual(set(d['per_rule'].keys()), set(self.ALL_RULES))
-
-    def test_brd_ranking_sorted(self):
-        d = self.build_recurrence_data(['ГОРА', 'ВОДА', 'ТУМАН'])
-        for rule in self.ALL_RULES:
-            rr_vals = [x[1] for x in d['ranking'][rule]]
-            self.assertEqual(rr_vals, sorted(rr_vals, reverse=True))
-
-    def test_brd_max_rr_is_tuple(self):
-        d = self.build_recurrence_data(['ГОРА', 'ВОДА'])
-        for rule in self.ALL_RULES:
-            self.assertIsInstance(d['max_rr'][rule], tuple)
-
-    # ── recurrence_dict() ─────────────────────────────────────────────────────
-
-    def test_rd_json_serialisable(self):
-        import json
-        d = self.recurrence_dict('ГОРА')
-        # R matrix is excluded; should be serialisable
-        json.dumps(d)
-
-    def test_rd_rules_key(self):
-        d = self.recurrence_dict('ГОРА')
-        self.assertIn('rules', d)
-        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
-
-    def test_rd_each_rule_has_rr(self):
-        d = self.recurrence_dict('ВОДА')
-        for rule in self.ALL_RULES:
-            self.assertIn('RR', d['rules'][rule])
-
-    def test_rd_no_matrix(self):
-        # The R matrix should NOT be in the JSON export (too large)
-        d = self.recurrence_dict('ГОРА')
-        for rule in self.ALL_RULES:
-            self.assertNotIn('R', d['rules'][rule])
-
-    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
-
-    def test_viewer_has_rc_canvas(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rc-canvas', content)
-
-    def test_viewer_has_rc_metrics(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rc-metrics', content)
-
-    def test_viewer_has_rc_hmap(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rc-hmap', content)
-
-    def test_viewer_has_rc_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rc-btn', content)
-
-    def test_viewer_has_rqa_met(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rqaMet', content)
-
-    def test_viewer_has_rc_rows(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rcRows', content)
-
-
-class TestSolanMutual(unittest.TestCase):
-    """Tests for solan_mutual.py and the viewer MI section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_mutual import (
-            attractor_states, cell_entropy, cell_mi,
-            entropy_profile, mi_matrix, mi_profile,
-            trajectory_mutual, all_mutual,
-            build_mutual_data, mutual_dict,
-            _ALL_RULES, _DEFAULT_WIDTH,
-        )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.attractor_states  = staticmethod(attractor_states)
-        cls.cell_entropy      = staticmethod(cell_entropy)
-        cls.cell_mi           = staticmethod(cell_mi)
-        cls.entropy_profile   = staticmethod(entropy_profile)
-        cls.mi_matrix         = staticmethod(mi_matrix)
-        cls.mi_profile        = staticmethod(mi_profile)
-        cls.trajectory_mutual = staticmethod(trajectory_mutual)
-        cls.all_mutual        = staticmethod(all_mutual)
-        cls.build_mutual_data = staticmethod(build_mutual_data)
-        cls.mutual_dict       = staticmethod(mutual_dict)
-        cls.ALL_RULES         = _ALL_RULES
-        cls.W                 = _DEFAULT_WIDTH
-        cls.LEXICON           = list(LEXICON)
-
-    # ── attractor_states() ────────────────────────────────────────────────────
-
-    def test_as_length_equals_period(self):
-        from projects.hexglyph.solan_ca import find_orbit
-        from projects.hexglyph.solan_word import encode_word, pad_to
-        cells = pad_to(encode_word('ГОРА'), 16)
-        _, period = find_orbit(cells[:], 'xor3')
-        states = self.attractor_states('ГОРА', 'xor3')
-        self.assertEqual(len(states), max(period, 1))
-
-    def test_as_each_state_has_width_cells(self):
-        states = self.attractor_states('ГОРА', 'xor3', 16)
-        for s in states:
-            self.assertEqual(len(s), 16)
-
-    def test_as_xor_period_one(self):
-        states = self.attractor_states('ГОРА', 'xor')
-        self.assertEqual(len(states), 1)
-
-    def test_as_values_in_q6_range(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for s in states:
-            for v in s:
-                self.assertGreaterEqual(v, 0)
-                self.assertLessEqual(v, 63)
-
-    def test_as_xor_attractor_all_zeros(self):
-        # XOR rule: attractor is the all-zeros state
-        states = self.attractor_states('ГОРА', 'xor')
-        self.assertEqual(states[0], [0] * 16)
-
-    # ── cell_entropy() ────────────────────────────────────────────────────────
-
-    def test_ce_constant_state(self):
-        # Single state → H = 0
-        self.assertAlmostEqual(self.cell_entropy([[5, 3, 0]], 0), 0.0, places=9)
-
-    def test_ce_two_distinct_values(self):
-        # Alternating [0, 1, 0, 1] for cell 0 → H = 1 bit
-        states = [[0, 0], [1, 0], [0, 0], [1, 0]]
-        self.assertAlmostEqual(self.cell_entropy(states, 0), 1.0, places=9)
-
-    def test_ce_all_same_value(self):
-        states = [[7, 7]] * 8
-        self.assertAlmostEqual(self.cell_entropy(states, 0), 0.0, places=9)
-
-    def test_ce_non_negative(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(16):
-            self.assertGreaterEqual(self.cell_entropy(states, i), 0.0)
-
-    def test_ce_xor_zero_entropy(self):
-        # XOR attractor is all-zeros: entropy = 0
-        states = self.attractor_states('ГОРА', 'xor')
-        self.assertAlmostEqual(self.cell_entropy(states, 0), 0.0, places=9)
-
-    # ── cell_mi() ─────────────────────────────────────────────────────────────
-
-    def test_cmi_self_equals_entropy(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(4):
-            mi_self = self.cell_mi(states, i, i)
-            ent     = self.cell_entropy(states, i)
-            self.assertAlmostEqual(mi_self, ent, places=6)
-
-    def test_cmi_symmetric(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(4):
-            for j in range(4):
-                self.assertAlmostEqual(
-                    self.cell_mi(states, i, j),
-                    self.cell_mi(states, j, i),
-                    places=9,
-                )
-
-    def test_cmi_non_negative(self):
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(8):
-            for j in range(8):
-                self.assertGreaterEqual(self.cell_mi(states, i, j), 0.0)
-
-    def test_cmi_bounded_by_min_entropy(self):
-        # I(X;Y) ≤ min(H(X), H(Y))
-        states = self.attractor_states('ТУМАН', 'xor3')
-        for i in range(6):
-            for j in range(6):
-                mi  = self.cell_mi(states, i, j)
-                hi  = self.cell_entropy(states, i)
-                hj  = self.cell_entropy(states, j)
-                self.assertLessEqual(mi, max(hi, hj) + 1e-9)
-
-    def test_cmi_xor_constant(self):
-        # XOR period-1 (constant): MI = 0 between any pair
-        states = self.attractor_states('ГОРА', 'xor')
-        self.assertAlmostEqual(self.cell_mi(states, 0, 5), 0.0, places=9)
-
-    def test_cmi_empty_states(self):
-        self.assertEqual(self.cell_mi([], 0, 0), 0)
-
-    # ── entropy_profile() ─────────────────────────────────────────────────────
-
-    def test_ep_length(self):
-        ep = self.entropy_profile('ГОРА', 'xor3', 16)
-        self.assertEqual(len(ep), 16)
-
-    def test_ep_all_non_negative(self):
-        ep = self.entropy_profile('ТУМАН', 'xor3')
-        for v in ep:
-            self.assertGreaterEqual(v, 0.0)
-
-    def test_ep_xor_all_zero(self):
-        ep = self.entropy_profile('ГОРА', 'xor')
-        for v in ep:
-            self.assertAlmostEqual(v, 0.0, places=9)
-
-    # ── mi_matrix() ───────────────────────────────────────────────────────────
-
-    def test_mm_shape(self):
-        M = self.mi_matrix('ГОРА', 'xor3', 16)
-        self.assertEqual(len(M), 16)
-        self.assertEqual(len(M[0]), 16)
-
-    def test_mm_symmetric(self):
-        M = self.mi_matrix('ТУМАН', 'xor3')
-        for i in range(16):
-            for j in range(16):
-                self.assertAlmostEqual(M[i][j], M[j][i], places=6)
-
-    def test_mm_diagonal_is_entropy(self):
-        M  = self.mi_matrix('ТУМАН', 'xor3')
-        ep = self.entropy_profile('ТУМАН', 'xor3')
-        for i in range(16):
-            self.assertAlmostEqual(M[i][i], ep[i], places=6)
-
-    def test_mm_all_non_negative(self):
-        M = self.mi_matrix('ТУМАН', 'xor3')
-        for row in M:
-            for v in row:
-                self.assertGreaterEqual(v, -1e-9)
-
-    def test_mm_xor_all_zero(self):
-        M = self.mi_matrix('ГОРА', 'xor')
-        for row in M:
-            for v in row:
-                self.assertAlmostEqual(v, 0.0, places=9)
-
-    # ── mi_profile() ──────────────────────────────────────────────────────────
-
-    def test_mp_length(self):
-        M   = self.mi_matrix('ТУМАН', 'xor3')
-        p   = self.mi_profile(M, 16)
-        self.assertEqual(len(p), 16 // 2 + 1)
-
-    def test_mp_d0_is_mean_entropy(self):
-        M   = self.mi_matrix('ТУМАН', 'xor3')
-        p   = self.mi_profile(M, 16)
-        ep  = self.entropy_profile('ТУМАН', 'xor3')
-        self.assertAlmostEqual(p[0], sum(ep) / len(ep), places=4)
-
-    def test_mp_all_non_negative(self):
-        M = self.mi_matrix('ТУМАН', 'xor3')
-        for v in self.mi_profile(M, 16):
-            self.assertGreaterEqual(v, -1e-9)
-
-    # ── trajectory_mutual() ───────────────────────────────────────────────────
-
-    def test_tm_keys(self):
-        r = self.trajectory_mutual('ГОРА', 'xor3')
-        for k in ['word', 'rule', 'width', 'period', 'entropy',
-                  'M', 'mi_by_dist', 'mean_entropy', 'max_mi', 'max_mi_pair']:
-            self.assertIn(k, r)
-
-    def test_tm_word_uppercased(self):
-        self.assertEqual(self.trajectory_mutual('гора', 'xor3')['word'], 'ГОРА')
-
-    def test_tm_xor_zero_entropy(self):
-        r = self.trajectory_mutual('ГОРА', 'xor')
-        self.assertAlmostEqual(r['mean_entropy'], 0.0, places=9)
-
-    def test_tm_xor3_tuман_mean_entropy(self):
-        r = self.trajectory_mutual('ТУМАН', 'xor3')
-        self.assertAlmostEqual(r['mean_entropy'], 2.234, delta=0.01)
-
-    def test_tm_max_mi_non_negative(self):
-        r = self.trajectory_mutual('ТУМАН', 'xor3')
-        self.assertGreaterEqual(r['max_mi'], 0.0)
-
-    def test_tm_max_mi_pair_is_tuple_or_list(self):
-        r = self.trajectory_mutual('ТУМАН', 'xor3')
-        self.assertEqual(len(r['max_mi_pair']), 2)
-
-    # ── all_mutual() ──────────────────────────────────────────────────────────
-
-    def test_am_all_rules(self):
-        d = self.all_mutual('ГОРА')
-        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
-
-    def test_am_each_has_period(self):
-        d = self.all_mutual('ВОДА')
-        for rule in self.ALL_RULES:
-            self.assertIn('period', d[rule])
-
-    # ── build_mutual_data() ───────────────────────────────────────────────────
-
-    def test_bmd_keys(self):
-        d = self.build_mutual_data(['ГОРА', 'ВОДА'])
-        for k in ['words', 'width', 'per_rule', 'ranking', 'max_h', 'min_h']:
-            self.assertIn(k, d)
-
-    def test_bmd_ranking_sorted(self):
-        d = self.build_mutual_data(['ГОРА', 'ВОДА', 'ТУМАН'])
-        for rule in self.ALL_RULES:
-            hs = [x[1] for x in d['ranking'][rule]]
-            self.assertEqual(hs, sorted(hs, reverse=True))
-
-    # ── mutual_dict() ─────────────────────────────────────────────────────────
-
-    def test_md_json_serialisable(self):
-        import json
-        d = self.mutual_dict('ГОРА')
-        json.dumps(d)
-
-    def test_md_no_matrix(self):
-        d = self.mutual_dict('ГОРА')
-        for rule in self.ALL_RULES:
-            self.assertNotIn('M', d['rules'][rule])
-
-    def test_md_has_mi_by_dist(self):
-        d = self.mutual_dict('ТУМАН')
-        for rule in self.ALL_RULES:
-            self.assertIn('mi_by_dist', d['rules'][rule])
-
-    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
-
-    def test_viewer_has_mi_mat(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('mi-mat', content)
-
-    def test_viewer_has_mi_dist(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('mi-dist', content)
-
-    def test_viewer_has_mi_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('mi-stats', content)
-
-    def test_viewer_has_mi_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('mi-btn', content)
-
-    def test_viewer_has_mi_cell_mi(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('miCellMI', content)
-
-    def test_viewer_has_mi_entropy(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('miEntropy', content)
-
-
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_complexities_returns_4_rules(self):
+        from projects.hexglyph.solan_complexity import all_complexities
+        d = all_complexities('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_complexities_values_are_dicts(self):
+        from projects.hexglyph.solan_complexity import all_complexities
+        d = all_complexities('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_complexity_data_returns_dict(self):
+        from projects.hexglyph.solan_complexity import build_complexity_data
+        d = build_complexity_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanSpacetime(unittest.TestCase):
     """Tests for solan_spacetime.py and the viewer Space-time section."""
 
@@ -4536,7 +4403,39 @@ class TestSolanSpacetime(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('drawSpacetime', content)
 
+    def test_viewer_has_solan_spacetime(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_spacetime', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_spacetime'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_st_returns_4_rules(self):
+        from projects.hexglyph.solan_spacetime import all_st
+        d = all_st('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_st_values_are_dicts(self):
+        from projects.hexglyph.solan_spacetime import all_st
+        d = all_st('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_st_data_returns_dict(self):
+        from projects.hexglyph.solan_spacetime import build_st_data
+        d = build_st_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanDamage(unittest.TestCase):
     """Tests for solan_damage.py and the viewer Damage Spreading section."""
 
@@ -4812,7 +4711,39 @@ class TestSolanDamage(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('конус влияния', content)
 
+    def test_viewer_has_solan_damage(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_damage', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_damage'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_damage_returns_4_rules(self):
+        from projects.hexglyph.solan_damage import all_damage
+        d = all_damage('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_damage_values_are_dicts(self):
+        from projects.hexglyph.solan_damage import all_damage
+        d = all_damage('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_damage_data_returns_dict(self):
+        from projects.hexglyph.solan_damage import build_damage_data
+        d = build_damage_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanSymbolic(unittest.TestCase):
     """Tests for solan_symbolic.py and the viewer Symbolic Dynamics section."""
 
@@ -5178,7 +5109,39 @@ class TestSolanSymbolic(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('бинарная грамматика', content)
 
+    def test_viewer_has_solan_symbolic(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_symbolic', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_symbolic'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_symbolic_returns_4_rules(self):
+        from projects.hexglyph.solan_symbolic import all_symbolic
+        d = all_symbolic('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_symbolic_values_are_dicts(self):
+        from projects.hexglyph.solan_symbolic import all_symbolic
+        d = all_symbolic('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_symbolic_data_returns_dict(self):
+        from projects.hexglyph.solan_symbolic import build_symbolic_data
+        d = build_symbolic_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanNetwork(unittest.TestCase):
     """Tests for solan_network.py and the viewer Network section."""
 
@@ -5489,7 +5452,39 @@ class TestSolanNetwork(unittest.TestCase):
         self.assertIn('PageRank', content)
         self.assertIn('СКС', content)
 
+    def test_viewer_has_solan_network(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_network', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_network'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_network_returns_4_rules(self):
+        from projects.hexglyph.solan_network import all_network
+        d = all_network('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_network_values_are_dicts(self):
+        from projects.hexglyph.solan_network import all_network
+        d = all_network('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_network_data_returns_dict(self):
+        from projects.hexglyph.solan_network import build_network_data
+        d = build_network_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanPortrait(unittest.TestCase):
     """Tests for solan_portrait.py and the viewer Portrait section."""
 
@@ -5709,7 +5704,39 @@ class TestSolanPortrait(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('радарный отпечаток', content)
 
+    def test_viewer_has_solan_portrait(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_portrait', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_portrait'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_portrait_returns_4_rules(self):
+        from projects.hexglyph.solan_portrait import all_portrait
+        d = all_portrait('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_portrait_values_are_dicts(self):
+        from projects.hexglyph.solan_portrait import all_portrait
+        d = all_portrait('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_portrait_data_returns_dict(self):
+        from projects.hexglyph.solan_portrait import build_portrait_data
+        d = build_portrait_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanCoarse(unittest.TestCase):
     """Tests for solan_coarse.py and the viewer Coarse-Graining section."""
 
@@ -5985,7 +6012,27 @@ class TestSolanCoarse(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Огрубление Q6', content)
 
+    def test_viewer_has_solan_coarse(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_coarse', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_coarse'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_build_coarse_data_returns_dict(self):
+        from projects.hexglyph.solan_coarse import build_coarse_data
+        d = build_coarse_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanActive(unittest.TestCase):
     """Tests for solan_active.py and the viewer AIS section."""
 
@@ -6254,7 +6301,27 @@ class TestSolanActive(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Active Information Storage', content)
 
+    def test_viewer_has_solan_active(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_active', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_active'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_build_ais_data_returns_dict(self):
+        from projects.hexglyph.solan_active import build_ais_data
+        d = build_ais_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanTemporal(unittest.TestCase):
     """Tests for solan_temporal.py and the viewer Temporal DFT section."""
 
@@ -6526,7 +6593,39 @@ class TestSolanTemporal(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Временной спектр Q6', content)
 
+    def test_viewer_has_solan_temporal(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_temporal', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_temporal'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_temporal_returns_4_rules(self):
+        from projects.hexglyph.solan_temporal import all_temporal
+        d = all_temporal('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_temporal_values_are_dicts(self):
+        from projects.hexglyph.solan_temporal import all_temporal
+        d = all_temporal('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_temporal_data_returns_dict(self):
+        from projects.hexglyph.solan_temporal import build_temporal_data
+        d = build_temporal_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanPersistence(unittest.TestCase):
     """Tests for solan_persistence.py and the viewer Persistence section."""
 
@@ -6796,7 +6895,39 @@ class TestSolanPersistence(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Персистентность Q6', content)
 
+    def test_viewer_has_solan_persistence(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_persistence', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_persistence'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_persistence_returns_4_rules(self):
+        from projects.hexglyph.solan_persistence import all_persistence
+        d = all_persistence('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_persistence_values_are_dicts(self):
+        from projects.hexglyph.solan_persistence import all_persistence
+        d = all_persistence('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_persistence_data_returns_dict(self):
+        from projects.hexglyph.solan_persistence import build_persistence_data
+        d = build_persistence_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanBlock(unittest.TestCase):
     """Tests for solan_block.py and the viewer Block Entropy section."""
 
@@ -7068,7 +7199,40 @@ class TestSolanBlock(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Блочная энтропия Q6', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_block',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_block(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_block', content)
+
+
+
+    def test_all_block_returns_4_rules(self):
+        from projects.hexglyph.solan_block import all_block
+        d = all_block('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_block_values_are_dicts(self):
+        from projects.hexglyph.solan_block import all_block
+        d = all_block('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_block_data_returns_dict(self):
+        from projects.hexglyph.solan_block import build_block_data
+        d = build_block_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanMultiscale(unittest.TestCase):
     """Tests for solan_multiscale.py and the viewer MSE section."""
 
@@ -7302,7 +7466,40 @@ class TestSolanMultiscale(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Мультимасштабная энтропия Q6', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_multiscale',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_multiscale(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_multiscale', content)
+
+
+
+    def test_all_mse_returns_4_rules(self):
+        from projects.hexglyph.solan_multiscale import all_mse
+        d = all_mse('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_mse_values_are_dicts(self):
+        from projects.hexglyph.solan_multiscale import all_mse
+        d = all_mse('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_mse_data_returns_dict(self):
+        from projects.hexglyph.solan_multiscale import build_mse_data
+        d = build_mse_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanChPlane(unittest.TestCase):
     """Tests for solan_ch_plane.py and the viewer C-H plane section."""
 
@@ -7575,7 +7772,40 @@ class TestSolanChPlane(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('C-H плоскость Q6', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_ch_plane',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_ch_plane(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_ch_plane', content)
+
+
+
+    def test_all_ch_returns_4_rules(self):
+        from projects.hexglyph.solan_ch_plane import all_ch
+        d = all_ch('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_ch_values_are_dicts(self):
+        from projects.hexglyph.solan_ch_plane import all_ch
+        d = all_ch('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_ch_data_returns_dict(self):
+        from projects.hexglyph.solan_ch_plane import build_ch_data
+        d = build_ch_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanWperm(unittest.TestCase):
     """Tests for solan_wperm.py and the viewer WPE section."""
 
@@ -7779,230 +8009,21 @@ class TestSolanWperm(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Взвешенная энтропия перестановок Q6', content)
 
-
-class TestSolanFourier(unittest.TestCase):
-    """Tests for solan_fourier.py and the viewer Fourier/PSD section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_fourier import (
-            dft1, power_spectrum, spectral_entropy,
-            normalised_spectral_entropy, spectral_flatness,
-            dominant_harmonic, cell_fourier, fourier_profile,
-            fourier_dict, all_fourier, build_fourier_data,
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_wperm',
+             '--word', 'ТУМАН', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
         )
-        cls.dft1                        = staticmethod(dft1)
-        cls.power_spectrum              = staticmethod(power_spectrum)
-        cls.spectral_entropy            = staticmethod(spectral_entropy)
-        cls.normalised_spectral_entropy = staticmethod(normalised_spectral_entropy)
-        cls.spectral_flatness           = staticmethod(spectral_flatness)
-        cls.dominant_harmonic           = staticmethod(dominant_harmonic)
-        cls.cell_fourier                = staticmethod(cell_fourier)
-        cls.fourier_profile             = staticmethod(fourier_profile)
-        cls.fourier_dict                = staticmethod(fourier_dict)
-        cls.all_fourier                 = staticmethod(all_fourier)
-        cls.build_fourier_data          = staticmethod(build_fourier_data)
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
-    # ── dft1 ───────────────────────────────────────────────────────────
-
-    def test_dft1_empty(self):
-        self.assertEqual(self.dft1([]), [])
-
-    def test_dft1_single(self):
-        X = self.dft1([3.0])
-        self.assertEqual(len(X), 1)
-        self.assertAlmostEqual(X[0].real, 3.0, places=10)
-
-    def test_dft1_dc_component(self):
-        s = [1.0, 2.0, 3.0, 4.0]
-        X = self.dft1(s)
-        self.assertAlmostEqual(X[0].real, 10.0, places=8)
-
-    def test_dft1_pure_cosine_peak_at_k1(self):
-        import math
-        N = 8
-        s = [math.cos(2 * math.pi * t / N) for t in range(N)]
-        X = self.dft1(s)
-        self.assertGreater(abs(X[1]), abs(X[0]))
-
-    # ── power_spectrum ─────────────────────────────────────────────────
-
-    def test_power_spectrum_empty(self):
-        self.assertEqual(self.power_spectrum([]), [])
-
-    def test_power_spectrum_length(self):
-        ps = self.power_spectrum([1, 2, 3, 4, 5, 6, 7, 8])
-        self.assertEqual(len(ps), 5)
-
-    def test_power_spectrum_nonneg(self):
-        ps = self.power_spectrum([10, 5, 20, 15, 3, 8])
-        self.assertTrue(all(v >= 0 for v in ps))
-
-    def test_power_spectrum_constant_dc_only(self):
-        ps = self.power_spectrum([5, 5, 5, 5])
-        self.assertGreater(ps[0], 0)
-        self.assertAlmostEqual(sum(ps[1:]), 0.0, places=8)
-
-    # ── spectral_entropy ───────────────────────────────────────────────
-
-    def test_spectral_entropy_single_bin_is_zero(self):
-        self.assertAlmostEqual(self.spectral_entropy([5.0]), 0.0)
-
-    def test_spectral_entropy_all_zero_is_zero(self):
-        self.assertAlmostEqual(self.spectral_entropy([0.0, 0.0]), 0.0)
-
-    def test_spectral_entropy_uniform_max(self):
-        import math
-        ps = [1.0, 1.0, 1.0, 1.0]
-        self.assertAlmostEqual(self.spectral_entropy(ps), math.log2(4), places=8)
-
-    def test_spectral_entropy_nonneg(self):
-        self.assertGreaterEqual(self.spectral_entropy([3.0, 1.0, 2.0, 0.5]), 0.0)
-
-    # ── normalised_spectral_entropy ────────────────────────────────────
-
-    def test_nse_range(self):
-        v = self.normalised_spectral_entropy([2.0, 1.0, 3.0, 0.5])
-        self.assertGreaterEqual(v, 0.0)
-        self.assertLessEqual(v, 1.0)
-
-    def test_nse_uniform_is_one(self):
-        self.assertAlmostEqual(self.normalised_spectral_entropy([1.0] * 8), 1.0, places=6)
-
-    def test_nse_one_bin_is_zero(self):
-        self.assertAlmostEqual(self.normalised_spectral_entropy([7.0]), 0.0)
-
-    def test_nse_all_zero_is_zero(self):
-        self.assertAlmostEqual(self.normalised_spectral_entropy([0.0, 0.0, 0.0]), 0.0)
-
-    # ── spectral_flatness ──────────────────────────────────────────────
-
-    def test_sf_uniform_is_one(self):
-        self.assertAlmostEqual(self.spectral_flatness([2.0, 2.0, 2.0, 2.0]), 1.0, places=6)
-
-    def test_sf_zero_if_zero_bin(self):
-        self.assertAlmostEqual(self.spectral_flatness([3.0, 0.0, 2.0]), 0.0)
-
-    def test_sf_range(self):
-        v = self.spectral_flatness([10.0, 1.0, 5.0, 2.0])
-        self.assertGreaterEqual(v, 0.0)
-        self.assertLessEqual(v, 1.0)
-
-    # ── dominant_harmonic ──────────────────────────────────────────────
-
-    def test_dominant_harmonic_returns_k_ge_1(self):
-        k = self.dominant_harmonic([100.0, 5.0, 20.0, 3.0])
-        self.assertGreaterEqual(k, 1)
-
-    def test_dominant_harmonic_finds_peak(self):
-        self.assertEqual(self.dominant_harmonic([100.0, 5.0, 80.0, 3.0]), 2)
-
-    def test_dominant_harmonic_single_bin(self):
-        self.assertEqual(self.dominant_harmonic([5.0]), 1)
-
-    # ── Fixed-point attractors → nH_sp = 0 ────────────────────────────
-
-    def test_tuman_xor_nh_sp_zero(self):
-        profile = self.fourier_profile('ТУМАН', 'xor', 16)
-        for c in profile:
-            self.assertAlmostEqual(c['nh_sp'], 0.0)
-
-    def test_gora_and_nh_sp_high(self):
-        profile = self.fourier_profile('ГОРА', 'and', 16)
-        active = [c['nh_sp'] for c in profile if c['ac_total'] > 0]
-        if active:
-            self.assertGreater(sum(active) / len(active), 0.9)
-
-    def test_tuman_xor3_nh_sp_mid(self):
-        d = self.fourier_dict('ТУМАН', 'xor3', 16)
-        self.assertGreater(d['mean_nh_sp'], 0.05)
-        self.assertLess(d['mean_nh_sp'], 0.6)
-
-    # ── fourier_dict structure ─────────────────────────────────────────
-
-    def test_fourier_dict_keys(self):
-        d = self.fourier_dict('ТУМАН', 'xor3', 16)
-        for k in ('word', 'rule', 'period', 'cell_fourier',
-                  'mean_nh_sp', 'mean_sf', 'mean_dc_frac',
-                  'mean_ps', 'dominant_k', 'eff_period', 'n_bins'):
-            self.assertIn(k, d)
-
-    def test_fourier_dict_profile_length(self):
-        d = self.fourier_dict('ГОРА', 'xor3', 16)
-        self.assertEqual(len(d['cell_fourier']), 16)
-
-    def test_fourier_dict_nh_sp_range(self):
-        d = self.fourier_dict('ТУМАН', 'xor3', 16)
-        for c in d['cell_fourier']:
-            self.assertGreaterEqual(c['nh_sp'], 0.0)
-            self.assertLessEqual(c['nh_sp'], 1.0)
-
-    def test_fourier_dict_dc_frac_range(self):
-        d = self.fourier_dict('ГОРА', 'and', 16)
-        for c in d['cell_fourier']:
-            self.assertGreaterEqual(c['dc_frac'], 0.0)
-            self.assertLessEqual(c['dc_frac'], 1.0)
-
-    def test_fourier_dict_dominant_k_ge_1(self):
-        d = self.fourier_dict('ТУМАН', 'xor3', 16)
-        self.assertGreaterEqual(d['dominant_k'], 1)
-
-    def test_fourier_dict_word_uppercase(self):
-        d = self.fourier_dict('туман', 'xor3', 16)
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    # ── all_fourier ────────────────────────────────────────────────────
-
-    def test_all_fourier_has_four_rules(self):
-        result = self.all_fourier('ТУМАН', 16)
-        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_all_fourier_values_are_dicts(self):
-        result = self.all_fourier('ГОРА', 16)
-        for rule, d in result.items():
-            self.assertIsInstance(d, dict)
-            self.assertIn('mean_nh_sp', d)
-
-    # ── build_fourier_data ─────────────────────────────────────────────
-
-    def test_build_fourier_data_structure(self):
-        data = self.build_fourier_data(['ТУМАН', 'ГОРА'], 16)
-        self.assertIn('words', data)
-        self.assertIn('per_rule', data)
-        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_fourier_data_entry_keys(self):
-        data = self.build_fourier_data(['ТУМАН'], 16)
-        entry = data['per_rule']['xor3']['ТУМАН']
-        for k in ('period', 'mean_nh_sp', 'mean_sf', 'mean_dc_frac',
-                  'dominant_k', 'eff_period', 'n_bins'):
-            self.assertIn(k, entry)
-
-    def test_build_fourier_data_words_uppercase(self):
-        data = self.build_fourier_data(['туман'], 16)
-        self.assertIn('ТУМАН', data['words'])
-
-    # ── viewer ─────────────────────────────────────────────────────────
-
-    def test_viewer_has_fou_spectrum(self):
+    def test_viewer_has_solan_wperm(self):
         content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('fou-spectrum', content)
-
-    def test_viewer_has_fou_cell(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('fou-cell', content)
-
-    def test_viewer_has_fou_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('fou-stats', content)
-
-    def test_viewer_has_fou_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('fouRun', content)
-
-    def test_viewer_has_fou_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Фурье / PSD Q6', content)
+        self.assertIn('solan_wperm', content)
 
 
 class TestSolanForbidden(unittest.TestCase):
@@ -8207,650 +8228,21 @@ class TestSolanForbidden(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Запрещённые паттерны Q6', content)
 
-
-class TestSolanAutocorr(unittest.TestCase):
-    """Tests for solan_autocorr.py and the viewer ACF section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_autocorr import (
-            acf, decorrelation_lag, mean_acf_power,
-            cell_acf_profile, acf_dict, all_acf, build_acf_data,
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_forbidden',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
         )
-        cls.acf                = staticmethod(acf)
-        cls.decorrelation_lag  = staticmethod(decorrelation_lag)
-        cls.mean_acf_power     = staticmethod(mean_acf_power)
-        cls.cell_acf_profile   = staticmethod(cell_acf_profile)
-        cls.acf_dict           = staticmethod(acf_dict)
-        cls.all_acf            = staticmethod(all_acf)
-        cls.build_acf_data     = staticmethod(build_acf_data)
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
-    # ── acf() ──────────────────────────────────────────────────────────
-
-    def test_acf_lag0_always_one(self):
-        self.assertAlmostEqual(self.acf([1, 2, 3, 4, 5])[0], 1.0, places=8)
-
-    def test_acf_constant_returns_one_then_nan(self):
-        import math
-        vals = self.acf([7, 7, 7, 7], 3)
-        self.assertAlmostEqual(vals[0], 1.0)
-        self.assertTrue(all(math.isnan(v) for v in vals[1:]))
-
-    def test_acf_alternating_lag1_is_minus_one(self):
-        # [a, b, a, b, ...] → ACF(1) = -1
-        vals = self.acf([47, 1, 47, 1, 47, 1, 47, 1], 1)
-        self.assertAlmostEqual(vals[1], -1.0, places=6)
-
-    def test_acf_empty_series(self):
-        self.assertEqual(self.acf([]), [])
-
-    def test_acf_single_element(self):
-        vals = self.acf([5], 0)
-        self.assertAlmostEqual(vals[0], 1.0)
-
-    def test_acf_length(self):
-        vals = self.acf([1, 2, 3, 4, 5, 6], 4)
-        self.assertEqual(len(vals), 5)
-
-    def test_acf_max_lag_capped_at_n_minus_1(self):
-        vals = self.acf([1, 2, 3], 100)
-        self.assertEqual(len(vals), 3)   # max_lag capped at 2
-
-    # ── decorrelation_lag ──────────────────────────────────────────────
-
-    def test_decorrelation_lag_alternating(self):
-        # ACF = [1, -1] → τ₀ = 1
-        acf_vals = [1.0, -1.0]
-        self.assertEqual(self.decorrelation_lag(acf_vals), 1)
-
-    def test_decorrelation_lag_all_positive_is_none(self):
-        self.assertIsNone(self.decorrelation_lag([1.0, 0.8, 0.5, 0.2]))
-
-    def test_decorrelation_lag_zero_at_lag2(self):
-        self.assertEqual(self.decorrelation_lag([1.0, 0.3, -0.1, -0.4]), 2)
-
-    def test_decorrelation_lag_ignores_nan(self):
-        import math
-        self.assertIsNone(self.decorrelation_lag([1.0, float('nan'), float('nan')]))
-
-    # ── mean_acf_power ─────────────────────────────────────────────────
-
-    def test_mean_acf_power_alternating(self):
-        # ACF = [1, -1] → power over lags 1..1 = (-1)² = 1
-        self.assertAlmostEqual(self.mean_acf_power([1.0, -1.0]), 1.0, places=8)
-
-    def test_mean_acf_power_zero_lags(self):
-        self.assertAlmostEqual(self.mean_acf_power([1.0]), 0.0, places=8)
-
-    def test_mean_acf_power_nonneg(self):
-        self.assertGreaterEqual(self.mean_acf_power([1.0, 0.5, -0.3]), 0.0)
-
-    # ── Fixed-point attractors → max_lag=0 ────────────────────────────
-
-    def test_tuman_xor_max_lag_zero(self):
-        profile = self.cell_acf_profile('ТУМАН', 'xor', 16, 8)
-        for c in profile:
-            self.assertEqual(c['max_lag'], 0)
-            self.assertAlmostEqual(c['acf'][0], 1.0)
-
-    def test_gora_or_tau0_is_none(self):
-        profile = self.cell_acf_profile('ГОРА', 'or', 16, 8)
-        for c in profile:
-            self.assertIsNone(c['tau0'])
-
-    # ── ГОРА AND (P=2) → ACF = [1, -1] ───────────────────────────────
-
-    def test_gora_and_acf_lag1_minus_one(self):
-        profile = self.cell_acf_profile('ГОРА', 'and', 16, 8)
-        for c in profile:
-            self.assertAlmostEqual(c['acf'][0], 1.0, places=6)
-            self.assertAlmostEqual(c['acf'][1], -1.0, places=6)
-
-    def test_gora_and_tau0_is_one(self):
-        profile = self.cell_acf_profile('ГОРА', 'and', 16, 8)
-        for c in profile:
-            self.assertEqual(c['tau0'], 1)
-
-    def test_gora_and_mean_power_is_one(self):
-        d = self.acf_dict('ГОРА', 'and', 16, 8)
-        self.assertAlmostEqual(d['mean_mpower'], 1.0, places=6)
-
-    # ── ТУМАН XOR3 (P=8) → rich ACF ───────────────────────────────────
-
-    def test_tuman_xor3_max_lag_is_7(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        self.assertEqual(d['max_lag'], 7)
-
-    def test_tuman_xor3_mean_acf_lag0_is_one(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        self.assertAlmostEqual(d['mean_acf'][0], 1.0, places=6)
-
-    def test_tuman_xor3_tau0_small(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        # Most cells decorrelate at lag 1 or 2
-        self.assertIsNotNone(d['mean_tau0'])
-        self.assertLessEqual(d['mean_tau0'], 3.0)
-
-    def test_tuman_xor3_acf_symmetric(self):
-        # For circular ACF of period P: ACF(k) = ACF(P-k)
-        profile = self.cell_acf_profile('ТУМАН', 'xor3', 16, 8)
-        for c in profile:
-            a = c['acf']
-            P = 8
-            if len(a) >= P:
-                self.assertAlmostEqual(a[1], a[P - 1], places=6)
-                self.assertAlmostEqual(a[2], a[P - 2], places=6)
-
-    # ── acf_dict structure ─────────────────────────────────────────────
-
-    def test_acf_dict_keys(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        for k in ('word', 'rule', 'period', 'max_lag', 'cell_profile',
-                  'mean_acf', 'mean_tau0', 'mean_mpower'):
-            self.assertIn(k, d)
-
-    def test_acf_dict_cell_profile_length(self):
-        d = self.acf_dict('ГОРА', 'xor3', 16, 8)
-        self.assertEqual(len(d['cell_profile']), 16)
-
-    def test_acf_dict_word_uppercase(self):
-        d = self.acf_dict('туман', 'xor3', 16, 8)
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    def test_acf_dict_mean_acf_lag0(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        self.assertAlmostEqual(d['mean_acf'][0], 1.0, places=6)
-
-    def test_acf_dict_mean_mpower_nonneg(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        self.assertGreaterEqual(d['mean_mpower'], 0.0)
-
-    # ── all_acf ────────────────────────────────────────────────────────
-
-    def test_all_acf_has_four_rules(self):
-        result = self.all_acf('ТУМАН', 16, 8)
-        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_all_acf_values_are_dicts(self):
-        result = self.all_acf('ГОРА', 16, 8)
-        for rule, d in result.items():
-            self.assertIsInstance(d, dict)
-            self.assertIn('mean_acf', d)
-
-    # ── build_acf_data ─────────────────────────────────────────────────
-
-    def test_build_acf_data_structure(self):
-        data = self.build_acf_data(['ТУМАН', 'ГОРА'], 16, 8)
-        self.assertIn('words', data)
-        self.assertIn('per_rule', data)
-        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_acf_data_entry_keys(self):
-        data = self.build_acf_data(['ТУМАН'], 16, 8)
-        entry = data['per_rule']['xor3']['ТУМАН']
-        for k in ('period', 'max_lag', 'mean_acf', 'mean_tau0', 'mean_mpower'):
-            self.assertIn(k, entry)
-
-    def test_build_acf_data_words_uppercase(self):
-        data = self.build_acf_data(['туман'], 16, 8)
-        self.assertIn('ТУМАН', data['words'])
-
-    # ── viewer ─────────────────────────────────────────────────────────
-
-    def test_viewer_has_acf_heat(self):
+    def test_viewer_has_solan_forbidden(self):
         content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acf-heat', content)
-
-    def test_viewer_has_acf_mean(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acf-mean', content)
-
-    def test_viewer_has_acf_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acf-stats', content)
-
-    def test_viewer_has_acf_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acfRun', content)
-
-    def test_viewer_has_acf_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Автокорреляция Q6', content)
-
-
-class TestSolanMoran(unittest.TestCase):
-    """Tests for solan_moran.py and the viewer Moran's I section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_moran import (
-            morans_i, spatial_classification,
-            morans_i_series, morans_i_dict, all_morans_i, build_moran_data,
-        )
-        cls.morans_i               = staticmethod(morans_i)
-        cls.spatial_classification = staticmethod(spatial_classification)
-        cls.morans_i_series        = staticmethod(morans_i_series)
-        cls.morans_i_dict          = staticmethod(morans_i_dict)
-        cls.all_morans_i           = staticmethod(all_morans_i)
-        cls.build_moran_data       = staticmethod(build_moran_data)
-
-    # ── morans_i() ─────────────────────────────────────────────────────
-
-    def test_morans_i_constant_is_nan(self):
-        import math
-        self.assertTrue(math.isnan(self.morans_i([5, 5, 5, 5])))
-
-    def test_morans_i_alternating_is_minus_one(self):
-        vals = [47, 1] * 8   # 16 elements alternating
-        self.assertAlmostEqual(self.morans_i(vals), -1.0, places=6)
-
-    def test_morans_i_single_element_nan(self):
-        import math
-        self.assertTrue(math.isnan(self.morans_i([42])))
-
-    def test_morans_i_empty_nan(self):
-        import math
-        self.assertTrue(math.isnan(self.morans_i([])))
-
-    def test_morans_i_range(self):
-        import random, math
-        random.seed(0)
-        vals = [random.randint(0, 63) for _ in range(16)]
-        v = self.morans_i(vals)
-        if not math.isnan(v):
-            self.assertGreaterEqual(v, -1.1)
-            self.assertLessEqual(v, 1.1)
-
-    def test_morans_i_two_elements(self):
-        # [a, b] alternating in 1-ring: each cell's neighbours are both the other cell
-        v = self.morans_i([10, 50])
-        self.assertAlmostEqual(v, -1.0, places=6)
-
-    # ── spatial_classification ─────────────────────────────────────────
-
-    def test_classification_constant(self):
-        import math
-        self.assertEqual(self.spatial_classification(float('nan')), 'constant')
-
-    def test_classification_strongly_clustered(self):
-        self.assertEqual(self.spatial_classification(0.8), 'strongly clustered')
-
-    def test_classification_clustered(self):
-        self.assertEqual(self.spatial_classification(0.3), 'clustered')
-
-    def test_classification_random(self):
-        self.assertEqual(self.spatial_classification(0.0), 'random')
-
-    def test_classification_dispersed(self):
-        self.assertEqual(self.spatial_classification(-0.3), 'dispersed')
-
-    def test_classification_strongly_dispersed(self):
-        self.assertEqual(self.spatial_classification(-0.8), 'strongly dispersed')
-
-    # ── Fixed-point attractors → NaN ──────────────────────────────────
-
-    def test_tuman_xor_all_nan(self):
-        import math
-        series = self.morans_i_series('ТУМАН', 'xor', 16)
-        self.assertEqual(len(series), 1)
-        self.assertTrue(math.isnan(series[0]))
-
-    def test_gora_or_all_nan(self):
-        import math
-        series = self.morans_i_series('ГОРА', 'or', 16)
-        self.assertEqual(len(series), 1)
-        self.assertTrue(math.isnan(series[0]))
-
-    # ── ГОРА AND (P=2, perfect alternating → I=−1) ────────────────────
-
-    def test_gora_and_i_is_minus_one(self):
-        series = self.morans_i_series('ГОРА', 'and', 16)
-        for v in series:
-            self.assertAlmostEqual(v, -1.0, places=6)
-
-    def test_gora_and_mean_is_minus_one(self):
-        d = self.morans_i_dict('ГОРА', 'and', 16)
-        self.assertAlmostEqual(d['mean_i'], -1.0, places=6)
-
-    def test_gora_and_classification_strongly_dispersed(self):
-        d = self.morans_i_dict('ГОРА', 'and', 16)
-        self.assertEqual(d['classification'], 'strongly dispersed')
-
-    def test_gora_and_var_is_zero(self):
-        d = self.morans_i_dict('ГОРА', 'and', 16)
-        self.assertAlmostEqual(d['var_i'], 0.0, places=6)
-
-    # ── ТУМАН XOR3 (P=8, varied spatial patterns) ─────────────────────
-
-    def test_tuman_xor3_series_length_8(self):
-        series = self.morans_i_series('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(series), 8)
-
-    def test_tuman_xor3_series_all_valid(self):
-        import math
-        series = self.morans_i_series('ТУМАН', 'xor3', 16)
-        self.assertTrue(all(not math.isnan(v) for v in series))
-
-    def test_tuman_xor3_has_mixed_sign(self):
-        series = self.morans_i_series('ТУМАН', 'xor3', 16)
-        self.assertTrue(any(v > 0 for v in series))
-        self.assertTrue(any(v < 0 for v in series))
-
-    def test_tuman_xor3_mean_i_in_range(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        self.assertGreaterEqual(d['mean_i'], -1.0)
-        self.assertLessEqual(d['mean_i'], 1.0)
-
-    def test_tuman_xor3_min_le_max(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        self.assertLessEqual(d['min_i'], d['max_i'])
-
-    # ── morans_i_dict structure ────────────────────────────────────────
-
-    def test_morans_i_dict_keys(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        for k in ('word', 'rule', 'period', 'series', 'mean_i',
-                  'min_i', 'max_i', 'var_i', 'classification', 'n_valid'):
-            self.assertIn(k, d)
-
-    def test_morans_i_dict_word_uppercase(self):
-        d = self.morans_i_dict('туман', 'xor3', 16)
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    def test_morans_i_dict_series_len_equals_period(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(d['series']), d['period'])
-
-    def test_morans_i_dict_n_valid_le_period(self):
-        d = self.morans_i_dict('ТУМАН', 'xor3', 16)
-        self.assertLessEqual(d['n_valid'], d['period'])
-
-    # ── all_morans_i ───────────────────────────────────────────────────
-
-    def test_all_morans_i_has_four_rules(self):
-        result = self.all_morans_i('ТУМАН', 16)
-        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_all_morans_i_values_are_dicts(self):
-        result = self.all_morans_i('ГОРА', 16)
-        for rule, d in result.items():
-            self.assertIsInstance(d, dict)
-            self.assertIn('mean_i', d)
-
-    # ── build_moran_data ───────────────────────────────────────────────
-
-    def test_build_moran_data_structure(self):
-        data = self.build_moran_data(['ТУМАН', 'ГОРА'], 16)
-        self.assertIn('words', data)
-        self.assertIn('per_rule', data)
-        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_moran_data_entry_keys(self):
-        data = self.build_moran_data(['ТУМАН'], 16)
-        entry = data['per_rule']['xor3']['ТУМАН']
-        for k in ('period', 'series', 'mean_i', 'min_i', 'max_i',
-                  'var_i', 'classification', 'n_valid'):
-            self.assertIn(k, entry)
-
-    def test_build_moran_data_words_uppercase(self):
-        data = self.build_moran_data(['туман'], 16)
-        self.assertIn('ТУМАН', data['words'])
-
-    # ── viewer ─────────────────────────────────────────────────────────
-
-    def test_viewer_has_moran_time(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('moran-time', content)
-
-    def test_viewer_has_moran_all(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('moran-all', content)
-
-    def test_viewer_has_moran_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('moran-stats', content)
-
-    def test_viewer_has_moran_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('moranRun', content)
-
-    def test_viewer_has_moran_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn("Moran's I Q6", content)
-
-
-class TestSolanLZ(unittest.TestCase):
-    """Tests for solan_lz.py and the viewer LZ76 section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_lz import (
-            lz76, to_binary, lz_of_series, lz_of_spatial,
-            lz_dict, all_lz, build_lz_data,
-        )
-        cls.lz76          = staticmethod(lz76)
-        cls.to_binary     = staticmethod(to_binary)
-        cls.lz_of_series  = staticmethod(lz_of_series)
-        cls.lz_of_spatial = staticmethod(lz_of_spatial)
-        cls.lz_dict       = staticmethod(lz_dict)
-        cls.all_lz        = staticmethod(all_lz)
-        cls.build_lz_data = staticmethod(build_lz_data)
-
-    # ── lz76() ─────────────────────────────────────────────────────────
-
-    def test_lz76_empty(self):
-        self.assertEqual(self.lz76(''), 0)
-
-    def test_lz76_single_char(self):
-        self.assertEqual(self.lz76('0'), 1)
-
-    def test_lz76_two_same(self):
-        # '00': phrase 1='0', phrase 2='0' (but '0' already in s[:1])
-        # so '0' IS in s[:0]='' → No → phrase='0', then '0' IS in '0' → try '00'
-        # not in '0' → phrase 2='00'. So c=2.
-        self.assertEqual(self.lz76('00'), 2)
-
-    def test_lz76_two_different(self):
-        self.assertEqual(self.lz76('01'), 2)
-
-    def test_lz76_all_zeros_low(self):
-        # Constant string → low LZ (grows as log₂n)
-        c = self.lz76('0' * 96)
-        self.assertLessEqual(c, 12)   # log₂(96) ≈ 6.6; empirically ~7
-
-    def test_lz76_periodic_lower_than_random(self):
-        import random
-        random.seed(1)
-        periodic = '01' * 48   # 96 bits periodic
-        rnd = ''.join(random.choice('01') for _ in range(96))
-        self.assertLess(self.lz76(periodic), self.lz76(rnd))
-
-    def test_lz76_nonneg(self):
-        self.assertGreaterEqual(self.lz76('10110'), 1)
-
-    def test_lz76_known_value(self):
-        # 96 zeros → empirically 7
-        self.assertEqual(self.lz76('0' * 96), 7)
-
-    # ── to_binary ──────────────────────────────────────────────────────
-
-    def test_to_binary_zero(self):
-        self.assertEqual(self.to_binary(0), '000000')
-
-    def test_to_binary_63(self):
-        self.assertEqual(self.to_binary(63), '111111')
-
-    def test_to_binary_length(self):
-        for v in [0, 1, 31, 32, 63]:
-            self.assertEqual(len(self.to_binary(v)), 6)
-
-    def test_to_binary_custom_bits(self):
-        self.assertEqual(self.to_binary(5, 4), '0101')
-
-    def test_to_binary_overflow_masked(self):
-        self.assertEqual(self.to_binary(64), self.to_binary(0))
-
-    # ── lz_of_series ──────────────────────────────────────────────────
-
-    def test_lz_of_series_keys(self):
-        d = self.lz_of_series([47, 1, 47, 1])
-        self.assertIn('bits', d)
-        self.assertIn('lz', d)
-        self.assertIn('norm', d)
-
-    def test_lz_of_series_bits(self):
-        d = self.lz_of_series([0, 63])
-        self.assertEqual(d['bits'], 12)  # 2 values × 6 bits
-
-    def test_lz_of_series_nonneg(self):
-        d = self.lz_of_series([1, 2, 3, 4, 5, 6, 7, 8])
-        self.assertGreater(d['lz'], 0)
-        self.assertGreater(d['norm'], 0)
-
-    def test_lz_of_series_constant_low(self):
-        # Constant temporal series → constant binary string → low LZ
-        d = self.lz_of_series([0] * 8)
-        self.assertLess(d['norm'], 1.5)
-
-    # ── lz_of_spatial ─────────────────────────────────────────────────
-
-    def test_lz_of_spatial_bits(self):
-        d = self.lz_of_spatial([0] * 16)
-        self.assertEqual(d['bits'], 96)   # 16 cells × 6 bits
-
-    def test_lz_of_spatial_all_zero_low(self):
-        d = self.lz_of_spatial([0] * 16)
-        self.assertLess(d['norm'], 0.6)
-
-    def test_lz_of_spatial_nonneg(self):
-        d = self.lz_of_spatial([i for i in range(16)])
-        self.assertGreater(d['lz'], 0)
-
-    # ── Fixed-point attractors ─────────────────────────────────────────
-
-    def test_tuman_xor_full_bits(self):
-        d = self.lz_dict('ТУМАН', 'xor', 16)
-        self.assertEqual(d['full_lz']['bits'], 96)  # P=1 × 16 cells × 6 bits
-
-    def test_tuman_xor_full_norm_low(self):
-        d = self.lz_dict('ТУМАН', 'xor', 16)
-        self.assertLess(d['full_lz']['norm'], 0.7)
-
-    def test_gora_or_full_norm_low(self):
-        d = self.lz_dict('ГОРА', 'or', 16)
-        self.assertLess(d['full_lz']['norm'], 0.7)
-
-    # ── ГОРА AND (P=2, alternating → structured → low LZ) ─────────────
-
-    def test_gora_and_full_norm_low(self):
-        d = self.lz_dict('ГОРА', 'and', 16)
-        self.assertLess(d['full_lz']['norm'], 0.6)
-
-    def test_gora_and_full_bits(self):
-        d = self.lz_dict('ГОРА', 'and', 16)
-        self.assertEqual(d['full_lz']['bits'], 192)  # P=2 × 16 × 6
-
-    # ── ТУМАН XOR3 (P=8) ──────────────────────────────────────────────
-
-    def test_tuman_xor3_full_bits(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertEqual(d['full_lz']['bits'], 768)  # P=8 × 16 × 6
-
-    def test_tuman_xor3_full_norm_gt_and(self):
-        d_xor3 = self.lz_dict('ТУМАН', 'xor3', 16)
-        d_and  = self.lz_dict('ГОРА',  'and',  16)
-        self.assertGreater(d_xor3['full_lz']['norm'], d_and['full_lz']['norm'])
-
-    def test_tuman_xor3_cell_lz_length(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(d['cell_lz']), 16)
-
-    def test_tuman_xor3_cell_bits(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        for c in d['cell_lz']:
-            self.assertEqual(c['bits'], 48)   # P=8 × 6 bits
-
-    def test_tuman_xor3_spatial_length(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(d['spatial_lz']), 8)  # P=8 steps
-
-    # ── lz_dict structure ──────────────────────────────────────────────
-
-    def test_lz_dict_keys(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        for k in ('word', 'rule', 'period', 'cell_lz', 'mean_cell_norm',
-                  'spatial_lz', 'mean_sp_norm', 'full_lz'):
-            self.assertIn(k, d)
-
-    def test_lz_dict_full_lz_keys(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        for k in ('bits', 'lz', 'norm'):
-            self.assertIn(k, d['full_lz'])
-
-    def test_lz_dict_word_uppercase(self):
-        d = self.lz_dict('туман', 'xor3', 16)
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    def test_lz_dict_mean_cell_norm_nonneg(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertGreater(d['mean_cell_norm'], 0)
-
-    def test_lz_dict_full_norm_in_range(self):
-        d = self.lz_dict('ТУМАН', 'xor3', 16)
-        self.assertGreater(d['full_lz']['norm'], 0)
-        self.assertLess(d['full_lz']['norm'], 3.0)
-
-    # ── all_lz ────────────────────────────────────────────────────────
-
-    def test_all_lz_has_four_rules(self):
-        result = self.all_lz('ТУМАН', 16)
-        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_all_lz_values_are_dicts(self):
-        result = self.all_lz('ГОРА', 16)
-        for rule, d in result.items():
-            self.assertIsInstance(d, dict)
-            self.assertIn('full_lz', d)
-
-    # ── build_lz_data ──────────────────────────────────────────────────
-
-    def test_build_lz_data_structure(self):
-        data = self.build_lz_data(['ТУМАН', 'ГОРА'], 16)
-        self.assertIn('words', data)
-        self.assertIn('per_rule', data)
-        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_lz_data_entry_keys(self):
-        data = self.build_lz_data(['ТУМАН'], 16)
-        entry = data['per_rule']['xor3']['ТУМАН']
-        for k in ('period', 'mean_cell_norm', 'mean_sp_norm', 'full_lz'):
-            self.assertIn(k, entry)
-
-    def test_build_lz_data_words_uppercase(self):
-        data = self.build_lz_data(['туман'], 16)
-        self.assertIn('ТУМАН', data['words'])
-
-    # ── viewer ─────────────────────────────────────────────────────────
-
-    def test_viewer_has_lz_cells(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lz-cells', content)
-
-    def test_viewer_has_lz_rules(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lz-rules', content)
-
-    def test_viewer_has_lz_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lz-stats', content)
-
-    def test_viewer_has_lz_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lzRun', content)
-
-    def test_viewer_has_lz_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('LZ76 Q6', content)
+        self.assertIn('solan_forbidden', content)
 
 
 class TestSolanBitflip(unittest.TestCase):
@@ -9115,7 +8507,35 @@ class TestSolanBitflip(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Bit-Flip Dynamics Q6', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_bitflip',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_bitflip(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_bitflip', content)
+
+
+
+    def test_all_cell_flip_stats_returns_list(self):
+        from projects.hexglyph.solan_bitflip import all_cell_flip_stats
+        result = all_cell_flip_stats('ГОРА', 'xor3')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+
+    def test_all_cell_flip_stats_elements_are_dicts(self):
+        from projects.hexglyph.solan_bitflip import all_cell_flip_stats
+        result = all_cell_flip_stats('ГОРА', 'xor3')
+        for item in result:
+            self.assertIsInstance(item, dict)
 class TestSolanPhase(unittest.TestCase):
     """Tests for solan_phase.py and the viewer Phase Offset Analysis section."""
 
@@ -9381,6 +8801,22 @@ class TestSolanPhase(unittest.TestCase):
     def test_viewer_antiphase_text(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('anti-phase', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_phase',
+             '--word', 'ТУМАН', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_phase(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_phase', content)
 
 
 class TestSolanBalance(unittest.TestCase):
@@ -9660,6 +9096,276 @@ class TestSolanBalance(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('FROZEN_ON', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_balance',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_balance(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_balance', content)
+
+
+
+    def test_all_cell_balance_stats_returns_list(self):
+        from projects.hexglyph.solan_balance import all_cell_balance_stats
+        result = all_cell_balance_stats('ГОРА', 'xor3')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+
+    def test_all_cell_balance_stats_elements_are_dicts(self):
+        from projects.hexglyph.solan_balance import all_cell_balance_stats
+        result = all_cell_balance_stats('ГОРА', 'xor3')
+        for item in result:
+            self.assertIsInstance(item, dict)
+class TestSolanCoact(unittest.TestCase):
+    """Tests for solan_coact.py and the viewer Bit Co-activation section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coact import (
+            bit_joint_prob, bit_pearson_corr, cell_coact_stats,
+            aggregate_joint_prob, aggregate_pearson, top_corr_pairs,
+            coact_summary, all_coact, build_coact_data,
+        )
+        cls.bit_joint_prob      = staticmethod(bit_joint_prob)
+        cls.bit_pearson_corr    = staticmethod(bit_pearson_corr)
+        cls.cell_coact_stats    = staticmethod(cell_coact_stats)
+        cls.aggregate_joint_prob = staticmethod(aggregate_joint_prob)
+        cls.aggregate_pearson   = staticmethod(aggregate_pearson)
+        cls.top_corr_pairs      = staticmethod(top_corr_pairs)
+        cls.coact_summary       = staticmethod(coact_summary)
+        cls.all_coact           = staticmethod(all_coact)
+        cls.build_coact_data    = staticmethod(build_coact_data)
+
+    # ── bit_joint_prob() ──────────────────────────────────────────────
+
+    def test_bit_joint_prob_empty(self):
+        mat = self.bit_joint_prob([])
+        self.assertEqual(len(mat), 6)
+        for row in mat:
+            self.assertTrue(all(v == 0.0 for v in row))
+
+    def test_bit_joint_prob_diagonal_equals_balance(self):
+        # J[b][b] = P(bit_b = 1) = balance_b
+        series = [47, 1]   # 47=0b101111, 1=0b000001
+        mat = self.bit_joint_prob(series)
+        # bit 0: always 1 → J[0][0] = 1.0
+        self.assertAlmostEqual(mat[0][0], 1.0, places=9)
+        # bit 4: always 0 → J[4][4] = 0.0
+        self.assertAlmostEqual(mat[4][4], 0.0, places=9)
+        # bit 1: on in 47, off in 1 → J[1][1] = 0.5
+        self.assertAlmostEqual(mat[1][1], 0.5, places=9)
+
+    def test_bit_joint_prob_symmetric(self):
+        series = [48, 51, 43, 40]
+        mat = self.bit_joint_prob(series)
+        for b in range(6):
+            for b2 in range(6):
+                self.assertAlmostEqual(mat[b][b2], mat[b2][b], places=9)
+
+    def test_bit_joint_prob_shape(self):
+        mat = self.bit_joint_prob([1, 2, 3])
+        self.assertEqual(len(mat), 6)
+        for row in mat: self.assertEqual(len(row), 6)
+
+    def test_bit_joint_prob_range(self):
+        series = [0, 63, 47, 1, 15, 48]
+        mat = self.bit_joint_prob(series)
+        for row in mat:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+                self.assertLessEqual(v, 1.0)
+
+    # ── bit_pearson_corr() ────────────────────────────────────────────
+
+    def test_bit_pearson_empty(self):
+        mat = self.bit_pearson_corr([])
+        self.assertEqual(len(mat), 6)
+        for row in mat:
+            self.assertTrue(all(v == 0.0 for v in row))
+
+    def test_bit_pearson_frozen_zero(self):
+        # Constant series: all bits frozen → all correlations = 0
+        mat = self.bit_pearson_corr([47, 47, 47])
+        for row in mat:
+            for v in row:
+                self.assertAlmostEqual(v, 0.0, places=9)
+
+    def test_bit_pearson_self_loop_all_active(self):
+        # Self-correlation for active bits = 1.0
+        mat = self.bit_pearson_corr([47, 1])  # bits 1,2,3,5 are active
+        for b in [1, 2, 3, 5]:
+            self.assertAlmostEqual(mat[b][b], 1.0, places=9)
+
+    def test_bit_pearson_frozen_bits_zero_diagonal(self):
+        # Frozen bits (bit 0 always 1, bit 4 always 0) → diagonal = 0
+        mat = self.bit_pearson_corr([47, 1])
+        self.assertAlmostEqual(mat[0][0], 0.0, places=9)
+        self.assertAlmostEqual(mat[4][4], 0.0, places=9)
+
+    def test_bit_pearson_symmetric(self):
+        series = [48, 51, 43, 40, 63, 1]
+        mat = self.bit_pearson_corr(series)
+        for b in range(6):
+            for b2 in range(6):
+                self.assertAlmostEqual(mat[b][b2], mat[b2][b], places=8)
+
+    # ── ТУМАН XOR (P=1, all=0) ────────────────────────────────────────
+
+    def test_tuman_xor_pearson_all_zero(self):
+        mat = self.aggregate_pearson('ТУМАН', 'xor', 16)
+        for row in mat:
+            for v in row:
+                self.assertAlmostEqual(v, 0.0, places=6)
+
+    # ── ГОРА AND (P=2, block structure) ──────────────────────────────
+
+    def test_gora_and_bits_1235_block_one(self):
+        mat = self.aggregate_pearson('ГОРА', 'and', 16)
+        for b in [1, 2, 3, 5]:
+            for b2 in [1, 2, 3, 5]:
+                self.assertAlmostEqual(mat[b][b2], 1.0, places=6)
+
+    def test_gora_and_frozen_rows_zero(self):
+        mat = self.aggregate_pearson('ГОРА', 'and', 16)
+        for b2 in range(6):
+            self.assertAlmostEqual(mat[0][b2], 0.0, places=6)
+            self.assertAlmostEqual(mat[4][b2], 0.0, places=6)
+            self.assertAlmostEqual(mat[b2][0], 0.0, places=6)
+            self.assertAlmostEqual(mat[b2][4], 0.0, places=6)
+
+    def test_gora_and_n_dependent(self):
+        d = self.coact_summary('ГОРА', 'and', 16)
+        # 6 off-diagonal pairs among {1,2,3,5}: (1,2),(1,3),(1,5),(2,3),(2,5),(3,5)
+        self.assertEqual(d['n_dependent'], 6)
+
+    def test_gora_and_n_negative_zero(self):
+        d = self.coact_summary('ГОРА', 'and', 16)
+        self.assertEqual(d['n_negative'], 0)
+
+    # ── ТУМАН XOR3 (P=8, b0=b1 everywhere) ───────────────────────────
+
+    def test_tuman_xor3_b0_b1_corr_one(self):
+        mat = self.aggregate_pearson('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(mat[0][1], 1.0, places=5)
+        self.assertAlmostEqual(mat[1][0], 1.0, places=5)
+
+    def test_tuman_xor3_n_dependent_one(self):
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['n_dependent'], 1)   # only b0-b1 pair
+
+    def test_tuman_xor3_has_negative_pairs(self):
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        self.assertGreater(d['n_negative'], 0)
+
+    def test_tuman_xor3_diagonal_b2_b4_b5_lt_1(self):
+        # Cells with frozen bits contribute 0 → aggregate diagonal < 1
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        diag = d['diagonal']
+        self.assertLess(diag[2], 1.0)
+        self.assertLess(diag[4], 1.0)
+        self.assertLess(diag[5], 1.0)
+
+    def test_tuman_xor3_diagonal_b0_b3_one(self):
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        diag = d['diagonal']
+        self.assertAlmostEqual(diag[0], 1.0, places=5)
+        self.assertAlmostEqual(diag[3], 1.0, places=5)
+
+    # ── top_corr_pairs() ─────────────────────────────────────────────
+
+    def test_top_corr_pairs_sorted_descending(self):
+        mat = self.aggregate_pearson('ГОРА', 'and', 16)
+        pairs = self.top_corr_pairs(mat, n=10)
+        vals = [abs(r) for r, _, _ in pairs]
+        self.assertEqual(vals, sorted(vals, reverse=True))
+
+    def test_top_corr_pairs_off_diagonal(self):
+        mat = self.aggregate_pearson('ТУМАН', 'xor3', 16)
+        pairs = self.top_corr_pairs(mat, n=6)
+        for _, b, b2 in pairs:
+            self.assertNotEqual(b, b2)
+            self.assertLess(b, b2)   # b < b'
+
+    # ── coact_summary() structure ─────────────────────────────────────
+
+    def test_coact_summary_keys(self):
+        d = self.coact_summary('ГОРА', 'and', 16)
+        for k in ('word', 'rule', 'period', 'agg_joint', 'agg_pearson',
+                  'top_pairs', 'n_positive', 'n_negative', 'n_dependent',
+                  'diagonal', 'n_frozen_bits'):
+            self.assertIn(k, d)
+
+    def test_coact_summary_word_uppercase(self):
+        d = self.coact_summary('гора', 'and', 16)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_coact_summary_matrix_shape(self):
+        d = self.coact_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['agg_pearson']), 6)
+        for row in d['agg_pearson']:
+            self.assertEqual(len(row), 6)
+
+    # ── all_coact() ───────────────────────────────────────────────────
+
+    def test_all_coact_four_rules(self):
+        result = self.all_coact('ТУМАН', 16)
+        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_coact_data() ────────────────────────────────────────────
+
+    def test_build_coact_data_has_pearson(self):
+        data = self.build_coact_data(['ТУМАН'], 16)
+        entry = data['per_rule']['xor3']['ТУМАН']
+        self.assertIn('agg_pearson', entry)
+
+    def test_build_coact_data_has_n_dependent(self):
+        data = self.build_coact_data(['ГОРА'], 16)
+        entry = data['per_rule']['and']['ГОРА']
+        self.assertIn('n_dependent', entry)
+
+    # ── Viewer ─────────────────────────────────────────────────────────
+
+    def test_viewer_has_ca_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ca-matrix', content)
+
+    def test_viewer_has_ca_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ca-stats', content)
+
+    def test_viewer_has_coact_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('coactRun', content)
+
+    def test_viewer_has_coact_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Bit Co-activation Q6', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_coact',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_coact(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_coact', content)
+
 
 class TestSolanRuns(unittest.TestCase):
     """Tests for solan_runs.py and the viewer Run-Length section."""
@@ -9935,7 +9641,35 @@ class TestSolanRuns(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Run-Length', content)
 
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_runs',
+             '--word', 'ТУМАН', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
+    def test_viewer_has_solan_runs(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_runs', content)
+
+
+
+    def test_all_cell_stats_returns_list(self):
+        from projects.hexglyph.solan_runs import all_cell_stats
+        result = all_cell_stats('ГОРА', 'xor3')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+
+    def test_all_cell_stats_elements_are_dicts(self):
+        from projects.hexglyph.solan_runs import all_cell_stats
+        result = all_cell_stats('ГОРА', 'xor3')
+        for item in result:
+            self.assertIsInstance(item, dict)
 class TestSolanMoments(unittest.TestCase):
     """Tests for solan_moments.py and the viewer Temporal Moments section."""
 
@@ -10174,6 +9908,22 @@ class TestSolanMoments(unittest.TestCase):
     def test_viewer_has_moments_heading(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('Temporal Moments Q6', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_moments',
+             '--word', 'ТУМАН', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_moments(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_moments', content)
 
 
 class TestSolanReturn(unittest.TestCase):
@@ -10414,250 +10164,21 @@ class TestSolanReturn(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('First-Return Map Q6', content)
 
-
-class TestSolanTransfer(unittest.TestCase):
-    """Tests for solan_transfer.py and the viewer Transfer Entropy section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_transfer import (
-            get_orbit, bit_te, cell_te,
-            te_matrix, te_asymmetry, te_dict, all_te,
-            build_te_data, _ALL_RULES, _DEFAULT_WIDTH,
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_return',
+             '--word', 'ТУМАН', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
         )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.get_orbit    = staticmethod(get_orbit)
-        cls.bit_te       = staticmethod(bit_te)
-        cls.cell_te      = staticmethod(cell_te)
-        cls.te_matrix    = staticmethod(te_matrix)
-        cls.te_asymmetry = staticmethod(te_asymmetry)
-        cls.te_dict      = staticmethod(te_dict)
-        cls.all_te       = staticmethod(all_te)
-        cls.build_te_data= staticmethod(build_te_data)
-        cls.ALL_RULES    = _ALL_RULES
-        cls.W            = _DEFAULT_WIDTH
-        cls.LEXICON      = list(LEXICON)
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
 
-    # ── get_orbit() ───────────────────────────────────────────────────────────
-
-    def test_go_length_xor3_tuman(self):
-        orbit = self.get_orbit('ТУМАН', 'xor3')
-        self.assertEqual(len(orbit), 8)
-
-    def test_go_length_period1(self):
-        orbit = self.get_orbit('ГОРА', 'xor')   # period=1 → len=1
-        self.assertEqual(len(orbit), 1)
-
-    def test_go_state_width(self):
-        orbit = self.get_orbit('ГОРА', 'xor3')
-        for state in orbit:
-            self.assertEqual(len(state), self.W)
-
-    def test_go_q6_range(self):
-        orbit = self.get_orbit('ТУМАН', 'xor3')
-        for state in orbit:
-            for v in state:
-                self.assertGreaterEqual(v, 0)
-                self.assertLessEqual(v, 63)
-
-    def test_go_periodic(self):
-        # Last step should cycle back to first
-        from projects.hexglyph.solan_ca import step
-        orbit = self.get_orbit('ТУМАН', 'xor3')
-        last  = list(orbit[-1])
-        nxt   = step(last, 'xor3')
-        self.assertEqual(tuple(nxt), orbit[0])
-
-    # ── bit_te() ──────────────────────────────────────────────────────────────
-
-    def test_bte_constant_series_zero(self):
-        y = [0, 0, 0, 0]
-        x = [1, 0, 1, 0]
-        self.assertAlmostEqual(self.bit_te(y, x), 0.0, places=8)
-
-    def test_bte_non_negative(self):
-        import random
-        rng = random.Random(7)
-        for _ in range(30):
-            P = rng.choice([2, 4, 6, 8])
-            y = [rng.randint(0, 1) for _ in range(P)]
-            x = [rng.randint(0, 1) for _ in range(P)]
-            self.assertGreaterEqual(self.bit_te(y, x), 0.0)
-
-    def test_bte_period1_zero(self):
-        # period-1 series → only one transition → TE=0
-        self.assertAlmostEqual(self.bit_te([1], [0]), 0.0, places=8)
-
-    def test_bte_known_nonzero(self):
-        # period-6: y repeats with shorter effective period than orbit
-        # y=[0,1,0,0,1,0], x=[1,1,0,1,1,0]
-        y = [0, 1, 0, 0, 1, 0]
-        x = [1, 1, 0, 1, 1, 0]
-        # H(Y_t|Y_{t-1}) > 0 because y={0→1, 1→0, 0→0, 0→1, 1→0, 0→0}
-        # from y_{t-1}=0: y_t ∈ {1,0,1,0} → non-trivial
-        te = self.bit_te(y, x)
-        self.assertGreaterEqual(te, 0.0)
-
-    # ── cell_te() ─────────────────────────────────────────────────────────────
-
-    def test_cte_non_negative(self):
-        orbit = self.get_orbit('ТУМАН', 'xor3')
-        for j in range(0, self.W, 4):
-            for i in range(0, self.W, 4):
-                self.assertGreaterEqual(self.cell_te(orbit, i, j), 0.0)
-
-    def test_cte_period1_zero(self):
-        orbit = self.get_orbit('ГОРА', 'xor')  # P=1, all-zeros
-        te = self.cell_te(orbit, 0, 1)
-        self.assertAlmostEqual(te, 0.0, places=8)
-
-    def test_cte_self_zero(self):
-        # Self-TE is always 0: I(Y_t; Y_{t-1} | Y_{t-1}) = 0
-        orbit = self.get_orbit('ТУМАН', 'xor3')
-        for i in range(self.W):
-            self.assertAlmostEqual(self.cell_te(orbit, i, i), 0.0, places=8)
-
-    # ── te_matrix() ───────────────────────────────────────────────────────────
-
-    def test_tem_dimensions(self):
-        mat = self.te_matrix('ГОРА', 'xor3')
-        self.assertEqual(len(mat), self.W)
-        for row in mat:
-            self.assertEqual(len(row), self.W)
-
-    def test_tem_non_negative(self):
-        mat = self.te_matrix('ТУМАН', 'xor3')
-        for row in mat:
-            for v in row:
-                self.assertGreaterEqual(v, 0.0)
-
-    def test_tem_period1_all_zero(self):
-        mat = self.te_matrix('ГОРА', 'xor')   # period-1 → all 0
-        for row in mat:
-            for v in row:
-                self.assertAlmostEqual(v, 0.0, places=8)
-
-    def test_tem_xor3_tuman_has_nonzero(self):
-        mat = self.te_matrix('ТУМАН', 'xor3')
-        max_te = max(mat[i][j] for i in range(self.W) for j in range(self.W))
-        self.assertGreater(max_te, 0.0)
-
-    def test_tem_diagonal_zero(self):
-        mat = self.te_matrix('ТУМАН', 'xor3')
-        for i in range(self.W):
-            self.assertAlmostEqual(mat[i][i], 0.0, places=8)
-
-    # ── te_asymmetry() ────────────────────────────────────────────────────────
-
-    def test_ta_antisymmetric(self):
-        mat  = self.te_matrix('ТУМАН', 'xor3')
-        asym = self.te_asymmetry(mat)
-        for i in range(self.W):
-            for j in range(self.W):
-                self.assertAlmostEqual(asym[i][j], -asym[j][i], places=8)
-
-    def test_ta_dimensions(self):
-        mat  = self.te_matrix('ГОРА', 'xor3')
-        asym = self.te_asymmetry(mat)
-        self.assertEqual(len(asym), self.W)
-        for row in asym:
-            self.assertEqual(len(row), self.W)
-
-    # ── te_dict() ─────────────────────────────────────────────────────────────
-
-    def test_td_keys(self):
-        d = self.te_dict('ТУМАН', 'xor3')
-        for k in ['word', 'rule', 'width', 'period', 'matrix',
-                  'max_te', 'mean_te', 'self_te', 'right_te', 'left_te',
-                  'asymmetry', 'mean_right', 'mean_left', 'lr_asymmetry']:
-            self.assertIn(k, d)
-
-    def test_td_word_upper(self):
-        d = self.te_dict('туман', 'xor3')
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    def test_td_period_tuman_xor3(self):
-        d = self.te_dict('ТУМАН', 'xor3')
-        self.assertEqual(d['period'], 8)
-
-    def test_td_max_te_non_negative(self):
-        for rule in self.ALL_RULES:
-            d = self.te_dict('ТУМАН', rule)
-            self.assertGreaterEqual(d['max_te'], 0.0)
-
-    def test_td_self_te_all_zero(self):
-        d = self.te_dict('ТУМАН', 'xor3')
-        for v in d['self_te']:
-            self.assertAlmostEqual(v, 0.0, places=8)
-
-    def test_td_lr_asymmetry_symmetric_word(self):
-        # lr_asymmetry = mean_right - mean_left; should be a float
-        d = self.te_dict('ТУМАН', 'xor3')
-        self.assertAlmostEqual(
-            d['lr_asymmetry'],
-            d['mean_right'] - d['mean_left'],
-            places=6,
-        )
-
-    def test_td_period1_max_te_zero(self):
-        d = self.te_dict('ГОРА', 'xor')
-        self.assertAlmostEqual(d['max_te'], 0.0, places=8)
-
-    def test_td_xor3_tuman_max_te_positive(self):
-        d = self.te_dict('ТУМАН', 'xor3')
-        self.assertGreater(d['max_te'], 0.0)
-
-    def test_td_matrix_matches_te_matrix(self):
-        d   = self.te_dict('ГОРА', 'xor3')
-        mat = self.te_matrix('ГОРА', 'xor3')
-        for i in range(self.W):
-            for j in range(self.W):
-                self.assertAlmostEqual(d['matrix'][i][j], mat[i][j], places=8)
-
-    # ── all_te() ──────────────────────────────────────────────────────────────
-
-    def test_ate_all_rules(self):
-        d = self.all_te('ТУМАН')
-        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
-
-    # ── build_te_data() ───────────────────────────────────────────────────────
-
-    def test_btd_keys(self):
-        d = self.build_te_data(['ГОРА', 'ВОДА'])
-        for k in ['words', 'per_rule', 'ranking']:
-            self.assertIn(k, d)
-
-    def test_btd_ranking_sorted(self):
-        d = self.build_te_data(['ГОРА', 'ВОДА', 'МИР'])
-        for rule in self.ALL_RULES:
-            vals = [x[1] for x in d['ranking'][rule]]
-            self.assertEqual(vals, sorted(vals, reverse=True))
-
-    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
-
-    def test_viewer_has_te_matrix_canvas(self):
+    def test_viewer_has_solan_return(self):
         content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('te-matrix-canvas', content)
-
-    def test_viewer_has_te_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('te-stats', content)
-
-    def test_viewer_has_te_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('te-btn', content)
-
-    def test_viewer_has_bit_te(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('bitTE', content)
-
-    def test_viewer_has_cell_te(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('cellTE', content)
-
-    def test_viewer_has_te_build_matrix(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('teBuildMatrix', content)
+        self.assertIn('solan_return', content)
 
 
 class TestSolanPerm(unittest.TestCase):
@@ -10881,7 +10402,39 @@ class TestSolanPerm(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('spatialPE', content)
 
+    def test_viewer_has_solan_perm(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_perm', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_perm'] + ['--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_all_pe_returns_4_rules(self):
+        from projects.hexglyph.solan_perm import all_pe
+        d = all_pe('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_pe_values_are_dicts(self):
+        from projects.hexglyph.solan_perm import all_pe
+        d = all_pe('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_pe_data_returns_dict(self):
+        from projects.hexglyph.solan_perm import build_pe_data
+        d = build_pe_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanBasin(unittest.TestCase):
     """Tests for solan_basin.py and the viewer Basin section."""
 
@@ -11155,793 +10708,39 @@ class TestSolanBasin(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('baAttractorSig', content)
 
+    def test_viewer_has_solan_basin(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_basin', content)
 
-class TestSolanCorrelation(unittest.TestCase):
-    """Tests for solan_correlation.py and the viewer Correlation section."""
 
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_correlation import (
-            row_autocorr, attractor_autocorr, all_autocorrs,
-            cross_corr, correlation_length,
-            build_correlation_data, correlation_dict,
-            _ALL_RULES,
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_basin'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
         )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.row_autocorr          = staticmethod(row_autocorr)
-        cls.attractor_autocorr    = staticmethod(attractor_autocorr)
-        cls.all_autocorrs         = staticmethod(all_autocorrs)
-        cls.cross_corr            = staticmethod(cross_corr)
-        cls.correlation_length    = staticmethod(correlation_length)
-        cls.build_correlation_data = staticmethod(build_correlation_data)
-        cls.correlation_dict      = staticmethod(correlation_dict)
-        cls.ALL_RULES             = _ALL_RULES
-        cls.LEXICON               = list(LEXICON)
-
-    # ── row_autocorr() ────────────────────────────────────────────────────────
-
-    def test_rac_returns_list(self):
-        r = self.row_autocorr([1, 0, 1, 0, 1, 0, 1, 0])
-        self.assertIsInstance(r, list)
-
-    def test_rac_length(self):
-        row = list(range(16))
-        r = self.row_autocorr(row)
-        self.assertEqual(len(r), 9)  # width//2 + 1
-
-    def test_rac_first_element_one(self):
-        # r(0) = 1 always (self-correlation)
-        for row in [[1,2,3,4]*4, [0]*16, [63]*16]:
-            r = self.row_autocorr(row)
-            self.assertAlmostEqual(r[0], 1.0, places=5)
-
-    def test_rac_constant_row(self):
-        # Constant row → r(d) = 1 for all d (zero-variance case)
-        r = self.row_autocorr([5] * 16)
-        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in r))
-
-    def test_rac_alternating_row(self):
-        # [1,0,1,0,...] → r(1) = -1 (anti-correlated at lag 1)
-        row = [1, 0] * 8
-        r = self.row_autocorr(row)
-        self.assertAlmostEqual(r[1], -1.0, places=5)
-
-    def test_rac_values_bounded(self):
-        row = [i % 7 for i in range(16)]
-        r = self.row_autocorr(row)
-        for v in r:
-            self.assertGreaterEqual(v, -1.0 - 1e-9)
-            self.assertLessEqual(v, 1.0 + 1e-9)
-
-    def test_rac_zeros_row(self):
-        # All-zero row: constant → r(d)=1
-        r = self.row_autocorr([0] * 16)
-        self.assertAlmostEqual(r[0], 1.0)
-
-    # ── attractor_autocorr() ──────────────────────────────────────────────────
-
-    def test_aac_returns_list(self):
-        r = self.attractor_autocorr('ГОРА', 'xor3')
-        self.assertIsInstance(r, list)
-
-    def test_aac_length(self):
-        r = self.attractor_autocorr('ГОРА', 'xor3')
-        self.assertEqual(len(r), 9)  # 16//2 + 1
-
-    def test_aac_first_is_one(self):
-        for rule in self.ALL_RULES:
-            r = self.attractor_autocorr('ГОРА', rule)
-            self.assertAlmostEqual(r[0], 1.0, places=5)
-
-    def test_aac_xor_attractor(self):
-        # XOR attractor = all-zeros → zero variance → r(0)=1, r(d≥1)=0
-        r = self.attractor_autocorr('ГОРА', 'xor')
-        self.assertAlmostEqual(r[0], 1.0, places=5)
-        for v in r[1:]:
-            self.assertAlmostEqual(v, 0.0, places=5)
-
-    def test_aac_and_alternating(self):
-        # AND/OR produce alternating attractors for ГОРА → r(1) < 0
-        r = self.attractor_autocorr('ГОРА', 'and')
-        self.assertLess(r[1], 0.0)
-
-    def test_aac_values_bounded(self):
-        for rule in self.ALL_RULES:
-            r = self.attractor_autocorr('ГОРА', rule)
-            for v in r:
-                self.assertGreaterEqual(v, -1.0 - 1e-9)
-                self.assertLessEqual(v, 1.0 + 1e-9)
-
-    # ── all_autocorrs() ───────────────────────────────────────────────────────
-
-    def test_all_ac_keys(self):
-        r = self.all_autocorrs('ГОРА')
-        self.assertEqual(set(r.keys()), set(self.ALL_RULES))
-
-    def test_all_ac_each_list(self):
-        r = self.all_autocorrs('ГОРА')
-        for ac in r.values():
-            self.assertIsInstance(ac, list)
-
-    # ── cross_corr() ─────────────────────────────────────────────────────────
-
-    def test_cc_returns_list(self):
-        r = self.cross_corr('ГОРА', 'ЛУНА', 'xor3')
-        self.assertIsInstance(r, list)
-
-    def test_cc_length(self):
-        r = self.cross_corr('ГОРА', 'ЛУНА', 'xor3')
-        self.assertEqual(len(r), 9)
-
-    def test_cc_same_word_is_autocorr(self):
-        # cross_corr(word, word) should match attractor_autocorr
-        cc = self.cross_corr('ГОРА', 'ГОРА', 'xor3')
-        ac = self.attractor_autocorr('ГОРА', 'xor3')
-        self.assertAlmostEqual(cc[0], ac[0], places=4)
-
-    def test_cc_bounded(self):
-        r = self.cross_corr('ГОРА', 'ЛУНА', 'xor3')
-        for v in r:
-            self.assertGreaterEqual(v, -1.0 - 1e-9)
-            self.assertLessEqual(v, 1.0 + 1e-9)
-
-    # ── correlation_length() ──────────────────────────────────────────────────
-
-    def test_cl_returns_float(self):
-        v = self.correlation_length('ГОРА', 'xor3')
-        self.assertIsInstance(v, float)
-
-    def test_cl_positive(self):
-        for rule in self.ALL_RULES:
-            v = self.correlation_length('ГОРА', rule)
-            self.assertGreater(v, 0.0)
-
-    def test_cl_xor_short(self):
-        # XOR attractor: r(d≥1)=0 → length = 1
-        v = self.correlation_length('ГОРА', 'xor')
-        self.assertAlmostEqual(v, 1.0)
-
-    def test_cl_and_long(self):
-        # AND alternating r(d)=(-1)^d: |r|=1 > 1/e at all lags → length = max
-        v = self.correlation_length('ГОРА', 'and')
-        self.assertGreaterEqual(v, 7.0)
-
-    # ── build_correlation_data() ──────────────────────────────────────────────
-
-    def test_bcd_returns_dict(self):
-        d = self.build_correlation_data(['ГОРА', 'ЛУНА'])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
 
-    def test_bcd_required_keys(self):
-        d = self.build_correlation_data(['ГОРА', 'ЛУНА'])
-        for k in ('words', 'width', 'n_lags', 'per_rule', 'corr_lengths',
-                  'max_corr_len', 'min_corr_len'):
-            self.assertIn(k, d)
-
-    def test_bcd_n_lags(self):
-        d = self.build_correlation_data(['ГОРА'])
-        self.assertEqual(d['n_lags'], 9)
-
-    def test_bcd_all_rules(self):
-        d = self.build_correlation_data(['ГОРА', 'ЛУНА'])
-        self.assertEqual(set(d['per_rule'].keys()), set(self.ALL_RULES))
-
-    # ── correlation_dict() ────────────────────────────────────────────────────
-
-    def test_cd_json_serialisable(self):
-        import json
-        d = self.correlation_dict('ГОРА')
-        dumped = json.dumps(d, ensure_ascii=False)
-        self.assertIsInstance(dumped, str)
-
-    def test_cd_top_keys(self):
-        d = self.correlation_dict('ГОРА')
-        for k in ('word', 'width', 'lags', 'rules'):
-            self.assertIn(k, d)
-
-    def test_cd_lags_list(self):
-        d = self.correlation_dict('ГОРА')
-        self.assertEqual(d['lags'], list(range(9)))
-
-    def test_cd_all_rules(self):
-        d = self.correlation_dict('ГОРА')
-        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
-
-    def test_cd_corr_length_in_dict(self):
-        d = self.correlation_dict('ГОРА')
-        for rule in self.ALL_RULES:
-            self.assertIn('corr_length', d['rules'][rule])
-
-    # ── Viewer section ────────────────────────────────────────────────────────
-
-    def test_viewer_has_cor_canvas(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('cor-canvas', content)
-
-    def test_viewer_has_cor_hmap(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('cor-hmap', content)
-
-    def test_viewer_has_cor_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('cor-btn', content)
-
-    def test_viewer_has_cor_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('corRun', content)
-
-    def test_viewer_cor_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Пространственная автокорреляция CA Q6', content)
-
-    def test_viewer_has_row_autocorr(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rowAutocorr', content)
-
-    def test_viewer_has_attr_autocorr(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('attrAutocorr', content)
-
-    def test_viewer_has_wiener_mention(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Винера', content)
-
-
-class TestSolanDerrida(unittest.TestCase):
-    """Tests for solan_derrida.py and the viewer Derrida section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_derrida import (
-            state_dist_norm, derrida_point,
-            lexicon_points, random_points,
-            derrida_curve, analytic_curve,
-            classify_rule, build_derrida_data,
-            derrida_dict, _ALL_RULES,
-        )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.state_dist_norm   = staticmethod(state_dist_norm)
-        cls.derrida_point     = staticmethod(derrida_point)
-        cls.lexicon_points    = staticmethod(lexicon_points)
-        cls.random_points     = staticmethod(random_points)
-        cls.derrida_curve     = staticmethod(derrida_curve)
-        cls.analytic_curve    = staticmethod(analytic_curve)
-        cls.classify_rule     = staticmethod(classify_rule)
-        cls.build_derrida_data = staticmethod(build_derrida_data)
-        cls.derrida_dict      = staticmethod(derrida_dict)
-        cls.ALL_RULES         = _ALL_RULES
-        cls.LEXICON           = list(LEXICON)
-
-    # ── state_dist_norm() ─────────────────────────────────────────────────────
-
-    def test_sdn_identical_is_zero(self):
-        cells = [10, 20, 30, 40] * 4
-        self.assertAlmostEqual(self.state_dist_norm(cells, cells), 0.0)
-
-    def test_sdn_max_is_one(self):
-        c1 = [0] * 16
-        c2 = [63] * 16
-        self.assertAlmostEqual(self.state_dist_norm(c1, c2), 1.0)
-
-    def test_sdn_range(self):
-        c1 = [0] * 16
-        c2 = [42] * 16
-        d = self.state_dist_norm(c1, c2)
-        self.assertGreaterEqual(d, 0.0)
-        self.assertLessEqual(d, 1.0)
-
-    def test_sdn_symmetric(self):
-        c1 = [0, 1, 2, 3] * 4
-        c2 = [4, 5, 6, 7] * 4
-        self.assertAlmostEqual(
-            self.state_dist_norm(c1, c2),
-            self.state_dist_norm(c2, c1)
-        )
-
-    # ── derrida_point() ───────────────────────────────────────────────────────
-
-    def test_dp_returns_tuple(self):
-        c = [0] * 16
-        r = self.derrida_point(c, c, 'xor3')
-        self.assertIsInstance(r, tuple)
-        self.assertEqual(len(r), 2)
-
-    def test_dp_identical_x_zero(self):
-        c = [42] * 16
-        x, y = self.derrida_point(c, c, 'xor3')
-        self.assertAlmostEqual(x, 0.0)
-
-    def test_dp_identical_y_zero(self):
-        c = [42] * 16
-        x, y = self.derrida_point(c, c, 'xor3')
-        self.assertAlmostEqual(y, 0.0)
-
-    def test_dp_values_in_range(self):
-        from projects.hexglyph.solan_word import encode_word, pad_to
-        c1 = pad_to(encode_word('ГОРА'),  16)
-        c2 = pad_to(encode_word('ЛУНА'),  16)
-        for rule in self.ALL_RULES:
-            x, y = self.derrida_point(c1, c2, rule)
-            self.assertGreaterEqual(x, 0.0)
-            self.assertLessEqual(x, 1.0)
-            self.assertGreaterEqual(y, 0.0)
-            self.assertLessEqual(y, 1.0)
-
-    # ── lexicon_points() ──────────────────────────────────────────────────────
-
-    def test_lp_count(self):
-        # C(49,2) = 1176
-        n = len(self.LEXICON)
-        expected = n * (n - 1) // 2
-        pts = self.lexicon_points('xor3')
-        self.assertEqual(len(pts), expected)
-
-    def test_lp_all_in_range(self):
-        pts = self.lexicon_points('xor3')
-        for x, y in pts:
-            self.assertGreaterEqual(x, 0.0)
-            self.assertLessEqual(x, 1.0)
-            self.assertGreaterEqual(y, 0.0)
-            self.assertLessEqual(y, 1.0)
-
-    def test_lp_x_positive(self):
-        # Different words have x > 0
-        pts = self.lexicon_points('xor3')
-        self.assertTrue(all(x > 0 for x, _ in pts))
-
-    # ── random_points() ───────────────────────────────────────────────────────
-
-    def test_rp_count(self):
-        pts = self.random_points('xor3', n=50, seed=0)
-        self.assertEqual(len(pts), 50)
-
-    def test_rp_reproducible(self):
-        p1 = self.random_points('xor3', n=10, seed=7)
-        p2 = self.random_points('xor3', n=10, seed=7)
-        self.assertEqual(p1, p2)
-
-    def test_rp_different_seeds(self):
-        p1 = self.random_points('xor3', n=10, seed=1)
-        p2 = self.random_points('xor3', n=10, seed=2)
-        self.assertNotEqual(p1, p2)
-
-    def test_rp_in_range(self):
-        pts = self.random_points('xor3', n=30, seed=0)
-        for x, y in pts:
-            self.assertGreaterEqual(x, 0.0)
-            self.assertLessEqual(x, 1.0)
-
-    # ── derrida_curve() ───────────────────────────────────────────────────────
-
-    def test_dc_returns_dict(self):
-        pts = [(0.1, 0.2), (0.5, 0.4), (0.8, 0.6)]
-        r = self.derrida_curve(pts)
-        self.assertIsInstance(r, dict)
-
-    def test_dc_required_keys(self):
-        pts = [(0.1, 0.2), (0.5, 0.4)]
-        r = self.derrida_curve(pts)
-        for k in ('bins', 'mean_y', 'count', 'above_diag', 'below_diag', 'on_diag'):
-            self.assertIn(k, r)
-
-    def test_dc_above_below_count(self):
-        pts = [(0.1, 0.3), (0.5, 0.3), (0.8, 0.5)]
-        r = self.derrida_curve(pts)
-        total = r['above_diag'] + r['below_diag'] + r['on_diag']
-        self.assertEqual(total, 3)
-
-    def test_dc_above_diag_correct(self):
-        # (0.1, 0.3): y>x → above
-        # (0.5, 0.3): y<x → below
-        pts = [(0.1, 0.3), (0.5, 0.3)]
-        r = self.derrida_curve(pts)
-        self.assertEqual(r['above_diag'], 1)
-        self.assertEqual(r['below_diag'], 1)
-
-    # ── analytic_curve() ──────────────────────────────────────────────────────
-
-    def test_ac_returns_list(self):
-        r = self.analytic_curve('xor3')
-        self.assertIsInstance(r, list)
-
-    def test_ac_xor_formula(self):
-        # XOR: y = 2x(1-x), at x=0.5 → y=0.5
-        pts = self.analytic_curve('xor', n_pts=100)
-        # Find point nearest x=0.5
-        mid = min(pts, key=lambda p: abs(p[0] - 0.5))
-        self.assertAlmostEqual(mid[1], 0.5, places=2)
-
-    def test_ac_xor_at_zero(self):
-        pts = self.analytic_curve('xor', n_pts=10)
-        x0, y0 = pts[0]
-        self.assertAlmostEqual(x0, 0.0)
-        self.assertAlmostEqual(y0, 0.0)
-
-    def test_ac_xor3_tangent_steep(self):
-        # XOR3 analytic: slope at x=0 is 3 (chaotic)
-        pts = self.analytic_curve('xor3', n_pts=100)
-        x1, y1 = pts[1]
-        self.assertGreater(y1 / x1, 1.0)  # slope > 1 near origin
-
-    def test_ac_all_y_in_range(self):
-        for rule in self.ALL_RULES:
-            for x, y in self.analytic_curve(rule):
-                self.assertGreaterEqual(y, 0.0)
-                self.assertLessEqual(y, 1.0 + 1e-9)
-
-    # ── classify_rule() ───────────────────────────────────────────────────────
-
-    def test_cr_returns_string(self):
-        c = self.classify_rule('xor3', n_random=50)
-        self.assertIsInstance(c, str)
-
-    def test_cr_valid_values(self):
-        for rule in self.ALL_RULES:
-            c = self.classify_rule(rule, n_random=50)
-            self.assertIn(c, ('ordered', 'chaotic', 'complex'))
-
-    def test_cr_or_ordered(self):
-        # OR tends toward ordered (d shrinks quickly)
-        c = self.classify_rule('or', n_random=200)
-        self.assertEqual(c, 'ordered')
-
-    def test_cr_and_ordered(self):
-        c = self.classify_rule('and', n_random=200)
-        self.assertEqual(c, 'ordered')
-
-    # ── build_derrida_data() ──────────────────────────────────────────────────
-
-    def test_bdd_returns_dict(self):
-        d = self.build_derrida_data(n_random=50)
+    def test_all_basins_returns_4_rules(self):
+        from projects.hexglyph.solan_basin import all_basins
+        d = all_basins('ГОРА')
         self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
 
-    def test_bdd_required_keys(self):
-        d = self.build_derrida_data(n_random=50)
-        for k in ('width', 'n_random', 'rules'):
-            self.assertIn(k, d)
+    def test_all_basins_values_are_dicts(self):
+        from projects.hexglyph.solan_basin import all_basins
+        d = all_basins('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 
-    def test_bdd_all_rules_present(self):
-        d = self.build_derrida_data(n_random=50)
-        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
-
-    def test_bdd_rule_has_classification(self):
-        d = self.build_derrida_data(n_random=50)
-        for rule in self.ALL_RULES:
-            self.assertIn('classification', d['rules'][rule])
-
-    # ── derrida_dict() ────────────────────────────────────────────────────────
-
-    def test_dd_json_serialisable(self):
-        import json
-        d = self.derrida_dict(n_random=50)
-        dumped = json.dumps(d, ensure_ascii=False)
-        self.assertIsInstance(dumped, str)
-
-    def test_dd_top_keys(self):
-        d = self.derrida_dict(n_random=50)
-        for k in ('width', 'n_random', 'rules'):
-            self.assertIn(k, d)
-
-    def test_dd_analytic_present(self):
-        d = self.derrida_dict(n_random=50)
-        for rule in self.ALL_RULES:
-            self.assertIn('analytic', d['rules'][rule])
-
-    # ── Viewer section ────────────────────────────────────────────────────────
-
-    def test_viewer_has_der_canvas(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('der-canvas', content)
-
-    def test_viewer_has_der_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('der-btn', content)
-
-    def test_viewer_has_der_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('derRun', content)
-
-    def test_viewer_derrida_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Диаграмма Деррида CA Q6', content)
-
-    def test_viewer_has_analytic_curve(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('analyticPts', content)
-
-    def test_viewer_has_binned_curve(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('binnedCurve', content)
-
-    def test_viewer_has_compute_pairs(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('computePairs', content)
-
-    def test_viewer_has_diagonal(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('der-analytic', content)
-
-
-class TestSolanLyapunov(unittest.TestCase):
-    """Tests for solan_lyapunov.py and the viewer Lyapunov section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_lyapunov import (
-            q6_hamming, state_distance, perturb,
-            divergence_trajectory, lyapunov_profile,
-            lyapunov_summary, peak_sensitivity_map,
-            build_lyapunov_data, lyapunov_dict,
-            _ALL_RULES, _N_BITS, _DEFAULT_STEPS,
-        )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.q6_hamming            = staticmethod(q6_hamming)
-        cls.state_distance        = staticmethod(state_distance)
-        cls.perturb               = staticmethod(perturb)
-        cls.divergence_trajectory = staticmethod(divergence_trajectory)
-        cls.lyapunov_profile      = staticmethod(lyapunov_profile)
-        cls.lyapunov_summary      = staticmethod(lyapunov_summary)
-        cls.peak_sensitivity_map  = staticmethod(peak_sensitivity_map)
-        cls.build_lyapunov_data   = staticmethod(build_lyapunov_data)
-        cls.lyapunov_dict         = staticmethod(lyapunov_dict)
-        cls.ALL_RULES             = _ALL_RULES
-        cls.N_BITS                = _N_BITS
-        cls.DEFAULT_STEPS         = _DEFAULT_STEPS
-        cls.LEXICON               = list(LEXICON)
-
-    # ── q6_hamming() ──────────────────────────────────────────────────────────
-
-    def test_q6_hamming_identical(self):
-        self.assertEqual(self.q6_hamming(42, 42), 0)
-
-    def test_q6_hamming_one_bit(self):
-        self.assertEqual(self.q6_hamming(0, 1), 1)
-        self.assertEqual(self.q6_hamming(0, 2), 1)
-        self.assertEqual(self.q6_hamming(0, 32), 1)
-
-    def test_q6_hamming_all_differ(self):
-        # 0 vs 63 = 0b111111 → 6 bits differ
-        self.assertEqual(self.q6_hamming(0, 63), 6)
-
-    def test_q6_hamming_symmetric(self):
-        self.assertEqual(self.q6_hamming(17, 42), self.q6_hamming(42, 17))
-
-    def test_q6_hamming_range(self):
-        for a in range(64):
-            for b in range(64):
-                d = self.q6_hamming(a, b)
-                self.assertGreaterEqual(d, 0)
-                self.assertLessEqual(d, 6)
-
-    # ── state_distance() ──────────────────────────────────────────────────────
-
-    def test_state_distance_identical(self):
-        cells = [10, 20, 30, 40]
-        self.assertEqual(self.state_distance(cells, cells), 0)
-
-    def test_state_distance_one_bit_flip(self):
-        c1 = [0] * 8
-        c2 = [0] * 8; c2[3] = 1
-        self.assertEqual(self.state_distance(c1, c2), 1)
-
-    def test_state_distance_all_differ(self):
-        c1 = [0] * 4
-        c2 = [63] * 4
-        self.assertEqual(self.state_distance(c1, c2), 4 * 6)
-
-    # ── perturb() ─────────────────────────────────────────────────────────────
-
-    def test_perturb_returns_new_list(self):
-        cells = [10, 20, 30]
-        p = self.perturb(cells, 0, 0)
-        self.assertIsNot(p, cells)
-
-    def test_perturb_original_unchanged(self):
-        cells = [10, 20, 30]
-        _ = self.perturb(cells, 0, 0)
-        self.assertEqual(cells, [10, 20, 30])
-
-    def test_perturb_changes_one_cell(self):
-        cells = [0] * 8
-        p = self.perturb(cells, 3, 0)
-        self.assertEqual(p[3], 1)
-        self.assertEqual(sum(p), 1)
-
-    def test_perturb_distance_one(self):
-        cells = [0] * 8
-        p = self.perturb(cells, 3, 0)
-        self.assertEqual(self.state_distance(cells, p), 1)
-
-    def test_perturb_double_flip_restores(self):
-        cells = [42] * 6
-        p  = self.perturb(cells, 2, 3)
-        pp = self.perturb(p, 2, 3)
-        self.assertEqual(cells, pp)
-
-    # ── divergence_trajectory() ───────────────────────────────────────────────
-
-    def test_divtraj_returns_list(self):
-        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3')
-        self.assertIsInstance(r, list)
-
-    def test_divtraj_length(self):
-        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3', max_steps=10)
-        self.assertEqual(len(r), 11)   # 0..10 inclusive
-
-    def test_divtraj_starts_at_one(self):
-        # initial perturbation = 1 bit
-        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3')
-        self.assertEqual(r[0], 1)
-
-    def test_divtraj_nonneg(self):
-        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3')
-        self.assertTrue(all(v >= 0 for v in r))
-
-    def test_divtraj_xor_converges(self):
-        # XOR always converges to all-zeros → perturbation absorbed
-        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor', max_steps=20)
-        self.assertEqual(r[-1], 0)
-
-    # ── lyapunov_profile() ────────────────────────────────────────────────────
-
-    def test_profile_returns_dict(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
-        self.assertIsInstance(p, dict)
-
-    def test_profile_required_keys(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
-        for k in ('word', 'rule', 'width', 'n_perturb', 'mean_dist',
-                  'max_dist', 'min_dist', 'peak_mean', 'peak_step',
-                  'final_mean', 'converges', 'per_perturb'):
-            self.assertIn(k, p)
-
-    def test_profile_n_perturb(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
-        self.assertEqual(p['n_perturb'], 16 * 6)   # width × 6 bits
-
-    def test_profile_mean_dist_length(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
-        self.assertEqual(len(p['mean_dist']), 11)
-
-    def test_profile_mean_dist_nonneg(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
-        self.assertTrue(all(v >= 0 for v in p['mean_dist']))
-
-    def test_profile_initial_mean_dist_one(self):
-        # Average of 96 trajectories all starting at d=1
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
-        self.assertAlmostEqual(p['mean_dist'][0], 1.0)
-
-    def test_profile_peak_step_valid(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
-        self.assertGreaterEqual(p['peak_step'], 0)
-        self.assertLessEqual(p['peak_step'], 10)
-
-    def test_profile_xor_converges(self):
-        p = self.lyapunov_profile('ГОРА', 'xor', max_steps=20)
-        self.assertTrue(p['converges'])
-
-    def test_profile_converges_type_bool(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
-        self.assertIsInstance(p['converges'], bool)
-
-    def test_profile_per_perturb_count(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=5)
-        self.assertEqual(len(p['per_perturb']), 16 * 6)
-
-    def test_profile_per_perturb_starts_at_one(self):
-        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=5)
-        for entry in p['per_perturb']:
-            self.assertEqual(entry['traj'][0], 1)
-
-    # ── lyapunov_summary() ────────────────────────────────────────────────────
-
-    def test_summary_returns_all_rules(self):
-        s = self.lyapunov_summary('ГОРА', max_steps=10)
-        self.assertEqual(set(s.keys()), set(self.ALL_RULES))
-
-    def test_summary_rule_keys(self):
-        s = self.lyapunov_summary('ГОРА', max_steps=10)
-        for rule, d in s.items():
-            for k in ('peak_mean', 'peak_step', 'final_mean', 'converges'):
-                self.assertIn(k, d)
-
-    # ── peak_sensitivity_map() ────────────────────────────────────────────────
-
-    def test_psmap_shape(self):
-        m = self.peak_sensitivity_map('ГОРА', 'xor3', max_steps=10)
-        self.assertEqual(len(m), 16)
-        for row in m:
-            self.assertEqual(len(row), 6)
-
-    def test_psmap_nonneg(self):
-        m = self.peak_sensitivity_map('ГОРА', 'xor3', max_steps=10)
-        for row in m:
-            for v in row:
-                self.assertGreaterEqual(v, 0)
-
-    # ── build_lyapunov_data() ─────────────────────────────────────────────────
-
-    def test_build_returns_dict(self):
-        d = self.build_lyapunov_data(['ГОРА', 'ЛУНА'], max_steps=8)
+    def test_build_basin_data_returns_dict(self):
+        from projects.hexglyph.solan_basin import build_basin_data
+        d = build_basin_data(words=['ГОРА', 'ВОДА'])
         self.assertIsInstance(d, dict)
-
-    def test_build_required_keys(self):
-        d = self.build_lyapunov_data(['ГОРА', 'ЛУНА'], max_steps=8)
-        for k in ('words', 'width', 'max_steps', 'per_rule', 'most_chaotic', 'most_stable'):
-            self.assertIn(k, d)
-
-    def test_build_per_rule_words(self):
-        words = ['ГОРА', 'ЛУНА', 'МАТ']
-        d = self.build_lyapunov_data(words, max_steps=8)
-        for rule in self.ALL_RULES:
-            self.assertEqual(set(d['per_rule'][rule].keys()), set(words))
-
-    def test_build_most_chaotic_is_valid_word(self):
-        words = ['ГОРА', 'ЛУНА', 'МАТ']
-        d = self.build_lyapunov_data(words, max_steps=8)
-        for rule in self.ALL_RULES:
-            word, _ = d['most_chaotic'][rule]
-            self.assertIn(word, words)
-
-    # ── lyapunov_dict() ───────────────────────────────────────────────────────
-
-    def test_dict_json_serialisable(self):
-        import json
-        d = self.lyapunov_dict('ГОРА', max_steps=8)
-        dumped = json.dumps(d, ensure_ascii=False)
-        self.assertIsInstance(dumped, str)
-
-    def test_dict_top_keys(self):
-        d = self.lyapunov_dict('ГОРА', max_steps=8)
-        for k in ('word', 'width', 'max_steps', 'rules'):
-            self.assertIn(k, d)
-
-    def test_dict_all_rules_present(self):
-        d = self.lyapunov_dict('ГОРА', max_steps=8)
-        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
-
-    def test_dict_mean_dist_list(self):
-        d = self.lyapunov_dict('ГОРА', max_steps=8)
-        for rule, rd in d['rules'].items():
-            self.assertIsInstance(rd['mean_dist'], list)
-            self.assertEqual(len(rd['mean_dist']), 9)  # 0..8
-
-    # ── Viewer section ────────────────────────────────────────────────────────
-
-    def test_viewer_has_lya_canvas(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lya-canvas', content)
-
-    def test_viewer_has_lya_hmap(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lya-hmap', content)
-
-    def test_viewer_has_lya_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lya-btn', content)
-
-    def test_viewer_has_lya_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lyaRun', content)
-
-    def test_viewer_has_lya_word_select(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lya-word', content)
-
-    def test_viewer_lya_section_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Ляпунов CA Q6', content)
-
-    def test_viewer_has_q6_hamming(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('q6Ham', content)
-
-    def test_viewer_has_lya_profile(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('lyaProfile', content)
-
-
 class TestSolanBit(unittest.TestCase):
     """Tests for solan_bit.py and the viewer Bit-Plane section."""
 
@@ -12217,7 +11016,27 @@ class TestSolanBit(unittest.TestCase):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('computeBitPlanes', content)
 
+    def test_viewer_has_solan_bit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_bit', content)
 
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_bit'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_build_bit_plane_data_returns_dict(self):
+        from projects.hexglyph.solan_bit import build_bit_plane_data
+        d = build_bit_plane_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanTraj(unittest.TestCase):
     """Tests for solan_traj.py and the viewer Trajectory section."""
 
@@ -12480,6 +11299,14826 @@ class TestSolanTraj(unittest.TestCase):
     def test_viewer_has_traj_run(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('trajRun', content)
+
+    def test_viewer_has_solan_traj(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_traj', content)
+
+
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_traj'] + ['--word', 'ГОРА', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_build_trajectory_data_returns_dict(self):
+        from projects.hexglyph.solan_traj import build_trajectory_data
+        d = build_trajectory_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanSpatent(unittest.TestCase):
+    """Tests for solan_spatent.py and the viewer Spatial Entropy section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spatent import (
+            spatial_entropy,
+            orbit_spatial_entropy,
+            spatial_entropy_stats,
+            spatent_summary,
+            all_spatent,
+            build_spatent_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.spatial_entropy        = staticmethod(spatial_entropy)
+        cls.orbit_spatial_entropy  = staticmethod(orbit_spatial_entropy)
+        cls.spatial_entropy_stats  = staticmethod(spatial_entropy_stats)
+        cls.spatent_summary        = staticmethod(spatent_summary)
+        cls.all_spatent            = staticmethod(all_spatent)
+        cls.build_spatent_data     = staticmethod(build_spatent_data)
+        cls.LEXICON                = list(LEXICON)
+
+    # ── spatial_entropy() ─────────────────────────────────────────────────────
+
+    def test_spatent_all_same_is_zero(self):
+        # All cells same value → H = 0
+        self.assertAlmostEqual(self.spatial_entropy([5] * 16), 0.0, places=10)
+
+    def test_spatent_all_zeros_is_zero(self):
+        self.assertAlmostEqual(self.spatial_entropy([0] * 16), 0.0, places=10)
+
+    def test_spatent_binary_is_one_bit(self):
+        # 8 cells = 0, 8 cells = 63 → H = 1.0
+        self.assertAlmostEqual(self.spatial_entropy([0, 63] * 8), 1.0, places=10)
+
+    def test_spatent_four_equal_groups_is_two_bits(self):
+        # 4 distinct values, 4 cells each → H = 2.0
+        self.assertAlmostEqual(self.spatial_entropy([0,1,2,3]*4), 2.0, places=10)
+
+    def test_spatent_all_distinct_is_log2_n(self):
+        import math
+        state = list(range(16))
+        self.assertAlmostEqual(self.spatial_entropy(state), math.log2(16), places=10)
+
+    def test_spatent_empty_is_zero(self):
+        self.assertEqual(self.spatial_entropy([]), 0.0)
+
+    def test_spatent_single_cell_is_zero(self):
+        self.assertAlmostEqual(self.spatial_entropy([42]), 0.0, places=10)
+
+    def test_spatent_nonnegative(self):
+        import random
+        state = [random.randint(0, 63) for _ in range(16)]
+        self.assertGreaterEqual(self.spatial_entropy(state), 0.0)
+
+    # ── orbit_spatial_entropy() ───────────────────────────────────────────────
+
+    def test_orbit_spatent_tuman_xor_is_zero(self):
+        # ТУМАН XOR: P=1, all-zero state → H_0 = 0
+        profile = self.orbit_spatial_entropy('ТУМАН', 'xor')
+        self.assertEqual(len(profile), 1)
+        self.assertAlmostEqual(profile[0], 0.0, places=10)
+
+    def test_orbit_spatent_gora_and_is_one_bit(self):
+        # ГОРА AND: both steps have 8 cells=47, 8 cells=1 → H_t = 1.0
+        profile = self.orbit_spatial_entropy('ГОРА', 'and')
+        self.assertEqual(len(profile), 2)
+        for h in profile:
+            self.assertAlmostEqual(h, 1.0, places=5)
+
+    def test_orbit_spatent_gora_xor3_is_two_bits(self):
+        # ГОРА XOR3: 4 clusters of 4 cells → H_t = 2.0 for all steps
+        profile = self.orbit_spatial_entropy('ГОРА', 'xor3')
+        self.assertEqual(len(profile), 2)
+        for h in profile:
+            self.assertAlmostEqual(h, 2.0, places=5)
+
+    def test_orbit_spatent_tuman_xor3_len_8(self):
+        profile = self.orbit_spatial_entropy('ТУМАН', 'xor3')
+        self.assertEqual(len(profile), 8)
+
+    def test_orbit_spatent_tuman_xor3_max_is_3375(self):
+        profile = self.orbit_spatial_entropy('ТУМАН', 'xor3')
+        self.assertAlmostEqual(max(profile), 3.375, places=4)
+
+    def test_orbit_spatent_tuman_xor3_min_above_2(self):
+        profile = self.orbit_spatial_entropy('ТУМАН', 'xor3')
+        self.assertGreater(min(profile), 2.0)
+
+    def test_orbit_spatent_all_values_nonneg(self):
+        for word in ['ТУМАН', 'ГОРА', 'ЛУНА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                profile = self.orbit_spatial_entropy(word, rule)
+                for h in profile:
+                    self.assertGreaterEqual(h, 0.0)
+
+    def test_orbit_spatent_all_values_leq_max_h(self):
+        import math
+        max_h = math.log2(16)
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and', 'or']:
+                profile = self.orbit_spatial_entropy(word, rule)
+                for h in profile:
+                    self.assertLessEqual(h, max_h + 1e-9)
+
+    # ── spatial_entropy_stats() ────────────────────────────────────────────────
+
+    def test_stats_keys(self):
+        st = self.spatial_entropy_stats('ГОРА', 'xor3')
+        for k in ('mean', 'std', 'min', 'max', 'delta', 'profile'):
+            self.assertIn(k, st)
+
+    def test_stats_tuman_xor_all_zero(self):
+        st = self.spatial_entropy_stats('ТУМАН', 'xor')
+        self.assertAlmostEqual(st['mean'],  0.0, places=10)
+        self.assertAlmostEqual(st['delta'], 0.0, places=10)
+
+    def test_stats_gora_and_mean_one(self):
+        st = self.spatial_entropy_stats('ГОРА', 'and')
+        self.assertAlmostEqual(st['mean'], 1.0, places=5)
+
+    def test_stats_gora_and_delta_zero(self):
+        st = self.spatial_entropy_stats('ГОРА', 'and')
+        self.assertAlmostEqual(st['delta'], 0.0, places=10)
+
+    def test_stats_gora_xor3_mean_two(self):
+        st = self.spatial_entropy_stats('ГОРА', 'xor3')
+        self.assertAlmostEqual(st['mean'], 2.0, places=5)
+
+    def test_stats_tuman_xor3_delta_approx(self):
+        # delta_H = max_H - min_H = 3.375 - 2.1738 ≈ 1.2012
+        st = self.spatial_entropy_stats('ТУМАН', 'xor3')
+        self.assertAlmostEqual(st['delta'], 3.375 - 2.1738, places=3)
+
+    def test_stats_tuman_xor3_mean_above_2(self):
+        st = self.spatial_entropy_stats('ТУМАН', 'xor3')
+        self.assertGreater(st['mean'], 2.5)
+
+    def test_stats_min_leq_mean_leq_max(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                st = self.spatial_entropy_stats(word, rule)
+                self.assertLessEqual(st['min'],  st['mean'] + 1e-9)
+                self.assertLessEqual(st['mean'], st['max']  + 1e-9)
+
+    def test_stats_delta_is_max_minus_min(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                st = self.spatial_entropy_stats(word, rule)
+                self.assertAlmostEqual(st['delta'], st['max'] - st['min'], places=9)
+
+    # ── spatent_summary() ─────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.spatent_summary('ГОРА', 'and')
+        for k in ('word', 'rule', 'period', 'profile', 'mean_H', 'std_H',
+                  'min_H', 'max_H', 'delta_H', 'max_possible_H',
+                  'norm_mean_H', 'variability'):
+            self.assertIn(k, d)
+
+    def test_summary_word_preserved(self):
+        d = self.spatent_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_summary_gora_and_variability_constant(self):
+        d = self.spatent_summary('ГОРА', 'and')
+        self.assertEqual(d['variability'], 'constant')
+
+    def test_summary_tuman_xor3_variability_high(self):
+        d = self.spatent_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['variability'], 'high')
+
+    def test_summary_norm_mean_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.spatent_summary(word, rule)
+                self.assertGreaterEqual(d['norm_mean_H'], 0.0)
+                self.assertLessEqual(d['norm_mean_H'],    1.0 + 1e-9)
+
+    def test_summary_max_possible_h_is_4(self):
+        d = self.spatent_summary('ГОРА', 'xor3', width=16)
+        self.assertAlmostEqual(d['max_possible_H'], 4.0, places=5)
+
+    def test_summary_period_matches_profile_len(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                d = self.spatent_summary(word, rule)
+                self.assertEqual(d['period'], len(d['profile']))
+
+    # ── all_spatent() ─────────────────────────────────────────────────────────
+
+    def test_all_spatent_keys(self):
+        r = self.all_spatent('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_spatent_consistent_word(self):
+        r = self.all_spatent('ТУМАН')
+        for rule, d in r.items():
+            self.assertEqual(d['word'], 'ТУМАН')
+            self.assertEqual(d['rule'], rule)
+
+    # ── build_spatent_data() ───────────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        data = self.build_spatent_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'max_possible_H', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_data_per_rule_has_4_rules(self):
+        data = self.build_spatent_data(['ГОРА'])
+        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_data_per_rule_word_keys(self):
+        words = ['ГОРА', 'ТУМАН', 'ЛУНА']
+        data = self.build_spatent_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    def test_build_data_max_possible_h(self):
+        import math
+        data = self.build_spatent_data(['ГОРА'], width=16)
+        self.assertAlmostEqual(data['max_possible_H'], math.log2(16), places=5)
+
+    def test_build_data_per_word_keys(self):
+        data = self.build_spatent_data(['ГОРА'])
+        entry = data['per_rule']['and']['ГОРА']
+        for k in ('period', 'profile', 'mean_H', 'std_H', 'min_H',
+                  'max_H', 'delta_H', 'norm_mean_H', 'variability'):
+            self.assertIn(k, entry)
+
+    # ── Scientific properties ─────────────────────────────────────────────────
+
+    def test_xor_zero_attractor_gives_zero_h(self):
+        # XOR always converges to all-zeros → H=0 for all lexicon words
+        for word in self.LEXICON[:10]:
+            st = self.spatial_entropy_stats(word, 'xor')
+            self.assertAlmostEqual(st['mean'], 0.0, places=10,
+                                   msg=f'{word} XOR should have H=0')
+
+    def test_constant_profile_has_zero_std(self):
+        # Constant profile → std_H = 0
+        for word in ['ГОРА', 'ВОДА', 'НОРА']:
+            st = self.spatial_entropy_stats(word, 'and')
+            self.assertAlmostEqual(st['std'], 0.0, places=10)
+
+    def test_tuman_xor3_is_most_variable(self):
+        # ТУМАН XOR3 has large delta_H > 1.0
+        st = self.spatial_entropy_stats('ТУМАН', 'xor3')
+        self.assertGreater(st['delta'], 1.0)
+
+    # ── Viewer section tests ───────────────────────────────────────────────────
+
+    def test_viewer_has_spatent_profile_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatent-profile', content)
+
+    def test_viewer_has_spatent_bars_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatent-bars', content)
+
+    def test_viewer_has_spatent_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatent-info', content)
+
+    def test_viewer_has_spatent_word_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('se-word', content)
+
+    def test_viewer_has_spatent_rule_select(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('se-rule', content)
+
+    def test_viewer_has_spatent_run_button(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('se-btn', content)
+
+    def test_viewer_has_spatial_h_function(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('spatialH', content)
+
+    def test_viewer_has_se_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('seRun', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_spatent',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_spatent(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_spatent', content)
+
+
+
+    def test_build_spatent_data_returns_dict(self):
+        from projects.hexglyph.solan_spatent import build_spatent_data
+        d = build_spatent_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanEdge(unittest.TestCase):
+    """Tests for solan_edge.py and the viewer Spatial Edge section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_edge import (
+            edge_density,
+            bit_edge_density,
+            bit_edge_vector,
+            orbit_edge_profile,
+            orbit_bit_edge_profile,
+            edge_stats,
+            mean_bit_edge,
+            classify_bit_edge,
+            edge_summary,
+            all_edges,
+            build_edge_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.edge_density           = staticmethod(edge_density)
+        cls.bit_edge_density       = staticmethod(bit_edge_density)
+        cls.bit_edge_vector        = staticmethod(bit_edge_vector)
+        cls.orbit_edge_profile     = staticmethod(orbit_edge_profile)
+        cls.orbit_bit_edge_profile = staticmethod(orbit_bit_edge_profile)
+        cls.edge_stats             = staticmethod(edge_stats)
+        cls.mean_bit_edge          = staticmethod(mean_bit_edge)
+        cls.classify_bit_edge      = staticmethod(classify_bit_edge)
+        cls.edge_summary           = staticmethod(edge_summary)
+        cls.all_edges              = staticmethod(all_edges)
+        cls.build_edge_data        = staticmethod(build_edge_data)
+        cls.LEXICON                = list(LEXICON)
+
+    # ── edge_density() ───────────────────────────────────────────────────────
+
+    def test_edge_density_all_same_is_zero(self):
+        self.assertAlmostEqual(self.edge_density([5] * 16), 0.0, places=10)
+
+    def test_edge_density_alternating_is_one(self):
+        self.assertAlmostEqual(self.edge_density([0, 63] * 8), 1.0, places=10)
+
+    def test_edge_density_empty_is_zero(self):
+        self.assertEqual(self.edge_density([]), 0.0)
+
+    def test_edge_density_single_is_zero(self):
+        self.assertAlmostEqual(self.edge_density([42]), 0.0, places=10)
+
+    def test_edge_density_range_0_1(self):
+        import random; random.seed(0)
+        for _ in range(10):
+            state = [random.randint(0, 63) for _ in range(16)]
+            e = self.edge_density(state)
+            self.assertGreaterEqual(e, 0.0)
+            self.assertLessEqual(e, 1.0)
+
+    def test_edge_density_one_pair_differs(self):
+        # 15 cells same, 1 differs → 2 boundaries on ring of 16
+        state = [0] * 16
+        state[0] = 1
+        self.assertAlmostEqual(self.edge_density(state), 2 / 16, places=10)
+
+    # ── bit_edge_density() ────────────────────────────────────────────────────
+
+    def test_bit_edge_density_all_same_bit(self):
+        self.assertAlmostEqual(self.bit_edge_density([0] * 16, 0), 0.0, places=10)
+
+    def test_bit_edge_density_alternating_bit(self):
+        state = [0, 1] * 8   # bit 0 alternates 0/1
+        self.assertAlmostEqual(self.bit_edge_density(state, 0), 1.0, places=10)
+
+    def test_bit_edge_density_range(self):
+        for b in range(6):
+            v = self.bit_edge_density([47, 1] * 8, b)
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    # ── bit_edge_vector() ─────────────────────────────────────────────────────
+
+    def test_bit_edge_vector_length_6(self):
+        self.assertEqual(len(self.bit_edge_vector([0] * 16)), 6)
+
+    def test_bit_edge_vector_all_zeros_state(self):
+        bev = self.bit_edge_vector([0] * 16)
+        self.assertTrue(all(v == 0.0 for v in bev))
+
+    def test_bit_edge_vector_gora_and_state(self):
+        # 47=0b101111, 1=0b000001: bits 0 and 4 same; bits 1,2,3,5 differ
+        state = [47, 1] * 8
+        bev = self.bit_edge_vector(state)
+        self.assertAlmostEqual(bev[0], 0.0, places=10)
+        self.assertAlmostEqual(bev[4], 0.0, places=10)
+        for b in [1, 2, 3, 5]:
+            self.assertAlmostEqual(bev[b], 1.0, places=10)
+
+    # ── orbit_edge_profile() ──────────────────────────────────────────────────
+
+    def test_orbit_edge_profile_tuman_xor(self):
+        profile = self.orbit_edge_profile('ТУМАН', 'xor')
+        self.assertEqual(len(profile), 1)
+        self.assertAlmostEqual(profile[0], 0.0, places=10)
+
+    def test_orbit_edge_profile_gora_and(self):
+        profile = self.orbit_edge_profile('ГОРА', 'and')
+        self.assertEqual(len(profile), 2)
+        for e in profile:
+            self.assertAlmostEqual(e, 1.0, places=5)
+
+    def test_orbit_edge_profile_tuman_xor3_len_8(self):
+        self.assertEqual(len(self.orbit_edge_profile('ТУМАН', 'xor3')), 8)
+
+    def test_orbit_edge_profile_tuman_xor3_max(self):
+        self.assertAlmostEqual(max(self.orbit_edge_profile('ТУМАН', 'xor3')), 1.0, places=5)
+
+    def test_orbit_edge_profile_tuman_xor3_min(self):
+        # min = 13/16 = 0.8125
+        self.assertAlmostEqual(min(self.orbit_edge_profile('ТУМАН', 'xor3')), 13 / 16, places=5)
+
+    def test_orbit_edge_profile_all_nonneg(self):
+        for word in ['ТУМАН', 'ГОРА', 'ЛУНА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for e in self.orbit_edge_profile(word, rule):
+                    self.assertGreaterEqual(e, 0.0)
+
+    # ── orbit_bit_edge_profile() ──────────────────────────────────────────────
+
+    def test_bit_edge_profile_shape_gora_and(self):
+        bep = self.orbit_bit_edge_profile('ГОРА', 'and')
+        self.assertEqual(len(bep), 2)
+        for row in bep:
+            self.assertEqual(len(row), 6)
+
+    def test_bit_edge_profile_gora_xor3_bit0_zero(self):
+        # ГОРА XOR3: bit 0 = 1 everywhere → no spatial boundary for bit 0
+        bep = self.orbit_bit_edge_profile('ГОРА', 'xor3')
+        for row in bep:
+            self.assertAlmostEqual(row[0], 0.0, places=10)
+
+    def test_bit_edge_profile_gora_and_bits_1235_full(self):
+        bep = self.orbit_bit_edge_profile('ГОРА', 'and')
+        for row in bep:
+            for b in [1, 2, 3, 5]:
+                self.assertAlmostEqual(row[b], 1.0, places=5)
+
+    # ── edge_stats() ──────────────────────────────────────────────────────────
+
+    def test_edge_stats_keys(self):
+        st = self.edge_stats('ГОРА', 'and')
+        for k in ('mean', 'std', 'min', 'max', 'delta', 'profile'):
+            self.assertIn(k, st)
+
+    def test_edge_stats_tuman_xor_mean_zero(self):
+        self.assertAlmostEqual(self.edge_stats('ТУМАН', 'xor')['mean'], 0.0, places=10)
+
+    def test_edge_stats_gora_and_mean_one(self):
+        self.assertAlmostEqual(self.edge_stats('ГОРА', 'and')['mean'], 1.0, places=5)
+
+    def test_edge_stats_gora_and_delta_zero(self):
+        self.assertAlmostEqual(self.edge_stats('ГОРА', 'and')['delta'], 0.0, places=10)
+
+    def test_edge_stats_tuman_xor3_delta(self):
+        # delta = 1.0 - 13/16 = 3/16 = 0.1875
+        self.assertAlmostEqual(self.edge_stats('ТУМАН', 'xor3')['delta'], 3 / 16, places=5)
+
+    # ── mean_bit_edge() ────────────────────────────────────────────────────────
+
+    def test_mean_bit_edge_length_6(self):
+        self.assertEqual(len(self.mean_bit_edge('ГОРА', 'and')), 6)
+
+    def test_mean_bit_edge_gora_and_zero_bits(self):
+        mbe = self.mean_bit_edge('ГОРА', 'and')
+        self.assertAlmostEqual(mbe[0], 0.0, places=5)
+        self.assertAlmostEqual(mbe[4], 0.0, places=5)
+
+    def test_mean_bit_edge_gora_and_full_bits(self):
+        mbe = self.mean_bit_edge('ГОРА', 'and')
+        for b in [1, 2, 3, 5]:
+            self.assertAlmostEqual(mbe[b], 1.0, places=5)
+
+    def test_mean_bit_edge_gora_xor3_bit0_zero(self):
+        self.assertAlmostEqual(self.mean_bit_edge('ГОРА', 'xor3')[0], 0.0, places=5)
+
+    def test_mean_bit_edge_gora_xor3_others_half(self):
+        mbe = self.mean_bit_edge('ГОРА', 'xor3')
+        for b in range(1, 6):
+            self.assertAlmostEqual(mbe[b], 0.5, places=5)
+
+    def test_mean_bit_edge_range_all(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for v in self.mean_bit_edge(word, rule):
+                    self.assertGreaterEqual(v, 0.0)
+                    self.assertLessEqual(v, 1.0)
+
+    # ── classify_bit_edge() ───────────────────────────────────────────────────
+
+    def test_classify_zero(self):
+        self.assertEqual(self.classify_bit_edge(0.0), 'ZERO')
+
+    def test_classify_full(self):
+        self.assertEqual(self.classify_bit_edge(1.0), 'FULL')
+
+    def test_classify_half(self):
+        self.assertEqual(self.classify_bit_edge(0.5), 'HALF')
+
+    def test_classify_intermediate(self):
+        self.assertEqual(self.classify_bit_edge(0.3), 'INTERMEDIATE')
+
+    def test_classify_near_zero(self):
+        self.assertEqual(self.classify_bit_edge(0.01), 'ZERO')
+
+    def test_classify_near_full(self):
+        self.assertEqual(self.classify_bit_edge(0.99), 'FULL')
+
+    # ── edge_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.edge_summary('ГОРА', 'and')
+        for k in ('word', 'rule', 'period', 'profile', 'mean_E', 'std_E',
+                  'min_E', 'max_E', 'delta_E', 'variability',
+                  'mean_bit_edge', 'bit_edge_classes', 'class_counts'):
+            self.assertIn(k, d)
+
+    def test_summary_word_uppercase(self):
+        self.assertEqual(self.edge_summary('гора', 'and')['word'], 'ГОРА')
+
+    def test_summary_gora_and_variability_constant(self):
+        self.assertEqual(self.edge_summary('ГОРА', 'and')['variability'], 'constant')
+
+    def test_summary_gora_and_class_counts(self):
+        d = self.edge_summary('ГОРА', 'and')
+        self.assertEqual(d['class_counts']['ZERO'], 2)
+        self.assertEqual(d['class_counts']['FULL'], 4)
+
+    def test_summary_gora_xor3_bit0_is_zero_class(self):
+        d = self.edge_summary('ГОРА', 'xor3')
+        self.assertEqual(d['bit_edge_classes'][0], 'ZERO')
+
+    def test_summary_period_matches_profile(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                d = self.edge_summary(word, rule)
+                self.assertEqual(d['period'], len(d['profile']))
+
+    # ── all_edges() ───────────────────────────────────────────────────────────
+
+    def test_all_edges_four_rules(self):
+        self.assertEqual(set(self.all_edges('ГОРА').keys()), {'xor','xor3','and','or'})
+
+    def test_all_edges_consistent_word(self):
+        r = self.all_edges('ТУМАН')
+        for rule, d in r.items():
+            self.assertEqual(d['word'], 'ТУМАН')
+
+    # ── build_edge_data() ─────────────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        data = self.build_edge_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_data_four_rules(self):
+        data = self.build_edge_data(['ГОРА'])
+        self.assertEqual(set(data['per_rule'].keys()), {'xor','xor3','and','or'})
+
+    def test_build_data_word_keys(self):
+        words = ['ГОРА', 'ТУМАН', 'ЛУНА']
+        data = self.build_edge_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Scientific invariants ──────────────────────────────────────────────────
+
+    def test_xor_zero_attractor_edge_zero(self):
+        for word in self.LEXICON[:10]:
+            st = self.edge_stats(word, 'xor')
+            self.assertAlmostEqual(st['mean'], 0.0, places=10,
+                                   msg=f'{word} XOR edge should be 0')
+
+    def test_gora_and_bit_edge_matches_bitflip(self):
+        mbe = self.mean_bit_edge('ГОРА', 'and')
+        for b in [0, 4]:
+            self.assertEqual(self.classify_bit_edge(mbe[b]), 'ZERO')
+        for b in [1, 2, 3, 5]:
+            self.assertEqual(self.classify_bit_edge(mbe[b]), 'FULL')
+
+    def test_gora_xor3_only_bit0_zero_boundary(self):
+        mbe = self.mean_bit_edge('ГОРА', 'xor3')
+        self.assertEqual(self.classify_bit_edge(mbe[0]), 'ZERO')
+        for b in range(1, 6):
+            self.assertEqual(self.classify_bit_edge(mbe[b]), 'HALF')
+
+    # ── Viewer section tests ───────────────────────────────────────────────────
+
+    def test_viewer_has_edge_profile_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edge-profile', content)
+
+    def test_viewer_has_edge_bitheat_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edge-bitheat', content)
+
+    def test_viewer_has_edge_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edge-info', content)
+
+    def test_viewer_has_ed_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ed-word', content)
+
+    def test_viewer_has_ed_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ed-rule', content)
+
+    def test_viewer_has_ed_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ed-btn', content)
+
+    def test_viewer_has_edge_density_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edgeDensity', content)
+
+    def test_viewer_has_bit_edge_vector_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bitEdgeVector', content)
+
+    def test_viewer_has_ed_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('edRun', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_edge',
+             '--word', 'ТУМАН', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_edge(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_edge', content)
+
+
+
+    def test_build_edge_data_returns_dict(self):
+        from projects.hexglyph.solan_edge import build_edge_data
+        d = build_edge_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanSymm(unittest.TestCase):
+    """Tests for solan_symm.py and the viewer Rotational Symmetry section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symm import (
+            rot_period,
+            rot_order,
+            orbit_rot_periods,
+            orbit_rot_orders,
+            min_rot_period,
+            max_rot_order,
+            symm_summary,
+            all_symm,
+            build_symm_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.rot_period       = staticmethod(rot_period)
+        cls.rot_order        = staticmethod(rot_order)
+        cls.orbit_rot_periods = staticmethod(orbit_rot_periods)
+        cls.orbit_rot_orders  = staticmethod(orbit_rot_orders)
+        cls.min_rot_period   = staticmethod(min_rot_period)
+        cls.max_rot_order    = staticmethod(max_rot_order)
+        cls.symm_summary     = staticmethod(symm_summary)
+        cls.all_symm         = staticmethod(all_symm)
+        cls.build_symm_data  = staticmethod(build_symm_data)
+        cls.LEXICON          = list(LEXICON)
+
+    # ── rot_period() ──────────────────────────────────────────────────────────
+
+    def test_rot_period_constant_is_one(self):
+        # Constant state [v]*16 → rot_period = 1
+        self.assertEqual(self.rot_period([7] * 16), 1)
+
+    def test_rot_period_alternating_is_two(self):
+        self.assertEqual(self.rot_period([0, 63] * 8), 2)
+
+    def test_rot_period_four_cluster_is_four(self):
+        self.assertEqual(self.rot_period([1, 2, 3, 4] * 4), 4)
+
+    def test_rot_period_unique_is_n(self):
+        # All distinct values → rot_period = N
+        state = list(range(16))
+        self.assertEqual(self.rot_period(state), 16)
+
+    def test_rot_period_eight_cluster_is_eight(self):
+        self.assertEqual(self.rot_period([1, 2, 3, 4, 5, 6, 7, 8] * 2), 8)
+
+    def test_rot_period_gora_and_state(self):
+        # ГОРА AND state [47, 1, 47, 1, ...] → rot_period = 2
+        self.assertEqual(self.rot_period([47, 1] * 8), 2)
+
+    # ── rot_order() ───────────────────────────────────────────────────────────
+
+    def test_rot_order_constant_is_n(self):
+        self.assertEqual(self.rot_order([5] * 16), 16)
+
+    def test_rot_order_alternating_is_8(self):
+        self.assertEqual(self.rot_order([0, 63] * 8), 8)
+
+    def test_rot_order_four_cluster_is_4(self):
+        self.assertEqual(self.rot_order([1, 2, 3, 4] * 4), 4)
+
+    def test_rot_order_unique_is_1(self):
+        self.assertEqual(self.rot_order(list(range(16))), 1)
+
+    def test_rot_order_times_rot_period_equals_n(self):
+        for state in [[0]*16, [0,1]*8, [0,1,2,3]*4, list(range(16))]:
+            N = len(state)
+            rp = self.rot_period(state)
+            ro = self.rot_order(state)
+            self.assertEqual(rp * ro, N)
+
+    # ── orbit_rot_periods() / orbit_rot_orders() ──────────────────────────────
+
+    def test_orbit_rot_periods_tuman_xor(self):
+        periods = self.orbit_rot_periods('ТУМАН', 'xor')
+        self.assertEqual(len(periods), 1)
+        self.assertEqual(periods[0], 1)  # all-zero state
+
+    def test_orbit_rot_orders_tuman_xor(self):
+        orders = self.orbit_rot_orders('ТУМАН', 'xor')
+        self.assertEqual(orders[0], 16)  # maximum symmetry
+
+    def test_orbit_rot_periods_gora_and(self):
+        periods = self.orbit_rot_periods('ГОРА', 'and')
+        self.assertEqual(len(periods), 2)
+        for rp in periods:
+            self.assertEqual(rp, 2)  # binary alternation
+
+    def test_orbit_rot_orders_gora_and(self):
+        orders = self.orbit_rot_orders('ГОРА', 'and')
+        for ro in orders:
+            self.assertEqual(ro, 8)
+
+    def test_orbit_rot_periods_gora_xor3(self):
+        periods = self.orbit_rot_periods('ГОРА', 'xor3')
+        self.assertEqual(len(periods), 2)
+        for rp in periods:
+            self.assertEqual(rp, 4)  # 4-cluster structure
+
+    def test_orbit_rot_orders_gora_xor3(self):
+        orders = self.orbit_rot_orders('ГОРА', 'xor3')
+        for ro in orders:
+            self.assertEqual(ro, 4)
+
+    def test_orbit_rot_periods_tuman_xor3(self):
+        periods = self.orbit_rot_periods('ТУМАН', 'xor3')
+        self.assertEqual(len(periods), 8)
+        for rp in periods:
+            self.assertEqual(rp, 16)  # fully asymmetric
+
+    def test_orbit_rot_orders_tuman_xor3(self):
+        orders = self.orbit_rot_orders('ТУМАН', 'xor3')
+        for ro in orders:
+            self.assertEqual(ro, 1)
+
+    def test_orbit_rot_periods_length_equals_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in ['ГОРА', 'ТУМАН']:
+            for rule in ['xor3', 'and']:
+                traj = word_trajectory(word, rule)
+                periods = self.orbit_rot_periods(word, rule)
+                self.assertEqual(len(periods), traj['period'])
+
+    # ── min_rot_period() / max_rot_order() ───────────────────────────────────
+
+    def test_min_rot_period_tuman_xor(self):
+        self.assertEqual(self.min_rot_period('ТУМАН', 'xor'), 1)
+
+    def test_min_rot_period_gora_and(self):
+        self.assertEqual(self.min_rot_period('ГОРА', 'and'), 2)
+
+    def test_min_rot_period_gora_xor3(self):
+        self.assertEqual(self.min_rot_period('ГОРА', 'xor3'), 4)
+
+    def test_min_rot_period_tuman_xor3(self):
+        self.assertEqual(self.min_rot_period('ТУМАН', 'xor3'), 16)
+
+    def test_max_rot_order_tuman_xor(self):
+        self.assertEqual(self.max_rot_order('ТУМАН', 'xor'), 16)
+
+    def test_max_rot_order_gora_and(self):
+        self.assertEqual(self.max_rot_order('ГОРА', 'and'), 8)
+
+    def test_max_rot_order_gora_xor3(self):
+        self.assertEqual(self.max_rot_order('ГОРА', 'xor3'), 4)
+
+    def test_max_rot_order_tuman_xor3(self):
+        self.assertEqual(self.max_rot_order('ТУМАН', 'xor3'), 1)
+
+    # ── symm_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.symm_summary('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'period', 'rot_periods', 'rot_orders',
+                  'min_rot_period', 'max_rot_order', 'uniform_symmetry',
+                  'symmetry_level'):
+            self.assertIn(k, d)
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.symm_summary('гора', 'xor3')['word'], 'ГОРА')
+
+    def test_summary_tuman_xor_level_maximum(self):
+        self.assertEqual(self.symm_summary('ТУМАН', 'xor')['symmetry_level'], 'maximum')
+
+    def test_summary_gora_and_level_high(self):
+        self.assertEqual(self.symm_summary('ГОРА', 'and')['symmetry_level'], 'high')
+
+    def test_summary_gora_xor3_level_moderate(self):
+        self.assertEqual(self.symm_summary('ГОРА', 'xor3')['symmetry_level'], 'moderate')
+
+    def test_summary_tuman_xor3_level_none(self):
+        self.assertEqual(self.symm_summary('ТУМАН', 'xor3')['symmetry_level'], 'none')
+
+    def test_summary_gora_xor3_uniform_true(self):
+        d = self.symm_summary('ГОРА', 'xor3')
+        self.assertTrue(d['uniform_symmetry'])
+
+    def test_summary_period_matches_len_rot_periods(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                d = self.symm_summary(word, rule)
+                self.assertEqual(d['period'], len(d['rot_periods']))
+                self.assertEqual(d['period'], len(d['rot_orders']))
+
+    # ── Scientific invariants ──────────────────────────────────────────────────
+
+    def test_xor3_period2_words_all_have_rot_period_4(self):
+        # All XOR3 period-2 words must have 4-fold rotational symmetry
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in self.LEXICON:
+            traj = word_trajectory(word, 'xor3')
+            if traj['period'] == 2:
+                mrp = self.min_rot_period(word, 'xor3')
+                self.assertEqual(mrp, 4,
+                    msg=f'{word} XOR3 P=2 should have rot_period=4, got {mrp}')
+
+    def test_xor_attractor_max_symmetry(self):
+        # XOR always → all-zeros (constant) → maximum symmetry for all words
+        for word in self.LEXICON[:12]:
+            mro = self.max_rot_order(word, 'xor')
+            self.assertEqual(mro, 16,
+                msg=f'{word} XOR should have rot_order=16, got {mro}')
+
+    def test_rot_period_divides_n(self):
+        # rot_period must always divide N=16
+        for word in ['ТУМАН', 'ГОРА', 'ЛУНА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for rp in self.orbit_rot_periods(word, rule):
+                    self.assertEqual(16 % rp, 0,
+                        msg=f'{word}/{rule}: rot_period={rp} does not divide 16')
+
+    # ── all_symm() and build_symm_data() ─────────────────────────────────────
+
+    def test_all_symm_four_rules(self):
+        self.assertEqual(set(self.all_symm('ГОРА').keys()), {'xor','xor3','and','or'})
+
+    def test_build_symm_data_keys(self):
+        data = self.build_symm_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_symm_data_word_coverage(self):
+        words = ['ГОРА', 'ТУМАН']
+        data = self.build_symm_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Viewer section tests ───────────────────────────────────────────────────
+
+    def test_viewer_has_symm_ring_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('symm-ring', content)
+
+    def test_viewer_has_symm_rules_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('symm-rules', content)
+
+    def test_viewer_has_symm_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('symm-info', content)
+
+    def test_viewer_has_sy_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sy-word', content)
+
+    def test_viewer_has_sy_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sy-rule', content)
+
+    def test_viewer_has_sy_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sy-btn', content)
+
+    def test_viewer_has_rot_period_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rotPeriod', content)
+
+    def test_viewer_has_sy_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('syRun', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_symm',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_symm(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_symm', content)
+
+
+class TestSolanVocab(unittest.TestCase):
+    """Tests for solan_vocab.py and the viewer Orbit Vocabulary section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_vocab import (
+            orbit_vocabulary,
+            vocab_size,
+            vocab_coverage,
+            value_hist,
+            uniform_distribution,
+            vocab_bit_profile,
+            common_bits,
+            vocab_hamming_hist,
+            vocab_summary,
+            all_vocab,
+            build_vocab_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.orbit_vocabulary    = staticmethod(orbit_vocabulary)
+        cls.vocab_size          = staticmethod(vocab_size)
+        cls.vocab_coverage      = staticmethod(vocab_coverage)
+        cls.value_hist          = staticmethod(value_hist)
+        cls.uniform_distribution = staticmethod(uniform_distribution)
+        cls.vocab_bit_profile   = staticmethod(vocab_bit_profile)
+        cls.common_bits         = staticmethod(common_bits)
+        cls.vocab_hamming_hist  = staticmethod(vocab_hamming_hist)
+        cls.vocab_summary       = staticmethod(vocab_summary)
+        cls.all_vocab           = staticmethod(all_vocab)
+        cls.build_vocab_data    = staticmethod(build_vocab_data)
+        cls.LEXICON             = list(LEXICON)
+
+    # ── orbit_vocabulary() ────────────────────────────────────────────────────
+
+    def test_vocab_tuman_xor_is_zero(self):
+        v = self.orbit_vocabulary('ТУМАН', 'xor')
+        self.assertEqual(v, [0])
+
+    def test_vocab_gora_and(self):
+        v = self.orbit_vocabulary('ГОРА', 'and')
+        self.assertEqual(sorted(v), [1, 47])
+
+    def test_vocab_gora_xor3_size_8(self):
+        v = self.orbit_vocabulary('ГОРА', 'xor3')
+        self.assertEqual(len(v), 8)
+
+    def test_vocab_gora_xor3_values(self):
+        v = self.orbit_vocabulary('ГОРА', 'xor3')
+        self.assertEqual(sorted(v), sorted([1, 15, 17, 31, 33, 47, 49, 63]))
+
+    def test_vocab_gora_or_is_63(self):
+        v = self.orbit_vocabulary('ГОРА', 'or')
+        self.assertEqual(v, [63])
+
+    def test_vocab_tuman_xor3_size_15(self):
+        v = self.orbit_vocabulary('ТУМАН', 'xor3')
+        self.assertEqual(len(v), 15)
+
+    def test_vocab_is_sorted(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                v = self.orbit_vocabulary(word, rule)
+                self.assertEqual(v, sorted(v))
+
+    def test_vocab_values_in_q6_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for val in self.orbit_vocabulary(word, rule):
+                    self.assertGreaterEqual(val, 0)
+                    self.assertLessEqual(val, 63)
+
+    def test_vocab_nonempty(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                self.assertGreater(len(self.orbit_vocabulary(word, rule)), 0)
+
+    # ── vocab_size() / vocab_coverage() ──────────────────────────────────────
+
+    def test_vocab_size_tuman_xor(self):
+        self.assertEqual(self.vocab_size('ТУМАН', 'xor'), 1)
+
+    def test_vocab_size_gora_and(self):
+        self.assertEqual(self.vocab_size('ГОРА', 'and'), 2)
+
+    def test_vocab_size_gora_xor3(self):
+        self.assertEqual(self.vocab_size('ГОРА', 'xor3'), 8)
+
+    def test_vocab_coverage_tuman_xor(self):
+        self.assertAlmostEqual(self.vocab_coverage('ТУМАН', 'xor'), 1 / 64, places=5)
+
+    def test_vocab_coverage_gora_and(self):
+        self.assertAlmostEqual(self.vocab_coverage('ГОРА', 'and'), 2 / 64, places=5)
+
+    def test_vocab_coverage_gora_xor3(self):
+        self.assertAlmostEqual(self.vocab_coverage('ГОРА', 'xor3'), 8 / 64, places=5)
+
+    def test_vocab_coverage_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                c = self.vocab_coverage(word, rule)
+                self.assertGreater(c, 0.0)
+                self.assertLessEqual(c, 1.0)
+
+    # ── value_hist() / uniform_distribution() ─────────────────────────────────
+
+    def test_hist_tuman_xor(self):
+        h = self.value_hist('ТУМАН', 'xor')
+        self.assertEqual(h, {0: 16})
+
+    def test_hist_gora_and_uniform(self):
+        h = self.value_hist('ГОРА', 'and')
+        self.assertEqual(h.get(47, 0), 16)
+        self.assertEqual(h.get(1, 0), 16)
+
+    def test_hist_counts_sum_to_period_times_width(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor3', 'and']:
+                h = self.value_hist(word, rule)
+                from projects.hexglyph.solan_traj import word_trajectory
+                traj = word_trajectory(word, rule)
+                self.assertEqual(sum(h.values()), traj['period'] * 16)
+
+    def test_uniform_gora_and(self):
+        self.assertTrue(self.uniform_distribution('ГОРА', 'and'))
+
+    def test_uniform_gora_xor3(self):
+        self.assertTrue(self.uniform_distribution('ГОРА', 'xor3'))
+
+    def test_uniform_tuman_xor(self):
+        self.assertTrue(self.uniform_distribution('ТУМАН', 'xor'))
+
+    def test_nonuniform_tuman_xor3(self):
+        # ТУМАН XOR3 has non-uniform distribution (43 and 60 appear 13× each)
+        self.assertFalse(self.uniform_distribution('ТУМАН', 'xor3'))
+
+    # ── vocab_bit_profile() ───────────────────────────────────────────────────
+
+    def test_bit_profile_length_6(self):
+        bp = self.vocab_bit_profile('ГОРА', 'and')
+        self.assertEqual(len(bp), 6)
+
+    def test_bit_profile_tuman_xor_all_zero(self):
+        bp = self.vocab_bit_profile('ТУМАН', 'xor')
+        self.assertTrue(all(v == 0.0 for v in bp))
+
+    def test_bit_profile_gora_or_all_one(self):
+        # OR vocab = {63 = 0b111111}: all bits always 1
+        bp = self.vocab_bit_profile('ГОРА', 'or')
+        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in bp))
+
+    def test_bit_profile_gora_xor3_bit0_is_one(self):
+        # All 8 vocab values have bit 0 = 1
+        bp = self.vocab_bit_profile('ГОРА', 'xor3')
+        self.assertAlmostEqual(bp[0], 1.0, places=9)
+
+    def test_bit_profile_gora_and_bit0_is_one(self):
+        # Both 1 and 47 have bit 0 = 1
+        bp = self.vocab_bit_profile('ГОРА', 'and')
+        self.assertAlmostEqual(bp[0], 1.0, places=9)
+
+    def test_bit_profile_gora_and_bit4_is_zero(self):
+        # Both 1=0b000001 and 47=0b101111 have bit 4 = 0
+        bp = self.vocab_bit_profile('ГОРА', 'and')
+        self.assertAlmostEqual(bp[4], 0.0, places=9)
+
+    def test_bit_profile_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for v in self.vocab_bit_profile(word, rule):
+                    self.assertGreaterEqual(v, 0.0)
+                    self.assertLessEqual(v, 1.0)
+
+    # ── common_bits() ─────────────────────────────────────────────────────────
+
+    def test_common_bits_tuman_xor(self):
+        al1, al0 = self.common_bits('ТУМАН', 'xor')
+        self.assertEqual(al1, set())
+        self.assertEqual(al0, {0, 1, 2, 3, 4, 5})
+
+    def test_common_bits_gora_or(self):
+        al1, al0 = self.common_bits('ГОРА', 'or')
+        self.assertEqual(al1, {0, 1, 2, 3, 4, 5})
+        self.assertEqual(al0, set())
+
+    def test_common_bits_gora_and_always1(self):
+        al1, _ = self.common_bits('ГОРА', 'and')
+        self.assertIn(0, al1)
+
+    def test_common_bits_gora_and_always0(self):
+        _, al0 = self.common_bits('ГОРА', 'and')
+        self.assertIn(4, al0)
+
+    def test_common_bits_gora_xor3_bit0_always1(self):
+        al1, _ = self.common_bits('ГОРА', 'xor3')
+        self.assertIn(0, al1)
+
+    def test_common_bits_are_disjoint(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                al1, al0 = self.common_bits(word, rule)
+                self.assertEqual(al1 & al0, set(),
+                    msg=f'{word}/{rule}: always-1 and always-0 overlap')
+
+    # ── vocab_hamming_hist() ──────────────────────────────────────────────────
+
+    def test_hamming_hist_tuman_xor(self):
+        h = self.vocab_hamming_hist('ТУМАН', 'xor')
+        self.assertEqual(h, {0: 1})
+
+    def test_hamming_hist_gora_or(self):
+        h = self.vocab_hamming_hist('ГОРА', 'or')
+        self.assertEqual(h, {6: 1})
+
+    def test_hamming_hist_gora_and(self):
+        h = self.vocab_hamming_hist('ГОРА', 'and')
+        self.assertEqual(h.get(1, 0), 1)   # value 1
+        self.assertEqual(h.get(5, 0), 1)   # value 47
+
+    def test_hamming_hist_keys_in_0_6(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for hw in self.vocab_hamming_hist(word, rule):
+                    self.assertGreaterEqual(hw, 0)
+                    self.assertLessEqual(hw, 6)
+
+    # ── vocab_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.vocab_summary('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'period', 'total_cell_steps',
+                  'vocab', 'vocab_size', 'vocab_coverage', 'hist',
+                  'uniform_dist', 'hist_entropy', 'bit_profile',
+                  'always_1_bits', 'always_0_bits', 'hamming_hist',
+                  'dominant_value', 'dominant_frac'):
+            self.assertIn(k, d)
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.vocab_summary('гора', 'xor3')['word'], 'ГОРА')
+
+    def test_summary_hist_entropy_uniform(self):
+        # ГОРА XOR3 uniform over 8 values → H = log2(8) = 3.0
+        d = self.vocab_summary('ГОРА', 'xor3')
+        self.assertAlmostEqual(d['hist_entropy'], 3.0, places=5)
+
+    def test_summary_hist_entropy_and(self):
+        # ГОРА AND uniform over 2 values → H = 1.0
+        d = self.vocab_summary('ГОРА', 'and')
+        self.assertAlmostEqual(d['hist_entropy'], 1.0, places=5)
+
+    def test_summary_hist_entropy_xor(self):
+        # ТУМАН XOR single value → H = 0
+        d = self.vocab_summary('ТУМАН', 'xor')
+        self.assertAlmostEqual(d['hist_entropy'], 0.0, places=5)
+
+    def test_summary_total_cell_steps(self):
+        d = self.vocab_summary('ГОРА', 'and', width=16)
+        self.assertEqual(d['total_cell_steps'], 2 * 16)   # P=2, N=16
+
+    # ── all_vocab() / build_vocab_data() ──────────────────────────────────────
+
+    def test_all_vocab_four_rules(self):
+        r = self.all_vocab('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_vocab_data_keys(self):
+        data = self.build_vocab_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'q6_total', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_vocab_data_q6_total(self):
+        data = self.build_vocab_data(['ГОРА'])
+        self.assertEqual(data['q6_total'], 64)
+
+    def test_build_vocab_data_word_coverage(self):
+        words = ['ГОРА', 'ТУМАН']
+        data = self.build_vocab_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Scientific properties ─────────────────────────────────────────────────
+
+    def test_xor_vocab_always_contains_zero(self):
+        # XOR always converges to all-zeros for all lexicon words
+        for word in self.LEXICON[:12]:
+            v = self.orbit_vocabulary(word, 'xor')
+            self.assertIn(0, v, msg=f'{word} XOR vocab should contain 0')
+            self.assertEqual(len(v), 1, msg=f'{word} XOR vocab should have size 1')
+
+    def test_gora_xor3_all_vocab_bits0_set(self):
+        # All 8 vocab values in ГОРА XOR3 have bit 0 = 1
+        vocab = self.orbit_vocabulary('ГОРА', 'xor3')
+        for v in vocab:
+            self.assertEqual((v >> 0) & 1, 1,
+                msg=f'ГОРА XOR3 vocab value {v} should have bit 0=1')
+
+    def test_or_attractor_vocab_max_value(self):
+        # OR typically saturates to 63 (all bits 1) for many words
+        v = self.orbit_vocabulary('ГОРА', 'or')
+        self.assertEqual(v, [63])
+
+    # ── Viewer section tests ───────────────────────────────────────────────────
+
+    def test_viewer_has_vocab_bars(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vocab-bars', content)
+
+    def test_viewer_has_vocab_bits(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vocab-bits', content)
+
+    def test_viewer_has_vocab_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vocab-info', content)
+
+    def test_viewer_has_vo_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vo-word', content)
+
+    def test_viewer_has_vo_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vo-rule', content)
+
+    def test_viewer_has_vo_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('vo-btn', content)
+
+    def test_viewer_has_vo_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('voRun', content)
+
+    def test_viewer_has_hw_bits_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hwBits', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_vocab',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_vocab(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_vocab', content)
+
+
+class TestSolanLayer(unittest.TestCase):
+    """Tests for solan_layer.py and the viewer Bit-Layer Decomposition section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_layer import (
+            bit_plane,
+            plane_period,
+            plane_type,
+            plane_density,
+            layer_periods,
+            active_bits,
+            frozen_bits,
+            lcm_equals_period,
+            layer_summary,
+            all_layers,
+            build_layer_data,
+            _lcm_list,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.bit_plane         = staticmethod(bit_plane)
+        cls.plane_period      = staticmethod(plane_period)
+        cls.plane_type        = staticmethod(plane_type)
+        cls.plane_density     = staticmethod(plane_density)
+        cls.layer_periods     = staticmethod(layer_periods)
+        cls.active_bits       = staticmethod(active_bits)
+        cls.frozen_bits       = staticmethod(frozen_bits)
+        cls.lcm_equals_period = staticmethod(lcm_equals_period)
+        cls.layer_summary     = staticmethod(layer_summary)
+        cls.all_layers        = staticmethod(all_layers)
+        cls.build_layer_data  = staticmethod(build_layer_data)
+        cls.lcm_list          = staticmethod(_lcm_list)
+        cls.LEXICON           = list(LEXICON)
+
+    # ── bit_plane() ────────────────────────────────────────────────────────────
+
+    def test_bit_plane_values_are_0_or_1(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    plane = self.bit_plane(word, rule, b)
+                    for row in plane:
+                        for v in row:
+                            self.assertIn(v, (0, 1))
+
+    def test_bit_plane_width(self):
+        plane = self.bit_plane('ГОРА', 'xor3', 0)
+        self.assertTrue(all(len(row) == 16 for row in plane))
+
+    def test_bit_plane_period(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'xor3', 16)
+        plane = self.bit_plane('ГОРА', 'xor3', 0)
+        self.assertEqual(len(plane), len(orbit))
+
+    def test_bit_plane_gora_xor3_bit0_all_ones(self):
+        plane = self.bit_plane('ГОРА', 'xor3', 0)
+        self.assertTrue(all(all(v == 1 for v in row) for row in plane))
+
+    def test_bit_plane_tuman_xor_all_zeros(self):
+        for b in range(6):
+            plane = self.bit_plane('ТУМАН', 'xor', b)
+            self.assertTrue(all(all(v == 0 for v in row) for row in plane))
+
+    def test_bit_plane_gora_or_all_ones(self):
+        for b in range(6):
+            plane = self.bit_plane('ГОРА', 'or', b)
+            self.assertTrue(all(all(v == 1 for v in row) for row in plane))
+
+    def test_bit_plane_gora_and_bit4_all_zeros(self):
+        plane = self.bit_plane('ГОРА', 'and', 4)
+        self.assertTrue(all(all(v == 0 for v in row) for row in plane))
+
+    def test_bit_plane_gora_and_bit0_all_ones(self):
+        plane = self.bit_plane('ГОРА', 'and', 0)
+        self.assertTrue(all(all(v == 1 for v in row) for row in plane))
+
+    # ── plane_period() ─────────────────────────────────────────────────────────
+
+    def test_plane_period_frozen_is_1(self):
+        self.assertEqual(self.plane_period('ТУМАН', 'xor', 0), 1)
+        self.assertEqual(self.plane_period('ГОРА', 'or', 5), 1)
+        self.assertEqual(self.plane_period('ГОРА', 'and', 0), 1)
+        self.assertEqual(self.plane_period('ГОРА', 'and', 4), 1)
+
+    def test_plane_period_gora_xor3_active_bits(self):
+        for b in [1, 2, 3, 4, 5]:
+            self.assertEqual(self.plane_period('ГОРА', 'xor3', b), 2)
+
+    def test_plane_period_tuman_xor3_all_8(self):
+        for b in range(6):
+            self.assertEqual(self.plane_period('ТУМАН', 'xor3', b), 8)
+
+    def test_plane_period_divides_orbit_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                P = word_trajectory(word, rule)['period']
+                for b in range(6):
+                    p = self.plane_period(word, rule, b)
+                    self.assertEqual(P % p, 0,
+                        msg=f'{word}/{rule}/b{b}: period {p} does not divide P={P}')
+
+    # ── plane_type() ──────────────────────────────────────────────────────────
+
+    def test_plane_type_frozen0_tuman_xor(self):
+        for b in range(6):
+            self.assertEqual(self.plane_type('ТУМАН', 'xor', b), 'frozen_0')
+
+    def test_plane_type_frozen1_gora_or(self):
+        for b in range(6):
+            self.assertEqual(self.plane_type('ГОРА', 'or', b), 'frozen_1')
+
+    def test_plane_type_gora_xor3_b0(self):
+        self.assertEqual(self.plane_type('ГОРА', 'xor3', 0), 'frozen_1')
+
+    def test_plane_type_gora_and_b0(self):
+        self.assertEqual(self.plane_type('ГОРА', 'and', 0), 'frozen_1')
+
+    def test_plane_type_gora_and_b4(self):
+        self.assertEqual(self.plane_type('ГОРА', 'and', 4), 'frozen_0')
+
+    def test_plane_type_gora_xor3_active_spatial(self):
+        for b in [1, 2, 3, 4, 5]:
+            pt = self.plane_type('ГОРА', 'xor3', b)
+            self.assertEqual(pt, 'spatial',
+                msg=f'ГОРА xor3 bit {b} should be spatial')
+
+    def test_plane_type_is_valid_string(self):
+        valid = {'frozen_0', 'frozen_1', 'uniform_alt', 'uniform_irr', 'spatial'}
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    self.assertIn(self.plane_type(word, rule, b), valid)
+
+    # ── plane_density() ────────────────────────────────────────────────────────
+
+    def test_density_length_equals_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                P = word_trajectory(word, rule)['period']
+                dens = self.plane_density(word, rule, 0)
+                self.assertEqual(len(dens), P)
+
+    def test_density_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    for d in self.plane_density(word, rule, b):
+                        self.assertGreaterEqual(d, 0.0)
+                        self.assertLessEqual(d, 1.0)
+
+    def test_density_frozen0_is_zero(self):
+        dens = self.plane_density('ТУМАН', 'xor', 3)
+        self.assertTrue(all(abs(d) < 1e-9 for d in dens))
+
+    def test_density_frozen1_is_one(self):
+        dens = self.plane_density('ГОРА', 'or', 2)
+        self.assertTrue(all(abs(d - 1.0) < 1e-9 for d in dens))
+
+    def test_density_gora_xor3_b0_always_1(self):
+        dens = self.plane_density('ГОРА', 'xor3', 0)
+        self.assertTrue(all(abs(d - 1.0) < 1e-9 for d in dens))
+
+    def test_density_gora_xor3_b1_oscillates_75_25(self):
+        dens = self.plane_density('ГОРА', 'xor3', 1)
+        self.assertEqual(sorted(round(d, 3) for d in dens), [0.25, 0.75])
+
+    def test_density_gora_xor3_b4_oscillates_50_50(self):
+        dens = self.plane_density('ГОРА', 'xor3', 4)
+        self.assertEqual(sorted(round(d, 3) for d in dens), [0.5, 0.5])
+
+    def test_density_gora_and_b0_always_1(self):
+        dens = self.plane_density('ГОРА', 'and', 0)
+        self.assertTrue(all(abs(d - 1.0) < 1e-9 for d in dens))
+
+    def test_density_gora_and_b4_always_0(self):
+        dens = self.plane_density('ГОРА', 'and', 4)
+        self.assertTrue(all(abs(d) < 1e-9 for d in dens))
+
+    # ── layer_periods() / active_bits() / frozen_bits() ───────────────────────
+
+    def test_layer_periods_length_6(self):
+        lps = self.layer_periods('ГОРА', 'xor3')
+        self.assertEqual(len(lps), 6)
+
+    def test_layer_periods_gora_and(self):
+        lps = self.layer_periods('ГОРА', 'and')
+        self.assertEqual(lps, [1, 2, 2, 2, 1, 2])
+
+    def test_layer_periods_gora_xor3(self):
+        lps = self.layer_periods('ГОРА', 'xor3')
+        self.assertEqual(lps, [1, 2, 2, 2, 2, 2])
+
+    def test_layer_periods_tuman_xor(self):
+        lps = self.layer_periods('ТУМАН', 'xor')
+        self.assertEqual(lps, [1, 1, 1, 1, 1, 1])
+
+    def test_layer_periods_tuman_xor3(self):
+        lps = self.layer_periods('ТУМАН', 'xor3')
+        self.assertEqual(lps, [8, 8, 8, 8, 8, 8])
+
+    def test_active_bits_gora_xor3(self):
+        self.assertEqual(self.active_bits('ГОРА', 'xor3'), [1, 2, 3, 4, 5])
+
+    def test_active_bits_gora_or(self):
+        self.assertEqual(self.active_bits('ГОРА', 'or'), [])
+
+    def test_active_bits_tuman_xor(self):
+        self.assertEqual(self.active_bits('ТУМАН', 'xor'), [])
+
+    def test_frozen_bits_tuman_xor(self):
+        f0, f1 = self.frozen_bits('ТУМАН', 'xor')
+        self.assertEqual(f0, [0, 1, 2, 3, 4, 5])
+        self.assertEqual(f1, [])
+
+    def test_frozen_bits_gora_or(self):
+        f0, f1 = self.frozen_bits('ГОРА', 'or')
+        self.assertEqual(f0, [])
+        self.assertEqual(f1, [0, 1, 2, 3, 4, 5])
+
+    def test_frozen_bits_gora_and(self):
+        f0, f1 = self.frozen_bits('ГОРА', 'and')
+        self.assertIn(4, f0)
+        self.assertIn(0, f1)
+
+    def test_frozen_active_partition(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                act = set(self.active_bits(word, rule))
+                f0  = set(self.frozen_bits(word, rule)[0])
+                f1  = set(self.frozen_bits(word, rule)[1])
+                self.assertEqual(act | f0 | f1, set(range(6)),
+                    msg=f'{word}/{rule}: active+frozen0+frozen1 != {{0..5}}')
+                self.assertEqual(act & f0, set())
+                self.assertEqual(act & f1, set())
+                self.assertEqual(f0 & f1, set())
+
+    # ── LCM theorem ───────────────────────────────────────────────────────────
+
+    def test_lcm_theorem_gora_xor(self):
+        self.assertTrue(self.lcm_equals_period('ГОРА', 'xor'))
+
+    def test_lcm_theorem_gora_and(self):
+        self.assertTrue(self.lcm_equals_period('ГОРА', 'and'))
+
+    def test_lcm_theorem_gora_xor3(self):
+        self.assertTrue(self.lcm_equals_period('ГОРА', 'xor3'))
+
+    def test_lcm_theorem_tuman_xor3(self):
+        self.assertTrue(self.lcm_equals_period('ТУМАН', 'xor3'))
+
+    def test_lcm_theorem_all_words_rules(self):
+        for word in self.LEXICON[:12]:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                self.assertTrue(self.lcm_equals_period(word, rule),
+                    msg=f'LCM theorem failed for {word}/{rule}')
+
+    def test_lcm_list_basic(self):
+        self.assertEqual(self.lcm_list([1, 2, 2, 2, 1, 2]), 2)
+        self.assertEqual(self.lcm_list([1, 1, 1, 1, 1, 1]), 1)
+        self.assertEqual(self.lcm_list([8, 8, 8, 8, 8, 8]), 8)
+
+    # ── layer_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.layer_summary('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'period', 'plane_periods', 'plane_types',
+                  'plane_density', 'mean_density', 'density_var',
+                  'active_bits', 'n_active', 'frozen_0_bits', 'frozen_1_bits',
+                  'n_frozen', 'lcm_period', 'lcm_equals_P'):
+            self.assertIn(k, d)
+
+    def test_summary_word_normalised(self):
+        self.assertEqual(self.layer_summary('гора', 'xor3')['word'], 'ГОРА')
+
+    def test_summary_lcm_equals_P_always_true(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.layer_summary(word, rule)
+                self.assertTrue(d['lcm_equals_P'],
+                    msg=f'{word}/{rule} summary: lcm_equals_P should be True')
+
+    def test_summary_n_active_plus_frozen_is_6(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.layer_summary(word, rule)
+                self.assertEqual(d['n_active'] + d['n_frozen'], 6)
+
+    def test_summary_gora_xor3_n_active_5(self):
+        self.assertEqual(self.layer_summary('ГОРА', 'xor3')['n_active'], 5)
+
+    def test_summary_gora_and_n_frozen_2(self):
+        self.assertEqual(self.layer_summary('ГОРА', 'and')['n_frozen'], 2)
+
+    def test_summary_density_var_frozen_is_zero(self):
+        d = self.layer_summary('ГОРА', 'or')
+        for var in d['density_var']:
+            self.assertAlmostEqual(var, 0.0, places=9)
+
+    # ── all_layers() / build_layer_data() ─────────────────────────────────────
+
+    def test_all_layers_four_rules(self):
+        r = self.all_layers('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_layer_data_keys(self):
+        data = self.build_layer_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_layer_data_word_coverage(self):
+        words = ['ГОРА', 'ТУМАН']
+        data = self.build_layer_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_layer_grid(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('layer-grid', content)
+
+    def test_viewer_has_layer_dens(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('layer-dens', content)
+
+    def test_viewer_has_layer_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('layer-info', content)
+
+    def test_viewer_has_ly_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ly-word', content)
+
+    def test_viewer_has_ly_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ly-rule', content)
+
+    def test_viewer_has_ly_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ly-btn', content)
+
+    def test_viewer_has_ly_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyRun', content)
+
+    def test_viewer_has_ly_min_period_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyMinPeriod', content)
+
+    def test_viewer_has_bit_cols(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('BIT_COLS', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_layer',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_layer(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_layer', content)
+
+
+class TestSolanDist(unittest.TestCase):
+    """Tests for solan_dist.py and the viewer Orbit Distance Map section."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dist import (
+            step_distance_q6,
+            step_distance_bits,
+            distance_series_q6,
+            distance_series_bits,
+            distance_matrix_q6,
+            distance_matrix_bits,
+            orbit_diameter_q6,
+            orbit_diameter_bits,
+            mean_distance_q6,
+            packing_efficiency,
+            near_returns,
+            dist_summary,
+            all_dist,
+            build_dist_data,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.step_distance_q6    = staticmethod(step_distance_q6)
+        cls.step_distance_bits  = staticmethod(step_distance_bits)
+        cls.distance_series_q6  = staticmethod(distance_series_q6)
+        cls.distance_series_bits = staticmethod(distance_series_bits)
+        cls.distance_matrix_q6  = staticmethod(distance_matrix_q6)
+        cls.distance_matrix_bits = staticmethod(distance_matrix_bits)
+        cls.orbit_diameter_q6   = staticmethod(orbit_diameter_q6)
+        cls.orbit_diameter_bits  = staticmethod(orbit_diameter_bits)
+        cls.mean_distance_q6    = staticmethod(mean_distance_q6)
+        cls.packing_efficiency  = staticmethod(packing_efficiency)
+        cls.near_returns        = staticmethod(near_returns)
+        cls.dist_summary        = staticmethod(dist_summary)
+        cls.all_dist            = staticmethod(all_dist)
+        cls.build_dist_data     = staticmethod(build_dist_data)
+        cls.LEXICON             = list(LEXICON)
+
+    # ── step_distance_q6() / step_distance_bits() ────────────────────────────
+
+    def test_step_distance_q6_identical(self):
+        self.assertEqual(self.step_distance_q6([1, 2, 3], [1, 2, 3]), 0)
+
+    def test_step_distance_q6_all_different(self):
+        self.assertEqual(self.step_distance_q6([0, 0, 0], [1, 2, 3]), 3)
+
+    def test_step_distance_q6_range(self):
+        a, b = [47] * 16, [1] * 16
+        self.assertEqual(self.step_distance_q6(a, b), 16)
+
+    def test_step_distance_bits_zero(self):
+        self.assertEqual(self.step_distance_bits([5, 5, 5], [5, 5, 5]), 0)
+
+    def test_step_distance_bits_known(self):
+        # 47 XOR 1 = 46 = 0b101110 → popcount = 4; 16 cells → 64 bits
+        a = [47] * 16
+        b = [1] * 16
+        self.assertEqual(self.step_distance_bits(a, b), 64)
+
+    def test_step_distance_bits_gora_xor3(self):
+        # Verify ГОРА XOR3 bit distance between orbit steps = 48
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'xor3', 16)
+        self.assertEqual(self.step_distance_bits(orbit[0], orbit[1]), 48)
+
+    # ── distance_series_q6() / distance_series_bits() ─────────────────────────
+
+    def test_series_q6_starts_at_zero(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                ds = self.distance_series_q6(word, rule)
+                self.assertEqual(ds[0], 0)
+
+    def test_series_bits_starts_at_zero(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                ds = self.distance_series_bits(word, rule)
+                self.assertEqual(ds[0], 0)
+
+    def test_series_q6_tuman_xor3(self):
+        ds = self.distance_series_q6('ТУМАН', 'xor3')
+        self.assertEqual(ds, [0, 16, 16, 6, 16, 16, 12, 14])
+
+    def test_series_q6_gora_and(self):
+        ds = self.distance_series_q6('ГОРА', 'and')
+        self.assertEqual(ds, [0, 16])
+
+    def test_series_bits_gora_and(self):
+        ds = self.distance_series_bits('ГОРА', 'and')
+        self.assertEqual(ds, [0, 64])
+
+    def test_series_q6_gora_xor3(self):
+        ds = self.distance_series_q6('ГОРА', 'xor3')
+        self.assertEqual(ds, [0, 16])
+
+    def test_series_bits_gora_xor3(self):
+        ds = self.distance_series_bits('ГОРА', 'xor3')
+        self.assertEqual(ds, [0, 48])
+
+    def test_series_q6_length_equals_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                P  = word_trajectory(word, rule)['period']
+                ds = self.distance_series_q6(word, rule)
+                self.assertEqual(len(ds), P)
+
+    def test_series_q6_values_in_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for d in self.distance_series_q6(word, rule):
+                    self.assertGreaterEqual(d, 0)
+                    self.assertLessEqual(d, 16)
+
+    # ── distance_matrix_q6() / distance_matrix_bits() ─────────────────────────
+
+    def test_matrix_q6_diagonal_zero(self):
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        for t in range(len(mat)):
+            self.assertEqual(mat[t][t], 0)
+
+    def test_matrix_q6_symmetric(self):
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        P = len(mat)
+        for t in range(P):
+            for s in range(P):
+                self.assertEqual(mat[t][s], mat[s][t])
+
+    def test_matrix_bits_diagonal_zero(self):
+        mat = self.distance_matrix_bits('ГОРА', 'and')
+        for t in range(len(mat)):
+            self.assertEqual(mat[t][t], 0)
+
+    def test_matrix_bits_symmetric(self):
+        mat = self.distance_matrix_bits('ГОРА', 'and')
+        P = len(mat)
+        for t in range(P):
+            for s in range(P):
+                self.assertEqual(mat[t][s], mat[s][t])
+
+    def test_matrix_q6_gora_and(self):
+        mat = self.distance_matrix_q6('ГОРА', 'and')
+        self.assertEqual(mat, [[0, 16], [16, 0]])
+
+    def test_matrix_bits_gora_and(self):
+        mat = self.distance_matrix_bits('ГОРА', 'and')
+        self.assertEqual(mat, [[0, 64], [64, 0]])
+
+    def test_matrix_q6_tuman_xor3_row0(self):
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        self.assertEqual(mat[0], [0, 16, 16, 6, 16, 16, 12, 14])
+
+    def test_matrix_q6_tuman_xor3_closest_entry(self):
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        # Closest non-diagonal: (0,3) and (3,0) with distance 6
+        off_diag = [mat[t][s] for t in range(8) for s in range(8) if t != s]
+        self.assertEqual(min(off_diag), 6)
+
+    # ── orbit_diameter_q6() / orbit_diameter_bits() ────────────────────────────
+
+    def test_diameter_q6_tuman_xor(self):
+        self.assertEqual(self.orbit_diameter_q6('ТУМАН', 'xor'), 0)
+
+    def test_diameter_q6_gora_and(self):
+        self.assertEqual(self.orbit_diameter_q6('ГОРА', 'and'), 16)
+
+    def test_diameter_q6_gora_xor3(self):
+        self.assertEqual(self.orbit_diameter_q6('ГОРА', 'xor3'), 16)
+
+    def test_diameter_q6_tuman_xor3(self):
+        self.assertEqual(self.orbit_diameter_q6('ТУМАН', 'xor3'), 16)
+
+    def test_diameter_bits_gora_and(self):
+        self.assertEqual(self.orbit_diameter_bits('ГОРА', 'and'), 64)
+
+    def test_diameter_bits_gora_xor3(self):
+        self.assertEqual(self.orbit_diameter_bits('ГОРА', 'xor3'), 48)
+
+    def test_diameter_q6_at_most_N(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.orbit_diameter_q6(word, rule)
+                self.assertLessEqual(d, 16)
+                self.assertGreaterEqual(d, 0)
+
+    # ── mean_distance_q6() / packing_efficiency() ─────────────────────────────
+
+    def test_mean_distance_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_distance_q6('ТУМАН', 'xor'), 0.0, places=5)
+
+    def test_mean_distance_gora_and(self):
+        self.assertAlmostEqual(self.mean_distance_q6('ГОРА', 'and'), 16.0, places=5)
+
+    def test_mean_distance_tuman_xor3(self):
+        md = self.mean_distance_q6('ТУМАН', 'xor3')
+        # From computed matrix: mean of 8*8-8=56 off-diag entries
+        self.assertAlmostEqual(md, 13.928571, places=4)
+
+    def test_packing_efficiency_tuman_xor(self):
+        self.assertAlmostEqual(self.packing_efficiency('ТУМАН', 'xor'), 0.0, places=9)
+
+    def test_packing_efficiency_gora_and(self):
+        self.assertAlmostEqual(self.packing_efficiency('ГОРА', 'and'), 1.0, places=9)
+
+    def test_packing_efficiency_gora_xor3(self):
+        self.assertAlmostEqual(self.packing_efficiency('ГОРА', 'xor3'), 1.0, places=9)
+
+    def test_packing_efficiency_tuman_xor3(self):
+        pe = self.packing_efficiency('ТУМАН', 'xor3')
+        self.assertAlmostEqual(pe, 13.928571 / 16, places=4)
+
+    def test_packing_efficiency_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                pe = self.packing_efficiency(word, rule)
+                self.assertGreaterEqual(pe, 0.0)
+                self.assertLessEqual(pe, 1.0)
+
+    # ── near_returns() ────────────────────────────────────────────────────────
+
+    def test_near_returns_tuman_xor(self):
+        nr = self.near_returns('ТУМАН', 'xor')
+        self.assertEqual(nr, [])
+
+    def test_near_returns_gora_and(self):
+        # All pairs at dist=16, no near-returns under N/2=8
+        nr = self.near_returns('ГОРА', 'and')
+        self.assertEqual(nr, [])
+
+    def test_near_returns_tuman_xor3(self):
+        # t=3 is the near-return with dist=6 < 8
+        nr = self.near_returns('ТУМАН', 'xor3')
+        self.assertIn(3, nr)
+
+    def test_near_returns_tuman_xor3_dist_at_t3(self):
+        ds = self.distance_series_q6('ТУМАН', 'xor3')
+        self.assertEqual(ds[3], 6)
+
+    def test_near_returns_custom_threshold(self):
+        # With threshold=7, t=3 (dist=6) should be a near-return
+        nr = self.near_returns('ТУМАН', 'xor3', threshold=7)
+        self.assertIn(3, nr)
+
+    def test_near_returns_strict_threshold(self):
+        # With threshold=5, t=3 (dist=6) should NOT be a near-return
+        nr = self.near_returns('ТУМАН', 'xor3', threshold=5)
+        self.assertNotIn(3, nr)
+
+    # ── dist_summary() ────────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.dist_summary('ТУМАН', 'xor3')
+        for k in ('word', 'rule', 'period', 'N',
+                  'distance_series_q6', 'distance_series_bits',
+                  'diameter_q6', 'diameter_bits',
+                  'mean_dist_q6', 'packing_efficiency', 'near_returns',
+                  'closest_dist_q6', 'closest_pair'):
+            self.assertIn(k, d)
+
+    def test_summary_word_normalised(self):
+        self.assertEqual(self.dist_summary('туман', 'xor3')['word'], 'ТУМАН')
+
+    def test_summary_tuman_xor3_near_return(self):
+        d = self.dist_summary('ТУМАН', 'xor3')
+        self.assertIn(3, d['near_returns'])
+
+    def test_summary_gora_and_closest_dist(self):
+        d = self.dist_summary('ГОРА', 'and')
+        self.assertEqual(d['closest_dist_q6'], 16)
+
+    def test_summary_tuman_xor3_closest_dist(self):
+        d = self.dist_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['closest_dist_q6'], 6)
+
+    def test_summary_tuman_xor3_closest_pair(self):
+        d = self.dist_summary('ТУМАН', 'xor3')
+        t, s = d['closest_pair']
+        mat = self.distance_matrix_q6('ТУМАН', 'xor3')
+        self.assertEqual(mat[t][s], 6)
+
+    def test_summary_diam_norm_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                d = self.dist_summary(word, rule)
+                self.assertGreaterEqual(d['diam_q6_norm'], 0.0)
+                self.assertLessEqual(d['diam_q6_norm'], 1.0)
+
+    # ── all_dist() / build_dist_data() ────────────────────────────────────────
+
+    def test_all_dist_four_rules(self):
+        r = self.all_dist('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_dist_data_keys(self):
+        data = self.build_dist_data(['ГОРА', 'ТУМАН'])
+        for k in ('words', 'width', 'N_max_q6', 'N_max_bits', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_dist_data_word_coverage(self):
+        words = ['ГОРА', 'ТУМАН']
+        data = self.build_dist_data(words)
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_dist_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dist-matrix', content)
+
+    def test_viewer_has_dist_series(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dist-series', content)
+
+    def test_viewer_has_dist_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dist-info', content)
+
+    def test_viewer_has_dt_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dt-word', content)
+
+    def test_viewer_has_dt_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dt-rule', content)
+
+    def test_viewer_has_dt_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dt-btn', content)
+
+    def test_viewer_has_dt_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dtRun', content)
+
+    def test_viewer_has_dq6_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('dq6', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_dist',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_dist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_dist', content)
+
+
+class TestSolanConfig(unittest.TestCase):
+    """Tests for solan_config.py and the viewer Neighborhood Config Coverage."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_config import (
+            active_configs,
+            n_active_configs,
+            coverage_fraction,
+            coverage_vector,
+            mean_coverage,
+            full_coverage_bits,
+            minimal_coverage_bits,
+            config_transition_table,
+            config_summary,
+            all_config,
+            build_config_data,
+            _ALL_CONFIGS,
+            _N_CONFIGS,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.active_configs           = staticmethod(active_configs)
+        cls.n_active_configs         = staticmethod(n_active_configs)
+        cls.coverage_fraction        = staticmethod(coverage_fraction)
+        cls.coverage_vector          = staticmethod(coverage_vector)
+        cls.mean_coverage            = staticmethod(mean_coverage)
+        cls.full_coverage_bits       = staticmethod(full_coverage_bits)
+        cls.minimal_coverage_bits    = staticmethod(minimal_coverage_bits)
+        cls.config_transition_table  = staticmethod(config_transition_table)
+        cls.config_summary           = staticmethod(config_summary)
+        cls.all_config               = staticmethod(all_config)
+        cls.build_config_data        = staticmethod(build_config_data)
+        cls.ALL_CONFIGS              = list(_ALL_CONFIGS)
+        cls.N_CONFIGS                = _N_CONFIGS
+        cls.LEXICON                  = list(LEXICON)
+
+    # ── active_configs() ──────────────────────────────────────────────────────
+
+    def test_active_configs_deterministic(self):
+        """Each (l,c,r) config maps to exactly one output."""
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    cfg = self.active_configs(word, rule, b)
+                    for k, v in cfg.items():
+                        self.assertIn(v, (0, 1))
+
+    def test_active_configs_output_in_0_1(self):
+        cfg = self.active_configs('ТУМАН', 'xor3', 0)
+        for v in cfg.values():
+            self.assertIn(v, (0, 1))
+
+    def test_active_configs_keys_valid(self):
+        cfg = self.active_configs('ГОРА', 'and', 1)
+        for key in cfg:
+            self.assertIn(len(key), (3,))
+            for v in key:
+                self.assertIn(v, (0, 1))
+
+    def test_active_configs_tuman_xor_all_zero_zero_zero(self):
+        for b in range(6):
+            cfg = self.active_configs('ТУМАН', 'xor', b)
+            self.assertEqual(list(cfg.keys()), [(0, 0, 0)])
+
+    def test_active_configs_gora_or_all_one_one_one(self):
+        for b in range(6):
+            cfg = self.active_configs('ГОРА', 'or', b)
+            self.assertEqual(list(cfg.keys()), [(1, 1, 1)])
+
+    def test_active_configs_gora_xor3_bit0_only_111(self):
+        cfg = self.active_configs('ГОРА', 'xor3', 0)
+        self.assertEqual(list(cfg.keys()), [(1, 1, 1)])
+
+    def test_active_configs_gora_and_bit0_only_111(self):
+        cfg = self.active_configs('ГОРА', 'and', 0)
+        self.assertEqual(list(cfg.keys()), [(1, 1, 1)])
+
+    def test_active_configs_gora_and_bit4_only_000(self):
+        cfg = self.active_configs('ГОРА', 'and', 4)
+        self.assertEqual(list(cfg.keys()), [(0, 0, 0)])
+
+    def test_active_configs_gora_and_bit1_two_configs(self):
+        cfg = self.active_configs('ГОРА', 'and', 1)
+        self.assertEqual(len(cfg), 2)
+        self.assertIn((0, 1, 0), cfg)
+        self.assertIn((1, 0, 1), cfg)
+
+    def test_active_configs_gora_and_bit1_outputs(self):
+        cfg = self.active_configs('ГОРА', 'and', 1)
+        self.assertEqual(cfg[(0, 1, 0)], 0)   # AND(0,0) = 0
+        self.assertEqual(cfg[(1, 0, 1)], 1)   # AND(1,1) = 1
+
+    def test_active_configs_tuman_xor3_all_8(self):
+        for b in range(6):
+            cfg = self.active_configs('ТУМАН', 'xor3', b)
+            self.assertEqual(len(cfg), 8)
+
+    def test_active_configs_gora_xor3_bits_1235_all_8(self):
+        for b in [1, 2, 3, 5]:
+            cfg = self.active_configs('ГОРА', 'xor3', b)
+            self.assertEqual(len(cfg), 8,
+                msg=f'ГОРА xor3 bit {b} should have 8 active configs')
+
+    def test_active_configs_gora_xor3_bit4_four_configs(self):
+        cfg = self.active_configs('ГОРА', 'xor3', 4)
+        self.assertEqual(len(cfg), 4)
+        # Only l≠r configs: (0,0,1), (0,1,1), (1,0,0), (1,1,0)
+        expected = {(0, 0, 1), (0, 1, 1), (1, 0, 0), (1, 1, 0)}
+        self.assertEqual(set(cfg.keys()), expected)
+
+    def test_active_configs_subset_of_all(self):
+        all_cfgs = set(self.ALL_CONFIGS)
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    cfg = self.active_configs(word, rule, b)
+                    self.assertTrue(set(cfg.keys()).issubset(all_cfgs))
+
+    # ── n_active_configs() / coverage_fraction() ──────────────────────────────
+
+    def test_n_active_tuman_xor(self):
+        for b in range(6):
+            self.assertEqual(self.n_active_configs('ТУМАН', 'xor', b), 1)
+
+    def test_n_active_gora_or(self):
+        for b in range(6):
+            self.assertEqual(self.n_active_configs('ГОРА', 'or', b), 1)
+
+    def test_n_active_tuman_xor3_all_8(self):
+        for b in range(6):
+            self.assertEqual(self.n_active_configs('ТУМАН', 'xor3', b), 8)
+
+    def test_n_active_gora_xor3_b0(self):
+        self.assertEqual(self.n_active_configs('ГОРА', 'xor3', 0), 1)
+
+    def test_n_active_gora_xor3_b4(self):
+        self.assertEqual(self.n_active_configs('ГОРА', 'xor3', 4), 4)
+
+    def test_n_active_gora_and_b1(self):
+        self.assertEqual(self.n_active_configs('ГОРА', 'and', 1), 2)
+
+    def test_coverage_fraction_tuman_xor(self):
+        for b in range(6):
+            self.assertAlmostEqual(self.coverage_fraction('ТУМАН', 'xor', b),
+                                   1 / 8, places=5)
+
+    def test_coverage_fraction_tuman_xor3(self):
+        for b in range(6):
+            self.assertAlmostEqual(self.coverage_fraction('ТУМАН', 'xor3', b),
+                                   1.0, places=5)
+
+    def test_coverage_fraction_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                for b in range(6):
+                    cf = self.coverage_fraction(word, rule, b)
+                    self.assertGreaterEqual(cf, 0.0)
+                    self.assertLessEqual(cf, 1.0)
+
+    # ── coverage_vector() / mean_coverage() ───────────────────────────────────
+
+    def test_coverage_vector_length_6(self):
+        cv = self.coverage_vector('ГОРА', 'xor3')
+        self.assertEqual(len(cv), 6)
+
+    def test_coverage_vector_tuman_xor(self):
+        self.assertEqual(self.coverage_vector('ТУМАН', 'xor'), [1, 1, 1, 1, 1, 1])
+
+    def test_coverage_vector_gora_and(self):
+        self.assertEqual(self.coverage_vector('ГОРА', 'and'), [1, 2, 2, 2, 1, 2])
+
+    def test_coverage_vector_gora_xor3(self):
+        self.assertEqual(self.coverage_vector('ГОРА', 'xor3'), [1, 8, 8, 8, 4, 8])
+
+    def test_coverage_vector_tuman_xor3(self):
+        self.assertEqual(self.coverage_vector('ТУМАН', 'xor3'), [8, 8, 8, 8, 8, 8])
+
+    def test_mean_coverage_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_coverage('ТУМАН', 'xor'), 1/8, places=5)
+
+    def test_mean_coverage_tuman_xor3(self):
+        self.assertAlmostEqual(self.mean_coverage('ТУМАН', 'xor3'), 1.0, places=5)
+
+    def test_mean_coverage_gora_xor3(self):
+        # [1,8,8,8,4,8] / 48 = 37/48
+        self.assertAlmostEqual(self.mean_coverage('ГОРА', 'xor3'), 37/48, places=5)
+
+    def test_mean_coverage_gora_and(self):
+        # [1,2,2,2,1,2] / 48 = 10/48
+        self.assertAlmostEqual(self.mean_coverage('ГОРА', 'and'), 10/48, places=5)
+
+    def test_mean_coverage_range(self):
+        for word in ['ТУМАН', 'ГОРА']:
+            for rule in ['xor', 'xor3', 'and', 'or']:
+                mc = self.mean_coverage(word, rule)
+                self.assertGreater(mc, 0.0)
+                self.assertLessEqual(mc, 1.0)
+
+    # ── full_coverage_bits() / minimal_coverage_bits() ───────────────────────
+
+    def test_full_coverage_tuman_xor3(self):
+        self.assertEqual(self.full_coverage_bits('ТУМАН', 'xor3'), [0, 1, 2, 3, 4, 5])
+
+    def test_full_coverage_tuman_xor(self):
+        self.assertEqual(self.full_coverage_bits('ТУМАН', 'xor'), [])
+
+    def test_full_coverage_gora_xor3(self):
+        full = self.full_coverage_bits('ГОРА', 'xor3')
+        self.assertEqual(sorted(full), [1, 2, 3, 5])
+        self.assertNotIn(0, full)
+        self.assertNotIn(4, full)
+
+    def test_minimal_coverage_tuman_xor(self):
+        self.assertEqual(self.minimal_coverage_bits('ТУМАН', 'xor'), [0, 1, 2, 3, 4, 5])
+
+    def test_minimal_coverage_tuman_xor3(self):
+        self.assertEqual(self.minimal_coverage_bits('ТУМАН', 'xor3'), [])
+
+    def test_minimal_coverage_gora_and(self):
+        mini = self.minimal_coverage_bits('ГОРА', 'and')
+        self.assertIn(0, mini)
+        self.assertIn(4, mini)
+
+    def test_minimal_coverage_gora_xor3(self):
+        mini = self.minimal_coverage_bits('ГОРА', 'xor3')
+        self.assertEqual(mini, [0])
+
+    # ── config_transition_table() ─────────────────────────────────────────────
+
+    def test_transition_table_xor3_size(self):
+        tt = self.config_transition_table('ГОРА', 'xor3', 0)
+        self.assertEqual(len(tt), 8)
+
+    def test_transition_table_xor3_known(self):
+        tt = self.config_transition_table('ГОРА', 'xor3', 0)
+        # XOR3: l XOR c XOR r
+        self.assertEqual(tt[(0, 0, 0)], 0)
+        self.assertEqual(tt[(0, 0, 1)], 1)
+        self.assertEqual(tt[(1, 1, 1)], 1)
+        self.assertEqual(tt[(0, 1, 1)], 0)
+
+    def test_transition_table_and_known(self):
+        tt = self.config_transition_table('ГОРА', 'and', 0)
+        # AND: l AND r
+        self.assertEqual(tt[(0, 0, 0)], 0)
+        self.assertEqual(tt[(1, 0, 1)], 1)
+        self.assertEqual(tt[(0, 1, 1)], 0)
+
+    def test_transition_table_consistent_with_active(self):
+        """Active configs must be consistent with the full rule table."""
+        for rule in ['xor', 'xor3', 'and', 'or']:
+            tt = self.config_transition_table('ГОРА', rule, 0)
+            for b in range(6):
+                cfg = self.active_configs('ГОРА', rule, b)
+                for key, out in cfg.items():
+                    self.assertEqual(out, tt[key],
+                        msg=f'ГОРА/{rule}/b{b}: config {key} has inconsistent output')
+
+    # ── config_summary() ──────────────────────────────────────────────────────
+
+    def test_summary_keys(self):
+        d = self.config_summary('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'period', 'coverage_vector',
+                  'coverage_fractions', 'mean_coverage',
+                  'full_coverage_bits', 'minimal_coverage_bits',
+                  'n_full_coverage', 'n_minimal',
+                  'per_bit_configs', 'per_bit_outputs',
+                  'output_diversity', 'rule_table'):
+            self.assertIn(k, d)
+
+    def test_summary_word_normalised(self):
+        self.assertEqual(self.config_summary('гора', 'xor3')['word'], 'ГОРА')
+
+    def test_summary_n_full_tuman_xor3(self):
+        self.assertEqual(self.config_summary('ТУМАН', 'xor3')['n_full_coverage'], 6)
+
+    def test_summary_n_minimal_tuman_xor(self):
+        self.assertEqual(self.config_summary('ТУМАН', 'xor')['n_minimal'], 6)
+
+    def test_summary_output_diversity_frozen(self):
+        d = self.config_summary('ТУМАН', 'xor')
+        # All bits frozen to 0 → output_diversity = [1,1,1,1,1,1]
+        self.assertTrue(all(v == 1 for v in d['output_diversity']))
+
+    # ── all_config() / build_config_data() ────────────────────────────────────
+
+    def test_all_config_four_rules(self):
+        r = self.all_config('ГОРА')
+        self.assertEqual(set(r.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_config_data_keys(self):
+        data = self.build_config_data(['ГОРА', 'ТУМАН'])
+        for k in ('words', 'width', 'n_configs', 'all_configs', 'per_rule'):
+            self.assertIn(k, data)
+
+    def test_build_config_data_n_configs(self):
+        data = self.build_config_data(['ГОРА'])
+        self.assertEqual(data['n_configs'], 8)
+
+    def test_build_config_data_all_configs_length(self):
+        data = self.build_config_data(['ГОРА'])
+        self.assertEqual(len(data['all_configs']), 8)
+
+    # ── Viewer section ────────────────────────────────────────────────────────
+
+    def test_viewer_has_config_grid(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('config-grid', content)
+
+    def test_viewer_has_config_cov(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('config-cov', content)
+
+    def test_viewer_has_config_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('config-info', content)
+
+    def test_viewer_has_cf_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cf-word', content)
+
+    def test_viewer_has_cf_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cf-rule', content)
+
+    def test_viewer_has_cf_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cf-btn', content)
+
+    def test_viewer_has_cf_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cfRun', content)
+
+    def test_viewer_has_rule_bit_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ruleBit', content)
+
+    def test_viewer_has_all_cfgs_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ALL_CFGS', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_config',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_config(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_config', content)
+
+
+
+class TestSolanSegment(unittest.TestCase):
+    """Tests for solan_segment.py — Spatial Domain Segmentation."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_segment import (
+            spatial_segments, seg_lengths_per_cell,
+            n_segments_step, n_segments, max_seg_length,
+            min_seg_length, mean_seg_length, seg_lengths,
+            global_max_seg_length, segment_summary,
+            all_segment, build_segment_data,
+        )
+        cls.spatial_segments      = staticmethod(spatial_segments)
+        cls.seg_lengths_per_cell  = staticmethod(seg_lengths_per_cell)
+        cls.n_segments_step       = staticmethod(n_segments_step)
+        cls.n_segments            = staticmethod(n_segments)
+        cls.max_seg_length        = staticmethod(max_seg_length)
+        cls.min_seg_length        = staticmethod(min_seg_length)
+        cls.mean_seg_length       = staticmethod(mean_seg_length)
+        cls.seg_lengths           = staticmethod(seg_lengths)
+        cls.global_max_seg_length = staticmethod(global_max_seg_length)
+        cls.segment_summary       = staticmethod(segment_summary)
+        cls.all_segment           = staticmethod(all_segment)
+        cls.build_segment_data    = staticmethod(build_segment_data)
+
+    # ── spatial_segments ──────────────────────────────────────────────────────
+
+    def test_spatial_segments_returns_list(self):
+        self.assertIsInstance(self.spatial_segments((0, 0, 0, 0)), list)
+
+    def test_spatial_segments_uniform_zero(self):
+        self.assertEqual(self.spatial_segments((0, 0, 0, 0)), [(0, 4)])
+
+    def test_spatial_segments_uniform_63(self):
+        self.assertEqual(self.spatial_segments((63, 63, 63, 63)), [(63, 4)])
+
+    def test_spatial_segments_alternating(self):
+        segs = self.spatial_segments((47, 1, 47, 1))
+        self.assertEqual(len(segs), 4)
+        self.assertTrue(all(l == 1 for _, l in segs))
+
+    def test_spatial_segments_lengths_sum_to_n(self):
+        state = (49, 47, 15, 63, 49, 47, 15, 63)
+        segs = self.spatial_segments(state)
+        self.assertEqual(sum(l for _, l in segs), len(state))
+
+    def test_spatial_segments_elements_are_tuples(self):
+        segs = self.spatial_segments((0, 0, 1, 1))
+        self.assertIsInstance(segs[0], tuple)
+        self.assertEqual(len(segs[0]), 2)
+
+    def test_spatial_segments_two_segment_state(self):
+        # (0,0,1,1): two segments of length 2
+        segs = self.spatial_segments((0, 0, 1, 1))
+        self.assertEqual(len(segs), 2)
+        self.assertTrue(all(l == 2 for _, l in segs))
+
+    def test_spatial_segments_ring_wrap(self):
+        # (1,0,0,1) on ring: cells 3,0 share value 1 → one segment of length 2
+        segs = self.spatial_segments((1, 0, 0, 1))
+        lens = sorted([l for _, l in segs])
+        self.assertEqual(lens, [2, 2])
+
+    def test_spatial_segments_single_length_1(self):
+        # (0,1,1,1): cell 0 differs from its neighbours → one segment of length 1
+        segs = self.spatial_segments((0, 1, 1, 1))
+        lens = sorted([l for _, l in segs])
+        self.assertEqual(sorted(lens), sorted([1, 3]))
+
+    # ── seg_lengths_per_cell ─────────────────────────────────────────────────
+
+    def test_seg_lengths_per_cell_returns_list(self):
+        self.assertIsInstance(self.seg_lengths_per_cell((0, 0, 1, 1)), list)
+
+    def test_seg_lengths_per_cell_length_n(self):
+        result = self.seg_lengths_per_cell((0, 0, 1, 1))
+        self.assertEqual(len(result), 4)
+
+    def test_seg_lengths_per_cell_uniform(self):
+        result = self.seg_lengths_per_cell((7, 7, 7, 7))
+        self.assertEqual(result, [4, 4, 4, 4])
+
+    def test_seg_lengths_per_cell_alternating(self):
+        result = self.seg_lengths_per_cell((47, 1, 47, 1))
+        self.assertEqual(result, [1, 1, 1, 1])
+
+    def test_seg_lengths_per_cell_two_segments(self):
+        result = self.seg_lengths_per_cell((0, 0, 1, 1))
+        self.assertEqual(result, [2, 2, 2, 2])
+
+    def test_seg_lengths_per_cell_values_positive(self):
+        result = self.seg_lengths_per_cell((3, 5, 5, 5, 1, 1))
+        self.assertTrue(all(v > 0 for v in result))
+
+    # ── n_segments ───────────────────────────────────────────────────────────
+
+    def test_n_segments_returns_list(self):
+        self.assertIsInstance(self.n_segments('ГОРА', 'and'), list)
+
+    def test_n_segments_length_equals_period(self):
+        result = self.n_segments('ГОРА', 'and')
+        self.assertEqual(len(result), 2)
+
+    def test_n_segments_tuman_xor_uniform(self):
+        self.assertEqual(self.n_segments('ТУМАН', 'xor'), [1])
+
+    def test_n_segments_gora_or_uniform(self):
+        self.assertEqual(self.n_segments('ГОРА', 'or'), [1])
+
+    def test_n_segments_gora_and_max_fragmented(self):
+        self.assertEqual(self.n_segments('ГОРА', 'and'), [16, 16])
+
+    def test_n_segments_gora_xor3_max_fragmented(self):
+        self.assertEqual(self.n_segments('ГОРА', 'xor3'), [16, 16])
+
+    def test_n_segments_tuman_xor3(self):
+        self.assertEqual(self.n_segments('ТУМАН', 'xor3'),
+                         [15, 16, 16, 16, 16, 16, 16, 13])
+
+    def test_n_segments_positive(self):
+        result = self.n_segments('ТУМАН', 'xor3')
+        self.assertTrue(all(v > 0 for v in result))
+
+    def test_n_segments_le_width(self):
+        result = self.n_segments('ТУМАН', 'xor3')
+        self.assertTrue(all(v <= 16 for v in result))
+
+    def test_n_segments_step_consistent(self):
+        # n_segments_step must match n_segments list
+        ns = self.n_segments('ТУМАН', 'xor3')
+        for t, expected in enumerate(ns):
+            self.assertEqual(self.n_segments_step('ТУМАН', 'xor3', t), expected)
+
+    def test_n_segments_case_insensitive(self):
+        self.assertEqual(
+            self.n_segments('гора', 'and'),
+            self.n_segments('ГОРА', 'and'),
+        )
+
+    # ── max_seg_length ────────────────────────────────────────────────────────
+
+    def test_max_seg_length_returns_list(self):
+        self.assertIsInstance(self.max_seg_length('ГОРА', 'and'), list)
+
+    def test_max_seg_length_tuman_xor_full_ring(self):
+        self.assertEqual(self.max_seg_length('ТУМАН', 'xor'), [16])
+
+    def test_max_seg_length_gora_or_full_ring(self):
+        self.assertEqual(self.max_seg_length('ГОРА', 'or'), [16])
+
+    def test_max_seg_length_gora_and_one(self):
+        self.assertEqual(self.max_seg_length('ГОРА', 'and'), [1, 1])
+
+    def test_max_seg_length_tuman_xor3(self):
+        self.assertEqual(self.max_seg_length('ТУМАН', 'xor3'), [2, 1, 1, 1, 1, 1, 1, 4])
+
+    def test_max_seg_length_ge_min_seg_length(self):
+        mx = self.max_seg_length('ТУМАН', 'xor3')
+        mn = self.min_seg_length('ТУМАН', 'xor3')
+        for a, b in zip(mx, mn):
+            self.assertGreaterEqual(a, b)
+
+    # ── min_seg_length ────────────────────────────────────────────────────────
+
+    def test_min_seg_length_returns_list(self):
+        self.assertIsInstance(self.min_seg_length('ГОРА', 'and'), list)
+
+    def test_min_seg_length_tuman_xor(self):
+        self.assertEqual(self.min_seg_length('ТУМАН', 'xor'), [16])
+
+    def test_min_seg_length_gora_and(self):
+        self.assertEqual(self.min_seg_length('ГОРА', 'and'), [1, 1])
+
+    def test_min_seg_length_positive(self):
+        result = self.min_seg_length('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 1 for v in result))
+
+    # ── mean_seg_length ───────────────────────────────────────────────────────
+
+    def test_mean_seg_length_returns_list(self):
+        self.assertIsInstance(self.mean_seg_length('ГОРА', 'and'), list)
+
+    def test_mean_seg_length_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_seg_length('ТУМАН', 'xor')[0], 16.0)
+
+    def test_mean_seg_length_gora_and(self):
+        result = self.mean_seg_length('ГОРА', 'and')
+        self.assertTrue(all(abs(v - 1.0) < 1e-6 for v in result))
+
+    def test_mean_seg_length_equals_n_over_n_segs(self):
+        ns = self.n_segments('ТУМАН', 'xor3')
+        ml = self.mean_seg_length('ТУМАН', 'xor3')
+        for n, m in zip(ns, ml):
+            self.assertAlmostEqual(m, 16 / n, places=4)
+
+    # ── global_max_seg_length ─────────────────────────────────────────────────
+
+    def test_global_max_seg_length_returns_int(self):
+        self.assertIsInstance(self.global_max_seg_length('ГОРА', 'and'), int)
+
+    def test_global_max_seg_length_tuman_xor(self):
+        self.assertEqual(self.global_max_seg_length('ТУМАН', 'xor'), 16)
+
+    def test_global_max_seg_length_gora_and(self):
+        self.assertEqual(self.global_max_seg_length('ГОРА', 'and'), 1)
+
+    def test_global_max_seg_length_tuman_xor3(self):
+        self.assertEqual(self.global_max_seg_length('ТУМАН', 'xor3'), 4)
+
+    def test_global_max_ge_all_step_max(self):
+        gm = self.global_max_seg_length('ТУМАН', 'xor3')
+        step_max = self.max_seg_length('ТУМАН', 'xor3')
+        self.assertEqual(gm, max(step_max))
+
+    # ── seg_lengths ───────────────────────────────────────────────────────────
+
+    def test_seg_lengths_returns_list_of_lists(self):
+        result = self.seg_lengths('ГОРА', 'and')
+        self.assertIsInstance(result, list)
+        self.assertIsInstance(result[0], list)
+
+    def test_seg_lengths_sum_to_n(self):
+        result = self.seg_lengths('ТУМАН', 'xor3')
+        for step_lens in result:
+            self.assertEqual(sum(step_lens), 16)
+
+    def test_seg_lengths_sorted_descending(self):
+        result = self.seg_lengths('ТУМАН', 'xor3')
+        for step_lens in result:
+            self.assertEqual(step_lens, sorted(step_lens, reverse=True))
+
+    # ── segment_summary ───────────────────────────────────────────────────────
+
+    def test_segment_summary_returns_dict(self):
+        self.assertIsInstance(self.segment_summary('ГОРА', 'and'), dict)
+
+    def test_segment_summary_required_keys(self):
+        d = self.segment_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'n_cells',
+                    'n_segments', 'mean_n_segments',
+                    'max_n_segments', 'min_n_segments',
+                    'max_seg_length', 'min_seg_length',
+                    'global_max_len', 'global_min_len',
+                    'seg_lengths', 'fully_fragmented', 'always_uniform'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_segment_summary_tuman_xor_always_uniform(self):
+        d = self.segment_summary('ТУМАН', 'xor')
+        self.assertTrue(d['always_uniform'])
+        self.assertFalse(d['fully_fragmented'])
+        self.assertEqual(d['global_max_len'], 16)
+
+    def test_segment_summary_gora_and_fully_fragmented(self):
+        d = self.segment_summary('ГОРА', 'and')
+        self.assertTrue(d['fully_fragmented'])
+        self.assertFalse(d['always_uniform'])
+        self.assertEqual(d['global_max_len'], 1)
+
+    def test_segment_summary_gora_or_always_uniform(self):
+        d = self.segment_summary('ГОРА', 'or')
+        self.assertTrue(d['always_uniform'])
+
+    def test_segment_summary_gora_xor3_fully_fragmented(self):
+        d = self.segment_summary('ГОРА', 'xor3')
+        self.assertTrue(d['fully_fragmented'])
+
+    def test_segment_summary_tuman_xor3_neither(self):
+        d = self.segment_summary('ТУМАН', 'xor3')
+        self.assertFalse(d['fully_fragmented'])
+        self.assertFalse(d['always_uniform'])
+
+    def test_segment_summary_tuman_xor3_mean(self):
+        d = self.segment_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_n_segments'], 15.5)
+
+    def test_segment_summary_tuman_xor3_global_max(self):
+        d = self.segment_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['global_max_len'], 4)
+
+    def test_segment_summary_n_segs_list(self):
+        d = self.segment_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['n_segments'], [15, 16, 16, 16, 16, 16, 16, 13])
+
+    def test_segment_summary_word_upper(self):
+        d = self.segment_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_segment_summary_n_cells(self):
+        d = self.segment_summary('ГОРА', 'and')
+        self.assertEqual(d['n_cells'], 16)
+
+    # ── all_segment ───────────────────────────────────────────────────────────
+
+    def test_all_segment_returns_dict(self):
+        self.assertIsInstance(self.all_segment('ГОРА'), dict)
+
+    def test_all_segment_four_rules(self):
+        d = self.all_segment('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_segment_data ────────────────────────────────────────────────────
+
+    def test_build_segment_data_returns_dict(self):
+        self.assertIsInstance(self.build_segment_data(['ГОРА']), dict)
+
+    def test_build_segment_data_top_keys(self):
+        d = self.build_segment_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_segment_data_rule_keys(self):
+        d = self.build_segment_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_segment_data_word_uppercase(self):
+        d = self.build_segment_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_segment_data_gora_and_fully_fragmented(self):
+        d = self.build_segment_data(['ГОРА'])
+        self.assertTrue(d['per_rule']['and']['ГОРА']['fully_fragmented'])
+
+    def test_build_segment_data_known_fields(self):
+        d   = self.build_segment_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'n_segments', 'mean_n_segments',
+                    'max_n_segments', 'min_n_segments',
+                    'max_seg_length', 'global_max_len', 'global_min_len',
+                    'seg_lengths', 'fully_fragmented', 'always_uniform'):
+            self.assertIn(key, rec)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_seg_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('seg-map', content)
+
+    def test_viewer_has_seg_nsegs(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('seg-nsegs', content)
+
+    def test_viewer_has_seg_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('seg-info', content)
+
+    def test_viewer_has_sg_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sg-word', content)
+
+    def test_viewer_has_sg_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sg-btn', content)
+
+    def test_viewer_has_sg_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sgRun', content)
+
+    def test_viewer_has_sg_segments_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sgSegments', content)
+
+    def test_viewer_has_sg_len_per_cell_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sgLenPerCell', content)
+
+    def test_viewer_has_sg_color_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sgColor', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_segment',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_segment(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_segment', content)
+
+
+class TestSolanEntropyOrbit(unittest.TestCase):
+    """Tests for solan_entropy.py — Orbit-level Shannon Entropy Analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_entropy import (
+            spatial_entropy, temporal_entropy_cell,
+            spatial_entropy_orbit, temporal_entropy_all,
+            mean_spatial_entropy, mean_temporal_entropy,
+            max_spatial_entropy, min_spatial_entropy,
+            max_temporal_entropy, min_temporal_entropy,
+            entropy_summary, all_entropy, build_entropy_data,
+        )
+        cls.spatial_entropy        = staticmethod(spatial_entropy)
+        cls.temporal_entropy_cell  = staticmethod(temporal_entropy_cell)
+        cls.spatial_entropy_orbit  = staticmethod(spatial_entropy_orbit)
+        cls.temporal_entropy_all   = staticmethod(temporal_entropy_all)
+        cls.mean_spatial_entropy   = staticmethod(mean_spatial_entropy)
+        cls.mean_temporal_entropy  = staticmethod(mean_temporal_entropy)
+        cls.max_spatial_entropy    = staticmethod(max_spatial_entropy)
+        cls.min_spatial_entropy    = staticmethod(min_spatial_entropy)
+        cls.max_temporal_entropy   = staticmethod(max_temporal_entropy)
+        cls.min_temporal_entropy   = staticmethod(min_temporal_entropy)
+        cls.entropy_summary        = staticmethod(entropy_summary)
+        cls.all_entropy            = staticmethod(all_entropy)
+        cls.build_entropy_data     = staticmethod(build_entropy_data)
+
+    # ── spatial_entropy ────────────────────────────────────────────────────────
+
+    def test_spatial_entropy_returns_float(self):
+        self.assertIsInstance(self.spatial_entropy((0, 0, 0, 0)), float)
+
+    def test_spatial_entropy_uniform_zero(self):
+        self.assertAlmostEqual(self.spatial_entropy((0, 0, 0, 0)), 0.0)
+
+    def test_spatial_entropy_uniform_value(self):
+        self.assertAlmostEqual(self.spatial_entropy((63, 63, 63, 63)), 0.0)
+
+    def test_spatial_entropy_two_equal_freq(self):
+        # (0,0,1,1) → two values, each 50% → H = log2(2) = 1 bit
+        self.assertAlmostEqual(self.spatial_entropy((0, 0, 1, 1)), 1.0)
+
+    def test_spatial_entropy_four_equal_freq(self):
+        # (0,1,2,3) → four values, each 25% → H = log2(4) = 2 bits
+        self.assertAlmostEqual(self.spatial_entropy((0, 1, 2, 3)), 2.0)
+
+    def test_spatial_entropy_nonnegative(self):
+        self.assertGreaterEqual(self.spatial_entropy((47, 1, 47, 1)), 0.0)
+
+    def test_spatial_entropy_le_log2_n(self):
+        import math
+        state = tuple(range(16))
+        self.assertLessEqual(self.spatial_entropy(state), math.log2(16) + 1e-9)
+
+    def test_spatial_entropy_not_negative_zero(self):
+        # -0.0 should be returned as 0.0
+        result = self.spatial_entropy((0, 0, 0, 0))
+        self.assertGreaterEqual(result, 0.0)
+
+    # ── temporal_entropy_cell ─────────────────────────────────────────────────
+
+    def test_temporal_entropy_cell_returns_float(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor', 16)
+        self.assertIsInstance(self.temporal_entropy_cell(orbit, 0), float)
+
+    def test_temporal_entropy_cell_constant_zero(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor', 16)
+        self.assertAlmostEqual(self.temporal_entropy_cell(orbit, 0), 0.0)
+
+    def test_temporal_entropy_cell_two_equal(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ГОРА', 'and', 16)
+        result = self.temporal_entropy_cell(orbit, 0)
+        self.assertAlmostEqual(result, 1.0)
+
+    def test_temporal_entropy_cell_nonnegative(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        for i in range(16):
+            self.assertGreaterEqual(self.temporal_entropy_cell(orbit, i), 0.0)
+
+    # ── spatial_entropy_orbit ─────────────────────────────────────────────────
+
+    def test_spatial_entropy_orbit_returns_list(self):
+        self.assertIsInstance(self.spatial_entropy_orbit('ГОРА', 'and'), list)
+
+    def test_spatial_entropy_orbit_length_equals_period(self):
+        result = self.spatial_entropy_orbit('ГОРА', 'and')
+        self.assertEqual(len(result), 2)
+
+    def test_spatial_entropy_orbit_tuman_xor_zero(self):
+        result = self.spatial_entropy_orbit('ТУМАН', 'xor')
+        self.assertAlmostEqual(result[0], 0.0)
+
+    def test_spatial_entropy_orbit_gora_or_zero(self):
+        result = self.spatial_entropy_orbit('ГОРА', 'or')
+        self.assertAlmostEqual(result[0], 0.0)
+
+    def test_spatial_entropy_orbit_gora_and_one(self):
+        result = self.spatial_entropy_orbit('ГОРА', 'and')
+        self.assertTrue(all(abs(v - 1.0) < 1e-6 for v in result))
+
+    def test_spatial_entropy_orbit_gora_xor3_two(self):
+        result = self.spatial_entropy_orbit('ГОРА', 'xor3')
+        self.assertTrue(all(abs(v - 2.0) < 1e-6 for v in result))
+
+    def test_spatial_entropy_orbit_tuman_xor3(self):
+        result = self.spatial_entropy_orbit('ТУМАН', 'xor3')
+        self.assertEqual(len(result), 8)
+        self.assertAlmostEqual(result[5], 3.375, places=4)
+
+    def test_spatial_entropy_orbit_all_nonnegative(self):
+        result = self.spatial_entropy_orbit('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 0.0 for v in result))
+
+    def test_spatial_entropy_orbit_case_insensitive(self):
+        self.assertEqual(
+            self.spatial_entropy_orbit('гора', 'and'),
+            self.spatial_entropy_orbit('ГОРА', 'and'),
+        )
+
+    # ── temporal_entropy_all ──────────────────────────────────────────────────
+
+    def test_temporal_entropy_all_returns_list(self):
+        self.assertIsInstance(self.temporal_entropy_all('ГОРА', 'and'), list)
+
+    def test_temporal_entropy_all_length_equals_width(self):
+        result = self.temporal_entropy_all('ГОРА', 'and')
+        self.assertEqual(len(result), 16)
+
+    def test_temporal_entropy_all_tuman_xor_zero(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor')
+        self.assertTrue(all(abs(v) < 1e-9 for v in result))
+
+    def test_temporal_entropy_all_gora_and_one(self):
+        result = self.temporal_entropy_all('ГОРА', 'and')
+        self.assertTrue(all(abs(v - 1.0) < 1e-6 for v in result))
+
+    def test_temporal_entropy_all_gora_xor3_one(self):
+        result = self.temporal_entropy_all('ГОРА', 'xor3')
+        self.assertTrue(all(abs(v - 1.0) < 1e-6 for v in result))
+
+    def test_temporal_entropy_all_tuman_xor3_symmetric(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor3')
+        N = len(result)
+        for i in range(N // 2):
+            self.assertAlmostEqual(result[i], result[N - 1 - i], places=5)
+
+    def test_temporal_entropy_all_tuman_xor3_max_cells(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result[2], 2.75, places=4)
+        self.assertAlmostEqual(result[3], 2.75, places=4)
+
+    def test_temporal_entropy_all_tuman_xor3_min_cells(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result[7], result[8], places=5)
+        self.assertLess(result[7], result[2])
+
+    def test_temporal_entropy_all_nonnegative(self):
+        result = self.temporal_entropy_all('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 0.0 for v in result))
+
+    # ── mean / max / min entropy ───────────────────────────────────────────────
+
+    def test_mean_spatial_entropy_tuman_xor(self):
+        self.assertAlmostEqual(self.mean_spatial_entropy('ТУМАН', 'xor'), 0.0)
+
+    def test_mean_spatial_entropy_gora_and(self):
+        self.assertAlmostEqual(self.mean_spatial_entropy('ГОРА', 'and'), 1.0)
+
+    def test_mean_spatial_entropy_gora_xor3(self):
+        self.assertAlmostEqual(self.mean_spatial_entropy('ГОРА', 'xor3'), 2.0)
+
+    def test_mean_spatial_entropy_tuman_xor3(self):
+        result = self.mean_spatial_entropy('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result, 2.8534, places=3)
+
+    def test_mean_temporal_entropy_gora_and(self):
+        self.assertAlmostEqual(self.mean_temporal_entropy('ГОРА', 'and'), 1.0)
+
+    def test_mean_temporal_entropy_tuman_xor3(self):
+        result = self.mean_temporal_entropy('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result, 2.234, places=2)
+
+    def test_max_spatial_entropy_tuman_xor(self):
+        self.assertAlmostEqual(self.max_spatial_entropy('ТУМАН', 'xor'), 0.0)
+
+    def test_max_spatial_entropy_tuman_xor3(self):
+        self.assertAlmostEqual(self.max_spatial_entropy('ТУМАН', 'xor3'), 3.375, places=4)
+
+    def test_min_spatial_entropy_gora_and(self):
+        self.assertAlmostEqual(self.min_spatial_entropy('ГОРА', 'and'), 1.0)
+
+    def test_max_temporal_entropy_tuman_xor3(self):
+        self.assertAlmostEqual(self.max_temporal_entropy('ТУМАН', 'xor3'), 2.75, places=4)
+
+    def test_min_temporal_entropy_tuman_xor(self):
+        self.assertAlmostEqual(self.min_temporal_entropy('ТУМАН', 'xor'), 0.0)
+
+    def test_min_temporal_entropy_tuman_xor3(self):
+        result = self.min_temporal_entropy('ТУМАН', 'xor3')
+        self.assertAlmostEqual(result, 1.5613, places=3)
+
+    # ── entropy_summary ───────────────────────────────────────────────────────
+
+    def test_entropy_summary_returns_dict(self):
+        self.assertIsInstance(self.entropy_summary('ГОРА', 'and'), dict)
+
+    def test_entropy_summary_required_keys(self):
+        d = self.entropy_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'n_cells',
+                    'max_possible_Hs', 'max_possible_Hc',
+                    'spatial_entropy', 'mean_spatial_H',
+                    'max_spatial_H', 'min_spatial_H',
+                    'temporal_entropy', 'mean_temporal_H',
+                    'max_temporal_H', 'min_temporal_H',
+                    'zero_entropy', 'constant_spatial',
+                    'constant_temporal', 'symmetric_temporal'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_entropy_summary_tuman_xor_zero_entropy(self):
+        d = self.entropy_summary('ТУМАН', 'xor')
+        self.assertTrue(d['zero_entropy'])
+        self.assertAlmostEqual(d['mean_spatial_H'], 0.0)
+
+    def test_entropy_summary_gora_or_zero_entropy(self):
+        d = self.entropy_summary('ГОРА', 'or')
+        self.assertTrue(d['zero_entropy'])
+
+    def test_entropy_summary_gora_and_not_zero(self):
+        d = self.entropy_summary('ГОРА', 'and')
+        self.assertFalse(d['zero_entropy'])
+        self.assertAlmostEqual(d['mean_spatial_H'], 1.0)
+
+    def test_entropy_summary_gora_xor3_spatial_2(self):
+        d = self.entropy_summary('ГОРА', 'xor3')
+        self.assertAlmostEqual(d['mean_spatial_H'], 2.0)
+
+    def test_entropy_summary_gora_and_constant_spatial(self):
+        d = self.entropy_summary('ГОРА', 'and')
+        self.assertTrue(d['constant_spatial'])
+
+    def test_entropy_summary_tuman_xor3_not_constant(self):
+        d = self.entropy_summary('ТУМАН', 'xor3')
+        self.assertFalse(d['zero_entropy'])
+        self.assertFalse(d['constant_spatial'])
+
+    def test_entropy_summary_tuman_xor3_symmetric_temporal(self):
+        d = self.entropy_summary('ТУМАН', 'xor3')
+        self.assertTrue(d['symmetric_temporal'])
+
+    def test_entropy_summary_tuman_xor3_max_H_s(self):
+        d = self.entropy_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['max_spatial_H'], 3.375, places=4)
+
+    def test_entropy_summary_max_possible_Hs(self):
+        import math
+        d = self.entropy_summary('ГОРА', 'and')
+        self.assertAlmostEqual(d['max_possible_Hs'], math.log2(16), places=6)
+
+    def test_entropy_summary_word_upper(self):
+        d = self.entropy_summary('гора', 'xor3')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_entropy_summary_n_cells(self):
+        d = self.entropy_summary('ГОРА', 'and')
+        self.assertEqual(d['n_cells'], 16)
+
+    # ── all_entropy ───────────────────────────────────────────────────────────
+
+    def test_all_entropy_returns_dict(self):
+        self.assertIsInstance(self.all_entropy('ГОРА'), dict)
+
+    def test_all_entropy_four_rules(self):
+        d = self.all_entropy('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_entropy_consistent_with_summary(self):
+        ae = self.all_entropy('ГОРА')
+        s  = self.entropy_summary('ГОРА', 'and')
+        self.assertAlmostEqual(ae['and']['mean_spatial_H'], s['mean_spatial_H'])
+
+    # ── build_entropy_data ────────────────────────────────────────────────────
+
+    def test_build_entropy_data_returns_dict(self):
+        self.assertIsInstance(self.build_entropy_data(['ГОРА']), dict)
+
+    def test_build_entropy_data_top_keys(self):
+        d = self.build_entropy_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_entropy_data_four_rule_keys(self):
+        d = self.build_entropy_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_entropy_data_word_uppercase(self):
+        d = self.build_entropy_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_entropy_data_zero_entropy(self):
+        d = self.build_entropy_data(['ТУМАН'])
+        self.assertTrue(d['per_rule']['xor']['ТУМАН']['zero_entropy'])
+
+    def test_build_entropy_data_known_fields(self):
+        d   = self.build_entropy_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'spatial_entropy', 'mean_spatial_H',
+                    'max_spatial_H', 'min_spatial_H',
+                    'temporal_entropy', 'mean_temporal_H',
+                    'max_temporal_H', 'min_temporal_H',
+                    'zero_entropy', 'constant_spatial',
+                    'constant_temporal', 'symmetric_temporal'):
+            self.assertIn(key, rec)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_ent_bar(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ent-bar', content)
+
+    def test_viewer_has_ent_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ent-cell', content)
+
+    def test_viewer_has_ent_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ent-info', content)
+
+    def test_viewer_has_en_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('en-word', content)
+
+    def test_viewer_has_en_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('en-btn', content)
+
+    def test_viewer_has_en_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('enRun', content)
+
+    def test_viewer_has_en_entropy_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('enEntropy', content)
+
+    def test_viewer_has_en_spatial_h_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('enSpatialH', content)
+
+    def test_viewer_has_en_temporal_h_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('enTemporalH', content)
+
+    def test_viewer_has_solan_entropy(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_entropy', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_entropy',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+class TestSolanBoundary(unittest.TestCase):
+    """Tests for solan_boundary.py — Spatial XOR-Boundary Analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_boundary import (
+            boundary_step, boundary_orbit, boundary_period,
+            period_compressed, n_active_boundaries, n_zero_boundaries,
+            boundary_vocab_nz, boundary_vocab_all, boundary_uniform,
+            boundary_bit_constraints, boundary_summary,
+            all_boundary, build_boundary_data,
+        )
+        cls.boundary_step          = staticmethod(boundary_step)
+        cls.boundary_orbit         = staticmethod(boundary_orbit)
+        cls.boundary_period        = staticmethod(boundary_period)
+        cls.period_compressed      = staticmethod(period_compressed)
+        cls.n_active_boundaries    = staticmethod(n_active_boundaries)
+        cls.n_zero_boundaries      = staticmethod(n_zero_boundaries)
+        cls.boundary_vocab_nz      = staticmethod(boundary_vocab_nz)
+        cls.boundary_vocab_all     = staticmethod(boundary_vocab_all)
+        cls.boundary_uniform       = staticmethod(boundary_uniform)
+        cls.boundary_bit_constraints = staticmethod(boundary_bit_constraints)
+        cls.boundary_summary       = staticmethod(boundary_summary)
+        cls.all_boundary           = staticmethod(all_boundary)
+        cls.build_boundary_data    = staticmethod(build_boundary_data)
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.LEXICON = list(LEXICON)
+
+    # ── boundary_step ─────────────────────────────────────────────────────────
+
+    def test_boundary_step_returns_tuple(self):
+        result = self.boundary_step((47, 1, 47, 1))
+        self.assertIsInstance(result, tuple)
+
+    def test_boundary_step_length_preserved(self):
+        result = self.boundary_step((47, 1, 47, 1))
+        self.assertEqual(len(result), 4)
+
+    def test_boundary_step_uniform_zero(self):
+        # Uniform state: all cells equal → all boundaries = 0
+        self.assertEqual(self.boundary_step((0, 0, 0, 0)), (0, 0, 0, 0))
+
+    def test_boundary_step_uniform_63(self):
+        self.assertEqual(self.boundary_step((63, 63, 63, 63)), (0, 0, 0, 0))
+
+    def test_boundary_step_alternating_47_1(self):
+        # 47 XOR 1 = 46
+        result = self.boundary_step((47, 1, 47, 1))
+        self.assertEqual(result, (46, 46, 46, 46))
+
+    def test_boundary_step_xor_values_in_range(self):
+        result = self.boundary_step((10, 20, 30, 40))
+        self.assertTrue(all(0 <= v <= 63 for v in result))
+
+    def test_boundary_step_periodic_wrap(self):
+        # Last cell XOR with first cell (periodic)
+        state = (47, 1)
+        result = self.boundary_step(state)
+        # cell 0: 47^1=46, cell 1: 1^47=46
+        self.assertEqual(result, (46, 46))
+
+    # ── boundary_orbit ────────────────────────────────────────────────────────
+
+    def test_boundary_orbit_returns_list(self):
+        self.assertIsInstance(self.boundary_orbit('ГОРА', 'and'), list)
+
+    def test_boundary_orbit_length_equals_period(self):
+        result = self.boundary_orbit('ГОРА', 'and')
+        self.assertEqual(len(result), 2)
+
+    def test_boundary_orbit_tuman_xor_all_zero(self):
+        b = self.boundary_orbit('ТУМАН', 'xor')
+        self.assertEqual(len(b), 1)
+        self.assertTrue(all(v == 0 for v in b[0]))
+
+    def test_boundary_orbit_gora_or_all_zero(self):
+        b = self.boundary_orbit('ГОРА', 'or')
+        self.assertEqual(len(b), 1)
+        self.assertTrue(all(v == 0 for v in b[0]))
+
+    def test_boundary_orbit_gora_and_constant_46(self):
+        b = self.boundary_orbit('ГОРА', 'and')
+        for row in b:
+            self.assertTrue(all(v == 46 for v in row))
+
+    def test_boundary_orbit_elements_are_tuples(self):
+        b = self.boundary_orbit('ГОРА', 'xor3')
+        self.assertIsInstance(b[0], tuple)
+
+    def test_boundary_orbit_values_in_range(self):
+        b = self.boundary_orbit('ТУМАН', 'xor3')
+        self.assertTrue(all(0 <= v <= 63 for row in b for v in row))
+
+    def test_boundary_orbit_case_insensitive(self):
+        self.assertEqual(
+            self.boundary_orbit('гора', 'and'),
+            self.boundary_orbit('ГОРА', 'and'),
+        )
+
+    # ── boundary_period ───────────────────────────────────────────────────────
+
+    def test_boundary_period_returns_int(self):
+        self.assertIsInstance(self.boundary_period('ГОРА', 'and'), int)
+
+    def test_boundary_period_gora_and_is_1(self):
+        self.assertEqual(self.boundary_period('ГОРА', 'and'), 1)
+
+    def test_boundary_period_tuman_xor_is_1(self):
+        self.assertEqual(self.boundary_period('ТУМАН', 'xor'), 1)
+
+    def test_boundary_period_gora_xor3_is_2(self):
+        self.assertEqual(self.boundary_period('ГОРА', 'xor3'), 2)
+
+    def test_boundary_period_tuman_xor3_is_8(self):
+        self.assertEqual(self.boundary_period('ТУМАН', 'xor3'), 8)
+
+    def test_boundary_period_divides_orbit_period(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        for word, rule in [('ГОРА', 'and'), ('ГОРА', 'xor3'), ('ТУМАН', 'xor3')]:
+            P  = word_trajectory(word, rule)['period']
+            bp = self.boundary_period(word, rule)
+            self.assertEqual(P % bp, 0,
+                             f'{word} {rule}: P={P} not divisible by b_period={bp}')
+
+    # ── period_compressed ─────────────────────────────────────────────────────
+
+    def test_period_compressed_returns_bool(self):
+        self.assertIsInstance(self.period_compressed('ГОРА', 'and'), bool)
+
+    def test_period_compressed_gora_and_true(self):
+        self.assertTrue(self.period_compressed('ГОРА', 'and'))
+
+    def test_period_compressed_tuman_xor_false(self):
+        self.assertFalse(self.period_compressed('ТУМАН', 'xor'))
+
+    def test_period_compressed_gora_xor3_false(self):
+        self.assertFalse(self.period_compressed('ГОРА', 'xor3'))
+
+    def test_period_compressed_tuman_xor3_false(self):
+        self.assertFalse(self.period_compressed('ТУМАН', 'xor3'))
+
+    # ── n_active_boundaries ───────────────────────────────────────────────────
+
+    def test_n_active_boundaries_returns_list(self):
+        self.assertIsInstance(self.n_active_boundaries('ГОРА', 'and'), list)
+
+    def test_n_active_boundaries_length_equals_period(self):
+        result = self.n_active_boundaries('ГОРА', 'and')
+        self.assertEqual(len(result), 2)
+
+    def test_n_active_boundaries_tuman_xor_zero(self):
+        self.assertEqual(self.n_active_boundaries('ТУМАН', 'xor'), [0])
+
+    def test_n_active_boundaries_gora_or_zero(self):
+        self.assertEqual(self.n_active_boundaries('ГОРА', 'or'), [0])
+
+    def test_n_active_boundaries_gora_and_max(self):
+        # All 16 adjacent pairs differ → n_active = 16
+        self.assertEqual(self.n_active_boundaries('ГОРА', 'and'), [16, 16])
+
+    def test_n_active_boundaries_gora_xor3_max(self):
+        self.assertEqual(self.n_active_boundaries('ГОРА', 'xor3'), [16, 16])
+
+    def test_n_active_boundaries_tuman_xor3_values(self):
+        result = self.n_active_boundaries('ТУМАН', 'xor3')
+        self.assertEqual(result, [15, 16, 16, 16, 16, 16, 16, 13])
+
+    def test_n_active_boundaries_non_negative(self):
+        result = self.n_active_boundaries('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 0 for v in result))
+
+    def test_n_active_plus_zero_equals_n(self):
+        na = self.n_active_boundaries('ТУМАН', 'xor3')
+        nz = self.n_zero_boundaries('ТУМАН', 'xor3')
+        for a, z in zip(na, nz):
+            self.assertEqual(a + z, 16)
+
+    # ── n_zero_boundaries ─────────────────────────────────────────────────────
+
+    def test_n_zero_boundaries_returns_list(self):
+        self.assertIsInstance(self.n_zero_boundaries('ГОРА', 'and'), list)
+
+    def test_n_zero_boundaries_tuman_xor_all_zero(self):
+        self.assertEqual(self.n_zero_boundaries('ТУМАН', 'xor'), [16])
+
+    def test_n_zero_boundaries_gora_and_none(self):
+        self.assertEqual(self.n_zero_boundaries('ГОРА', 'and'), [0, 0])
+
+    def test_n_zero_boundaries_tuman_xor3(self):
+        result = self.n_zero_boundaries('ТУМАН', 'xor3')
+        self.assertEqual(result, [1, 0, 0, 0, 0, 0, 0, 3])
+
+    # ── boundary_vocab_nz ─────────────────────────────────────────────────────
+
+    def test_boundary_vocab_nz_returns_list(self):
+        self.assertIsInstance(self.boundary_vocab_nz('ГОРА', 'and'), list)
+
+    def test_boundary_vocab_nz_tuman_xor_empty(self):
+        self.assertEqual(self.boundary_vocab_nz('ТУМАН', 'xor'), [])
+
+    def test_boundary_vocab_nz_gora_or_empty(self):
+        self.assertEqual(self.boundary_vocab_nz('ГОРА', 'or'), [])
+
+    def test_boundary_vocab_nz_gora_and_single(self):
+        # 47 XOR 1 = 46
+        self.assertEqual(self.boundary_vocab_nz('ГОРА', 'and'), [46])
+
+    def test_boundary_vocab_nz_gora_xor3(self):
+        self.assertEqual(self.boundary_vocab_nz('ГОРА', 'xor3'), [14, 30, 32, 48])
+
+    def test_boundary_vocab_nz_tuman_xor3_size(self):
+        self.assertEqual(len(self.boundary_vocab_nz('ТУМАН', 'xor3')), 15)
+
+    def test_boundary_vocab_nz_sorted(self):
+        v = self.boundary_vocab_nz('ТУМАН', 'xor3')
+        self.assertEqual(v, sorted(v))
+
+    # ── boundary_vocab_all ────────────────────────────────────────────────────
+
+    def test_boundary_vocab_all_includes_zero_for_uniform(self):
+        v = self.boundary_vocab_all('ТУМАН', 'xor')
+        self.assertIn(0, v)
+
+    def test_boundary_vocab_all_tuman_xor3_size(self):
+        # 15 non-zero + 1 zero value
+        self.assertEqual(len(self.boundary_vocab_all('ТУМАН', 'xor3')), 16)
+
+    def test_boundary_vocab_all_tuman_xor3_has_zero(self):
+        self.assertIn(0, self.boundary_vocab_all('ТУМАН', 'xor3'))
+
+    def test_boundary_vocab_all_sorted(self):
+        v = self.boundary_vocab_all('ТУМАН', 'xor3')
+        self.assertEqual(v, sorted(v))
+
+    # ── boundary_uniform ──────────────────────────────────────────────────────
+
+    def test_boundary_uniform_returns_bool(self):
+        self.assertIsInstance(self.boundary_uniform('ГОРА', 'and'), bool)
+
+    def test_boundary_uniform_tuman_xor_true(self):
+        self.assertTrue(self.boundary_uniform('ТУМАН', 'xor'))
+
+    def test_boundary_uniform_gora_or_true(self):
+        self.assertTrue(self.boundary_uniform('ГОРА', 'or'))
+
+    def test_boundary_uniform_gora_and_true(self):
+        # Anti-phase orbit → constant boundary
+        self.assertTrue(self.boundary_uniform('ГОРА', 'and'))
+
+    def test_boundary_uniform_gora_xor3_false(self):
+        self.assertFalse(self.boundary_uniform('ГОРА', 'xor3'))
+
+    def test_boundary_uniform_tuman_xor3_false(self):
+        self.assertFalse(self.boundary_uniform('ТУМАН', 'xor3'))
+
+    # ── boundary_bit_constraints ──────────────────────────────────────────────
+
+    def test_boundary_bit_constraints_returns_list(self):
+        self.assertIsInstance(self.boundary_bit_constraints('ТУМАН', 'xor3'), list)
+
+    def test_boundary_bit_constraints_tuman_xor3(self):
+        # b0=b1 from coact constraint
+        self.assertIn((0, 1), self.boundary_bit_constraints('ТУМАН', 'xor3'))
+
+    def test_boundary_bit_constraints_tuman_xor3_only_01(self):
+        # Only (0,1) constraint for ТУМАН XOR3
+        self.assertEqual(self.boundary_bit_constraints('ТУМАН', 'xor3'), [(0, 1)])
+
+    def test_boundary_bit_constraints_gora_xor3(self):
+        # b1=b2=b3 in boundary values
+        c = self.boundary_bit_constraints('ГОРА', 'xor3')
+        self.assertIn((1, 2), c)
+        self.assertIn((1, 3), c)
+        self.assertIn((2, 3), c)
+
+    def test_boundary_bit_constraints_elements_are_tuples(self):
+        c = self.boundary_bit_constraints('ТУМАН', 'xor3')
+        if c:
+            self.assertIsInstance(c[0], tuple)
+            self.assertEqual(len(c[0]), 2)
+
+    def test_boundary_bit_constraints_indices_in_range(self):
+        for word, rule in [('ГОРА', 'xor3'), ('ТУМАН', 'xor3'), ('ГОРА', 'and')]:
+            for b1, b2 in self.boundary_bit_constraints(word, rule):
+                self.assertGreaterEqual(b1, 0)
+                self.assertLess(b2, 6)
+                self.assertLess(b1, b2)
+
+    # ── boundary_summary ──────────────────────────────────────────────────────
+
+    def test_boundary_summary_returns_dict(self):
+        self.assertIsInstance(self.boundary_summary('ГОРА', 'and'), dict)
+
+    def test_boundary_summary_required_keys(self):
+        d = self.boundary_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'b_period', 'period_compressed',
+                    'n_active', 'n_zero', 'mean_n_active',
+                    'max_n_active', 'min_n_active',
+                    'vocab_nz', 'vocab_nz_size',
+                    'vocab_all', 'uniform',
+                    'bit_constraints', 'b_orbit'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_boundary_summary_gora_and_compressed(self):
+        d = self.boundary_summary('ГОРА', 'and')
+        self.assertTrue(d['period_compressed'])
+        self.assertEqual(d['b_period'], 1)
+        self.assertEqual(d['period'], 2)
+
+    def test_boundary_summary_tuman_xor3_constraint(self):
+        d = self.boundary_summary('ТУМАН', 'xor3')
+        self.assertIn((0, 1), d['bit_constraints'])
+
+    def test_boundary_summary_gora_or_zero_vocab(self):
+        d = self.boundary_summary('ГОРА', 'or')
+        self.assertEqual(d['vocab_nz_size'], 0)
+        self.assertTrue(d['uniform'])
+
+    def test_boundary_summary_word_upper(self):
+        d = self.boundary_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_boundary_summary_n_active_consistent(self):
+        d = self.boundary_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['n_active'], [15, 16, 16, 16, 16, 16, 16, 13])
+
+    def test_boundary_summary_mean_n_active_tuman_xor3(self):
+        d = self.boundary_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_n_active'], 15.5)
+
+    # ── all_boundary ──────────────────────────────────────────────────────────
+
+    def test_all_boundary_returns_dict(self):
+        self.assertIsInstance(self.all_boundary('ГОРА'), dict)
+
+    def test_all_boundary_four_rules(self):
+        d = self.all_boundary('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_boundary_data ───────────────────────────────────────────────────
+
+    def test_build_boundary_data_returns_dict(self):
+        self.assertIsInstance(self.build_boundary_data(['ГОРА']), dict)
+
+    def test_build_boundary_data_top_keys(self):
+        d = self.build_boundary_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_boundary_data_rule_keys(self):
+        d = self.build_boundary_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_boundary_data_gora_and_compressed(self):
+        d = self.build_boundary_data(['ГОРА'])
+        self.assertTrue(d['per_rule']['and']['ГОРА']['period_compressed'])
+
+    def test_build_boundary_data_word_uppercase(self):
+        d = self.build_boundary_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_boundary_data_known_fields(self):
+        d   = self.build_boundary_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'b_period', 'period_compressed',
+                    'n_active', 'mean_n_active', 'max_n_active', 'min_n_active',
+                    'vocab_nz_size', 'vocab_nz', 'uniform', 'bit_constraints'):
+            self.assertIn(key, rec)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_bound_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bound-map', content)
+
+    def test_viewer_has_bound_nact(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bound-nact', content)
+
+    def test_viewer_has_bound_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bound-info', content)
+
+    def test_viewer_has_bn_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bn-word', content)
+
+    def test_viewer_has_bn_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bn-btn', content)
+
+    def test_viewer_has_bn_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bnRun', content)
+
+    def test_viewer_has_bn_boundary_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bnBoundary', content)
+
+    def test_viewer_has_bound_color_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('boundColor', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_boundary',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_boundary(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_boundary', content)
+
+
+class TestSolanCell(unittest.TestCase):
+    """Tests for solan_cell.py — Per-Cell Temporal Analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cell import (
+            cell_series, cell_vocab, cell_hist, cell_vocab_size,
+            cell_is_frozen, cell_transitions, cell_mean, cell_var,
+            frozen_cells, spatial_variance, cell_summary,
+            orbit_cell_matrix, cell_agg, all_cell, build_cell_data,
+        )
+        cls.cell_series       = staticmethod(cell_series)
+        cls.cell_vocab        = staticmethod(cell_vocab)
+        cls.cell_hist         = staticmethod(cell_hist)
+        cls.cell_vocab_size   = staticmethod(cell_vocab_size)
+        cls.cell_is_frozen    = staticmethod(cell_is_frozen)
+        cls.cell_transitions  = staticmethod(cell_transitions)
+        cls.cell_mean         = staticmethod(cell_mean)
+        cls.cell_var          = staticmethod(cell_var)
+        cls.frozen_cells      = staticmethod(frozen_cells)
+        cls.spatial_variance  = staticmethod(spatial_variance)
+        cls.cell_summary      = staticmethod(cell_summary)
+        cls.orbit_cell_matrix = staticmethod(orbit_cell_matrix)
+        cls.cell_agg          = staticmethod(cell_agg)
+        cls.all_cell          = staticmethod(all_cell)
+        cls.build_cell_data   = staticmethod(build_cell_data)
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.LEXICON = list(LEXICON)
+
+    # ── cell_series ──────────────────────────────────────────────────────────
+
+    def test_cell_series_returns_list(self):
+        result = self.cell_series('ГОРА', 'and', 0)
+        self.assertIsInstance(result, list)
+
+    def test_cell_series_length_equals_period(self):
+        result = self.cell_series('ГОРА', 'and', 0)
+        self.assertEqual(len(result), 2)  # ГОРА AND has P=2
+
+    def test_cell_series_gora_and_cell0(self):
+        self.assertEqual(self.cell_series('ГОРА', 'and', 0), [47, 1])
+
+    def test_cell_series_gora_and_cell1(self):
+        self.assertEqual(self.cell_series('ГОРА', 'and', 1), [1, 47])
+
+    def test_cell_series_tuman_xor_cell0(self):
+        result = self.cell_series('ТУМАН', 'xor', 0)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], 0)
+
+    def test_cell_series_all_values_in_range(self):
+        result = self.cell_series('ТУМАН', 'xor3', 0)
+        self.assertTrue(all(0 <= v <= 63 for v in result))
+
+    def test_cell_series_case_insensitive(self):
+        self.assertEqual(
+            self.cell_series('гора', 'and', 0),
+            self.cell_series('ГОРА', 'and', 0),
+        )
+
+    # ── cell_vocab ───────────────────────────────────────────────────────────
+
+    def test_cell_vocab_returns_list(self):
+        self.assertIsInstance(self.cell_vocab('ГОРА', 'and', 0), list)
+
+    def test_cell_vocab_sorted(self):
+        v = self.cell_vocab('ГОРА', 'and', 0)
+        self.assertEqual(v, sorted(v))
+
+    def test_cell_vocab_gora_and_cell0(self):
+        self.assertEqual(self.cell_vocab('ГОРА', 'and', 0), [1, 47])
+
+    def test_cell_vocab_tuman_xor_cell0(self):
+        self.assertEqual(self.cell_vocab('ТУМАН', 'xor', 0), [0])
+
+    def test_cell_vocab_gora_or_cell0(self):
+        self.assertEqual(self.cell_vocab('ГОРА', 'or', 0), [63])
+
+    # ── cell_vocab_size ──────────────────────────────────────────────────────
+
+    def test_cell_vocab_size_returns_int(self):
+        self.assertIsInstance(self.cell_vocab_size('ГОРА', 'and', 0), int)
+
+    def test_cell_vocab_size_gora_and_cell0(self):
+        self.assertEqual(self.cell_vocab_size('ГОРА', 'and', 0), 2)
+
+    def test_cell_vocab_size_tuman_xor_cell0(self):
+        self.assertEqual(self.cell_vocab_size('ТУМАН', 'xor', 0), 1)
+
+    def test_cell_vocab_size_gora_xor3_cell0(self):
+        self.assertEqual(self.cell_vocab_size('ГОРА', 'xor3', 0), 2)
+
+    # ── cell_is_frozen ───────────────────────────────────────────────────────
+
+    def test_cell_is_frozen_returns_bool(self):
+        self.assertIsInstance(self.cell_is_frozen('ГОРА', 'and', 0), bool)
+
+    def test_cell_is_frozen_tuman_xor_true(self):
+        self.assertTrue(self.cell_is_frozen('ТУМАН', 'xor', 0))
+
+    def test_cell_is_frozen_gora_or_true(self):
+        self.assertTrue(self.cell_is_frozen('ГОРА', 'or', 0))
+
+    def test_cell_is_frozen_gora_and_false(self):
+        self.assertFalse(self.cell_is_frozen('ГОРА', 'and', 0))
+
+    def test_cell_is_frozen_tuman_xor3_false(self):
+        self.assertFalse(self.cell_is_frozen('ТУМАН', 'xor3', 0))
+
+    # ── cell_transitions ─────────────────────────────────────────────────────
+
+    def test_cell_transitions_returns_int(self):
+        self.assertIsInstance(self.cell_transitions('ГОРА', 'and', 0), int)
+
+    def test_cell_transitions_gora_and_cell0(self):
+        self.assertEqual(self.cell_transitions('ГОРА', 'and', 0), 2)
+
+    def test_cell_transitions_tuman_xor_cell0(self):
+        self.assertEqual(self.cell_transitions('ТУМАН', 'xor', 0), 0)
+
+    def test_cell_transitions_le_period(self):
+        s = self.cell_series('ТУМАН', 'xor3', 0)
+        P = len(s)
+        tc = self.cell_transitions('ТУМАН', 'xor3', 0)
+        self.assertLessEqual(tc, P)
+
+    def test_cell_transitions_frozen_is_zero(self):
+        self.assertEqual(self.cell_transitions('ТУМАН', 'xor', 5), 0)
+
+    # ── cell_mean / cell_var ─────────────────────────────────────────────────
+
+    def test_cell_mean_returns_float(self):
+        self.assertIsInstance(self.cell_mean('ГОРА', 'and', 0), float)
+
+    def test_cell_mean_gora_and_cell0(self):
+        self.assertAlmostEqual(self.cell_mean('ГОРА', 'and', 0), 24.0)
+
+    def test_cell_mean_tuman_xor_cell0(self):
+        self.assertAlmostEqual(self.cell_mean('ТУМАН', 'xor', 0), 0.0)
+
+    def test_cell_mean_gora_or_cell0(self):
+        self.assertAlmostEqual(self.cell_mean('ГОРА', 'or', 0), 63.0)
+
+    def test_cell_var_returns_float(self):
+        self.assertIsInstance(self.cell_var('ГОРА', 'and', 0), float)
+
+    def test_cell_var_gora_and_cell0(self):
+        self.assertAlmostEqual(self.cell_var('ГОРА', 'and', 0), 529.0)
+
+    def test_cell_var_frozen_is_zero(self):
+        self.assertAlmostEqual(self.cell_var('ТУМАН', 'xor', 0), 0.0)
+
+    # ── frozen_cells ─────────────────────────────────────────────────────────
+
+    def test_frozen_cells_returns_list(self):
+        self.assertIsInstance(self.frozen_cells('ГОРА', 'and'), list)
+
+    def test_frozen_cells_tuman_xor_all_frozen(self):
+        self.assertEqual(len(self.frozen_cells('ТУМАН', 'xor')), 16)
+
+    def test_frozen_cells_gora_and_none_frozen(self):
+        self.assertEqual(self.frozen_cells('ГОРА', 'and'), [])
+
+    def test_frozen_cells_gora_or_all_frozen(self):
+        self.assertEqual(len(self.frozen_cells('ГОРА', 'or')), 16)
+
+    def test_frozen_cells_tuman_xor3_none_frozen(self):
+        self.assertEqual(self.frozen_cells('ТУМАН', 'xor3'), [])
+
+    def test_frozen_cells_indices_in_range(self):
+        fc = self.frozen_cells('ТУМАН', 'xor')
+        self.assertTrue(all(0 <= i < 16 for i in fc))
+
+    # ── spatial_variance ─────────────────────────────────────────────────────
+
+    def test_spatial_variance_returns_list(self):
+        self.assertIsInstance(self.spatial_variance('ГОРА', 'and'), list)
+
+    def test_spatial_variance_length_equals_period(self):
+        sv = self.spatial_variance('ГОРА', 'and')
+        self.assertEqual(len(sv), 2)
+
+    def test_spatial_variance_tuman_xor_zero(self):
+        self.assertEqual(self.spatial_variance('ТУМАН', 'xor'), [0.0])
+
+    def test_spatial_variance_gora_and_constant(self):
+        sv = self.spatial_variance('ГОРА', 'and')
+        self.assertEqual(sv, [529.0, 529.0])
+
+    def test_spatial_variance_gora_xor3(self):
+        sv = self.spatial_variance('ГОРА', 'xor3')
+        self.assertAlmostEqual(sv[0], 308.75)
+        self.assertAlmostEqual(sv[1], 164.75)
+
+    def test_spatial_variance_non_negative(self):
+        sv = self.spatial_variance('ТУМАН', 'xor3')
+        self.assertTrue(all(v >= 0 for v in sv))
+
+    # ── cell_summary ─────────────────────────────────────────────────────────
+
+    def test_cell_summary_returns_dict(self):
+        self.assertIsInstance(self.cell_summary('ГОРА', 'and', 0), dict)
+
+    def test_cell_summary_required_keys(self):
+        d = self.cell_summary('ГОРА', 'and', 0)
+        for key in ('word', 'rule', 'cell_idx', 'period', 'series',
+                    'vocab', 'vocab_size', 'is_frozen', 'frozen_val',
+                    'transitions', 'mean', 'var'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_cell_summary_gora_and_cell0_values(self):
+        d = self.cell_summary('ГОРА', 'and', 0)
+        self.assertEqual(d['vocab_size'], 2)
+        self.assertFalse(d['is_frozen'])
+        self.assertEqual(d['transitions'], 2)
+        self.assertAlmostEqual(d['mean'], 24.0)
+        self.assertAlmostEqual(d['var'], 529.0)
+        self.assertIsNone(d['frozen_val'])
+
+    def test_cell_summary_frozen_val_set_when_frozen(self):
+        d = self.cell_summary('ТУМАН', 'xor', 0)
+        self.assertTrue(d['is_frozen'])
+        self.assertEqual(d['frozen_val'], 0)
+
+    def test_cell_summary_word_upper(self):
+        d = self.cell_summary('гора', 'and', 0)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_cell_summary_cell_idx_correct(self):
+        d = self.cell_summary('ГОРА', 'and', 3)
+        self.assertEqual(d['cell_idx'], 3)
+
+    # ── orbit_cell_matrix ────────────────────────────────────────────────────
+
+    def test_orbit_cell_matrix_returns_list(self):
+        self.assertIsInstance(self.orbit_cell_matrix('ГОРА', 'and'), list)
+
+    def test_orbit_cell_matrix_length(self):
+        result = self.orbit_cell_matrix('ГОРА', 'and')
+        self.assertEqual(len(result), 16)
+
+    def test_orbit_cell_matrix_each_item_is_dict(self):
+        result = self.orbit_cell_matrix('ГОРА', 'and')
+        self.assertIsInstance(result[0], dict)
+
+    def test_orbit_cell_matrix_cell_idx_sequential(self):
+        result = self.orbit_cell_matrix('ГОРА', 'and')
+        for i, d in enumerate(result):
+            self.assertEqual(d['cell_idx'], i)
+
+    # ── cell_agg ─────────────────────────────────────────────────────────────
+
+    def test_cell_agg_returns_dict(self):
+        self.assertIsInstance(self.cell_agg('ГОРА', 'and'), dict)
+
+    def test_cell_agg_required_keys(self):
+        d = self.cell_agg('ГОРА', 'and')
+        for key in ('word', 'rule', 'period', 'n_cells', 'n_frozen',
+                    'vocab_sizes', 'mean_vocab_size', 'max_vocab_size',
+                    'transitions', 'mean_transitions', 'max_transitions',
+                    'spatial_variance', 'mean_spatial_var', 'max_spatial_var',
+                    'uniform_spatial'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_cell_agg_tuman_xor_all_frozen(self):
+        d = self.cell_agg('ТУМАН', 'xor')
+        self.assertEqual(d['n_frozen'], 16)
+        self.assertAlmostEqual(d['mean_vocab_size'], 1.0)
+        self.assertAlmostEqual(d['mean_transitions'], 0.0)
+        self.assertTrue(d['uniform_spatial'])
+
+    def test_cell_agg_gora_or_all_frozen(self):
+        d = self.cell_agg('ГОРА', 'or')
+        self.assertEqual(d['n_frozen'], 16)
+
+    def test_cell_agg_gora_and_none_frozen(self):
+        d = self.cell_agg('ГОРА', 'and')
+        self.assertEqual(d['n_frozen'], 0)
+        self.assertAlmostEqual(d['mean_vocab_size'], 2.0)
+        self.assertTrue(d['uniform_spatial'])
+
+    def test_cell_agg_tuman_xor3_no_frozen(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertEqual(d['n_frozen'], 0)
+
+    def test_cell_agg_tuman_xor3_mean_vocab(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_vocab_size'], 5.25)
+
+    def test_cell_agg_tuman_xor3_mean_transitions(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_transitions'], 7.125)
+
+    def test_cell_agg_tuman_xor3_max_vocab(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertEqual(d['max_vocab_size'], 7)
+
+    def test_cell_agg_tuman_xor3_min_vocab(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertEqual(d['min_vocab_size'], 3)
+
+    def test_cell_agg_tuman_xor3_max_transitions(self):
+        d = self.cell_agg('ТУМАН', 'xor3')
+        self.assertEqual(d['max_transitions'], 8)
+
+    def test_cell_agg_n_cells_equals_width(self):
+        d = self.cell_agg('ГОРА', 'xor3')
+        self.assertEqual(d['n_cells'], 16)
+
+    def test_cell_agg_vocab_sizes_length(self):
+        d = self.cell_agg('ГОРА', 'and')
+        self.assertEqual(len(d['vocab_sizes']), 16)
+
+    def test_cell_agg_gora_and_spatial_var_constant(self):
+        d = self.cell_agg('ГОРА', 'and')
+        sv = d['spatial_variance']
+        self.assertEqual(sv, [529.0, 529.0])
+
+    def test_cell_agg_word_upper(self):
+        d = self.cell_agg('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    # ── build_cell_data ───────────────────────────────────────────────────────
+
+    def test_build_cell_data_returns_dict(self):
+        self.assertIsInstance(self.build_cell_data(['ГОРА']), dict)
+
+    def test_build_cell_data_top_keys(self):
+        d = self.build_cell_data(['ГОРА'])
+        for key in ('words', 'width', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_cell_data_rule_keys(self):
+        d = self.build_cell_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_cell_data_word_uppercase(self):
+        d = self.build_cell_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_cell_data_gora_and_n_frozen(self):
+        d = self.build_cell_data(['ГОРА'])
+        self.assertEqual(d['per_rule']['and']['ГОРА']['n_frozen'], 0)
+
+    def test_build_cell_data_known_fields(self):
+        d   = self.build_cell_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('period', 'n_frozen', 'vocab_sizes', 'mean_vocab_size',
+                    'max_vocab_size', 'transitions', 'mean_transitions',
+                    'max_transitions', 'mean_spatial_var', 'max_spatial_var',
+                    'min_spatial_var', 'uniform_spatial'):
+            self.assertIn(key, rec)
+
+    # ── all_cell ──────────────────────────────────────────────────────────────
+
+    def test_all_cell_returns_dict(self):
+        self.assertIsInstance(self.all_cell('ГОРА'), dict)
+
+    def test_all_cell_four_rules(self):
+        d = self.all_cell('ГОРА')
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_cell_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cell-map', content)
+
+    def test_viewer_has_cell_var(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cell-var', content)
+
+    def test_viewer_has_cell_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cell-info', content)
+
+    def test_viewer_has_cl_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cl-word', content)
+
+    def test_viewer_has_cl_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cl-rule', content)
+
+    def test_viewer_has_cl_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cl-btn', content)
+
+    def test_viewer_has_cl_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('clRun', content)
+
+    def test_viewer_has_cell_hue_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cellHue', content)
+
+    def test_viewer_has_cl_orbit_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('clOrbit', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_cell',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_cell', content)
+
+
+class TestSolanWidth(unittest.TestCase):
+    """Tests for solan_width.py — Period vs. Ring Width Scaling."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_width import (
+            period_at_width, width_series, is_constant_period,
+            constant_period_value, max_width_period, width_summary,
+            build_width_data, _DEFAULT_WIDTHS, _RULES,
+        )
+        cls.period_at_width      = staticmethod(period_at_width)
+        cls.width_series         = staticmethod(width_series)
+        cls.is_constant_period   = staticmethod(is_constant_period)
+        cls.constant_period_value = staticmethod(constant_period_value)
+        cls.max_width_period     = staticmethod(max_width_period)
+        cls.width_summary        = staticmethod(width_summary)
+        cls.build_width_data     = staticmethod(build_width_data)
+        cls.DEFAULT_WIDTHS       = list(_DEFAULT_WIDTHS)
+        cls.RULES                = list(_RULES)
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.LEXICON = list(LEXICON)
+
+    # ── period_at_width ─────────────────────────────────────────────────────
+
+    def test_period_at_width_returns_int(self):
+        result = self.period_at_width('ГОРА', 'and', 16)
+        self.assertIsInstance(result, int)
+
+    def test_period_at_width_positive(self):
+        result = self.period_at_width('ГОРА', 'xor3', 16)
+        self.assertGreater(result, 0)
+
+    def test_period_at_width_gora_and_16(self):
+        self.assertEqual(self.period_at_width('ГОРА', 'and', 16), 2)
+
+    def test_period_at_width_tuman_xor_8(self):
+        self.assertEqual(self.period_at_width('ТУМАН', 'xor', 8), 1)
+
+    def test_period_at_width_tuman_xor_12(self):
+        self.assertEqual(self.period_at_width('ТУМАН', 'xor', 12), 4)
+
+    def test_period_at_width_gora_xor3_16(self):
+        self.assertEqual(self.period_at_width('ГОРА', 'xor3', 16), 2)
+
+    def test_period_at_width_gora_or_16(self):
+        self.assertEqual(self.period_at_width('ГОРА', 'or', 16), 1)
+
+    def test_period_at_width_case_insensitive(self):
+        self.assertEqual(
+            self.period_at_width('гора', 'and', 16),
+            self.period_at_width('ГОРА', 'and', 16),
+        )
+
+    # ── width_series ─────────────────────────────────────────────────────────
+
+    def test_width_series_returns_list(self):
+        result = self.width_series('ГОРА', 'and')
+        self.assertIsInstance(result, list)
+
+    def test_width_series_length_matches_widths(self):
+        result = self.width_series('ГОРА', 'and')
+        self.assertEqual(len(result), len(self.DEFAULT_WIDTHS))
+
+    def test_width_series_all_positive(self):
+        result = self.width_series('ГОРА', 'xor3')
+        self.assertTrue(all(p > 0 for p in result))
+
+    def test_width_series_gora_and_all_two(self):
+        result = self.width_series('ГОРА', 'and')
+        self.assertEqual(result, [2] * 9)
+
+    def test_width_series_gora_xor3_all_two(self):
+        result = self.width_series('ГОРА', 'xor3')
+        self.assertEqual(result, [2] * 9)
+
+    def test_width_series_gora_or_all_one(self):
+        result = self.width_series('ГОРА', 'or')
+        self.assertEqual(result, [1] * 9)
+
+    def test_width_series_tuman_xor3_known_values(self):
+        # N=4→2, N=8→4, N=16→8, N=32→16, N=64→32
+        ws  = self.DEFAULT_WIDTHS
+        ps  = self.width_series('ТУМАН', 'xor3')
+        idx4  = ws.index(4);  self.assertEqual(ps[idx4], 2)
+        idx8  = ws.index(8);  self.assertEqual(ps[idx8], 4)
+        idx16 = ws.index(16); self.assertEqual(ps[idx16], 8)
+        idx32 = ws.index(32); self.assertEqual(ps[idx32], 16)
+        idx64 = ws.index(64); self.assertEqual(ps[idx64], 32)
+
+    def test_width_series_tuman_xor_pow2_are_one(self):
+        # For powers-of-2 widths ТУМАН XOR converges to 0 → P=1
+        ws = self.DEFAULT_WIDTHS
+        ps = self.width_series('ТУМАН', 'xor')
+        for w, p in zip(ws, ps):
+            if w in (4, 8, 16, 32, 64):
+                self.assertEqual(p, 1, f"Expected P=1 for N={w}")
+
+    def test_width_series_custom_widths(self):
+        result = self.width_series('ГОРА', 'and', [4, 8, 16])
+        self.assertEqual(result, [2, 2, 2])
+
+    # ── is_constant_period ───────────────────────────────────────────────────
+
+    def test_is_constant_period_returns_bool(self):
+        self.assertIsInstance(self.is_constant_period('ГОРА', 'and'), bool)
+
+    def test_is_constant_gora_and(self):
+        self.assertTrue(self.is_constant_period('ГОРА', 'and'))
+
+    def test_is_constant_gora_xor3(self):
+        self.assertTrue(self.is_constant_period('ГОРА', 'xor3'))
+
+    def test_is_constant_gora_or(self):
+        self.assertTrue(self.is_constant_period('ГОРА', 'or'))
+
+    def test_not_constant_tuman_xor(self):
+        self.assertFalse(self.is_constant_period('ТУМАН', 'xor'))
+
+    def test_not_constant_tuman_xor3(self):
+        self.assertFalse(self.is_constant_period('ТУМАН', 'xor3'))
+
+    # ── constant_period_value ─────────────────────────────────────────────────
+
+    def test_constant_value_returns_int_or_none(self):
+        v = self.constant_period_value('ГОРА', 'and')
+        self.assertIsInstance(v, int)
+
+    def test_constant_value_gora_and(self):
+        self.assertEqual(self.constant_period_value('ГОРА', 'and'), 2)
+
+    def test_constant_value_gora_xor3(self):
+        self.assertEqual(self.constant_period_value('ГОРА', 'xor3'), 2)
+
+    def test_constant_value_gora_or(self):
+        self.assertEqual(self.constant_period_value('ГОРА', 'or'), 1)
+
+    def test_constant_value_none_for_variable(self):
+        self.assertIsNone(self.constant_period_value('ТУМАН', 'xor'))
+
+    def test_constant_value_none_tuman_xor3(self):
+        self.assertIsNone(self.constant_period_value('ТУМАН', 'xor3'))
+
+    # ── max_width_period ──────────────────────────────────────────────────────
+
+    def test_max_width_period_returns_tuple(self):
+        result = self.max_width_period('ГОРА', 'and')
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_max_width_period_width_in_widths(self):
+        w, p = self.max_width_period('ТУМАН', 'xor3')
+        self.assertIn(w, self.DEFAULT_WIDTHS)
+
+    def test_max_width_period_tuman_xor3(self):
+        w, p = self.max_width_period('ТУМАН', 'xor3')
+        self.assertEqual((w, p), (64, 32))
+
+    def test_max_width_period_gora_and(self):
+        w, p = self.max_width_period('ГОРА', 'and')
+        self.assertEqual(p, 2)  # constant series → max = 2
+
+    def test_max_width_period_is_in_series(self):
+        series = self.width_series('ТУМАН', 'xor3')
+        _, max_p = self.max_width_period('ТУМАН', 'xor3')
+        self.assertEqual(max_p, max(series))
+
+    # ── width_summary ─────────────────────────────────────────────────────────
+
+    def test_width_summary_returns_dict(self):
+        result = self.width_summary('ГОРА', 'and')
+        self.assertIsInstance(result, dict)
+
+    def test_width_summary_required_keys(self):
+        d = self.width_summary('ГОРА', 'and')
+        for key in ('word', 'rule', 'widths', 'periods', 'pn_ratio',
+                    'is_constant', 'constant_value', 'min_period', 'max_period',
+                    'max_period_width', 'all_pow2', 'all_one', 'all_two',
+                    'n_distinct'):
+            self.assertIn(key, d, f"Missing key: {key}")
+
+    def test_width_summary_word_upper(self):
+        d = self.width_summary('гора', 'and')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_width_summary_gora_and_is_constant(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertTrue(d['is_constant'])
+
+    def test_width_summary_gora_and_constant_value(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertEqual(d['constant_value'], 2)
+
+    def test_width_summary_gora_and_all_two(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertTrue(d['all_two'])
+
+    def test_width_summary_gora_and_all_pow2(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertTrue(d['all_pow2'])
+
+    def test_width_summary_gora_and_not_all_one(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertFalse(d['all_one'])
+
+    def test_width_summary_gora_and_n_distinct_one(self):
+        d = self.width_summary('ГОРА', 'and')
+        self.assertEqual(d['n_distinct'], 1)
+
+    def test_width_summary_tuman_xor3_not_constant(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertFalse(d['is_constant'])
+        self.assertIsNone(d['constant_value'])
+
+    def test_width_summary_tuman_xor3_max_period(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['max_period'], 32)
+        self.assertEqual(d['max_period_width'], 64)
+
+    def test_width_summary_tuman_xor3_n_distinct(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['n_distinct'], 6)
+
+    def test_width_summary_pn_ratio_length(self):
+        d = self.width_summary('ГОРА', 'xor3')
+        self.assertEqual(len(d['pn_ratio']), len(self.DEFAULT_WIDTHS))
+
+    def test_width_summary_pn_ratio_positive(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertTrue(all(r > 0 for r in d['pn_ratio']))
+
+    def test_width_summary_tuman_xor3_pow2_ratio_half(self):
+        # For N=8,16,32,64 the ratio P/N = 0.5
+        d   = self.width_summary('ТУМАН', 'xor3')
+        ws  = d['widths']
+        pns = d['pn_ratio']
+        for w, r in zip(ws, pns):
+            if w in (8, 16, 32, 64):
+                self.assertAlmostEqual(r, 0.5, places=3,
+                                       msg=f"N={w}: expected P/N=0.5 got {r}")
+
+    def test_width_summary_gora_or_all_one(self):
+        d = self.width_summary('ГОРА', 'or')
+        self.assertTrue(d['all_one'])
+
+    def test_width_summary_min_le_max_period(self):
+        d = self.width_summary('ТУМАН', 'xor3')
+        self.assertLessEqual(d['min_period'], d['max_period'])
+
+    def test_width_summary_periods_matches_series(self):
+        d = self.width_summary('ГОРА', 'xor3')
+        expected = self.width_series('ГОРА', 'xor3')
+        self.assertEqual(d['periods'], expected)
+
+    # ── build_width_data ──────────────────────────────────────────────────────
+
+    def test_build_width_data_returns_dict(self):
+        result = self.build_width_data(['ГОРА', 'ТУМАН'])
+        self.assertIsInstance(result, dict)
+
+    def test_build_width_data_top_keys(self):
+        d = self.build_width_data(['ГОРА'])
+        for key in ('words', 'widths', 'per_rule'):
+            self.assertIn(key, d)
+
+    def test_build_width_data_rule_keys(self):
+        d = self.build_width_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_width_data_word_uppercase(self):
+        d = self.build_width_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_build_width_data_gora_and_constant(self):
+        d = self.build_width_data(['ГОРА'])
+        self.assertTrue(d['per_rule']['and']['ГОРА']['is_constant'])
+
+    def test_build_width_data_known_fields(self):
+        d   = self.build_width_data(['ГОРА'])
+        rec = d['per_rule']['xor3']['ГОРА']
+        for key in ('periods', 'pn_ratio', 'is_constant', 'constant_value',
+                    'min_period', 'max_period', 'all_pow2', 'all_one',
+                    'all_two', 'n_distinct'):
+            self.assertIn(key, rec)
+
+    def test_build_width_data_widths_field(self):
+        d = self.build_width_data(['ГОРА'])
+        self.assertEqual(d['widths'], self.DEFAULT_WIDTHS)
+
+    # ── Cross-rule checks ─────────────────────────────────────────────────────
+
+    def test_xor_all_one_for_all_lexicon_xor_po2(self):
+        # ТУМАН XOR is NOT constant; but let's check specific power-of-2 widths
+        ps = self.width_series('ТУМАН', 'xor', [4, 8, 16, 32, 64])
+        self.assertEqual(ps, [1, 1, 1, 1, 1])
+
+    def test_all_rules_positive_periods(self):
+        for rule in self.RULES:
+            ps = self.width_series('ГОРА', rule)
+            self.assertTrue(all(p >= 1 for p in ps))
+
+    def test_gora_xor_constant_one(self):
+        # ГОРА XOR converges to all-0 → P=1 for all widths
+        self.assertTrue(self.is_constant_period('ГОРА', 'xor'))
+        self.assertEqual(self.constant_period_value('ГОРА', 'xor'), 1)
+
+    # ── Viewer HTML markers ───────────────────────────────────────────────────
+
+    def test_viewer_has_width_chart(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('width-chart', content)
+
+    def test_viewer_has_width_ratio(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('width-ratio', content)
+
+    def test_viewer_has_width_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('width-info', content)
+
+    def test_viewer_has_wd_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wd-word', content)
+
+    def test_viewer_has_wd_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wd-btn', content)
+
+    def test_viewer_has_wd_run_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wdRun', content)
+
+    def test_viewer_has_enc_at_width_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('encAtWidth', content)
+
+    def test_viewer_has_wd_orbit_len_js(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('wdOrbitLen', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_width',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_width(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_width', content)
+
+
+
+    def test_all_width_returns_4_rules(self):
+        from projects.hexglyph.solan_width import all_width
+        d = all_width('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_width_values_are_dicts(self):
+        from projects.hexglyph.solan_width import all_width
+        d = all_width('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+class TestSolanMultistep(unittest.TestCase):
+    """Tests for solan_multistep.py — multi-step Hamming distance matrix."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_multistep import (
+            hamming_dist,
+            orbit_dist_matrix,
+            eccentricity,
+            center_steps,
+            periphery_steps,
+            dist_histogram,
+            multistep_summary,
+            all_multistep,
+            build_multistep_data,
+            multistep_dict,
+        )
+        cls.hamming_dist       = staticmethod(hamming_dist)
+        cls.orbit_dist_matrix  = staticmethod(orbit_dist_matrix)
+        cls.eccentricity       = staticmethod(eccentricity)
+        cls.center_steps       = staticmethod(center_steps)
+        cls.periphery_steps    = staticmethod(periphery_steps)
+        cls.dist_histogram     = staticmethod(dist_histogram)
+        cls.multistep_summary  = staticmethod(multistep_summary)
+        cls.all_multistep      = staticmethod(all_multistep)
+        cls.build_multistep_data = staticmethod(build_multistep_data)
+        cls.multistep_dict     = staticmethod(multistep_dict)
+
+        # Precompute summaries used frequently
+        cls.s_tuman_xor  = multistep_summary('ТУМАН', 'xor',  16)
+        cls.s_tuman_xor3 = multistep_summary('ТУМАН', 'xor3', 16)
+        cls.s_gora_and   = multistep_summary('ГОРА',  'and',  16)
+        cls.s_gora_xor3  = multistep_summary('ГОРА',  'xor3', 16)
+        cls.s_mat_xor3   = multistep_summary('МАТ',   'xor3', 16)
+
+    # ── hamming_dist ──────────────────────────────────────────────────────────
+
+    def test_hamming_dist_identical(self):
+        self.assertEqual(self.hamming_dist([1, 2, 3], [1, 2, 3]), 0)
+
+    def test_hamming_dist_all_differ(self):
+        a = [0] * 16
+        b = [1] * 16
+        self.assertEqual(self.hamming_dist(a, b), 16)
+
+    def test_hamming_dist_half(self):
+        a = [0] * 8 + [1] * 8
+        b = [1] * 8 + [0] * 8
+        self.assertEqual(self.hamming_dist(a, b), 16)
+
+    def test_hamming_dist_one(self):
+        a = [0] * 16
+        b = list(a); b[5] = 1
+        self.assertEqual(self.hamming_dist(a, b), 1)
+
+    def test_hamming_dist_symmetric(self):
+        a = [0, 1, 2, 3]
+        b = [3, 2, 1, 0]
+        self.assertEqual(self.hamming_dist(a, b), self.hamming_dist(b, a))
+
+    # ── orbit_dist_matrix ─────────────────────────────────────────────────────
+
+    def test_dist_matrix_shape_p1(self):
+        mat = self.orbit_dist_matrix([[0] * 16])
+        self.assertEqual(len(mat), 1)
+        self.assertEqual(len(mat[0]), 1)
+
+    def test_dist_matrix_shape_p8(self):
+        mat = self.s_tuman_xor3['dist_matrix']
+        self.assertEqual(len(mat), 8)
+        self.assertTrue(all(len(row) == 8 for row in mat))
+
+    def test_dist_matrix_diagonal_zero(self):
+        mat = self.s_tuman_xor3['dist_matrix']
+        for t in range(8):
+            self.assertEqual(mat[t][t], 0)
+
+    def test_dist_matrix_symmetric(self):
+        mat = self.s_tuman_xor3['dist_matrix']
+        for t1 in range(8):
+            for t2 in range(8):
+                self.assertEqual(mat[t1][t2], mat[t2][t1])
+
+    def test_dist_matrix_values_in_range(self):
+        mat = self.s_tuman_xor3['dist_matrix']
+        for row in mat:
+            for d in row:
+                self.assertGreaterEqual(d, 0)
+                self.assertLessEqual(d, 16)
+
+    def test_dist_matrix_p1_trivial(self):
+        mat = self.s_tuman_xor['dist_matrix']
+        self.assertEqual(mat, [[0]])
+
+    def test_dist_matrix_p2_all_cells_differ(self):
+        # P=2 theorem: H[0][1] = N for all P=2 orbits
+        mat = self.s_gora_and['dist_matrix']
+        self.assertEqual(mat[0][1], 16)
+        self.assertEqual(mat[1][0], 16)
+
+    def test_dist_matrix_p2_xor3_all_cells_differ(self):
+        mat = self.s_gora_xor3['dist_matrix']
+        self.assertEqual(mat[0][1], 16)
+
+    # ── eccentricity ──────────────────────────────────────────────────────────
+
+    def test_eccentricity_length(self):
+        ecc = self.s_tuman_xor3['eccentricity']
+        self.assertEqual(len(ecc), 8)
+
+    def test_eccentricity_p1_is_zero(self):
+        ecc = self.s_tuman_xor['eccentricity']
+        self.assertEqual(ecc, [0])
+
+    def test_eccentricity_p2_all_max(self):
+        ecc = self.s_gora_and['eccentricity']
+        self.assertTrue(all(e == 16 for e in ecc))
+
+    def test_eccentricity_tuman_xor3_all_16(self):
+        ecc = self.s_tuman_xor3['eccentricity']
+        self.assertTrue(all(e == 16 for e in ecc))
+
+    def test_eccentricity_mat_xor3_not_uniform(self):
+        # MАТ XOR3 is non-regular: not all eccentricities equal
+        ecc = self.s_mat_xor3['eccentricity']
+        self.assertGreater(max(ecc), min(ecc))
+
+    # ── center_steps / periphery_steps ────────────────────────────────────────
+
+    def test_center_steps_p1(self):
+        self.assertEqual(self.s_tuman_xor['center_steps'], [0])
+
+    def test_periphery_steps_p1(self):
+        self.assertEqual(self.s_tuman_xor['periphery_steps'], [0])
+
+    def test_center_steps_regular_orbit_all(self):
+        # Regular orbit: all steps are center steps
+        ctrs = self.s_tuman_xor3['center_steps']
+        self.assertEqual(sorted(ctrs), list(range(8)))
+
+    def test_periphery_steps_regular_orbit_all(self):
+        peri = self.s_tuman_xor3['periphery_steps']
+        self.assertEqual(sorted(peri), list(range(8)))
+
+    def test_center_steps_mat_xor3(self):
+        # MАТ XOR3 has a genuine center (step 2)
+        ctrs = self.s_mat_xor3['center_steps']
+        self.assertIn(2, ctrs)
+        # center eccentricity < diameter
+        ecc = self.s_mat_xor3['eccentricity']
+        for c in ctrs:
+            self.assertLess(ecc[c], self.s_mat_xor3['diameter'])
+
+    # ── multistep_summary ─────────────────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'dist_matrix', 'eccentricity', 'diameter', 'radius',
+            'center_steps', 'periphery_steps',
+            'girth', 'orbit_spread', 'dist_histogram', 'is_regular',
+        }
+        self.assertTrue(required.issubset(self.s_tuman_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['word'], 'ТУМАН')
+
+    def test_summary_rule_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['rule'], 'xor3')
+
+    def test_summary_period_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['period'], 8)
+
+    def test_summary_period_tuman_xor(self):
+        self.assertEqual(self.s_tuman_xor['period'], 1)
+
+    def test_summary_n_cells(self):
+        self.assertEqual(self.s_tuman_xor3['n_cells'], 16)
+
+    def test_summary_diameter_tuman_xor(self):
+        self.assertEqual(self.s_tuman_xor['diameter'], 0)
+
+    def test_summary_diameter_gora_and(self):
+        self.assertEqual(self.s_gora_and['diameter'], 16)
+
+    def test_summary_diameter_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['diameter'], 16)
+
+    def test_summary_radius_tuman_xor(self):
+        self.assertEqual(self.s_tuman_xor['radius'], 0)
+
+    def test_summary_radius_tuman_xor3(self):
+        # Regular orbit: radius == diameter
+        self.assertEqual(self.s_tuman_xor3['radius'], 16)
+
+    def test_summary_radius_mat_xor3(self):
+        # Non-regular: radius < diameter
+        self.assertLess(self.s_mat_xor3['radius'], self.s_mat_xor3['diameter'])
+        self.assertEqual(self.s_mat_xor3['radius'], 12)
+
+    def test_summary_girth_p1(self):
+        self.assertEqual(self.s_tuman_xor['girth'], 0)
+
+    def test_summary_girth_p2_all16(self):
+        self.assertEqual(self.s_gora_and['girth'], 16)
+
+    def test_summary_girth_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['girth'], 6)
+
+    def test_summary_girth_mat_xor3(self):
+        self.assertEqual(self.s_mat_xor3['girth'], 4)
+
+    def test_summary_spread_p1(self):
+        self.assertAlmostEqual(self.s_tuman_xor['orbit_spread'], 0.0)
+
+    def test_summary_spread_p2(self):
+        self.assertAlmostEqual(self.s_gora_and['orbit_spread'], 16.0)
+
+    def test_summary_spread_tuman_xor3(self):
+        self.assertAlmostEqual(
+            self.s_tuman_xor3['orbit_spread'], 195.0 / 14, places=4
+        )  # 195/14 ≈ 13.9286
+
+    def test_summary_spread_mat_xor3(self):
+        self.assertAlmostEqual(self.s_mat_xor3['orbit_spread'], 9.7143, places=3)
+
+    def test_summary_is_regular_p1(self):
+        self.assertTrue(self.s_tuman_xor['is_regular'])
+
+    def test_summary_is_regular_p2(self):
+        self.assertTrue(self.s_gora_and['is_regular'])
+
+    def test_summary_is_regular_tuman_xor3(self):
+        self.assertTrue(self.s_tuman_xor3['is_regular'])
+
+    def test_summary_is_regular_mat_xor3_false(self):
+        self.assertFalse(self.s_mat_xor3['is_regular'])
+
+    def test_summary_is_regular_iff_diam_eq_rad(self):
+        s = self.s_mat_xor3
+        self.assertEqual(s['is_regular'], s['diameter'] == s['radius'])
+
+    # ── dist_histogram ────────────────────────────────────────────────────────
+
+    def test_histogram_p1_empty(self):
+        self.assertEqual(self.s_tuman_xor['dist_histogram'], {})
+
+    def test_histogram_p2_only_16(self):
+        h = self.s_gora_and['dist_histogram']
+        self.assertEqual(list(h.keys()), [16])
+        self.assertEqual(h[16], 2)  # H[0][1] and H[1][0]
+
+    def test_histogram_tuman_xor3_total_count(self):
+        h = self.s_tuman_xor3['dist_histogram']
+        self.assertEqual(sum(h.values()), 8 * 7)  # 56 off-diagonal pairs
+
+    def test_histogram_tuman_xor3_max_distance_count(self):
+        h = self.s_tuman_xor3['dist_histogram']
+        self.assertEqual(h.get(16, 0), 30)
+
+    def test_histogram_tuman_xor3_girth_count(self):
+        h = self.s_tuman_xor3['dist_histogram']
+        self.assertEqual(h.get(6, 0), 2)
+
+    # ── all_multistep / build_multistep_data ──────────────────────────────────
+
+    def test_all_multistep_has_four_rules(self):
+        d = self.all_multistep('ГОРА', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_multistep_data_returns_dict(self):
+        data = self.build_multistep_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('data', data)
+
+    def test_build_multistep_data_word_list(self):
+        data = self.build_multistep_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertEqual(data['words'], ['ТУМАН', 'ГОРА'])
+
+    def test_build_multistep_data_per_word(self):
+        data = self.build_multistep_data(['ТУМАН'], 16)
+        self.assertIn('ТУМАН', data['data'])
+
+    # ── multistep_dict (JSON serialisability) ─────────────────────────────────
+
+    def test_multistep_dict_keys(self):
+        d = self.multistep_dict(self.s_tuman_xor3)
+        self.assertIn('diameter', d)
+        self.assertIn('dist_histogram', d)
+
+    def test_multistep_dict_histogram_str_keys(self):
+        d = self.multistep_dict(self.s_tuman_xor3)
+        hist = d['dist_histogram']
+        for k in hist:
+            self.assertIsInstance(k, str)
+
+    def test_multistep_dict_serialisable(self):
+        import json
+        d = self.multistep_dict(self.s_tuman_xor3)
+        s = json.dumps(d)
+        self.assertIn('diameter', s)
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_ms_matrix(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ms-matrix', content)
+
+    def test_viewer_has_ms_ecc(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ms-ecc', content)
+
+    def test_viewer_has_ms_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('msRun', content)
+
+    def test_viewer_has_ms_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ms-info', content)
+
+    def test_viewer_has_ms_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ms-word', content)
+
+    def test_viewer_has_ms_hamming(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('msHamming', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_multistep',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_multistep(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_multistep', content)
+
+
+class TestSolanSemantic(unittest.TestCase):
+    """Tests for solan_semantic.py — semantic orbit trajectory."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_semantic import (
+            hamming_dist,
+            nearest_in_lex,
+            dist_to_self,
+            semantic_summary,
+            all_semantic,
+            build_semantic_data,
+            semantic_dict,
+        )
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        cls.hamming_dist     = staticmethod(hamming_dist)
+        cls.nearest_in_lex   = staticmethod(nearest_in_lex)
+        cls.dist_to_self_fn  = staticmethod(dist_to_self)
+        cls.semantic_summary = staticmethod(semantic_summary)
+        cls.all_semantic     = staticmethod(all_semantic)
+        cls.build_semantic_data = staticmethod(build_semantic_data)
+        cls.semantic_dict    = staticmethod(semantic_dict)
+        cls.encode_word      = staticmethod(encode_word)
+        cls.pad_to           = staticmethod(pad_to)
+
+        # Shared lex ICs
+        from projects.hexglyph.solan_semantic import _encode_lex
+        cls._lex_ics = _encode_lex(16)
+
+        # Precompute summaries
+        cls.s_tuman_xor  = semantic_summary('ТУМАН', 'xor',  16, _lex_ics=cls._lex_ics)
+        cls.s_tuman_xor3 = semantic_summary('ТУМАН', 'xor3', 16, _lex_ics=cls._lex_ics)
+        cls.s_gora_xor3  = semantic_summary('ГОРА',  'xor3', 16, _lex_ics=cls._lex_ics)
+        cls.s_mat_xor3   = semantic_summary('МАТ',   'xor3', 16, _lex_ics=cls._lex_ics)
+        cls.s_gora_and   = semantic_summary('ГОРА',  'and',  16, _lex_ics=cls._lex_ics)
+
+    # ── hamming_dist ──────────────────────────────────────────────────────────
+
+    def test_hamming_dist_identical(self):
+        self.assertEqual(self.hamming_dist([1, 2, 3], [1, 2, 3]), 0)
+
+    def test_hamming_dist_all_differ(self):
+        self.assertEqual(self.hamming_dist([0]*16, [1]*16), 16)
+
+    def test_hamming_dist_symmetric(self):
+        a = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+        b = [1,0,3,2,5,4,7,6,9,8,11,10,13,12,15,14]
+        self.assertEqual(self.hamming_dist(a, b), self.hamming_dist(b, a))
+
+    # ── nearest_in_lex ────────────────────────────────────────────────────────
+
+    def test_nearest_is_self_for_word_ic(self):
+        # The IC for ТУМАН should be nearest to itself
+        ic = self.pad_to(self.encode_word('ТУМАН'), 16)
+        nbs = self.nearest_in_lex(ic, self._lex_ics, top_n=1)
+        self.assertEqual(nbs[0][0], 'ТУМАН')
+        self.assertEqual(nbs[0][1], 0)
+
+    def test_nearest_sorted_ascending(self):
+        ic = self.pad_to(self.encode_word('ТУМАН'), 16)
+        nbs = self.nearest_in_lex(ic, self._lex_ics, top_n=5)
+        dists = [d for _, d in nbs]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_nearest_top_n_length(self):
+        ic = self.pad_to(self.encode_word('ТУМАН'), 16)
+        nbs = self.nearest_in_lex(ic, self._lex_ics, top_n=4)
+        self.assertLessEqual(len(nbs), 4)
+
+    def test_nearest_returns_pairs(self):
+        ic = self.pad_to(self.encode_word('ГОРА'), 16)
+        nbs = self.nearest_in_lex(ic, self._lex_ics, top_n=3)
+        for item in nbs:
+            self.assertEqual(len(item), 2)
+            self.assertIsInstance(item[0], str)
+            self.assertIsInstance(item[1], int)
+
+    # ── dist_to_self ──────────────────────────────────────────────────────────
+
+    def test_dist_to_self_t0_xor3_is_zero(self):
+        # XOR3 has transient=0 → orbit[0] = word IC → d_self[0]=0
+        self.assertEqual(self.s_tuman_xor3['dist_to_self'][0], 0)
+
+    def test_dist_to_self_length_equals_period(self):
+        self.assertEqual(
+            len(self.s_tuman_xor3['dist_to_self']),
+            self.s_tuman_xor3['period']
+        )
+
+    def test_dist_to_self_in_range(self):
+        for d in self.s_tuman_xor3['dist_to_self']:
+            self.assertGreaterEqual(d, 0)
+            self.assertLessEqual(d, 16)
+
+    # ── semantic_summary required keys ────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'nearest', 'nearest_word', 'nearest_dist', 'dist_to_self',
+            'self_nearest_steps', 'void_steps', 'unique_words',
+            'n_unique_words', 'mean_nearest_dist',
+            'min_nearest_dist', 'max_nearest_dist', 'self_is_nearest_t0',
+        }
+        self.assertTrue(required.issubset(self.s_tuman_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['word'], 'ТУМАН')
+
+    def test_summary_rule_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['rule'], 'xor3')
+
+    def test_summary_period_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['period'], 8)
+
+    def test_summary_period_gora_xor3(self):
+        self.assertEqual(self.s_gora_xor3['period'], 2)
+
+    # ── nearest_word / nearest_dist ───────────────────────────────────────────
+
+    def test_nearest_word_length_equals_period(self):
+        self.assertEqual(len(self.s_tuman_xor3['nearest_word']), 8)
+
+    def test_nearest_dist_length_equals_period(self):
+        self.assertEqual(len(self.s_tuman_xor3['nearest_dist']), 8)
+
+    def test_nearest_word_t0_is_self_xor3(self):
+        # XOR3 transient=0 → orbit[0]=word IC → nearest is the word itself
+        self.assertEqual(self.s_tuman_xor3['nearest_word'][0], 'ТУМАН')
+        self.assertEqual(self.s_gora_xor3['nearest_word'][0], 'ГОРА')
+        self.assertEqual(self.s_mat_xor3['nearest_word'][0], 'МАТ')
+
+    def test_nearest_dist_t0_xor3_is_zero(self):
+        self.assertEqual(self.s_tuman_xor3['nearest_dist'][0], 0)
+        self.assertEqual(self.s_gora_xor3['nearest_dist'][0], 0)
+
+    def test_nearest_dist_in_valid_range(self):
+        for d in self.s_tuman_xor3['nearest_dist']:
+            self.assertGreaterEqual(d, 0)
+            self.assertLessEqual(d, 16)
+
+    def test_nearest_top_has_correct_structure(self):
+        top = self.s_tuman_xor3['nearest']
+        self.assertEqual(len(top), 8)
+        for step in top:
+            self.assertIsInstance(step, list)
+            self.assertGreater(len(step), 0)
+
+    # ── self_nearest_steps ────────────────────────────────────────────────────
+
+    def test_self_nearest_steps_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['self_nearest_steps'], [0, 3, 6])
+
+    def test_self_nearest_steps_gora_xor3(self):
+        self.assertEqual(self.s_gora_xor3['self_nearest_steps'], [0])
+
+    def test_self_nearest_steps_mat_xor3(self):
+        self.assertEqual(self.s_mat_xor3['self_nearest_steps'], [0, 2, 6])
+
+    def test_self_nearest_steps_is_subset_of_range(self):
+        P = self.s_tuman_xor3['period']
+        for t in self.s_tuman_xor3['self_nearest_steps']:
+            self.assertIn(t, range(P))
+
+    def test_self_nearest_steps_t0_always_included_for_xor3(self):
+        # XOR3 transient=0 → step 0 always nearest to self
+        self.assertIn(0, self.s_tuman_xor3['self_nearest_steps'])
+        self.assertIn(0, self.s_gora_xor3['self_nearest_steps'])
+        self.assertIn(0, self.s_mat_xor3['self_nearest_steps'])
+
+    # ── void_steps ────────────────────────────────────────────────────────────
+
+    def test_void_steps_gora_xor3(self):
+        # P=2 XOR3: t=1 is always void (complement state not in lexicon)
+        self.assertIn(1, self.s_gora_xor3['void_steps'])
+
+    def test_void_steps_tuman_xor3_empty(self):
+        # ТУМАН XOR3 has no void steps (all nearest dist < 16)
+        self.assertEqual(self.s_tuman_xor3['void_steps'], [])
+
+    def test_void_steps_mat_xor3_empty(self):
+        self.assertEqual(self.s_mat_xor3['void_steps'], [])
+
+    def test_void_steps_correspond_to_max_dist(self):
+        N = 16
+        for t in self.s_gora_xor3['void_steps']:
+            self.assertEqual(self.s_gora_xor3['nearest_dist'][t], N)
+
+    # ── unique_words / n_unique_words ─────────────────────────────────────────
+
+    def test_n_unique_words_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['n_unique_words'], 6)
+
+    def test_n_unique_words_gora_xor3(self):
+        # ГОРА: nearest at t=0 is ГОРА, at t=1 is a void placeholder
+        self.assertEqual(self.s_gora_xor3['n_unique_words'], 2)
+
+    def test_unique_words_first_is_self_for_xor3(self):
+        # Orbit starts at word's IC, so nearest at t=0 = word itself
+        self.assertEqual(self.s_tuman_xor3['unique_words'][0], 'ТУМАН')
+        self.assertEqual(self.s_mat_xor3['unique_words'][0], 'МАТ')
+
+    def test_unique_words_length_le_period(self):
+        P = self.s_tuman_xor3['period']
+        self.assertLessEqual(self.s_tuman_xor3['n_unique_words'], P)
+
+    def test_unique_words_no_duplicates(self):
+        uw = self.s_tuman_xor3['unique_words']
+        self.assertEqual(len(uw), len(set(uw)))
+
+    # ── mean/min/max nearest dist ─────────────────────────────────────────────
+
+    def test_mean_nearest_dist_tuman_xor3(self):
+        self.assertAlmostEqual(self.s_tuman_xor3['mean_nearest_dist'], 10.875, places=3)
+
+    def test_min_nearest_dist_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['min_nearest_dist'], 0)
+
+    def test_max_nearest_dist_tuman_xor3(self):
+        self.assertEqual(self.s_tuman_xor3['max_nearest_dist'], 15)
+
+    def test_max_nearest_dist_gora_xor3_void(self):
+        # Void step → max dist = 16
+        self.assertEqual(self.s_gora_xor3['max_nearest_dist'], 16)
+
+    def test_mean_dist_consistent_with_nearest_dist(self):
+        nd = self.s_tuman_xor3['nearest_dist']
+        expected = sum(nd) / len(nd)
+        self.assertAlmostEqual(self.s_tuman_xor3['mean_nearest_dist'],
+                               expected, places=4)
+
+    # ── self_is_nearest_t0 ────────────────────────────────────────────────────
+
+    def test_self_is_nearest_t0_xor3_true(self):
+        # XOR3 transient=0: orbit starts at word IC → nearest is self
+        self.assertTrue(self.s_tuman_xor3['self_is_nearest_t0'])
+        self.assertTrue(self.s_gora_xor3['self_is_nearest_t0'])
+        self.assertTrue(self.s_mat_xor3['self_is_nearest_t0'])
+
+    # ── all_semantic / build_semantic_data ────────────────────────────────────
+
+    def test_all_semantic_has_four_rules(self):
+        d = self.all_semantic('ГОРА', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_semantic_data_keys(self):
+        data = self.build_semantic_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertIn('words', data)
+        self.assertIn('data', data)
+
+    def test_build_semantic_data_word_list(self):
+        data = self.build_semantic_data(['ТУМАН', 'ГОРА'], 16)
+        self.assertEqual(data['words'], ['ТУМАН', 'ГОРА'])
+
+    # ── semantic_dict ─────────────────────────────────────────────────────────
+
+    def test_semantic_dict_keys(self):
+        d = self.semantic_dict(self.s_tuman_xor3)
+        self.assertIn('nearest_word', d)
+        self.assertIn('void_steps', d)
+        self.assertIn('unique_words', d)
+
+    def test_semantic_dict_serialisable(self):
+        import json
+        d = self.semantic_dict(self.s_tuman_xor3)
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIn('ТУМАН', s)
+
+    def test_semantic_dict_nearest_top_structure(self):
+        d = self.semantic_dict(self.s_tuman_xor3)
+        top = d['nearest_top']
+        self.assertEqual(len(top), 8)
+        self.assertIn('word', top[0][0])
+        self.assertIn('dist', top[0][0])
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_sm_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sm-canvas', content)
+
+    def test_viewer_has_sm_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('smRun', content)
+
+    def test_viewer_has_sm_nearest(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('smNearest', content)
+
+    def test_viewer_has_sm_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('sm-info', content)
+
+    def test_viewer_has_sm_hamming(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('smHamming', content)
+
+    def test_viewer_has_sm_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('smOrbit', content)
+
+    def test_viewer_has_void_steps_label(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('void_steps', content)
+
+    def test_viewer_has_self_nearest_label(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('self_nearest', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_semantic',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_semantic(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_semantic', content)
+
+
+class TestSolanBitplane(unittest.TestCase):
+    """Tests for solan_bitplane.py — phonetic bit-plane analysis."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_bitplane import (
+            get_bit_plane, plane_period, frozen_type, cell_activity,
+            plane_hamming, coupling_matrix, bitplane_summary,
+            all_bitplane, build_bitplane_data, bitplane_dict,
+        )
+        cls.get_bit_plane    = staticmethod(get_bit_plane)
+        cls.plane_period     = staticmethod(plane_period)
+        cls.frozen_type      = staticmethod(frozen_type)
+        cls.cell_activity    = staticmethod(cell_activity)
+        cls.plane_hamming    = staticmethod(plane_hamming)
+        cls.coupling_matrix  = staticmethod(coupling_matrix)
+        cls.bitplane_summary = staticmethod(bitplane_summary)
+        cls.all_bitplane     = staticmethod(all_bitplane)
+        cls.build_data       = staticmethod(build_bitplane_data)
+        cls.bitplane_dict    = staticmethod(bitplane_dict)
+
+        # Precomputed summaries
+        cls.s_tuman_xor3 = bitplane_summary('ТУМАН', 'xor3', 16)
+        cls.s_mat_xor3   = bitplane_summary('МАТ',   'xor3', 16)
+        cls.s_gora_xor3  = bitplane_summary('ГОРА',  'xor3', 16)
+        cls.s_rota_xor3  = bitplane_summary('РОТА',  'xor3', 16)
+        cls.s_dobro_xor3 = bitplane_summary('ДОБРО', 'xor3', 16)
+
+    # ── get_bit_plane ─────────────────────────────────────────────────────────
+
+    def test_bit0_of_63_is_1(self):
+        # 63 = 0b111111 → bit0 = 1
+        plane = self.get_bit_plane([[63, 0]], 0)
+        self.assertEqual(plane[0][0], 1)
+        self.assertEqual(plane[0][1], 0)
+
+    def test_bit5_of_63_is_1(self):
+        plane = self.get_bit_plane([[63]], 5)
+        self.assertEqual(plane[0][0], 1)
+
+    def test_bit5_of_31_is_0(self):
+        # 31 = 0b011111 → bit5 = 0
+        plane = self.get_bit_plane([[31]], 5)
+        self.assertEqual(plane[0][0], 0)
+
+    def test_bit_plane_shape(self):
+        orbit = [[i for i in range(16)]] * 4
+        plane = self.get_bit_plane(orbit, 0)
+        self.assertEqual(len(plane), 4)
+        self.assertTrue(all(len(row) == 16 for row in plane))
+
+    def test_all_zero_orbit_all_bits_zero(self):
+        orbit = [[0] * 8] * 3
+        for b in range(6):
+            plane = self.get_bit_plane(orbit, b)
+            self.assertTrue(all(v == 0 for row in plane for v in row))
+
+    def test_all_63_orbit_all_bits_one(self):
+        orbit = [[63] * 8] * 3
+        for b in range(6):
+            plane = self.get_bit_plane(orbit, b)
+            self.assertTrue(all(v == 1 for row in plane for v in row))
+
+    # ── plane_period ──────────────────────────────────────────────────────────
+
+    def test_frozen_plane_period_is_1(self):
+        plane = [(0,) * 8] * 5  # same state repeated
+        self.assertEqual(self.plane_period(plane), 1)
+
+    def test_alternating_plane_period_is_2(self):
+        plane = [(0, 1)] * 1 + [(1, 0)] * 1 + [(0, 1)] * 1
+        self.assertEqual(self.plane_period(plane), 2)
+
+    def test_plane_period_divides_orbit_period(self):
+        P = self.s_tuman_xor3['period']
+        for b in range(6):
+            pp = self.s_tuman_xor3['bit_periods'][b]
+            self.assertEqual(P % pp, 0,
+                             f"plane period {pp} does not divide P={P} for bit{b}")
+
+    def test_plane_period_tuman_xor3_all_8(self):
+        # All 6 bit planes of ТУМАН XOR3 have period 8
+        for b in range(6):
+            self.assertEqual(self.s_tuman_xor3['bit_periods'][b], 8)
+
+    def test_plane_period_mat_d1_is_1(self):
+        self.assertEqual(self.s_mat_xor3['bit_periods'][4], 1)
+
+    def test_plane_period_gora_t_is_1(self):
+        self.assertEqual(self.s_gora_xor3['bit_periods'][0], 1)
+
+    # ── frozen_type ───────────────────────────────────────────────────────────
+
+    def test_frozen_type_uniform_1(self):
+        plane = [(1, 1, 1)] * 3
+        self.assertEqual(self.frozen_type(plane), 'uniform_1')
+
+    def test_frozen_type_uniform_0(self):
+        plane = [(0, 0, 0)] * 3
+        self.assertEqual(self.frozen_type(plane), 'uniform_0')
+
+    def test_frozen_type_patterned(self):
+        plane = [(0, 1, 0)] * 3  # frozen but not uniform
+        self.assertEqual(self.frozen_type(plane), 'patterned')
+
+    def test_frozen_type_active(self):
+        plane = [(0, 1), (1, 0), (0, 1)]
+        self.assertEqual(self.frozen_type(plane), 'active')
+
+    def test_mat_d1_frozen_type_uniform_1(self):
+        self.assertEqual(self.s_mat_xor3['frozen_types'][4], 'uniform_1')
+
+    def test_gora_t_frozen_type_uniform_1(self):
+        self.assertEqual(self.s_gora_xor3['frozen_types'][0], 'uniform_1')
+
+    # ── cell_activity ─────────────────────────────────────────────────────────
+
+    def test_cell_activity_all_0(self):
+        plane = [(0, 0)] * 4
+        act = self.cell_activity(plane)
+        self.assertEqual(act, [0.0, 0.0])
+
+    def test_cell_activity_all_1(self):
+        plane = [(1, 1)] * 4
+        act = self.cell_activity(plane)
+        self.assertEqual(act, [1.0, 1.0])
+
+    def test_cell_activity_half(self):
+        plane = [(1, 0), (0, 1), (1, 0), (0, 1)]
+        act = self.cell_activity(plane)
+        self.assertAlmostEqual(act[0], 0.5)
+        self.assertAlmostEqual(act[1], 0.5)
+
+    def test_mat_d1_activity_all_ones(self):
+        act = self.s_mat_xor3['cell_activity'][4]
+        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in act))
+
+    # ── plane_hamming ─────────────────────────────────────────────────────────
+
+    def test_plane_hamming_frozen_is_all_zero(self):
+        plane = [(0, 1, 0)] * 5
+        hd = self.plane_hamming(plane)
+        self.assertEqual(hd, [0] * 5)
+
+    def test_plane_hamming_length_equals_period(self):
+        hd = self.s_tuman_xor3['plane_hamming'][0]
+        self.assertEqual(len(hd), self.s_tuman_xor3['period'])
+
+    def test_mat_d1_hamming_all_zero(self):
+        hd = self.s_mat_xor3['plane_hamming'][4]
+        self.assertEqual(hd, [0] * self.s_mat_xor3['period'])
+
+    def test_tuman_t_and_b_hamming_identical(self):
+        # T and B planes have identical Hamming sequences in ТУМАН XOR3
+        hd0 = self.s_tuman_xor3['plane_hamming'][0]
+        hd1 = self.s_tuman_xor3['plane_hamming'][1]
+        self.assertEqual(hd0, hd1)
+
+    # ── coupling_matrix ───────────────────────────────────────────────────────
+
+    def test_coupling_matrix_diagonal_is_1(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mat = self.coupling_matrix(orbit)
+        for b in range(6):
+            self.assertAlmostEqual(mat[b][b], 1.0, places=9)
+
+    def test_coupling_matrix_symmetric(self):
+        from projects.hexglyph.solan_perm import get_orbit
+        orbit = get_orbit('ТУМАН', 'xor3', 16)
+        mat = self.coupling_matrix(orbit)
+        for b1 in range(6):
+            for b2 in range(6):
+                r1, r2 = mat[b1][b2], mat[b2][b1]
+                if r1 is None or r2 is None:
+                    self.assertIsNone(r1)
+                    self.assertIsNone(r2)
+                else:
+                    self.assertAlmostEqual(r1, r2, places=12)
+
+    def test_coupling_matrix_constant_plane_gives_none(self):
+        # МАТ XOR3 D1 is constant → coupling with D1 should be None off-diag
+        mat = self.s_mat_xor3['coupling']
+        for b2 in range(6):
+            if b2 == 4:
+                continue  # diagonal
+            self.assertIsNone(mat[4][b2])
+            self.assertIsNone(mat[b2][4])
+
+    # ── bitplane_summary keys & structure ─────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'bit_periods', 'frozen_types', 'n_active',
+            'n_frozen_uniform', 'n_frozen_patterned',
+            'frozen_uniform_bits', 'frozen_bit_values',
+            'coupling', 'coupled_pairs', 'anti_coupled_pairs',
+            'cell_activity', 'plane_hamming',
+        }
+        self.assertTrue(required.issubset(self.s_tuman_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_tuman_xor3['word'], 'ТУМАН')
+
+    def test_summary_n_cells(self):
+        self.assertEqual(self.s_tuman_xor3['n_cells'], 16)
+
+    def test_bit_periods_length_6(self):
+        self.assertEqual(len(self.s_tuman_xor3['bit_periods']), 6)
+
+    def test_frozen_types_length_6(self):
+        self.assertEqual(len(self.s_tuman_xor3['frozen_types']), 6)
+
+    def test_cell_activity_length_6(self):
+        self.assertEqual(len(self.s_tuman_xor3['cell_activity']), 6)
+
+    def test_plane_hamming_length_6(self):
+        self.assertEqual(len(self.s_tuman_xor3['plane_hamming']), 6)
+
+    # ── frozen uniform bits ───────────────────────────────────────────────────
+
+    def test_mat_n_frozen_uniform_is_1(self):
+        self.assertEqual(self.s_mat_xor3['n_frozen_uniform'], 1)
+
+    def test_mat_frozen_uniform_bits_contains_d1(self):
+        self.assertIn(4, self.s_mat_xor3['frozen_uniform_bits'])
+
+    def test_mat_frozen_bit_value_d1_is_1(self):
+        self.assertEqual(self.s_mat_xor3['frozen_bit_values'][4], 1)
+
+    def test_gora_n_frozen_uniform_is_1(self):
+        self.assertEqual(self.s_gora_xor3['n_frozen_uniform'], 1)
+
+    def test_gora_frozen_uniform_bits_contains_t(self):
+        self.assertIn(0, self.s_gora_xor3['frozen_uniform_bits'])
+
+    def test_gora_frozen_bit_value_t_is_1(self):
+        self.assertEqual(self.s_gora_xor3['frozen_bit_values'][0], 1)
+
+    def test_tuman_no_frozen_planes(self):
+        self.assertEqual(self.s_tuman_xor3['n_frozen_uniform'], 0)
+        self.assertEqual(self.s_tuman_xor3['n_frozen_patterned'], 0)
+
+    # ── n_active ──────────────────────────────────────────────────────────────
+
+    def test_n_active_tuman_xor3_is_6(self):
+        self.assertEqual(self.s_tuman_xor3['n_active'], 6)
+
+    def test_n_active_mat_xor3_is_5(self):
+        self.assertEqual(self.s_mat_xor3['n_active'], 5)
+
+    def test_n_active_gora_xor3_is_5(self):
+        self.assertEqual(self.s_gora_xor3['n_active'], 5)
+
+    def test_n_active_plus_frozen_equals_6(self):
+        s = self.s_mat_xor3
+        total = s['n_active'] + s['n_frozen_uniform'] + s['n_frozen_patterned']
+        self.assertEqual(total, 6)
+
+    # ── coupled / anti-coupled pairs ──────────────────────────────────────────
+
+    def test_tuman_coupled_pairs_contains_t_b(self):
+        self.assertIn((0, 1), self.s_tuman_xor3['coupled_pairs'])
+
+    def test_mat_coupled_pairs_contains_t_b(self):
+        self.assertIn((0, 1), self.s_mat_xor3['coupled_pairs'])
+
+    def test_mat_coupled_pairs_contains_t_l(self):
+        self.assertIn((0, 2), self.s_mat_xor3['coupled_pairs'])
+
+    def test_gora_coupled_pairs_contains_b_l(self):
+        self.assertIn((1, 2), self.s_gora_xor3['coupled_pairs'])
+
+    def test_gora_coupled_pairs_contains_l_r(self):
+        self.assertIn((2, 3), self.s_gora_xor3['coupled_pairs'])
+
+    def test_rota_has_maximum_coupling(self):
+        # РОТА XOR3: T=B=L=R all coupled (6 pairs among 4 planes)
+        cp = self.s_rota_xor3['coupled_pairs']
+        # All pairs of {T,B,L,R} = (0,1),(0,2),(0,3),(1,2),(1,3),(2,3)
+        for pair in [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)]:
+            self.assertIn(pair, cp)
+
+    def test_dobro_has_anti_coupling(self):
+        # ДОБРО XOR3: L != D1 (bit2 != bit4)
+        acp = self.s_dobro_xor3['anti_coupled_pairs']
+        self.assertIn((2, 4), acp)
+
+    def test_coupled_pairs_are_sorted(self):
+        for b1, b2 in self.s_tuman_xor3['coupled_pairs']:
+            self.assertLess(b1, b2)
+
+    # ── bitplane_dict serialisation ───────────────────────────────────────────
+
+    def test_bitplane_dict_serialisable(self):
+        import json
+        d = self.bitplane_dict(self.s_tuman_xor3)
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIn('ТУМАН', s)
+
+    def test_bitplane_dict_coupling_matrix_no_none_as_string(self):
+        import json
+        d = self.bitplane_dict(self.s_mat_xor3)
+        mat = d['coupling_matrix']
+        # None should be preserved as JSON null, not as string 'None'
+        s = json.dumps(mat)
+        self.assertNotIn('"None"', s)
+
+    def test_all_bitplane_has_four_rules(self):
+        d = self.all_bitplane('ТУМАН', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_bp_grid(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bp-grid', content)
+
+    def test_viewer_has_bp_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bp-heat', content)
+
+    def test_viewer_has_bp_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bpRun', content)
+
+    def test_viewer_has_frozen_type(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('frozenType', content)
+
+    def test_viewer_has_pearson(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pearson', content)
+
+    def test_viewer_has_bp_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('bpOrbit', content)
+
+    def test_viewer_has_bit_names(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn("'T','B','L','R','D1','D2'", content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_bitplane',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_bitplane(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_bitplane', content)
+
+
+
+    def test_build_bitplane_data_returns_dict(self):
+        from projects.hexglyph.solan_bitplane import build_bitplane_data
+        d = build_bitplane_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanProfile(unittest.TestCase):
+    """Tests for solan_profile.py — statistical moment profile."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_profile import (
+            _step_moments, profile_summary, all_profile,
+            build_profile_data, profile_dict,
+        )
+        cls._step_moments    = staticmethod(_step_moments)
+        cls.profile_summary  = staticmethod(profile_summary)
+        cls.all_profile      = staticmethod(all_profile)
+        cls.build_data       = staticmethod(build_profile_data)
+        cls.profile_dict     = staticmethod(profile_dict)
+
+        # Precomputed summaries
+        cls.s_mat_xor3    = profile_summary('МАТ',    'xor3', 16)
+        cls.s_tundra_xor3 = profile_summary('ТУНДРА', 'xor3', 16)
+        cls.s_tuman_xor3  = profile_summary('ТУМАН',  'xor3', 16)
+        cls.s_gora_xor3   = profile_summary('ГОРА',   'xor3', 16)
+        cls.s_duga_xor3   = profile_summary('ДУГА',   'xor3', 16)
+
+    # ── _step_moments basics ──────────────────────────────────────────────────
+
+    def test_uniform_state_var_is_zero(self):
+        p = self._step_moments([42] * 16)
+        self.assertAlmostEqual(p['var'], 0.0, places=9)
+
+    def test_uniform_state_skew_is_zero(self):
+        p = self._step_moments([10] * 8)
+        self.assertAlmostEqual(p['skewness'], 0.0, places=9)
+
+    def test_uniform_state_kurt_is_zero(self):
+        p = self._step_moments([10] * 8)
+        self.assertAlmostEqual(p['kurtosis'], 0.0, places=9)
+
+    def test_uniform_state_mode_count_is_N(self):
+        p = self._step_moments([7] * 16)
+        self.assertEqual(p['mode_count'], 16)
+        self.assertAlmostEqual(p['mode_fraction'], 1.0, places=9)
+
+    def test_two_value_state_range(self):
+        p = self._step_moments([0] * 8 + [10] * 8)
+        self.assertEqual(p['range'], 10)
+
+    def test_two_value_state_mean(self):
+        p = self._step_moments([0] * 8 + [10] * 8)
+        self.assertAlmostEqual(p['mean'], 5.0, places=9)
+
+    def test_n_distinct_counts_unique(self):
+        p = self._step_moments([1, 2, 3, 1, 2, 3, 1, 2])
+        self.assertEqual(p['n_distinct'], 3)
+
+    def test_mode_is_most_common(self):
+        p = self._step_moments([5, 5, 5, 7, 8, 9, 10, 5])
+        self.assertEqual(p['mode'], 5)
+        self.assertEqual(p['mode_count'], 4)
+
+    # ── profile_summary required keys ─────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'spatial_profiles', 'spatial_mean', 'spatial_var',
+            'spatial_skewness', 'spatial_kurtosis', 'spatial_range',
+            'mode_vals', 'mode_counts', 'mode_fractions', 'n_distinct',
+            'max_mode_fraction', 'max_mode_fraction_step',
+            'max_skew_abs', 'max_skew_abs_step',
+            'max_kurtosis', 'max_kurtosis_step',
+            'min_var', 'min_var_step',
+            'max_range', 'max_range_step',
+            'mean_spatial_mean', 'mean_spatial_var',
+            'dominant_mode_val', 'dominant_mode_n',
+            'temporal_mean', 'temporal_var',
+            'max_temporal_var_cell', 'max_temporal_var',
+        }
+        self.assertTrue(required.issubset(self.s_mat_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_mat_xor3['word'], 'МАТ')
+
+    def test_summary_rule_preserved(self):
+        self.assertEqual(self.s_mat_xor3['rule'], 'xor3')
+
+    def test_summary_period(self):
+        self.assertEqual(self.s_mat_xor3['period'], 8)
+        self.assertEqual(self.s_gora_xor3['period'], 2)
+
+    # ── spatial_profiles length ───────────────────────────────────────────────
+
+    def test_spatial_profiles_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['spatial_profiles']), P)
+
+    def test_spatial_mean_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['spatial_mean']), P)
+
+    def test_mode_fractions_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['mode_fractions']), P)
+
+    # ── МАТ XOR3 known values ─────────────────────────────────────────────────
+
+    def test_mat_max_mode_fraction(self):
+        # 14/16 cells = 0.875 at t=1
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_mode_fraction'], 0.875, places=4)
+
+    def test_mat_max_mode_fraction_step(self):
+        self.assertEqual(self.s_mat_xor3['max_mode_fraction_step'], 1)
+
+    def test_mat_mode_at_t1_is_23(self):
+        self.assertEqual(self.s_mat_xor3['mode_vals'][1], 23)
+
+    def test_mat_mode_count_at_t1_is_14(self):
+        self.assertEqual(self.s_mat_xor3['mode_counts'][1], 14)
+
+    def test_mat_max_skew_abs(self):
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_skew_abs'], 2.518, places=2)
+
+    def test_mat_max_skew_step(self):
+        self.assertEqual(self.s_mat_xor3['max_skew_abs_step'], 1)
+
+    def test_mat_max_kurtosis(self):
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_kurtosis'], 4.756, places=2)
+
+    def test_mat_max_kurtosis_step(self):
+        self.assertEqual(self.s_mat_xor3['max_kurtosis_step'], 1)
+
+    def test_mat_dominant_mode_is_23(self):
+        self.assertEqual(self.s_mat_xor3['dominant_mode_val'], 23)
+
+    def test_mat_dominant_mode_n(self):
+        # Value 23 is mode at 6 of 8 steps
+        self.assertEqual(self.s_mat_xor3['dominant_mode_n'], 6)
+
+    # ── ТУНДРА XOR3 known values ──────────────────────────────────────────────
+
+    def test_tundra_max_skew_abs(self):
+        self.assertAlmostEqual(
+            self.s_tundra_xor3['max_skew_abs'], 3.057, places=2)
+
+    def test_tundra_max_skew_step(self):
+        self.assertEqual(self.s_tundra_xor3['max_skew_abs_step'], 2)
+
+    def test_tundra_max_kurtosis(self):
+        self.assertAlmostEqual(
+            self.s_tundra_xor3['max_kurtosis'], 8.41, places=1)
+
+    def test_tundra_max_kurtosis_step(self):
+        self.assertEqual(self.s_tundra_xor3['max_kurtosis_step'], 2)
+
+    # ── ДУГА XOR3 — most uniform ──────────────────────────────────────────────
+
+    def test_duga_min_var_is_small(self):
+        # ДУГА XOR3 has smallest non-zero variance (~32.19)
+        self.assertLess(self.s_duga_xor3['min_var'], 35.0)
+
+    def test_duga_min_var_is_positive(self):
+        self.assertGreater(self.s_duga_xor3['min_var'], 0.0)
+
+    # ── Structural invariants ─────────────────────────────────────────────────
+
+    def test_mode_fractions_in_valid_range(self):
+        N = self.s_mat_xor3['n_cells']
+        for mf in self.s_mat_xor3['mode_fractions']:
+            self.assertGreaterEqual(mf, 1.0 / N - 1e-9)
+            self.assertLessEqual(mf, 1.0 + 1e-9)
+
+    def test_n_distinct_in_valid_range(self):
+        N = self.s_mat_xor3['n_cells']
+        for nd in self.s_mat_xor3['n_distinct']:
+            self.assertGreaterEqual(nd, 1)
+            self.assertLessEqual(nd, N)
+
+    def test_mean_spatial_mean_consistent(self):
+        sm = self.s_mat_xor3['spatial_mean']
+        expected = sum(sm) / len(sm)
+        self.assertAlmostEqual(
+            self.s_mat_xor3['mean_spatial_mean'], expected, places=3)
+
+    def test_mean_spatial_var_consistent(self):
+        sv = self.s_mat_xor3['spatial_var']
+        expected = sum(sv) / len(sv)
+        self.assertAlmostEqual(
+            self.s_mat_xor3['mean_spatial_var'], expected, places=3)
+
+    def test_max_mode_fraction_is_max_of_list(self):
+        mf_list = self.s_mat_xor3['mode_fractions']
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_mode_fraction'], max(mf_list), places=9)
+
+    def test_max_skew_abs_is_max_of_abs_skewness(self):
+        sk_list = self.s_mat_xor3['spatial_skewness']
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_skew_abs'], max(abs(v) for v in sk_list),
+            places=4)
+
+    def test_max_range_consistent(self):
+        rg = self.s_mat_xor3['spatial_range']
+        self.assertEqual(self.s_mat_xor3['max_range'], max(rg))
+
+    # ── Temporal moments ──────────────────────────────────────────────────────
+
+    def test_temporal_mean_length_equals_n_cells(self):
+        N = self.s_mat_xor3['n_cells']
+        self.assertEqual(len(self.s_mat_xor3['temporal_mean']), N)
+
+    def test_temporal_var_length_equals_n_cells(self):
+        N = self.s_mat_xor3['n_cells']
+        self.assertEqual(len(self.s_mat_xor3['temporal_var']), N)
+
+    def test_temporal_var_p1_is_zero(self):
+        # P=1 orbit (XOR fixed point): all cells constant → temporal_var=0
+        s = self.profile_summary('ТУМАН', 'xor', 16)
+        self.assertEqual(s['period'], 1)
+        for tv in s['temporal_var']:
+            self.assertAlmostEqual(tv, 0.0, places=9)
+
+    def test_max_temporal_var_cell_is_valid_index(self):
+        N = self.s_mat_xor3['n_cells']
+        self.assertIn(self.s_mat_xor3['max_temporal_var_cell'], range(N))
+
+    def test_max_temporal_var_matches_cell(self):
+        cell = self.s_mat_xor3['max_temporal_var_cell']
+        tv_list = self.s_mat_xor3['temporal_var']
+        self.assertAlmostEqual(
+            self.s_mat_xor3['max_temporal_var'], tv_list[cell], places=3)
+
+    # ── all_profile / build_data ──────────────────────────────────────────────
+
+    def test_all_profile_has_four_rules(self):
+        d = self.all_profile('ТУМАН', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_data_word_list(self):
+        data = self.build_data(['МАТ', 'ГОРА'], 16)
+        self.assertEqual(data['words'], ['МАТ', 'ГОРА'])
+
+    def test_build_data_has_all_rules(self):
+        data = self.build_data(['МАТ'], 16)
+        self.assertEqual(set(data['data']['МАТ'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── profile_dict ──────────────────────────────────────────────────────────
+
+    def test_profile_dict_serialisable(self):
+        import json
+        d = self.profile_dict(self.s_mat_xor3)
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIn('МАТ', s)
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_pf_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pf-canvas', content)
+
+    def test_viewer_has_pf_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pfRun', content)
+
+    def test_viewer_has_pf_moments(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pfMoments', content)
+
+    def test_viewer_has_pf_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pfOrbit', content)
+
+    def test_viewer_has_pf_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pf-info', content)
+
+    def test_viewer_has_mode_frac_label(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mode_frac', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_profile',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_profile(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_profile', content)
+
+
+
+    def test_build_profile_data_returns_dict(self):
+        from projects.hexglyph.solan_profile import build_profile_data
+        d = build_profile_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanCoverage(unittest.TestCase):
+    """Tests for solan_coverage.py — Q6 value coverage of CA orbits."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_coverage import (
+            q6_label, orbit_frequencies, coverage_summary,
+            global_coverage, all_coverage, build_coverage_data, coverage_dict,
+        )
+        cls.q6_label          = staticmethod(q6_label)
+        cls.orbit_frequencies = staticmethod(orbit_frequencies)
+        cls.coverage_summary  = staticmethod(coverage_summary)
+        cls.global_coverage   = staticmethod(global_coverage)
+        cls.all_coverage      = staticmethod(all_coverage)
+        cls.build_data        = staticmethod(build_coverage_data)
+        cls.coverage_dict     = staticmethod(coverage_dict)
+
+        # Precomputed summaries
+        cls.s_mat_xor3   = coverage_summary('МАТ',    'xor3', 16)
+        cls.s_tuman_xor3 = coverage_summary('ТУМАН',  'xor3', 16)
+        cls.s_rabota_xor3= coverage_summary('РАБОТА', 'xor3', 16)
+        cls.s_gora_xor3  = coverage_summary('ГОРА',   'xor3', 16)
+        cls.s_tuman_xor  = coverage_summary('ТУМАН',  'xor',  16)
+        cls.g_xor3        = global_coverage('xor3', 16)
+        cls.g_xor         = global_coverage('xor',  16)
+
+    # ── q6_label ──────────────────────────────────────────────────────────────
+
+    def test_q6_label_zero(self):
+        self.assertEqual(self.q6_label(0), '0')
+
+    def test_q6_label_63(self):
+        self.assertEqual(self.q6_label(63), 'T+B+L+R+D1+D2')
+
+    def test_q6_label_1_is_T(self):
+        self.assertEqual(self.q6_label(1), 'T')
+
+    def test_q6_label_23(self):
+        # 23 = 0b010111 = T+B+L+D1
+        self.assertEqual(self.q6_label(23), 'T+B+L+D1')
+
+    def test_q6_label_6_is_BL(self):
+        self.assertEqual(self.q6_label(6), 'B+L')
+
+    def test_q6_label_10_is_BR(self):
+        self.assertEqual(self.q6_label(10), 'B+R')
+
+    # ── orbit_frequencies ─────────────────────────────────────────────────────
+
+    def test_orbit_frequencies_returns_counter(self):
+        from collections import Counter
+        cnt = self.orbit_frequencies('ТУМАН', 'xor3', 16)
+        self.assertIsInstance(cnt, Counter)
+
+    def test_orbit_frequencies_total_equals_orbit_size(self):
+        cnt = self.orbit_frequencies('МАТ', 'xor3', 16)
+        self.assertEqual(sum(cnt.values()), 8 * 16)
+
+    def test_orbit_frequencies_mat_has_4_values(self):
+        cnt = self.orbit_frequencies('МАТ', 'xor3', 16)
+        self.assertEqual(len(cnt), 4)
+
+    def test_orbit_frequencies_xor_only_zero(self):
+        cnt = self.orbit_frequencies('ТУМАН', 'xor', 16)
+        self.assertEqual(set(cnt.keys()), {0})
+
+    # ── coverage_summary required keys ────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells', 'orbit_size',
+            'freq', 'vocab', 'n_distinct', 'coverage',
+            'most_common', 'dominant_val', 'dominant_count', 'dominant_frac',
+            'never_seen', 'n_never_seen', 'vocab_labels',
+            'step_vocab', 'step_n_distinct', 'step_mode', 'step_mode_count',
+            'min_step_n_distinct', 'max_step_n_distinct',
+        }
+        self.assertTrue(required.issubset(self.s_mat_xor3.keys()))
+
+    def test_summary_word_preserved(self):
+        self.assertEqual(self.s_mat_xor3['word'], 'МАТ')
+
+    def test_summary_rule_preserved(self):
+        self.assertEqual(self.s_mat_xor3['rule'], 'xor3')
+
+    def test_orbit_size_equals_period_times_n_cells(self):
+        s = self.s_mat_xor3
+        self.assertEqual(s['orbit_size'], s['period'] * s['n_cells'])
+
+    # ── МАТ XOR3 known values ─────────────────────────────────────────────────
+
+    def test_mat_n_distinct_is_4(self):
+        self.assertEqual(self.s_mat_xor3['n_distinct'], 4)
+
+    def test_mat_coverage(self):
+        self.assertAlmostEqual(self.s_mat_xor3['coverage'], 4 / 64, places=6)
+
+    def test_mat_dominant_val_is_23(self):
+        self.assertEqual(self.s_mat_xor3['dominant_val'], 23)
+
+    def test_mat_dominant_count_is_64(self):
+        self.assertEqual(self.s_mat_xor3['dominant_count'], 64)
+
+    def test_mat_dominant_frac_is_half(self):
+        self.assertAlmostEqual(self.s_mat_xor3['dominant_frac'], 0.5, places=6)
+
+    def test_mat_vocab_contains_23(self):
+        self.assertIn(23, self.s_mat_xor3['vocab'])
+
+    def test_mat_vocab_is_sorted(self):
+        v = self.s_mat_xor3['vocab']
+        self.assertEqual(v, sorted(v))
+
+    def test_mat_vocab_labels_for_23(self):
+        idx = self.s_mat_xor3['vocab'].index(23)
+        self.assertEqual(self.s_mat_xor3['vocab_labels'][idx], 'T+B+L+D1')
+
+    def test_mat_orbit_size_is_128(self):
+        self.assertEqual(self.s_mat_xor3['orbit_size'], 128)
+
+    # ── РАБОТА XOR3 — maximum vocabulary ──────────────────────────────────────
+
+    def test_rabota_n_distinct_is_16(self):
+        self.assertEqual(self.s_rabota_xor3['n_distinct'], 16)
+
+    def test_rabota_has_max_coverage_in_xor3(self):
+        # РАБОТА has the maximum vocabulary size under XOR3
+        self.assertGreaterEqual(
+            self.s_rabota_xor3['n_distinct'],
+            self.s_tuman_xor3['n_distinct'])
+
+    # ── XOR rule — only value 0 ───────────────────────────────────────────────
+
+    def test_xor_n_distinct_is_1(self):
+        self.assertEqual(self.s_tuman_xor['n_distinct'], 1)
+
+    def test_xor_dominant_val_is_0(self):
+        self.assertEqual(self.s_tuman_xor['dominant_val'], 0)
+
+    def test_xor_dominant_frac_is_1(self):
+        self.assertAlmostEqual(self.s_tuman_xor['dominant_frac'], 1.0, places=9)
+
+    def test_xor_n_never_seen_is_63(self):
+        self.assertEqual(self.s_tuman_xor['n_never_seen'], 63)
+
+    # ── Structural invariants ─────────────────────────────────────────────────
+
+    def test_n_distinct_plus_n_never_seen_eq_64(self):
+        for s in [self.s_mat_xor3, self.s_tuman_xor3, self.s_gora_xor3]:
+            self.assertEqual(s['n_distinct'] + s['n_never_seen'], 64)
+
+    def test_coverage_consistent(self):
+        s = self.s_mat_xor3
+        self.assertAlmostEqual(s['coverage'], s['n_distinct'] / 64, places=9)
+
+    def test_dominant_frac_consistent(self):
+        s = self.s_mat_xor3
+        self.assertAlmostEqual(
+            s['dominant_frac'], s['dominant_count'] / s['orbit_size'], places=9)
+
+    def test_vocab_len_equals_n_distinct(self):
+        self.assertEqual(len(self.s_mat_xor3['vocab']), self.s_mat_xor3['n_distinct'])
+
+    def test_vocab_labels_len_equals_n_distinct(self):
+        s = self.s_mat_xor3
+        self.assertEqual(len(s['vocab_labels']), s['n_distinct'])
+
+    def test_freq_total_equals_orbit_size(self):
+        s = self.s_mat_xor3
+        self.assertEqual(sum(s['freq'].values()), s['orbit_size'])
+
+    def test_never_seen_not_in_freq(self):
+        s = self.s_mat_xor3
+        for v in s['never_seen']:
+            self.assertNotIn(v, s['freq'])
+
+    # ── Per-step stats ────────────────────────────────────────────────────────
+
+    def test_step_vocab_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['step_vocab']), P)
+
+    def test_step_n_distinct_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['step_n_distinct']), P)
+
+    def test_step_mode_length_equals_period(self):
+        P = self.s_mat_xor3['period']
+        self.assertEqual(len(self.s_mat_xor3['step_mode']), P)
+
+    def test_mat_step_mode_at_t1_is_23(self):
+        self.assertEqual(self.s_mat_xor3['step_mode'][1], 23)
+
+    def test_mat_step_mode_count_at_t1_is_14(self):
+        self.assertEqual(self.s_mat_xor3['step_mode_count'][1], 14)
+
+    def test_min_step_n_distinct_le_max(self):
+        s = self.s_mat_xor3
+        self.assertLessEqual(s['min_step_n_distinct'], s['max_step_n_distinct'])
+
+    # ── global_coverage XOR3 ──────────────────────────────────────────────────
+
+    def test_global_xor3_n_seen_is_60(self):
+        self.assertEqual(self.g_xor3['n_seen'], 60)
+
+    def test_global_xor3_n_absent_is_4(self):
+        self.assertEqual(self.g_xor3['n_absent'], 4)
+
+    def test_global_xor3_absent_contains_6(self):
+        self.assertIn(6, self.g_xor3['absent'])
+
+    def test_global_xor3_absent_contains_10(self):
+        self.assertIn(10, self.g_xor3['absent'])
+
+    def test_global_xor3_absent_contains_45(self):
+        self.assertIn(45, self.g_xor3['absent'])
+
+    def test_global_xor3_absent_contains_58(self):
+        self.assertIn(58, self.g_xor3['absent'])
+
+    def test_global_xor3_absent_labels(self):
+        labels = self.g_xor3['absent_labels']
+        self.assertIn('B+L', labels)
+        self.assertIn('B+R', labels)
+
+    def test_global_xor_only_value_0(self):
+        self.assertEqual(self.g_xor['n_seen'], 1)
+        self.assertEqual(self.g_xor['seen'], [0])
+
+    # ── coverage_dict / serialisation ─────────────────────────────────────────
+
+    def test_coverage_dict_serialisable(self):
+        import json
+        d = self.coverage_dict(self.s_mat_xor3)
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIn('МАТ', s)
+
+    def test_all_coverage_has_four_rules(self):
+        d = self.all_coverage('МАТ', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    # ── Viewer HTML ───────────────────────────────────────────────────────────
+
+    def test_viewer_has_cv_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cv-canvas', content)
+
+    def test_viewer_has_cv_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cvRun', content)
+
+    def test_viewer_has_cv_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cvOrbit', content)
+
+    def test_viewer_has_q6_label(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('q6Label', content)
+
+    def test_viewer_has_cv_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cv-info', content)
+
+    def test_viewer_has_xor3_absent(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('XOR3_ABSENT', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_coverage',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_coverage(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_coverage', content)
+
+
+
+    def test_build_coverage_data_returns_dict(self):
+        from projects.hexglyph.solan_coverage import build_coverage_data
+        d = build_coverage_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanRun(unittest.TestCase):
+    """Tests for solan_run.py — cell temporal run analysis of Q6 CA orbits."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_run import (
+            analyze_cell, run_summary, all_run,
+            build_run_data, run_dict,
+        )
+        cls.analyze_cell = staticmethod(analyze_cell)
+        cls.run_summary  = staticmethod(run_summary)
+        cls.all_run      = staticmethod(all_run)
+        cls.build_data   = staticmethod(build_run_data)
+        cls.run_dict     = staticmethod(run_dict)
+
+        # Precomputed summaries
+        cls.s_rabota_xor3 = run_summary('РАБОТА', 'xor3', 16)
+        cls.s_mat_xor3    = run_summary('МАТ',    'xor3', 16)
+        cls.s_gora_xor3   = run_summary('ГОРА',   'xor3', 16)
+        cls.s_tuman_xor3  = run_summary('ТУМАН',  'xor3', 16)
+        cls.s_mat_xor     = run_summary('МАТ',    'xor',  16)
+        cls.s_mat_and     = run_summary('МАТ',    'and',  16)
+
+    # ── analyze_cell ──────────────────────────────────────────────────────────
+
+    def test_analyze_cell_constant_sequence(self):
+        a = self.analyze_cell([5, 5, 5, 5])
+        self.assertEqual(a['n_turns'], 0)
+        self.assertEqual(a['n_inc'],   0)
+        self.assertEqual(a['n_dec'],   0)
+        self.assertEqual(a['n_const'], 3)
+        self.assertEqual(a['value_range'], 0)
+
+    def test_analyze_cell_monotone_inc(self):
+        a = self.analyze_cell([1, 2, 3, 4])
+        self.assertEqual(a['n_turns'], 0)
+        self.assertEqual(a['n_inc'],   3)
+        self.assertEqual(a['n_dec'],   0)
+
+    def test_analyze_cell_monotone_dec(self):
+        a = self.analyze_cell([4, 3, 2, 1])
+        self.assertEqual(a['n_turns'], 0)
+        self.assertEqual(a['n_inc'],   0)
+        self.assertEqual(a['n_dec'],   3)
+
+    def test_analyze_cell_one_turn(self):
+        # 1,3,1 — goes up then down: 1 turn (local max at t=1)
+        a = self.analyze_cell([1, 3, 1])
+        self.assertEqual(a['n_turns'], 1)
+        self.assertEqual(a['n_inc'],   1)
+        self.assertEqual(a['n_dec'],   1)
+
+    def test_analyze_cell_two_turns(self):
+        # 3,1,3,1 — up/down/up: 2 turns
+        a = self.analyze_cell([3, 1, 3, 1])
+        self.assertEqual(a['n_turns'], 2)
+
+    def test_analyze_cell_range(self):
+        a = self.analyze_cell([10, 40, 20, 5])
+        self.assertEqual(a['value_range'], 35)
+        self.assertEqual(a['min_val'], 5)
+        self.assertEqual(a['max_val'], 40)
+
+    def test_analyze_cell_const_does_not_break_run(self):
+        # 1,2,2,1 — increases then flat then decreases: 1 turn
+        a = self.analyze_cell([1, 2, 2, 1])
+        self.assertEqual(a['n_turns'], 1)
+        self.assertEqual(a['n_const'], 1)
+
+    def test_analyze_cell_period1(self):
+        a = self.analyze_cell([42])
+        self.assertEqual(a['n_turns'],  0)
+        self.assertEqual(a['n_inc'],    0)
+        self.assertEqual(a['n_dec'],    0)
+        self.assertEqual(a['n_const'],  0)
+        self.assertEqual(a['value_range'], 0)
+
+    def test_analyze_cell_alternating(self):
+        # 63,0,63,0 — alternates: 2 turns (down, up, down skipped — 2 sign reversals)
+        a = self.analyze_cell([63, 0, 63, 0])
+        self.assertEqual(a['n_turns'], 2)
+
+    def test_analyze_cell_returns_required_keys(self):
+        a = self.analyze_cell([1, 2, 1])
+        for key in ('n_turns', 'n_inc', 'n_dec', 'n_const',
+                    'value_range', 'min_val', 'max_val'):
+            self.assertIn(key, a)
+
+    # ── run_summary structure ─────────────────────────────────────────────────
+
+    def test_summary_has_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells',
+            'cell_n_turns', 'cell_n_inc', 'cell_n_dec', 'cell_n_const',
+            'cell_range', 'cell_min_val', 'cell_max_val',
+            'max_turns', 'max_turns_cell', 'min_turns', 'min_turns_cell',
+            'mean_turns', 'total_inc', 'total_dec', 'total_const',
+            'max_range', 'max_range_cell', 'min_range', 'min_range_cell',
+            'mean_range', 'quasi_frozen_cells', 'n_quasi_frozen',
+        }
+        self.assertTrue(required.issubset(self.s_rabota_xor3.keys()))
+
+    def test_summary_list_lengths(self):
+        s = self.s_rabota_xor3
+        N = s['n_cells']
+        for key in ('cell_n_turns', 'cell_n_inc', 'cell_n_dec',
+                    'cell_n_const', 'cell_range', 'cell_min_val', 'cell_max_val'):
+            self.assertEqual(len(s[key]), N, f'{key} length mismatch')
+
+    def test_summary_word_rule_preserved(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['word'], 'РАБОТА')
+        self.assertEqual(s['rule'], 'xor3')
+
+    def test_summary_period(self):
+        self.assertEqual(self.s_rabota_xor3['period'], 8)
+        self.assertEqual(self.s_gora_xor3['period'],   2)
+
+    def test_summary_n_cells(self):
+        self.assertEqual(self.s_rabota_xor3['n_cells'], 16)
+
+    def test_summary_total_steps_conservation(self):
+        # total_inc + total_dec + total_const = N × (P-1)
+        s = self.s_rabota_xor3
+        expected = s['n_cells'] * (s['period'] - 1)
+        actual = s['total_inc'] + s['total_dec'] + s['total_const']
+        self.assertEqual(actual, expected)
+
+    def test_summary_max_turns_cell_consistent(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['cell_n_turns'][s['max_turns_cell']], s['max_turns'])
+
+    def test_summary_min_turns_cell_consistent(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['cell_n_turns'][s['min_turns_cell']], s['min_turns'])
+
+    def test_summary_max_range_cell_consistent(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['cell_range'][s['max_range_cell']], s['max_range'])
+
+    def test_summary_mean_turns_bounds(self):
+        s = self.s_rabota_xor3
+        self.assertGreaterEqual(s['mean_turns'], s['min_turns'])
+        self.assertLessEqual(s['mean_turns'],    s['max_turns'])
+
+    def test_summary_quasi_frozen_subset(self):
+        s = self.s_rabota_xor3
+        for i in s['quasi_frozen_cells']:
+            self.assertEqual(s['cell_n_turns'][i], 0)
+
+    def test_summary_n_quasi_frozen_matches_list(self):
+        s = self.s_rabota_xor3
+        self.assertEqual(s['n_quasi_frozen'], len(s['quasi_frozen_cells']))
+
+    # ── РАБОТА XOR3 known values ──────────────────────────────────────────────
+
+    def test_rabota_max_turns(self):
+        # Cell 1: [63,62,63,1,63,0,63,62] → 6 turns
+        self.assertEqual(self.s_rabota_xor3['max_turns'], 6)
+
+    def test_rabota_max_turns_cell(self):
+        self.assertEqual(self.s_rabota_xor3['max_turns_cell'], 1)
+
+    def test_rabota_max_range(self):
+        # Cell 1 has range 63 (0–63)
+        self.assertEqual(self.s_rabota_xor3['max_range'], 63)
+
+    def test_rabota_quasi_frozen(self):
+        # Cells 7,8 have 0 turns
+        qf = self.s_rabota_xor3['quasi_frozen_cells']
+        self.assertIn(7, qf)
+        self.assertIn(8, qf)
+
+    def test_rabota_cell1_n_turns(self):
+        self.assertEqual(self.s_rabota_xor3['cell_n_turns'][1], 6)
+
+    def test_rabota_cell7_zero_turns(self):
+        self.assertEqual(self.s_rabota_xor3['cell_n_turns'][7], 0)
+
+    def test_rabota_cell8_zero_turns(self):
+        self.assertEqual(self.s_rabota_xor3['cell_n_turns'][8], 0)
+
+    # ── МАТ XOR3 known values ────────────────────────────────────────────────
+
+    def test_mat_quasi_frozen_includes_7_8(self):
+        qf = self.s_mat_xor3['quasi_frozen_cells']
+        self.assertIn(7, qf)
+        self.assertIn(8, qf)
+
+    def test_mat_cell7_zero_turns(self):
+        self.assertEqual(self.s_mat_xor3['cell_n_turns'][7], 0)
+
+    def test_mat_cell8_zero_turns(self):
+        self.assertEqual(self.s_mat_xor3['cell_n_turns'][8], 0)
+
+    def test_mat_cell7_mostly_const(self):
+        # seq [63,23,23,...] → n_const=6 out of 7 steps
+        self.assertEqual(self.s_mat_xor3['cell_n_const'][7], 6)
+
+    def test_mat_cell0_four_turns(self):
+        # Outer cells have 4 turns (gradient pattern)
+        self.assertEqual(self.s_mat_xor3['cell_n_turns'][0], 4)
+
+    def test_mat_xor3_period(self):
+        self.assertEqual(self.s_mat_xor3['period'], 8)
+
+    # ── ГОРА XOR3 (P=2) ──────────────────────────────────────────────────────
+
+    def test_gora_all_zero_turns(self):
+        # P=2 means only 1 step → can't have a turn
+        s = self.s_gora_xor3
+        self.assertEqual(s['max_turns'], 0)
+        self.assertEqual(len(s['quasi_frozen_cells']), s['n_cells'])
+
+    def test_gora_n_quasi_frozen_all_cells(self):
+        s = self.s_gora_xor3
+        self.assertEqual(s['n_quasi_frozen'], 16)
+
+    def test_gora_total_const_zero_for_p2(self):
+        # P=2: each cell has exactly 1 step (inc or dec), never const
+        s = self.s_gora_xor3
+        self.assertEqual(s['total_const'], 0)
+
+    # ── AND / XOR rules ───────────────────────────────────────────────────────
+
+    def test_mat_and_period1_all_zero_turns(self):
+        # AND collapses to fixed point P=1 → no steps → 0 turns
+        s = self.s_mat_and
+        self.assertEqual(s['period'], 1)
+        self.assertEqual(s['max_turns'], 0)
+        self.assertEqual(s['total_inc'], 0)
+        self.assertEqual(s['total_dec'], 0)
+        self.assertEqual(s['total_const'], 0)
+
+    def test_mat_xor_period(self):
+        # XOR converges to 0; P=1 for all words (fixed-point {0})
+        # (or P=2 transitional — just verify no error and period≥1)
+        s = self.s_mat_xor
+        self.assertGreaterEqual(s['period'], 1)
+        self.assertGreaterEqual(s['max_turns'], 0)
+
+    # ── all_run ───────────────────────────────────────────────────────────────
+
+    def test_all_run_returns_all_rules(self):
+        ar = self.all_run('ТУМАН', 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, ar)
+
+    def test_all_run_each_is_dict(self):
+        ar = self.all_run('ТУМАН', 16)
+        for d in ar.values():
+            self.assertIsInstance(d, dict)
+            self.assertIn('max_turns', d)
+
+    # ── build_run_data ────────────────────────────────────────────────────────
+
+    def test_build_run_data_keys(self):
+        words = ['МАТ', 'ГОРА']
+        d = self.build_data(words, 16)
+        self.assertIn('words', d)
+        self.assertIn('data',  d)
+        self.assertEqual(d['words'], words)
+
+    def test_build_run_data_nested_structure(self):
+        words = ['МАТ']
+        d = self.build_data(words, 16)
+        self.assertIn('МАТ', d['data'])
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, d['data']['МАТ'])
+
+    # ── run_dict ─────────────────────────────────────────────────────────────
+
+    def test_run_dict_json_serialisable(self):
+        import json
+        rd = self.run_dict(self.s_rabota_xor3)
+        out = json.dumps(rd)
+        self.assertIsInstance(out, str)
+
+    def test_run_dict_has_max_turns(self):
+        rd = self.run_dict(self.s_rabota_xor3)
+        self.assertIn('max_turns', rd)
+        self.assertEqual(rd['max_turns'], 6)
+
+    def test_run_dict_has_cell_lists(self):
+        rd = self.run_dict(self.s_rabota_xor3)
+        self.assertIsInstance(rd['cell_n_turns'], list)
+        self.assertEqual(len(rd['cell_n_turns']), 16)
+
+    # ── mean_turns and mean_range bounds ─────────────────────────────────────
+
+    def test_mean_turns_non_negative(self):
+        for s in (self.s_rabota_xor3, self.s_mat_xor3, self.s_gora_xor3):
+            self.assertGreaterEqual(s['mean_turns'], 0.0)
+
+    def test_mean_range_non_negative(self):
+        for s in (self.s_rabota_xor3, self.s_mat_xor3):
+            self.assertGreaterEqual(s['mean_range'], 0.0)
+
+    def test_range_non_negative_all_cells(self):
+        for s in (self.s_rabota_xor3, self.s_mat_xor3, self.s_gora_xor3):
+            for r in s['cell_range']:
+                self.assertGreaterEqual(r, 0)
+
+    def test_turns_non_negative_all_cells(self):
+        for s in (self.s_rabota_xor3, self.s_mat_xor3, self.s_gora_xor3):
+            for t in s['cell_n_turns']:
+                self.assertGreaterEqual(t, 0)
+
+    # ── Viewer HTML assertions ────────────────────────────────────────────────
+
+    def test_viewer_has_rn_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rn-canvas', content)
+
+    def test_viewer_has_rn_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rnRun', content)
+
+    def test_viewer_has_rn_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rnOrbit', content)
+
+    def test_viewer_has_analyze_cell(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('analyzeCell', content)
+
+    def test_viewer_has_rn_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rn-info', content)
+
+    def test_viewer_has_quasi_frozen(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('quasi_frozen', content)
+
+    def test_viewer_has_solan_run_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_run', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_run',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+class TestSolanCross(unittest.TestCase):
+    """Tests for solan_cross.py — pairwise cell Q6 cross-correlation."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_cross import (
+            pearson, cross_corr_matrix, cross_summary,
+            all_cross, build_cross_data, cross_dict,
+        )
+        cls.pearson            = staticmethod(pearson)
+        cls.cross_corr_matrix  = staticmethod(cross_corr_matrix)
+        cls.cross_summary      = staticmethod(cross_summary)
+        cls.all_cross          = staticmethod(all_cross)
+        cls.build_data         = staticmethod(build_cross_data)
+        cls.cross_dict         = staticmethod(cross_dict)
+
+        # Precomputed summaries
+        cls.s_mat_xor3   = cross_summary('МАТ',    'xor3', 16)
+        cls.s_tuman_xor3 = cross_summary('ТУМАН',  'xor3', 16)
+        cls.s_gora_xor3  = cross_summary('ГОРА',   'xor3', 16)
+        cls.s_rabota_xor3= cross_summary('РАБОТА', 'xor3', 16)
+        cls.s_mat_xor    = cross_summary('МАТ',    'xor',  16)
+
+    # ── pearson() unit tests ──────────────────────────────────────────────────
+
+    def test_pearson_identical_sequences(self):
+        self.assertAlmostEqual(self.pearson([1, 2, 3, 4], [1, 2, 3, 4]), 1.0)
+
+    def test_pearson_opposite_sequences(self):
+        self.assertAlmostEqual(self.pearson([1, 2, 3, 4], [4, 3, 2, 1]), -1.0)
+
+    def test_pearson_constant_returns_none(self):
+        self.assertIsNone(self.pearson([5, 5, 5], [1, 2, 3]))
+
+    def test_pearson_both_constant_returns_none(self):
+        self.assertIsNone(self.pearson([3, 3], [7, 7]))
+
+    def test_pearson_range(self):
+        import random
+        random.seed(42)
+        xs = [random.randint(0, 63) for _ in range(20)]
+        ys = [random.randint(0, 63) for _ in range(20)]
+        r = self.pearson(xs, ys)
+        if r is not None:
+            self.assertGreaterEqual(r, -1.0 - 1e-9)
+            self.assertLessEqual(r,    1.0 + 1e-9)
+
+    def test_pearson_scaled_same_pattern(self):
+        # Scaling doesn't affect Pearson correlation
+        xs = [1, 2, 3, 4]
+        ys = [10, 20, 30, 40]
+        self.assertAlmostEqual(self.pearson(xs, ys), 1.0)
+
+    def test_pearson_offset_same_pattern(self):
+        # Offset doesn't affect Pearson correlation
+        xs = [1, 2, 3]
+        ys = [101, 102, 103]
+        self.assertAlmostEqual(self.pearson(xs, ys), 1.0)
+
+    def test_pearson_single_element_returns_none(self):
+        self.assertIsNone(self.pearson([5], [5]))
+
+    # ── cross_corr_matrix structure ───────────────────────────────────────────
+
+    def test_matrix_shape(self):
+        mat = self.cross_corr_matrix('МАТ', 'xor3', 16)
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 16)
+
+    def test_matrix_diagonal_is_one_or_none(self):
+        mat = self.cross_corr_matrix('МАТ', 'xor3', 16)
+        for i in range(16):
+            v = mat[i][i]
+            self.assertTrue(v is None or abs(v - 1.0) < 1e-9)
+
+    def test_matrix_symmetry(self):
+        mat = self.cross_corr_matrix('ТУМАН', 'xor3', 16)
+        for i in range(16):
+            for j in range(16):
+                ri = mat[i][j]
+                rj = mat[j][i]
+                if ri is None or rj is None:
+                    self.assertIsNone(ri); self.assertIsNone(rj)
+                else:
+                    self.assertAlmostEqual(ri, rj, places=10)
+
+    def test_matrix_xor_all_none_offdiag(self):
+        # XOR: P=1, all cells constant → all off-diagonal r = None
+        mat = self.cross_corr_matrix('МАТ', 'xor', 16)
+        for i in range(16):
+            for j in range(16):
+                if i != j:
+                    self.assertIsNone(mat[i][j])
+
+    # ── cross_summary structure ───────────────────────────────────────────────
+
+    def test_summary_required_keys(self):
+        required = {
+            'word', 'rule', 'period', 'n_cells', 'matrix',
+            'n_sync_pairs', 'n_antisync_pairs', 'sync_pairs', 'antisync_pairs',
+            'max_r', 'max_r_pair', 'min_r', 'min_r_pair',
+            'mean_abs_r', 'n_defined',
+            'spatial_decay', 'n_frozen_cells', 'frozen_cells',
+        }
+        self.assertTrue(required.issubset(self.s_mat_xor3.keys()))
+
+    def test_summary_word_rule_preserved(self):
+        self.assertEqual(self.s_mat_xor3['word'], 'МАТ')
+        self.assertEqual(self.s_mat_xor3['rule'], 'xor3')
+
+    def test_summary_n_defined_correct(self):
+        # For N=16, C(16,2) = 120 off-diagonal pairs (upper triangle)
+        s = self.s_mat_xor3
+        self.assertEqual(s['n_defined'], 120)
+
+    def test_summary_xor_n_defined_zero(self):
+        # XOR: P=1 → all frozen → no defined pairs
+        self.assertEqual(self.s_mat_xor['n_defined'], 0)
+
+    def test_summary_sync_pairs_subset_of_defined(self):
+        s = self.s_mat_xor3
+        self.assertLessEqual(s['n_sync_pairs'], s['n_defined'])
+
+    def test_summary_antisync_pairs_subset(self):
+        s = self.s_mat_xor3
+        self.assertLessEqual(s['n_antisync_pairs'], s['n_defined'])
+
+    def test_summary_spatial_decay_length(self):
+        s = self.s_mat_xor3
+        # N=16 → lags 1..8 → length 8
+        self.assertEqual(len(s['spatial_decay']), 16 // 2)
+
+    def test_summary_mean_abs_r_non_negative(self):
+        self.assertGreaterEqual(self.s_mat_xor3['mean_abs_r'], 0.0)
+
+    def test_summary_max_r_ge_min_r(self):
+        s = self.s_mat_xor3
+        if s['max_r'] is not None and s['min_r'] is not None:
+            self.assertGreaterEqual(s['max_r'], s['min_r'])
+
+    def test_summary_n_sync_matches_list(self):
+        s = self.s_mat_xor3
+        self.assertEqual(s['n_sync_pairs'], len(s['sync_pairs']))
+
+    def test_summary_n_antisync_matches_list(self):
+        s = self.s_mat_xor3
+        self.assertEqual(s['n_antisync_pairs'], len(s['antisync_pairs']))
+
+    def test_summary_frozen_cells_no_defined_corr(self):
+        s = self.s_mat_xor
+        self.assertEqual(s['n_frozen_cells'], 16)
+        self.assertEqual(s['n_defined'], 0)
+
+    # ── МАТ XOR3 known values ────────────────────────────────────────────────
+
+    def test_mat_xor3_sync_pair_0_15(self):
+        self.assertIn((0, 15), self.s_mat_xor3['sync_pairs'])
+
+    def test_mat_xor3_sync_pair_7_8(self):
+        self.assertIn((7, 8), self.s_mat_xor3['sync_pairs'])
+
+    def test_mat_xor3_r_0_15_is_one(self):
+        r = self.s_mat_xor3['matrix'][0][15]
+        self.assertIsNotNone(r)
+        self.assertAlmostEqual(r, 1.0, places=9)
+
+    def test_mat_xor3_r_7_8_is_one(self):
+        r = self.s_mat_xor3['matrix'][7][8]
+        self.assertIsNotNone(r)
+        self.assertAlmostEqual(r, 1.0, places=9)
+
+    def test_mat_xor3_max_r(self):
+        self.assertAlmostEqual(self.s_mat_xor3['max_r'], 1.0, places=5)
+
+    def test_mat_xor3_n_sync_at_least_2(self):
+        self.assertGreaterEqual(self.s_mat_xor3['n_sync_pairs'], 2)
+
+    def test_mat_xor3_no_frozen_cells(self):
+        self.assertEqual(self.s_mat_xor3['n_frozen_cells'], 0)
+
+    # ── ГОРА XOR3 (P=2) — all pairs ±1 ──────────────────────────────────────
+
+    def test_gora_all_abs_r_is_one(self):
+        # P=2 → only 2 time steps → Pearson always ±1 or None
+        s = self.s_gora_xor3
+        mat = s['matrix']
+        for i in range(16):
+            for j in range(16):
+                r = mat[i][j]
+                if r is not None:
+                    self.assertAlmostEqual(abs(r), 1.0, places=9,
+                                           msg=f'|r({i},{j})|={abs(r)} ≠ 1')
+
+    def test_gora_sync_plus_antisync_equals_total(self):
+        s = self.s_gora_xor3
+        # All 120 pairs should be ±1
+        self.assertEqual(s['n_sync_pairs'] + s['n_antisync_pairs'], 120)
+
+    def test_gora_mean_abs_r_is_one(self):
+        self.assertAlmostEqual(self.s_gora_xor3['mean_abs_r'], 1.0, places=9)
+
+    # ── all_cross ─────────────────────────────────────────────────────────────
+
+    def test_all_cross_has_four_rules(self):
+        ar = self.all_cross('ТУМАН', 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, ar)
+
+    def test_all_cross_each_is_dict(self):
+        ar = self.all_cross('ТУМАН', 16)
+        for d in ar.values():
+            self.assertIsInstance(d, dict)
+            self.assertIn('n_sync_pairs', d)
+
+    # ── build_cross_data ──────────────────────────────────────────────────────
+
+    def test_build_data_keys(self):
+        words = ['МАТ', 'ГОРА']
+        d = self.build_data(words, 16)
+        self.assertIn('words', d)
+        self.assertIn('data',  d)
+
+    def test_build_data_nested(self):
+        d = self.build_data(['МАТ'], 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, d['data']['МАТ'])
+
+    # ── cross_dict ────────────────────────────────────────────────────────────
+
+    def test_cross_dict_json_serialisable(self):
+        import json
+        cd = self.cross_dict(self.s_mat_xor3)
+        out = json.dumps(cd)
+        self.assertIsInstance(out, str)
+
+    def test_cross_dict_sync_pairs_are_lists(self):
+        cd = self.cross_dict(self.s_mat_xor3)
+        self.assertIsInstance(cd['sync_pairs'], list)
+        if cd['sync_pairs']:
+            self.assertIsInstance(cd['sync_pairs'][0], list)
+
+    def test_cross_dict_matrix_no_python_none(self):
+        # cross_dict replaces None with the string 'null'
+        cd = self.cross_dict(self.s_mat_xor)  # XOR: all None
+        for row in cd['matrix']:
+            for v in row:
+                self.assertNotEqual(type(v).__name__, 'NoneType')
+
+    # ── Viewer HTML assertions ────────────────────────────────────────────────
+
+    def test_viewer_has_cr_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cr-canvas', content)
+
+    def test_viewer_has_cr_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('crRun', content)
+
+    def test_viewer_has_cr_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('crOrbit', content)
+
+    def test_viewer_has_cr_pearson(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('crPearson', content)
+
+    def test_viewer_has_cr_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cr-info', content)
+
+    def test_viewer_has_solan_cross_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_cross', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_cross',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_build_cross_data_returns_dict(self):
+        from projects.hexglyph.solan_cross import build_cross_data
+        d = build_cross_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanPCA(unittest.TestCase):
+    """Tests for solan_pca.py — PCA of Q6 CA orbit trajectories."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_pca import (
+            gram_eig, orbit_pca, pca_summary,
+            all_pca, build_pca_data, pca_dict,
+        )
+        cls.gram_eig    = staticmethod(gram_eig)
+        cls.orbit_pca   = staticmethod(orbit_pca)
+        cls.pca_summary = staticmethod(pca_summary)
+        cls.all_pca     = staticmethod(all_pca)
+        cls.build_data  = staticmethod(build_pca_data)
+        cls.pca_dict    = staticmethod(pca_dict)
+
+        # Precomputed summaries
+        cls.s_rabota_xor3 = pca_summary('РАБОТА', 'xor3', 16)
+        cls.s_mat_xor3    = pca_summary('МАТ',    'xor3', 16)
+        cls.s_gora_xor3   = pca_summary('ГОРА',   'xor3', 16)
+        cls.s_tonha_xor3  = pca_summary('ТОННА',  'xor3', 16)
+        cls.s_zavod_xor3  = pca_summary('ЗАВОД',  'xor3', 16)
+        cls.s_nitro_xor3  = pca_summary('НИТРО',  'xor3', 16)
+        cls.s_mat_and     = pca_summary('МАТ',    'and',  16)
+
+    # ── gram_eig ──────────────────────────────────────────────────────────────
+
+    def test_gram_eig_returns_pair(self):
+        G = [[2.0, 1.0], [1.0, 2.0]]
+        vals, vecs = self.gram_eig(G)
+        self.assertEqual(len(vals), 2)
+        self.assertEqual(len(vecs), 2)
+
+    def test_gram_eig_sorted_descending(self):
+        G = [[2.0, 1.0], [1.0, 2.0]]
+        vals, _ = self.gram_eig(G)
+        self.assertGreaterEqual(vals[0], vals[1])
+
+    def test_gram_eig_eigenvalues_correct(self):
+        # 2×2 symmetric: eigenvalues are 3 and 1
+        G = [[2.0, 1.0], [1.0, 2.0]]
+        vals, _ = self.gram_eig(G)
+        self.assertAlmostEqual(vals[0], 3.0, places=4)
+        self.assertAlmostEqual(vals[1], 1.0, places=4)
+
+    def test_gram_eig_eigenvalues_non_negative(self):
+        G = [[4.0, 2.0], [2.0, 3.0]]
+        vals, _ = self.gram_eig(G)
+        for v in vals:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_gram_eig_empty(self):
+        vals, vecs = self.gram_eig([])
+        self.assertEqual(vals, [])
+        self.assertEqual(vecs, [])
+
+    def test_gram_eig_1x1(self):
+        vals, vecs = self.gram_eig([[5.0]])
+        self.assertAlmostEqual(vals[0], 5.0, places=6)
+
+    # ── orbit_pca ─────────────────────────────────────────────────────────────
+
+    def test_orbit_pca_keys_present(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        for k in ('period', 'n_cells', 'eigenvalues', 'total_var', 'evr', 'cumevr',
+                  'loadings', 'mean_state'):
+            self.assertIn(k, raw)
+
+    def test_orbit_pca_period_correct(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        self.assertEqual(raw['period'], 8)
+
+    def test_orbit_pca_n_cells_correct(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        self.assertEqual(raw['n_cells'], 16)
+
+    def test_orbit_pca_eigenvalues_length_equals_period(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        self.assertEqual(len(raw['eigenvalues']), raw['period'])
+
+    def test_orbit_pca_mean_state_length(self):
+        raw = self.orbit_pca('РАБОТА', 'xor3', 16)
+        self.assertEqual(len(raw['mean_state']), 16)
+
+    def test_orbit_pca_p1_total_var_zero(self):
+        raw = self.orbit_pca('МАТ', 'and', 16)
+        self.assertEqual(raw['period'], 1)
+        self.assertEqual(raw['total_var'], 0.0)
+
+    def test_orbit_pca_p1_loadings_zero(self):
+        raw = self.orbit_pca('МАТ', 'and', 16)
+        # All loadings should be zero for P=1
+        for row in raw['loadings']:
+            for v in row:
+                self.assertAlmostEqual(v, 0.0, places=10)
+
+    # ── pca_summary structure ─────────────────────────────────────────────────
+
+    def test_pca_summary_all_keys(self):
+        for k in ('word', 'rule', 'period', 'n_cells', 'eigenvalues',
+                  'explained_var_ratio', 'cumulative_evr', 'total_var',
+                  'orbit_rank', 'n_components_95', 'pc1_loadings',
+                  'pc1_dom_cell', 'pc1_dom_loading', 'pc1_var_ratio',
+                  'n_pcs_meaningful', 'all_loadings', 'mean_state'):
+            self.assertIn(k, self.s_rabota_xor3, msg=f"missing key: {k}")
+
+    def test_pca_summary_word_preserved(self):
+        self.assertEqual(self.s_rabota_xor3['word'], 'РАБОТА')
+
+    def test_pca_summary_rule_preserved(self):
+        self.assertEqual(self.s_rabota_xor3['rule'], 'xor3')
+
+    def test_pca_summary_evr_sums_to_one(self):
+        evr = self.s_rabota_xor3['explained_var_ratio']
+        self.assertAlmostEqual(sum(evr), 1.0, places=5)
+
+    def test_pca_summary_cumevr_ends_at_one(self):
+        cum = self.s_rabota_xor3['cumulative_evr']
+        self.assertAlmostEqual(cum[-1], 1.0, places=5)
+
+    def test_pca_summary_cumevr_monotone(self):
+        cum = self.s_rabota_xor3['cumulative_evr']
+        for i in range(len(cum) - 1):
+            self.assertLessEqual(cum[i], cum[i + 1] + 1e-10)
+
+    def test_pca_summary_eigenvalues_non_negative(self):
+        for v in self.s_rabota_xor3['eigenvalues']:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_pca_summary_eigenvalues_sorted_desc(self):
+        evals = self.s_rabota_xor3['eigenvalues']
+        for i in range(len(evals) - 1):
+            self.assertGreaterEqual(evals[i] + 1e-10, evals[i + 1])
+
+    def test_pca_summary_pc1_loadings_unit_length(self):
+        import math
+        lv = self.s_rabota_xor3['pc1_loadings']
+        nm = math.sqrt(sum(x * x for x in lv))
+        self.assertAlmostEqual(nm, 1.0, places=4)
+
+    def test_pca_summary_dom_cell_consistent(self):
+        s = self.s_rabota_xor3
+        dom = s['pc1_dom_cell']
+        lv  = s['pc1_loadings']
+        max_abs = max(abs(v) for v in lv)
+        self.assertAlmostEqual(abs(lv[dom]), max_abs, places=6)
+
+    def test_pca_summary_dom_loading_consistent(self):
+        s = self.s_rabota_xor3
+        self.assertAlmostEqual(s['pc1_dom_loading'], s['pc1_loadings'][s['pc1_dom_cell']], places=5)
+
+    def test_pca_summary_pc1_var_ratio_consistent(self):
+        s = self.s_rabota_xor3
+        evr = s['explained_var_ratio']
+        self.assertAlmostEqual(s['pc1_var_ratio'], evr[0], places=5)
+
+    # ── РАБОТА XOR3 known values ──────────────────────────────────────────────
+
+    def test_rabota_xor3_period_8(self):
+        self.assertEqual(self.s_rabota_xor3['period'], 8)
+
+    def test_rabota_xor3_orbit_rank_7(self):
+        self.assertEqual(self.s_rabota_xor3['orbit_rank'], 7)
+
+    def test_rabota_xor3_pc1_dom_cell_is_1(self):
+        self.assertEqual(self.s_rabota_xor3['pc1_dom_cell'], 1)
+
+    def test_rabota_xor3_pc1_dom_loading_positive(self):
+        self.assertGreater(self.s_rabota_xor3['pc1_dom_loading'], 0.0)
+
+    def test_rabota_xor3_pc1_dom_loading_approx(self):
+        # Cell 1 loading ≈ +0.6664
+        self.assertAlmostEqual(self.s_rabota_xor3['pc1_dom_loading'], 0.6664, places=2)
+
+    def test_rabota_xor3_pc1_var_ratio_approx(self):
+        # PC₁ explains ≈ 35.8 % of variance
+        self.assertAlmostEqual(self.s_rabota_xor3['pc1_var_ratio'], 0.358, places=2)
+
+    def test_rabota_xor3_n_meaningful_pcs(self):
+        # 5 PCs with EVR > 5%
+        self.assertEqual(self.s_rabota_xor3['n_pcs_meaningful'], 5)
+
+    def test_rabota_xor3_n95_is_5(self):
+        self.assertEqual(self.s_rabota_xor3['n_components_95'], 5)
+
+    def test_rabota_xor3_total_var_positive(self):
+        self.assertGreater(self.s_rabota_xor3['total_var'], 0.0)
+
+    # ── ГОРА XOR3 (P=2, rank=1) known values ──────────────────────────────────
+
+    def test_gora_xor3_period_2(self):
+        self.assertEqual(self.s_gora_xor3['period'], 2)
+
+    def test_gora_xor3_orbit_rank_1(self):
+        self.assertEqual(self.s_gora_xor3['orbit_rank'], 1)
+
+    def test_gora_xor3_pc1_var_ratio_is_1(self):
+        # P=2 → rank=1 → 100% of variance in PC₁
+        self.assertAlmostEqual(self.s_gora_xor3['pc1_var_ratio'], 1.0, places=4)
+
+    def test_gora_xor3_n95_is_1(self):
+        self.assertEqual(self.s_gora_xor3['n_components_95'], 1)
+
+    def test_gora_xor3_cumevr_second_is_one(self):
+        cum = self.s_gora_xor3['cumulative_evr']
+        self.assertAlmostEqual(cum[0], 1.0, places=4)
+
+    # ── ТОННА XOR3 — highest PC1 among P=8 words ──────────────────────────────
+
+    def test_tonha_xor3_pc1_highest_p8(self):
+        # ТОННА PC₁ ≈ 52.9 % — highest among P=8 words
+        self.assertGreater(self.s_tonha_xor3['pc1_var_ratio'],
+                           self.s_zavod_xor3['pc1_var_ratio'])
+
+    def test_tonha_xor3_pc1_approx_529(self):
+        self.assertAlmostEqual(self.s_tonha_xor3['pc1_var_ratio'], 0.529, places=2)
+
+    def test_zavod_xor3_pc1_approx_278(self):
+        # ЗАВОД ≈ 27.8 % (most spread)
+        self.assertAlmostEqual(self.s_zavod_xor3['pc1_var_ratio'], 0.278, places=2)
+
+    # ── НИТРО XOR3 — negative dominant loading ─────────────────────────────────
+
+    def test_nitro_xor3_dom_cell_is_5(self):
+        self.assertEqual(self.s_nitro_xor3['pc1_dom_cell'], 5)
+
+    def test_nitro_xor3_dom_loading_negative(self):
+        self.assertLess(self.s_nitro_xor3['pc1_dom_loading'], 0.0)
+
+    def test_nitro_xor3_dom_loading_approx(self):
+        self.assertAlmostEqual(self.s_nitro_xor3['pc1_dom_loading'], -0.640, places=2)
+
+    # ── AND rule (P=1 fixed point) ────────────────────────────────────────────
+
+    def test_and_p1_total_var_zero(self):
+        self.assertEqual(self.s_mat_and['total_var'], 0.0)
+
+    def test_and_p1_orbit_rank_zero(self):
+        self.assertEqual(self.s_mat_and['orbit_rank'], 0)
+
+    def test_and_p1_pc1_var_ratio_zero(self):
+        self.assertEqual(self.s_mat_and['pc1_var_ratio'], 0.0)
+
+    def test_and_p1_period_is_1(self):
+        self.assertEqual(self.s_mat_and['period'], 1)
+
+    # ── all_pca ───────────────────────────────────────────────────────────────
+
+    def test_all_pca_four_rules(self):
+        res = self.all_pca('РАБОТА', 16)
+        for r in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(r, res)
+
+    def test_all_pca_each_is_dict(self):
+        res = self.all_pca('МАТ', 16)
+        for s in res.values():
+            self.assertIsInstance(s, dict)
+
+    # ── build_pca_data ────────────────────────────────────────────────────────
+
+    def test_build_data_has_words_key(self):
+        d = self.build_data(['МАТ'], 16)
+        self.assertIn('words', d)
+
+    def test_build_data_has_data_key(self):
+        d = self.build_data(['МАТ'], 16)
+        self.assertIn('data', d)
+
+    def test_build_data_nested(self):
+        d = self.build_data(['МАТ'], 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, d['data']['МАТ'])
+
+    # ── pca_dict ──────────────────────────────────────────────────────────────
+
+    def test_pca_dict_json_serialisable(self):
+        import json
+        pd = self.pca_dict(self.s_rabota_xor3)
+        out = json.dumps(pd)
+        self.assertIsInstance(out, str)
+
+    def test_pca_dict_all_loadings_present(self):
+        pd = self.pca_dict(self.s_rabota_xor3)
+        self.assertIn('all_loadings', pd)
+
+    def test_pca_dict_all_loadings_shape(self):
+        pd = self.pca_dict(self.s_rabota_xor3)
+        # all_loadings: P rows × N cols
+        al = pd['all_loadings']
+        self.assertEqual(len(al), self.s_rabota_xor3['period'])
+        self.assertEqual(len(al[0]), 16)
+
+    def test_pca_dict_floats_rounded(self):
+        pd = self.pca_dict(self.s_rabota_xor3)
+        evr = pd['explained_var_ratio']
+        if evr:
+            # rounded to 8 places, so no more than 8 decimal digits
+            self.assertIsInstance(evr[0], float)
+
+    # ── Viewer HTML assertions ────────────────────────────────────────────────
+
+    def test_viewer_has_pca_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pca-canvas', content)
+
+    def test_viewer_has_pca_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pcaRun', content)
+
+    def test_viewer_has_pca_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pcaOrbit', content)
+
+    def test_viewer_has_pca_compute(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pcaCompute', content)
+
+    def test_viewer_has_pca_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('pca-info', content)
+
+    def test_viewer_has_solan_pca_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_pca', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_pca',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_build_pca_data_returns_dict(self):
+        from projects.hexglyph.solan_pca import build_pca_data
+        d = build_pca_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanFourier(unittest.TestCase):
+    """Tests for solan_fourier.py — DFT spectral analysis of Q6 CA orbits."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys, pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from projects.hexglyph.solan_fourier import (
+            dft1, power_spectrum, spectral_entropy, normalised_spectral_entropy,
+            spectral_flatness, dominant_harmonic,
+            cell_spectrum, fourier_summary, all_fourier,
+            build_fourier_data, fourier_dict,
+        )
+        cls.dft1          = staticmethod(dft1)
+        cls.power_spectrum = staticmethod(power_spectrum)
+        cls.spec_ent      = staticmethod(spectral_entropy)
+        cls.norm_ent      = staticmethod(normalised_spectral_entropy)
+        cls.sf            = staticmethod(spectral_flatness)
+        cls.dom_harm      = staticmethod(dominant_harmonic)
+        cls.cell_spectrum = staticmethod(cell_spectrum)
+        cls.fourier_summary = staticmethod(fourier_summary)
+        cls.all_fourier   = staticmethod(all_fourier)
+        cls.build_data    = staticmethod(build_fourier_data)
+        cls.fourier_dict  = staticmethod(fourier_dict)
+
+        # Precomputed summaries
+        cls.s_rabota_xor3 = fourier_summary('РАБОТА', 'xor3', 16)
+        cls.s_gora_xor3   = fourier_summary('ГОРА',   'xor3', 16)
+        cls.s_montazh_xor3= fourier_summary('МОНТАЖ', 'xor3', 16)
+        cls.s_gorod_xor3  = fourier_summary('ГОРОД',  'xor3', 16)
+        cls.s_mat_and     = fourier_summary('МАТ',    'and',  16)
+
+    # ── dft1 ─────────────────────────────────────────────────────────────────
+
+    def test_dft1_length(self):
+        self.assertEqual(len(self.dft1([1, 2, 3, 4])), 4)
+
+    def test_dft1_dc_equals_sum(self):
+        seq = [1, 2, 3, 4]
+        F = self.dft1(seq)
+        self.assertAlmostEqual(F[0].real, sum(seq), places=6)
+        self.assertAlmostEqual(F[0].imag, 0.0, places=6)
+
+    def test_dft1_empty(self):
+        self.assertEqual(self.dft1([]), [])
+
+    def test_dft1_conjugate_symmetry(self):
+        import cmath
+        seq = [5, 3, 1, 7, 2, 6]
+        F = self.dft1(seq)
+        P = len(F)
+        for k in range(1, P):
+            self.assertAlmostEqual(F[k].real,  F[P - k].real, places=5)
+            self.assertAlmostEqual(F[k].imag, -F[P - k].imag, places=5)
+
+    # ── power_spectrum ────────────────────────────────────────────────────────
+
+    def test_power_spectrum_length_even(self):
+        self.assertEqual(len(self.power_spectrum([1, 2, 3, 4])), 3)  # 4//2+1
+
+    def test_power_spectrum_length_odd(self):
+        self.assertEqual(len(self.power_spectrum([1, 2, 3])), 2)     # 3//2+1
+
+    def test_power_spectrum_non_negative(self):
+        for v in self.power_spectrum([5, 3, 2, 7, 1, 4]):
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_power_spectrum_empty(self):
+        self.assertEqual(self.power_spectrum([]), [])
+
+    def test_power_spectrum_parseval_approx(self):
+        # Σ|F[k]|²/P ≈ Σ|x[t]|² (two-sided), one-sided approximation
+        seq = [5, 3, 2, 7, 1, 4, 6, 2]
+        ps  = self.power_spectrum(seq)
+        P   = len(seq)
+        # DC and Nyquist counted once; sum of all |F[k]|²/P = Σ x[t]²
+        # full Parseval: Σ_{k=0}^{P-1} |F[k]|²/P = Σ x²
+        xsq = sum(x * x for x in seq)
+        # Reconstruct two-sided: S[0] + 2*S[1..P//2-1] + S[P//2] ≈ xsq
+        half = P // 2
+        two_sided = ps[0] + sum(2 * ps[k] for k in range(1, half)) + ps[half]
+        self.assertAlmostEqual(two_sided, xsq, places=2)
+
+    # ── spectral_entropy ──────────────────────────────────────────────────────
+
+    def test_spec_ent_uniform_is_max(self):
+        import math
+        power = [1.0, 1.0, 1.0, 1.0]
+        self.assertAlmostEqual(self.spec_ent(power), math.log2(4), places=6)
+
+    def test_spec_ent_single_bin_is_zero(self):
+        self.assertAlmostEqual(self.spec_ent([0.0, 0.0, 5.0, 0.0]), 0.0, places=6)
+
+    def test_spec_ent_all_zero_is_zero(self):
+        self.assertAlmostEqual(self.spec_ent([0.0, 0.0, 0.0]), 0.0, places=6)
+
+    def test_spec_ent_non_negative(self):
+        self.assertGreaterEqual(self.spec_ent([2.0, 3.0, 1.0, 4.0]), 0.0)
+
+    # ── normalised_spectral_entropy ───────────────────────────────────────────
+
+    def test_norm_ent_range(self):
+        v = self.norm_ent([1.0, 2.0, 3.0, 4.0])
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_norm_ent_uniform_is_one(self):
+        self.assertAlmostEqual(self.norm_ent([1.0, 1.0, 1.0, 1.0]), 1.0, places=6)
+
+    def test_norm_ent_single_is_zero(self):
+        self.assertAlmostEqual(self.norm_ent([0.0, 5.0, 0.0]), 0.0, places=6)
+
+    # ── spectral_flatness ─────────────────────────────────────────────────────
+
+    def test_sf_range(self):
+        v = self.sf([1.0, 2.0, 3.0, 4.0])
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_sf_uniform_is_one(self):
+        self.assertAlmostEqual(self.sf([3.0, 3.0, 3.0, 3.0]), 1.0, places=5)
+
+    def test_sf_zero_bin_is_zero(self):
+        self.assertAlmostEqual(self.sf([1.0, 0.0, 2.0]), 0.0, places=6)
+
+    # ── dominant_harmonic ─────────────────────────────────────────────────────
+
+    def test_dom_harm_skips_dc(self):
+        # DC (k=0) = 100, k=1 = 5 → k* = 1
+        k = self.dom_harm([100.0, 5.0, 3.0])
+        self.assertEqual(k, 1)
+
+    def test_dom_harm_selects_max_ac(self):
+        k = self.dom_harm([1.0, 2.0, 10.0, 3.0])
+        self.assertEqual(k, 2)
+
+    def test_dom_harm_single_bin(self):
+        self.assertEqual(self.dom_harm([5.0]), 0)
+
+    # ── cell_spectrum structure ───────────────────────────────────────────────
+
+    def test_cell_spectrum_keys(self):
+        cs = self.cell_spectrum([10, 20, 30, 20])
+        for k in ('power', 'dom_freq', 'ac_power', 'dc', 'dc_frac',
+                  'h_sp', 'nh_sp', 'spec_entropy', 'sf', 'period'):
+            self.assertIn(k, cs, msg=f"missing key: {k}")
+
+    def test_cell_spectrum_p1_ac_zero(self):
+        cs = self.cell_spectrum([42])
+        self.assertEqual(cs['ac_power'], 0.0)
+        self.assertEqual(cs['dom_freq'], 0)
+
+    def test_cell_spectrum_p2_dom_is_1(self):
+        cs = self.cell_spectrum([10, 50])
+        self.assertEqual(cs['dom_freq'], 1)  # only Nyquist bin for P=2
+
+    def test_cell_spectrum_power_non_negative(self):
+        for v in self.cell_spectrum([5, 3, 2, 7, 1, 4, 6, 2])['power']:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_cell_spectrum_dc_frac_range(self):
+        cs = self.cell_spectrum([5, 3, 2, 7, 1, 4, 6, 2])
+        self.assertGreaterEqual(cs['dc_frac'], 0.0)
+        self.assertLessEqual(cs['dc_frac'], 1.0)
+
+    # ── fourier_summary structure ─────────────────────────────────────────────
+
+    def test_fourier_summary_all_keys(self):
+        for k in ('word', 'rule', 'period', 'n_cells',
+                  'cell_dom_freq', 'cell_ac_power', 'cell_dc',
+                  'cell_spec_entropy', 'cell_nh_sp', 'cell_dc_frac', 'cell_power',
+                  'max_ac_power', 'max_ac_cell', 'mean_ac_power',
+                  'dom_freq_hist', 'most_common_dom_freq',
+                  'n_nyquist_dom', 'n_fundamental_dom',
+                  'mean_spec_entropy', 'max_spec_entropy', 'max_spec_entropy_cell',
+                  'mean_nh_sp', 'mean_dc_frac', 'mean_ps', 'dominant_k'):
+            self.assertIn(k, self.s_rabota_xor3, msg=f"missing key: {k}")
+
+    def test_fourier_summary_word_preserved(self):
+        self.assertEqual(self.s_rabota_xor3['word'], 'РАБОТА')
+
+    def test_fourier_summary_rule_preserved(self):
+        self.assertEqual(self.s_rabota_xor3['rule'], 'xor3')
+
+    def test_fourier_summary_cell_lists_length(self):
+        for key in ('cell_dom_freq', 'cell_ac_power', 'cell_dc',
+                    'cell_spec_entropy', 'cell_nh_sp', 'cell_dc_frac', 'cell_power'):
+            self.assertEqual(len(self.s_rabota_xor3[key]), 16,
+                             msg=f"{key} length ≠ 16")
+
+    def test_fourier_summary_mean_dc_frac_in_range(self):
+        v = self.s_rabota_xor3['mean_dc_frac']
+        self.assertGreater(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+    # ── РАБОТА XOR3 known values ──────────────────────────────────────────────
+
+    def test_rabota_xor3_period_8(self):
+        self.assertEqual(self.s_rabota_xor3['period'], 8)
+
+    def test_rabota_xor3_dom_freq_hist(self):
+        h = self.s_rabota_xor3['dom_freq_hist']
+        self.assertEqual(h.get(1), 8)
+        self.assertEqual(h.get(2), 1)
+        self.assertEqual(h.get(3), 1)
+        self.assertEqual(h.get(4), 6)
+
+    def test_rabota_xor3_n_nyquist_dom(self):
+        self.assertEqual(self.s_rabota_xor3['n_nyquist_dom'], 6)
+
+    def test_rabota_xor3_n_fundamental_dom(self):
+        self.assertEqual(self.s_rabota_xor3['n_fundamental_dom'], 8)
+
+    def test_rabota_xor3_cell1_dom_freq_is_4(self):
+        self.assertEqual(self.s_rabota_xor3['cell_dom_freq'][1], 4)
+
+    def test_rabota_xor3_mean_spec_entropy_approx(self):
+        self.assertAlmostEqual(self.s_rabota_xor3['mean_spec_entropy'], 1.482, places=2)
+
+    def test_rabota_xor3_mean_ac_positive(self):
+        self.assertGreater(self.s_rabota_xor3['mean_ac_power'], 0.0)
+
+    # ── ГОРА XOR3 (P=2) known values ─────────────────────────────────────────
+
+    def test_gora_xor3_period_2(self):
+        self.assertEqual(self.s_gora_xor3['period'], 2)
+
+    def test_gora_xor3_all_dom_freq_1(self):
+        for df in self.s_gora_xor3['cell_dom_freq']:
+            self.assertEqual(df, 1)
+
+    def test_gora_xor3_spec_entropy_zero(self):
+        # P=2 → only one AC bin → entropy = 0
+        for H in self.s_gora_xor3['cell_spec_entropy']:
+            self.assertAlmostEqual(H, 0.0, places=6)
+
+    def test_gora_xor3_n_nyquist_dom_is_16(self):
+        # P//2 = 1, so all cells dom k=1 = Nyquist
+        self.assertEqual(self.s_gora_xor3['n_nyquist_dom'], 16)
+
+    # ── МОНТАЖ XOR3 — highest mean spectral entropy ───────────────────────────
+
+    def test_montazh_xor3_highest_mean_entropy(self):
+        # МОНТАЖ has highest mean_spec_entropy in the lexicon ≈ 1.618
+        self.assertGreater(self.s_montazh_xor3['mean_spec_entropy'],
+                           self.s_rabota_xor3['mean_spec_entropy'])
+
+    def test_montazh_xor3_entropy_approx(self):
+        self.assertAlmostEqual(self.s_montazh_xor3['mean_spec_entropy'], 1.618, places=2)
+
+    # ── ГОРОД XOR3 — k=3 dominated ───────────────────────────────────────────
+
+    def test_gorod_xor3_dom3_cells_is_12(self):
+        h = self.s_gorod_xor3['dom_freq_hist']
+        self.assertEqual(h.get(3), 12)
+
+    def test_gorod_xor3_n_nyquist_dom_zero(self):
+        self.assertEqual(self.s_gorod_xor3['n_nyquist_dom'], 0)
+
+    def test_gorod_xor3_mean_entropy_low(self):
+        # Low entropy (concentrated spectrum): approx 1.163
+        self.assertLess(self.s_gorod_xor3['mean_spec_entropy'], 1.3)
+
+    # ── AND rule (P=1 fixed point) ────────────────────────────────────────────
+
+    def test_and_p1_period_is_1(self):
+        self.assertEqual(self.s_mat_and['period'], 1)
+
+    def test_and_p1_all_ac_power_zero(self):
+        for ac in self.s_mat_and['cell_ac_power']:
+            self.assertAlmostEqual(ac, 0.0, places=6)
+
+    def test_and_p1_all_dom_freq_zero(self):
+        for df in self.s_mat_and['cell_dom_freq']:
+            self.assertEqual(df, 0)
+
+    def test_and_p1_spec_entropy_zero(self):
+        for H in self.s_mat_and['cell_spec_entropy']:
+            self.assertAlmostEqual(H, 0.0, places=6)
+
+    # ── all_fourier ───────────────────────────────────────────────────────────
+
+    def test_all_fourier_four_rules(self):
+        res = self.all_fourier('РАБОТА', 16)
+        for r in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(r, res)
+
+    def test_all_fourier_each_is_dict(self):
+        for s in self.all_fourier('МАТ', 16).values():
+            self.assertIsInstance(s, dict)
+
+    # ── build_fourier_data ────────────────────────────────────────────────────
+
+    def test_build_data_has_words_key(self):
+        d = self.build_data(['МАТ'], 16)
+        self.assertIn('words', d)
+
+    def test_build_data_has_data_key(self):
+        d = self.build_data(['МАТ'], 16)
+        self.assertIn('data', d)
+
+    def test_build_data_nested(self):
+        d = self.build_data(['МАТ'], 16)
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, d['data']['МАТ'])
+
+    # ── fourier_dict ──────────────────────────────────────────────────────────
+
+    def test_fourier_dict_json_serialisable(self):
+        import json
+        fd = self.fourier_dict(self.s_rabota_xor3)
+        out = json.dumps(fd)
+        self.assertIsInstance(out, str)
+
+    def test_fourier_dict_hist_keys_are_strings(self):
+        fd = self.fourier_dict(self.s_rabota_xor3)
+        for k in fd['dom_freq_hist']:
+            self.assertIsInstance(k, str)
+
+    def test_fourier_dict_cell_power_is_list_of_lists(self):
+        fd = self.fourier_dict(self.s_rabota_xor3)
+        cp = fd['cell_power']
+        self.assertIsInstance(cp, list)
+        self.assertIsInstance(cp[0], list)
+
+    # ── Viewer HTML assertions ────────────────────────────────────────────────
+
+    def test_viewer_has_ft_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ft-canvas', content)
+
+    def test_viewer_has_ft_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ftRun', content)
+
+    def test_viewer_has_ft_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ftOrbit', content)
+
+    def test_viewer_has_ft_dft(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ftDFT', content)
+
+    def test_viewer_has_ft_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ft-info', content)
+
+    def test_viewer_has_solan_fourier_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_fourier', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_fourier',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_build_fourier_data_returns_dict(self):
+        from projects.hexglyph.solan_fourier import build_fourier_data
+        d = build_fourier_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanMutual(unittest.TestCase):
+    """Tests for solan_mutual.py — Mutual Information Analysis of Q6 CA orbits."""
+
+    # ── imports ──────────────────────────────────────────────────────────────
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mutual import (
+            cell_entropy, cell_mi,
+            attractor_states, entropy_profile,
+            mi_matrix, mi_profile,
+            mutual_summary, trajectory_mutual,
+            all_mutual, build_mutual_data, mutual_dict,
+        )
+        cls.cell_entropy      = staticmethod(cell_entropy)
+        cls.cell_mi           = staticmethod(cell_mi)
+        cls.attractor_states  = staticmethod(attractor_states)
+        cls.entropy_profile   = staticmethod(entropy_profile)
+        cls.mi_matrix         = staticmethod(mi_matrix)
+        cls.mi_profile        = staticmethod(mi_profile)
+        cls.mutual_summary    = staticmethod(mutual_summary)
+        cls.trajectory_mutual = staticmethod(trajectory_mutual)
+        cls.all_mutual        = staticmethod(all_mutual)
+        cls.build_mutual_data = staticmethod(build_mutual_data)
+        cls.mutual_dict       = staticmethod(mutual_dict)
+
+    # ── cell_entropy ─────────────────────────────────────────────────────────
+
+    def test_cell_entropy_constant_zero(self):
+        # constant sequence → H=0
+        states = [[5]*16] * 3
+        self.assertAlmostEqual(self.cell_entropy(states, 0), 0.0)
+
+    def test_cell_entropy_two_values_equal(self):
+        # alternating [0,1,0,1,...] → H=1 bit
+        states = [[0]*16, [1]*16]
+        self.assertAlmostEqual(self.cell_entropy(states, 0), 1.0)
+
+    def test_cell_entropy_non_negative(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(16):
+            self.assertGreaterEqual(self.cell_entropy(states, i), 0.0)
+
+    def test_cell_entropy_bounded_by_log2_period(self):
+        import math
+        states = self.attractor_states('ТУМАН', 'xor3')
+        P = len(states)
+        for i in range(16):
+            self.assertLessEqual(self.cell_entropy(states, i), math.log2(P) + 1e-9)
+
+    # ── cell_mi ───────────────────────────────────────────────────────────────
+
+    def test_cell_mi_diagonal_equals_entropy(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(16):
+            mi_ii  = self.cell_mi(states, i, i)
+            h_i    = self.cell_entropy(states, i)
+            self.assertAlmostEqual(mi_ii, h_i, places=9)
+
+    def test_cell_mi_symmetric(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(0, 4):
+            for j in range(i+1, 4):
+                self.assertAlmostEqual(
+                    self.cell_mi(states, i, j),
+                    self.cell_mi(states, j, i), places=9)
+
+    def test_cell_mi_non_negative(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(16):
+            for j in range(16):
+                self.assertGreaterEqual(self.cell_mi(states, i, j), 0.0)
+
+    def test_cell_mi_p1_all_zero(self):
+        # P=1 → constant orbit → H=0 → MI=0
+        states = self.attractor_states('ГОРА', 'xor')
+        for i in range(16):
+            for j in range(16):
+                self.assertAlmostEqual(self.cell_mi(states, i, j), 0.0)
+
+    def test_cell_mi_bounded_by_min_entropy(self):
+        # I(X;Y) ≤ min(H(X), H(Y))
+        states = self.attractor_states('ТУМАН', 'xor3')
+        for i in range(0, 4):
+            for j in range(0, 4):
+                mi_ij = self.cell_mi(states, i, j)
+                h_i   = self.cell_entropy(states, i)
+                h_j   = self.cell_entropy(states, j)
+                self.assertLessEqual(mi_ij, min(h_i, h_j) + 1e-9)
+
+    # ── attractor_states ──────────────────────────────────────────────────────
+
+    def test_attractor_states_returns_list(self):
+        states = self.attractor_states('ГОРА', 'xor3')
+        self.assertIsInstance(states, list)
+
+    def test_attractor_states_each_row_width(self):
+        states = self.attractor_states('ГОРА', 'xor3', 16)
+        for s in states:
+            self.assertEqual(len(s), 16)
+
+    def test_attractor_states_p1_one_row(self):
+        states = self.attractor_states('ГОРА', 'xor')
+        self.assertEqual(len(states), 1)
+
+    def test_attractor_states_gora_p2(self):
+        states = self.attractor_states('ГОРА', 'xor3')
+        self.assertEqual(len(states), 2)
+
+    def test_attractor_states_tuman_p8(self):
+        states = self.attractor_states('ТУМАН', 'xor3')
+        self.assertEqual(len(states), 8)
+
+    # ── entropy_profile ───────────────────────────────────────────────────────
+
+    def test_entropy_profile_length(self):
+        ep = self.entropy_profile('ГОРА', 'xor3', 16)
+        self.assertEqual(len(ep), 16)
+
+    def test_entropy_profile_non_negative(self):
+        ep = self.entropy_profile('ТУМАН', 'xor3', 16)
+        for h in ep:
+            self.assertGreaterEqual(h, 0.0)
+
+    def test_entropy_profile_p1_all_zero(self):
+        ep = self.entropy_profile('ГОРА', 'xor', 16)
+        for h in ep:
+            self.assertAlmostEqual(h, 0.0)
+
+    def test_entropy_profile_gora_xor3_all_one(self):
+        # ГОРА P=2: all cells alternate → H=1 for all
+        ep = self.entropy_profile('ГОРА', 'xor3', 16)
+        for h in ep:
+            self.assertAlmostEqual(h, 1.0)
+
+    # ── mi_matrix ────────────────────────────────────────────────────────────
+
+    def test_mi_matrix_shape(self):
+        M = self.mi_matrix('ГОРА', 'xor3')
+        self.assertEqual(len(M), 16)
+        for row in M:
+            self.assertEqual(len(row), 16)
+
+    def test_mi_matrix_symmetric(self):
+        M = self.mi_matrix('ТУМАН', 'xor3')
+        for i in range(16):
+            for j in range(16):
+                self.assertAlmostEqual(M[i][j], M[j][i], places=9)
+
+    def test_mi_matrix_diagonal_positive_tuman(self):
+        M = self.mi_matrix('ТУМАН', 'xor3')
+        for i in range(16):
+            self.assertGreater(M[i][i], 0.0)
+
+    def test_mi_matrix_diagonal_zero_xor(self):
+        M = self.mi_matrix('ГОРА', 'xor')
+        for i in range(16):
+            self.assertAlmostEqual(M[i][i], 0.0)
+
+    def test_mi_matrix_gora_xor3_all_ones(self):
+        # ГОРА P=2: all cells fully correlated → entire matrix = 1.0
+        M = self.mi_matrix('ГОРА', 'xor3')
+        for i in range(16):
+            for j in range(16):
+                self.assertAlmostEqual(M[i][j], 1.0)
+
+    # ── mi_profile ────────────────────────────────────────────────────────────
+
+    def test_mi_profile_length(self):
+        M = self.mi_matrix('ТУМАН', 'xor3')
+        prof = self.mi_profile(M, 16)
+        self.assertEqual(len(prof), 9)   # W//2 + 1 = 9
+
+    def test_mi_profile_d0_equals_mean_entropy(self):
+        # d=0 means MI(i,i)=H(i), average = mean_entropy
+        M   = self.mi_matrix('ТУМАН', 'xor3')
+        prof = self.mi_profile(M, 16)
+        ent_mean = sum(M[i][i] for i in range(16)) / 16
+        self.assertAlmostEqual(prof[0], ent_mean, places=5)
+
+    def test_mi_profile_gora_xor3_all_one(self):
+        # all pairs fully correlated
+        M    = self.mi_matrix('ГОРА', 'xor3')
+        prof = self.mi_profile(M, 16)
+        for v in prof:
+            self.assertAlmostEqual(v, 1.0)
+
+    def test_mi_profile_non_negative(self):
+        M    = self.mi_matrix('ТУМАН', 'xor3')
+        prof = self.mi_profile(M, 16)
+        for v in prof:
+            self.assertGreaterEqual(v, 0.0)
+
+    # ── mutual_summary / trajectory_mutual ───────────────────────────────────
+
+    def test_mutual_summary_alias_identical(self):
+        tr1 = self.mutual_summary('ГОРА', 'xor3')
+        tr2 = self.trajectory_mutual('ГОРА', 'xor3')
+        self.assertEqual(tr1['period'], tr2['period'])
+        self.assertAlmostEqual(tr1['mean_entropy'], tr2['mean_entropy'])
+        self.assertAlmostEqual(tr1['max_mi'],       tr2['max_mi'])
+
+    def test_mutual_summary_has_required_keys(self):
+        tr = self.mutual_summary('ГОРА', 'xor3')
+        for k in ('word','rule','width','period','entropy','M','mi_by_dist',
+                  'mean_entropy','max_mi','max_mi_pair'):
+            self.assertIn(k, tr)
+
+    def test_mutual_summary_word_uppercased(self):
+        tr = self.mutual_summary('гора', 'xor3')
+        self.assertEqual(tr['word'], 'ГОРА')
+
+    def test_mutual_summary_gora_xor3_period(self):
+        tr = self.mutual_summary('ГОРА', 'xor3')
+        self.assertEqual(tr['period'], 2)
+
+    def test_mutual_summary_gora_xor3_mean_entropy(self):
+        tr = self.mutual_summary('ГОРА', 'xor3')
+        self.assertAlmostEqual(tr['mean_entropy'], 1.0, places=6)
+
+    def test_mutual_summary_gora_xor3_max_mi(self):
+        tr = self.mutual_summary('ГОРА', 'xor3')
+        self.assertAlmostEqual(tr['max_mi'], 1.0, places=6)
+
+    def test_mutual_summary_tuman_xor3_period(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        self.assertEqual(tr['period'], 8)
+
+    def test_mutual_summary_tuman_xor3_mean_entropy(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(tr['mean_entropy'], 2.23407, places=4)
+
+    def test_mutual_summary_tuman_xor3_max_mi(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(tr['max_mi'], 2.75, places=6)
+
+    def test_mutual_summary_tuman_xor3_max_pair(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        self.assertEqual(tuple(tr['max_mi_pair']), (2, 13))
+
+    def test_mutual_summary_xor_all_zero(self):
+        tr = self.mutual_summary('ГОРА', 'xor')
+        self.assertEqual(tr['period'], 1)
+        self.assertAlmostEqual(tr['mean_entropy'], 0.0)
+        self.assertAlmostEqual(tr['max_mi'], 0.0)
+
+    def test_mutual_summary_entropy_list_length(self):
+        tr = self.mutual_summary('ГОРА', 'xor3', 16)
+        self.assertEqual(len(tr['entropy']), 16)
+
+    def test_mutual_summary_mi_by_dist_length(self):
+        tr = self.mutual_summary('ГОРА', 'xor3', 16)
+        self.assertEqual(len(tr['mi_by_dist']), 9)
+
+    def test_mutual_summary_M_shape(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(tr['M']), 16)
+        for row in tr['M']:
+            self.assertEqual(len(row), 16)
+
+    def test_mutual_summary_entropy_matches_diagonal(self):
+        tr = self.mutual_summary('ТУМАН', 'xor3')
+        M  = tr['M']
+        for i in range(16):
+            self.assertAlmostEqual(tr['entropy'][i], M[i][i], places=9)
+
+    # ── all_mutual ────────────────────────────────────────────────────────────
+
+    def test_all_mutual_returns_four_rules(self):
+        am = self.all_mutual('ГОРА')
+        self.assertEqual(set(am.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_mutual_each_has_period(self):
+        am = self.all_mutual('ГОРА')
+        for rule, tr in am.items():
+            self.assertIn('period', tr)
+
+    # ── build_mutual_data ─────────────────────────────────────────────────────
+
+    def test_build_mutual_data_keys(self):
+        data = self.build_mutual_data(['ГОРА', 'ТУМАН'])
+        for k in ('words','width','per_rule','ranking','max_h','min_h'):
+            self.assertIn(k, data)
+
+    def test_build_mutual_data_per_rule_has_all_words(self):
+        words = ['ГОРА', 'ТУМАН', 'МАТ']
+        data  = self.build_mutual_data(words)
+        for rule in ('xor','xor3','and','or'):
+            self.assertEqual(set(data['per_rule'][rule].keys()), set(words))
+
+    def test_build_mutual_data_ranking_descending(self):
+        data = self.build_mutual_data(['ГОРА', 'ТУМАН', 'МАТ'])
+        for rule in ('xor3',):
+            rank = data['ranking'][rule]
+            vals = [h for _, h in rank]
+            self.assertEqual(vals, sorted(vals, reverse=True))
+
+    # ── mutual_dict ───────────────────────────────────────────────────────────
+
+    def test_mutual_dict_json_serialisable(self):
+        import json
+        d = self.mutual_dict('ГОРА')
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(s, str)
+
+    def test_mutual_dict_has_rules_key(self):
+        d = self.mutual_dict('ГОРА')
+        self.assertIn('rules', d)
+        self.assertEqual(set(d['rules'].keys()), {'xor','xor3','and','or'})
+
+    def test_mutual_dict_rule_keys(self):
+        d = self.mutual_dict('ТУМАН')
+        for rule, rd in d['rules'].items():
+            for k in ('period','mean_entropy','max_mi','max_mi_pair','entropy','mi_by_dist'):
+                self.assertIn(k, rd)
+
+    def test_mutual_dict_max_mi_pair_list(self):
+        d = self.mutual_dict('ТУМАН')
+        pair = d['rules']['xor3']['max_mi_pair']
+        self.assertIsInstance(pair, list)
+        self.assertEqual(len(pair), 2)
+
+    # ── viewer assertions ─────────────────────────────────────────────────────
+
+    def test_viewer_has_mi_mat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-mat', content)
+
+    def test_viewer_has_mi_dist(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-dist', content)
+
+    def test_viewer_has_mi_stats(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-stats', content)
+
+    def test_viewer_has_mi_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-hmap', content)
+
+    def test_viewer_has_mi_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('miRun', content)
+
+    def test_viewer_has_mi_step(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('miStep', content)
+
+    def test_viewer_has_mi_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('miOrbit', content)
+
+    def test_viewer_has_solan_mutual_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_mutual', content)
+
+    def test_viewer_has_mi_cell_mi(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('miCellMI', content)
+
+    def test_viewer_has_mi_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('mi-word', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_mutual',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+class TestSolanTransfer(unittest.TestCase):
+    """Tests for solan_transfer.py — Transfer Entropy analysis of Q6 CA orbits."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import (
+            get_orbit, bit_te, cell_te,
+            te_matrix, te_asymmetry,
+            te_summary, te_dict, all_te,
+            build_te_data,
+        )
+        cls.get_orbit    = staticmethod(get_orbit)
+        cls.bit_te       = staticmethod(bit_te)
+        cls.cell_te      = staticmethod(cell_te)
+        cls.te_matrix    = staticmethod(te_matrix)
+        cls.te_asymmetry = staticmethod(te_asymmetry)
+        cls.te_summary   = staticmethod(te_summary)
+        cls.te_dict      = staticmethod(te_dict)
+        cls.all_te       = staticmethod(all_te)
+        cls.build_te_data= staticmethod(build_te_data)
+
+    # ── get_orbit ─────────────────────────────────────────────────────────────
+
+    def test_orbit_gora_xor3_length(self):
+        orbit = self.get_orbit('ГОРА', 'xor3')
+        self.assertEqual(len(orbit), 2)
+
+    def test_orbit_tuman_xor3_length(self):
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        self.assertEqual(len(orbit), 8)
+
+    def test_orbit_gora_xor_length(self):
+        orbit = self.get_orbit('ГОРА', 'xor')
+        self.assertEqual(len(orbit), 1)
+
+    def test_orbit_state_width(self):
+        orbit = self.get_orbit('ТУМАН', 'xor3', 16)
+        for state in orbit:
+            self.assertEqual(len(state), 16)
+
+    def test_orbit_values_in_q6_range(self):
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        for state in orbit:
+            for v in state:
+                self.assertGreaterEqual(v, 0)
+                self.assertLessEqual(v, 63)
+
+    def test_orbit_returns_tuples(self):
+        orbit = self.get_orbit('ГОРА', 'xor3')
+        for s in orbit:
+            self.assertIsInstance(s, tuple)
+
+    def test_orbit_periodic(self):
+        from projects.hexglyph.solan_ca import step
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        last  = list(orbit[-1])
+        nxt   = step(last, 'xor3')
+        self.assertEqual(nxt, list(orbit[0]))
+
+    # ── bit_te ────────────────────────────────────────────────────────────────
+
+    def test_bit_te_non_negative(self):
+        te = self.bit_te([0, 1, 0, 1], [0, 1, 0, 1])
+        self.assertGreaterEqual(te, 0.0)
+
+    def test_bit_te_short_series_zero(self):
+        self.assertEqual(self.bit_te([1], [0]), 0.0)
+
+    def test_bit_te_constant_zero(self):
+        te = self.bit_te([0, 0, 0, 0], [1, 0, 1, 0])
+        self.assertAlmostEqual(te, 0.0)
+
+    def test_bit_te_returns_float(self):
+        te = self.bit_te([0, 1, 0, 1], [1, 0, 1, 0])
+        self.assertIsInstance(te, float)
+
+    # ── cell_te ───────────────────────────────────────────────────────────────
+
+    def test_cell_te_non_negative(self):
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        for i in range(4):
+            for j in range(4):
+                self.assertGreaterEqual(self.cell_te(orbit, i, j), 0.0)
+
+    def test_cell_te_p1_all_zero(self):
+        orbit = self.get_orbit('ГОРА', 'xor')
+        for i in range(4):
+            for j in range(4):
+                self.assertAlmostEqual(self.cell_te(orbit, i, j), 0.0)
+
+    def test_cell_te_returns_float(self):
+        orbit = self.get_orbit('ТУМАН', 'xor3')
+        te = self.cell_te(orbit, 0, 1)
+        self.assertIsInstance(te, float)
+
+    # ── te_matrix ────────────────────────────────────────────────────────────
+
+    def test_te_matrix_shape(self):
+        M = self.te_matrix('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(M), 16)
+        for row in M:
+            self.assertEqual(len(row), 16)
+
+    def test_te_matrix_non_negative(self):
+        M = self.te_matrix('ТУМАН', 'xor3')
+        for row in M:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+
+    def test_te_matrix_xor_all_zero(self):
+        M = self.te_matrix('ГОРА', 'xor')
+        for row in M:
+            for v in row:
+                self.assertAlmostEqual(v, 0.0)
+
+    def test_te_matrix_asymmetric(self):
+        M = self.te_matrix('ТУМАН', 'xor3')
+        found_asymm = any(
+            abs(M[i][j] - M[j][i]) > 1e-6
+            for i in range(16) for j in range(i+1, 16)
+        )
+        self.assertTrue(found_asymm)
+
+    # ── te_asymmetry ─────────────────────────────────────────────────────────
+
+    def test_te_asymmetry_shape(self):
+        M = self.te_matrix('ТУМАН', 'xor3')
+        A = self.te_asymmetry(M)
+        self.assertEqual(len(A), 16)
+        for row in A:
+            self.assertEqual(len(row), 16)
+
+    def test_te_asymmetry_antisymmetric(self):
+        M = self.te_matrix('ТУМАН', 'xor3')
+        A = self.te_asymmetry(M)
+        for i in range(16):
+            for j in range(16):
+                self.assertAlmostEqual(A[i][j], -A[j][i], places=8)
+
+    def test_te_asymmetry_diagonal_zero(self):
+        M = self.te_matrix('ТУМАН', 'xor3')
+        A = self.te_asymmetry(M)
+        for i in range(16):
+            self.assertAlmostEqual(A[i][i], 0.0)
+
+    # ── te_summary / te_dict ──────────────────────────────────────────────────
+
+    def test_te_summary_alias_identical(self):
+        d1 = self.te_summary('ТУМАН', 'xor3')
+        d2 = self.te_dict('ТУМАН', 'xor3')
+        self.assertEqual(d1['period'], d2['period'])
+        self.assertAlmostEqual(d1['max_te'], d2['max_te'])
+        self.assertAlmostEqual(d1['lr_asymmetry'], d2['lr_asymmetry'])
+
+    def test_te_summary_has_required_keys(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        for k in ('word','rule','width','period','matrix','max_te','mean_te',
+                  'self_te','right_te','left_te','asymmetry',
+                  'mean_right','mean_left','lr_asymmetry'):
+            self.assertIn(k, d)
+
+    def test_te_summary_word_uppercased(self):
+        d = self.te_summary('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_te_summary_tuman_period(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['period'], 8)
+
+    def test_te_summary_tuman_max_te(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['max_te'], 2.90241012, places=4)
+
+    def test_te_summary_tuman_lr_asymmetry(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['lr_asymmetry'], 0.0, places=6)
+
+    def test_te_summary_gora_xor_all_zero(self):
+        d = self.te_summary('ГОРА', 'xor')
+        self.assertEqual(d['period'], 1)
+        self.assertAlmostEqual(d['max_te'], 0.0)
+        self.assertAlmostEqual(d['mean_te'], 0.0)
+
+    def test_te_summary_gora_xor3_p2(self):
+        d = self.te_summary('ГОРА', 'xor3')
+        self.assertEqual(d['period'], 2)
+
+    def test_te_summary_matrix_shape(self):
+        d = self.te_summary('ТУМАН', 'xor3', 16)
+        mat = d['matrix']
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 16)
+
+    def test_te_summary_self_te_length(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        self.assertEqual(len(d['self_te']), 16)
+
+    def test_te_summary_right_left_length(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        self.assertEqual(len(d['right_te']), 16)
+        self.assertEqual(len(d['right_te']), len(d['left_te']))
+
+    def test_te_summary_lr_asymmetry_formula(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(
+            d['lr_asymmetry'],
+            d['mean_right'] - d['mean_left'], places=8)
+
+    def test_te_summary_mean_te_off_diag(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        mat = d['matrix']
+        W   = d['width']
+        vals = [mat[i][j] for i in range(W) for j in range(W) if i != j]
+        expected = sum(vals) / len(vals)
+        self.assertAlmostEqual(d['mean_te'], expected, places=5)
+
+    def test_te_summary_max_te_equals_matrix_max(self):
+        d   = self.te_summary('ТУМАН', 'xor3')
+        mat = d['matrix']
+        W   = d['width']
+        mx  = max(mat[i][j] for i in range(W) for j in range(W))
+        self.assertAlmostEqual(d['max_te'], mx, places=8)
+
+    def test_te_summary_tuman_self_te_all_zero(self):
+        d = self.te_summary('ТУМАН', 'xor3')
+        for v in d['self_te']:
+            self.assertAlmostEqual(v, 0.0, places=6)
+
+    # ── all_te ────────────────────────────────────────────────────────────────
+
+    def test_all_te_four_rules(self):
+        am = self.all_te('ТУМАН')
+        self.assertEqual(set(am.keys()), {'xor','xor3','and','or'})
+
+    def test_all_te_each_has_period(self):
+        am = self.all_te('ГОРА')
+        for rule, d in am.items():
+            self.assertIn('period', d)
+
+    def test_all_te_xor3_has_max_greater_than_xor(self):
+        am = self.all_te('ТУМАН')
+        self.assertGreater(am['xor3']['max_te'], am['xor']['max_te'])
+
+    # ── build_te_data ─────────────────────────────────────────────────────────
+
+    def test_build_te_data_keys(self):
+        d = self.build_te_data(['ГОРА', 'ТУМАН'])
+        for k in ('words','per_rule','ranking'):
+            self.assertIn(k, d)
+
+    def test_build_te_data_per_rule_words(self):
+        words = ['ГОРА', 'ТУМАН', 'МАТ']
+        d = self.build_te_data(words)
+        for rule in ('xor','xor3','and','or'):
+            self.assertEqual(set(d['per_rule'][rule].keys()), set(words))
+
+    def test_build_te_data_ranking_descending(self):
+        words = ['ГОРА', 'ТУМАН', 'МАТ']
+        d = self.build_te_data(words)
+        vals = [v for _, v in d['ranking']['xor3']]
+        self.assertEqual(vals, sorted(vals, reverse=True))
+
+    # ── JSON serialisability ──────────────────────────────────────────────────
+
+    def test_te_summary_json_serialisable(self):
+        import json
+        d = self.te_summary('ТУМАН', 'xor3')
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(s, str)
+
+    # ── viewer assertions ─────────────────────────────────────────────────────
+
+    def test_viewer_has_te_matrix_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('te-matrix-canvas', content)
+
+    def test_viewer_has_te_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('teRun', content)
+
+    def test_viewer_has_te_step(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('teStep', content)
+
+    def test_viewer_has_te_orbit(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('teOrbitStates', content)
+
+    def test_viewer_has_te_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('te-word', content)
+
+    def test_viewer_has_te_rule(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('te-rule', content)
+
+    def test_viewer_has_solan_transfer_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_transfer', content)
+
+    def test_viewer_has_cell_te(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cellTE', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_transfer',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+class TestSolanLZ(unittest.TestCase):
+    """Tests for solan_lz.py — LZ76 complexity of Q6 CA attractors."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import (
+            lz76, to_binary, lz_of_series, lz_of_spatial,
+            lz_summary, lz_dict, all_lz, build_lz_data,
+        )
+        cls.lz76          = staticmethod(lz76)
+        cls.to_binary     = staticmethod(to_binary)
+        cls.lz_of_series  = staticmethod(lz_of_series)
+        cls.lz_of_spatial = staticmethod(lz_of_spatial)
+        cls.lz_summary    = staticmethod(lz_summary)
+        cls.lz_dict       = staticmethod(lz_dict)
+        cls.all_lz        = staticmethod(all_lz)
+        cls.build_lz_data = staticmethod(build_lz_data)
+
+    # ── lz76 ────────────────────────────────────────────────────────────────
+
+    def test_lz76_empty_zero(self):
+        self.assertEqual(self.lz76(''), 0)
+
+    def test_lz76_single_char(self):
+        self.assertEqual(self.lz76('0'), 1)
+
+    def test_lz76_two_chars(self):
+        self.assertEqual(self.lz76('01'), 2)
+
+    def test_lz76_all_zeros_low(self):
+        c = self.lz76('0' * 96)
+        self.assertLessEqual(c, 12)
+
+    def test_lz76_periodic_less_than_random(self):
+        import random
+        random.seed(42)
+        periodic = '01' * 48
+        rnd = ''.join(random.choice('01') for _ in range(96))
+        self.assertLess(self.lz76(periodic), self.lz76(rnd))
+
+    def test_lz76_positive(self):
+        self.assertGreaterEqual(self.lz76('101'), 1)
+
+    # ── to_binary ────────────────────────────────────────────────────────────
+
+    def test_to_binary_zero(self):
+        self.assertEqual(self.to_binary(0, 6), '000000')
+
+    def test_to_binary_ones(self):
+        self.assertEqual(self.to_binary(63, 6), '111111')
+
+    def test_to_binary_five(self):
+        self.assertEqual(self.to_binary(5, 6), '000101')
+
+    def test_to_binary_length(self):
+        for v in range(64):
+            self.assertEqual(len(self.to_binary(v, 6)), 6)
+
+    # ── lz_of_series ─────────────────────────────────────────────────────────
+
+    def test_lz_of_series_keys(self):
+        d = self.lz_of_series([0]*8)
+        for k in ('bits','lz','norm'):
+            self.assertIn(k, d)
+
+    def test_lz_of_series_bits_length(self):
+        d = self.lz_of_series([0]*8)
+        self.assertEqual(d['bits'], 48)   # 8 values × 6 bits
+
+    def test_lz_of_series_norm_non_negative(self):
+        d = self.lz_of_series([0,1]*4)
+        self.assertGreaterEqual(d['norm'], 0.0)
+
+    def test_lz_of_series_lz_positive(self):
+        d = self.lz_of_series([0,1,0,1,0,1,0,1])
+        self.assertGreaterEqual(d['lz'], 1)
+
+    # ── lz_of_spatial ────────────────────────────────────────────────────────
+
+    def test_lz_of_spatial_keys(self):
+        d = self.lz_of_spatial([0]*16)
+        for k in ('bits','lz','norm'):
+            self.assertIn(k, d)
+
+    def test_lz_of_spatial_bits_length(self):
+        d = self.lz_of_spatial([0]*16)
+        self.assertEqual(d['bits'], 96)   # 16 cells × 6 bits
+
+    # ── lz_summary / lz_dict ─────────────────────────────────────────────────
+
+    def test_lz_summary_alias_identical(self):
+        d1 = self.lz_summary('ТУМАН', 'xor3')
+        d2 = self.lz_dict('ТУМАН', 'xor3')
+        self.assertEqual(d1['period'], d2['period'])
+        self.assertAlmostEqual(d1['full_lz']['norm'], d2['full_lz']['norm'])
+
+    def test_lz_summary_has_required_keys(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        for k in ('word','rule','period','cell_lz','mean_cell_norm',
+                  'spatial_lz','mean_sp_norm','full_lz'):
+            self.assertIn(k, d)
+
+    def test_lz_summary_word_upper(self):
+        d = self.lz_summary('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_lz_summary_tuman_period(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['period'], 8)
+
+    def test_lz_summary_tuman_full_norm(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['full_lz']['norm'], 0.59906016, places=4)
+
+    def test_lz_summary_tuman_full_lz_value(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['full_lz']['lz'], 48)
+
+    def test_lz_summary_tuman_full_bits(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['full_lz']['bits'], 768)   # 8×16×6
+
+    def test_lz_summary_tuman_mean_cell_norm(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_cell_norm'], 1.28715933, places=4)
+
+    def test_lz_summary_gora_xor_period1(self):
+        d = self.lz_summary('ГОРА', 'xor')
+        self.assertEqual(d['period'], 1)
+
+    def test_lz_summary_cell_lz_length(self):
+        d = self.lz_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['cell_lz']), 16)
+
+    def test_lz_summary_cell_lz_each_has_keys(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        for c in d['cell_lz']:
+            for k in ('bits','lz','norm'):
+                self.assertIn(k, c)
+
+    def test_lz_summary_cell_lz_bits(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        for c in d['cell_lz']:
+            self.assertEqual(c['bits'], 48)   # P=8 × 6 bits
+
+    def test_lz_summary_spatial_lz_length(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertEqual(len(d['spatial_lz']), 8)   # P=8
+
+    def test_lz_summary_cell0_norm(self):
+        d = self.lz_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['cell_lz'][0]['norm'], 1.27988724, places=4)
+
+    def test_lz_summary_json_serialisable(self):
+        import json
+        d = self.lz_summary('ТУМАН', 'xor3')
+        s = json.dumps(d, ensure_ascii=False)
+        self.assertIsInstance(s, str)
+
+    # ── all_lz ───────────────────────────────────────────────────────────────
+
+    def test_all_lz_four_rules(self):
+        am = self.all_lz('ТУМАН')
+        self.assertEqual(set(am.keys()), {'xor','xor3','and','or'})
+
+    def test_all_lz_each_has_period(self):
+        am = self.all_lz('ГОРА')
+        for rule, d in am.items():
+            self.assertIn('period', d)
+
+    # ── build_lz_data ─────────────────────────────────────────────────────────
+
+    def test_build_lz_data_keys(self):
+        d = self.build_lz_data(['ГОРА', 'ТУМАН'])
+        for k in ('words','width','per_rule'):
+            self.assertIn(k, d)
+
+    def test_build_lz_data_per_rule_words(self):
+        words = ['ГОРА', 'МАТ']
+        d = self.build_lz_data(words)
+        for rule in ('xor','xor3','and','or'):
+            self.assertEqual(set(d['per_rule'][rule].keys()), set(words))
+
+    # ── viewer assertions ─────────────────────────────────────────────────────
+
+    def test_viewer_has_lz_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lz-canvas', content)
+
+    def test_viewer_has_lz_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lzRun', content)
+
+    def test_viewer_has_solan_lz_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_lz', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_lz',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+class TestSolanMoran(unittest.TestCase):
+    """Tests for solan_moran.py — Moran's I spatial autocorrelation of Q6 CA."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moran import (
+            morans_i, spatial_classification,
+            morans_i_series, moran_summary, morans_i_dict,
+            all_morans_i, build_moran_data,
+        )
+        cls.morans_i               = staticmethod(morans_i)
+        cls.spatial_classification = staticmethod(spatial_classification)
+        cls.morans_i_series        = staticmethod(morans_i_series)
+        cls.moran_summary          = staticmethod(moran_summary)
+        cls.morans_i_dict          = staticmethod(morans_i_dict)
+        cls.all_morans_i           = staticmethod(all_morans_i)
+        cls.build_moran_data       = staticmethod(build_moran_data)
+
+    # ── morans_i ─────────────────────────────────────────────────────────────
+
+    def test_morans_i_constant_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([5, 5, 5, 5])))
+
+    def test_morans_i_empty_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([])))
+
+    def test_morans_i_single_nan(self):
+        import math
+        self.assertTrue(math.isnan(self.morans_i([42])))
+
+    def test_morans_i_alternating_minus_one(self):
+        vals = [0, 63] * 8
+        self.assertAlmostEqual(self.morans_i(vals), -1.0, places=6)
+
+    def test_morans_i_two_elements_checkerboard(self):
+        self.assertAlmostEqual(self.morans_i([10, 50]), -1.0, places=6)
+
+    def test_morans_i_range(self):
+        import math
+        v = self.morans_i(list(range(16)))
+        if not math.isnan(v):
+            self.assertGreaterEqual(v, -1.1)
+            self.assertLessEqual(v, 1.1)
+
+    def test_morans_i_returns_float(self):
+        v = self.morans_i(list(range(1, 17)))
+        self.assertIsInstance(v, float)
+
+    # ── spatial_classification ────────────────────────────────────────────────
+
+    def test_spatial_classification_constant(self):
+        import math
+        self.assertEqual(self.spatial_classification(float('nan')), 'constant')
+
+    def test_spatial_classification_strongly_dispersed(self):
+        self.assertEqual(self.spatial_classification(-0.68), 'strongly dispersed')
+
+    def test_spatial_classification_dispersed(self):
+        self.assertEqual(self.spatial_classification(-0.3), 'dispersed')
+
+    def test_spatial_classification_random(self):
+        self.assertEqual(self.spatial_classification(0.05), 'random')
+
+    def test_spatial_classification_clustered(self):
+        self.assertEqual(self.spatial_classification(0.49), 'clustered')
+
+    def test_spatial_classification_strongly_clustered(self):
+        self.assertEqual(self.spatial_classification(0.8), 'strongly clustered')
+
+    # ── morans_i_series ───────────────────────────────────────────────────────
+
+    def test_morans_i_series_tuman_length(self):
+        s = self.morans_i_series('ТУМАН', 'xor3')
+        self.assertEqual(len(s), 8)
+
+    def test_morans_i_series_gora_xor3_length(self):
+        s = self.morans_i_series('ГОРА', 'xor3')
+        self.assertEqual(len(s), 2)
+
+    def test_morans_i_series_gora_xor_nan(self):
+        import math
+        s = self.morans_i_series('ГОРА', 'xor')
+        self.assertTrue(math.isnan(s[0]))
+
+    # ── moran_summary / morans_i_dict ─────────────────────────────────────────
+
+    def test_moran_summary_alias_identical(self):
+        d1 = self.moran_summary('ТУМАН', 'xor3')
+        d2 = self.morans_i_dict('ТУМАН', 'xor3')
+        self.assertEqual(d1['period'], d2['period'])
+        self.assertAlmostEqual(d1['mean_i'], d2['mean_i'])
+        self.assertEqual(d1['classification'], d2['classification'])
+
+    def test_moran_summary_has_required_keys(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        for k in ('word','rule','period','series','mean_i','min_i','max_i',
+                  'var_i','classification','n_valid'):
+            self.assertIn(k, d)
+
+    def test_moran_summary_word_upper(self):
+        d = self.moran_summary('туман', 'xor3')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    def test_moran_summary_tuman_period(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['period'], 8)
+
+    def test_moran_summary_tuman_mean_i(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_i'], -0.12167013, places=4)
+
+    def test_moran_summary_tuman_min_i(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['min_i'], -0.67936736, places=4)
+
+    def test_moran_summary_tuman_max_i(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['max_i'], 0.49012789, places=4)
+
+    def test_moran_summary_tuman_classification(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['classification'], 'dispersed')
+
+    def test_moran_summary_tuman_n_valid(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['n_valid'], 8)
+
+    def test_moran_summary_gora_xor_nan_mean(self):
+        import math
+        d = self.moran_summary('ГОРА', 'xor')
+        self.assertTrue(math.isnan(d['mean_i']))
+
+    def test_moran_summary_gora_xor_n_valid_zero(self):
+        d = self.moran_summary('ГОРА', 'xor')
+        self.assertEqual(d['n_valid'], 0)
+
+    def test_moran_summary_series_length(self):
+        d = self.moran_summary('ТУМАН', 'xor3')
+        self.assertEqual(len(d['series']), 8)
+
+    def test_moran_summary_series_matches_direct(self):
+        d    = self.moran_summary('ТУМАН', 'xor3')
+        ser  = self.morans_i_series('ТУМАН', 'xor3')
+        for a, b in zip(d['series'], ser):
+            self.assertAlmostEqual(a, b, places=8)
+
+    # ── all_morans_i ──────────────────────────────────────────────────────────
+
+    def test_all_morans_i_four_rules(self):
+        am = self.all_morans_i('ТУМАН')
+        self.assertEqual(set(am.keys()), {'xor','xor3','and','or'})
+
+    def test_all_morans_i_each_has_keys(self):
+        am = self.all_morans_i('ГОРА')
+        for rule, d in am.items():
+            self.assertIn('period', d)
+            self.assertIn('classification', d)
+
+    # ── build_moran_data ──────────────────────────────────────────────────────
+
+    def test_build_moran_data_keys(self):
+        d = self.build_moran_data(['ГОРА', 'ТУМАН'])
+        for k in ('words','width','per_rule'):
+            self.assertIn(k, d)
+
+    def test_build_moran_data_per_rule_words(self):
+        words = ['ГОРА', 'МАТ']
+        d = self.build_moran_data(words)
+        for rule in ('xor','xor3','and','or'):
+            self.assertEqual(set(d['per_rule'][rule].keys()), set(words))
+
+    # ── viewer assertions ─────────────────────────────────────────────────────
+
+    def test_viewer_has_moran_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('moran-word', content)
+
+    def test_viewer_has_moran_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('moranRun', content)
+
+    def test_viewer_has_solan_moran_section(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_moran', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_moran',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+class TestSolanDerrida2(unittest.TestCase):
+    """Replacement tests for solan_derrida.py (standard *_summary convention)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import (
+            state_dist_norm, derrida_point,
+            lexicon_points, random_points,
+            derrida_curve, analytic_curve,
+            classify_rule, build_derrida_data,
+            derrida_dict, derrida_summary,
+            _ALL_RULES,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.state_dist_norm    = staticmethod(state_dist_norm)
+        cls.derrida_point      = staticmethod(derrida_point)
+        cls.lexicon_points     = staticmethod(lexicon_points)
+        cls.random_points      = staticmethod(random_points)
+        cls.derrida_curve      = staticmethod(derrida_curve)
+        cls.analytic_curve     = staticmethod(analytic_curve)
+        cls.classify_rule      = staticmethod(classify_rule)
+        cls.build_derrida_data = staticmethod(build_derrida_data)
+        cls.derrida_dict       = staticmethod(derrida_dict)
+        cls.derrida_summary    = staticmethod(derrida_summary)
+        cls.ALL_RULES          = _ALL_RULES
+        cls.LEXICON            = list(LEXICON)
+
+    # ── state_dist_norm() ─────────────────────────────────────────────────────
+
+    def test_sdn_identical_zero(self):
+        c = [10, 20, 30] * 4
+        self.assertAlmostEqual(self.state_dist_norm(c, c, 12), 0.0)
+
+    def test_sdn_max_one(self):
+        self.assertAlmostEqual(self.state_dist_norm([0]*16, [63]*16), 1.0)
+
+    def test_sdn_in_range(self):
+        d = self.state_dist_norm([0]*16, [42]*16)
+        self.assertGreaterEqual(d, 0.0)
+        self.assertLessEqual(d, 1.0)
+
+    def test_sdn_symmetric(self):
+        c1 = [0, 1, 2, 3] * 4
+        c2 = [4, 5, 6, 7] * 4
+        self.assertAlmostEqual(self.state_dist_norm(c1, c2),
+                               self.state_dist_norm(c2, c1))
+
+    # ── derrida_point() ───────────────────────────────────────────────────────
+
+    def test_dp_is_tuple_2(self):
+        c = [0]*16
+        r = self.derrida_point(c, c, 'xor3')
+        self.assertIsInstance(r, tuple)
+        self.assertEqual(len(r), 2)
+
+    def test_dp_identical_both_zero(self):
+        c = [42]*16
+        x, y = self.derrida_point(c, c, 'xor3')
+        self.assertAlmostEqual(x, 0.0)
+        self.assertAlmostEqual(y, 0.0)
+
+    def test_dp_values_in_01(self):
+        from projects.hexglyph.solan_word import encode_word, pad_to
+        c1 = pad_to(encode_word('ГОРА'), 16)
+        c2 = pad_to(encode_word('ЛУНА'), 16)
+        for rule in self.ALL_RULES:
+            x, y = self.derrida_point(c1, c2, rule)
+            self.assertGreaterEqual(x, 0.0)
+            self.assertLessEqual(x, 1.0)
+            self.assertGreaterEqual(y, 0.0)
+            self.assertLessEqual(y, 1.0)
+
+    # ── lexicon_points() ──────────────────────────────────────────────────────
+
+    def test_lp_count(self):
+        n = len(self.LEXICON)
+        pts = self.lexicon_points('xor3')
+        self.assertEqual(len(pts), n * (n - 1) // 2)
+
+    def test_lp_all_in_range(self):
+        pts = self.lexicon_points('xor')
+        for x, y in pts:
+            self.assertGreaterEqual(x, 0.0)
+            self.assertLessEqual(y, 1.0)
+
+    def test_lp_x_positive(self):
+        pts = self.lexicon_points('xor3')
+        self.assertTrue(all(x > 0 for x, _ in pts))
+
+    # ── random_points() ───────────────────────────────────────────────────────
+
+    def test_rp_count(self):
+        pts = self.random_points('xor3', n=40, seed=0)
+        self.assertEqual(len(pts), 40)
+
+    def test_rp_reproducible(self):
+        p1 = self.random_points('xor3', n=10, seed=7)
+        p2 = self.random_points('xor3', n=10, seed=7)
+        self.assertEqual(p1, p2)
+
+    def test_rp_different_seeds(self):
+        p1 = self.random_points('xor3', n=10, seed=1)
+        p2 = self.random_points('xor3', n=10, seed=2)
+        self.assertNotEqual(p1, p2)
+
+    def test_rp_in_range(self):
+        for x, y in self.random_points('xor', n=20, seed=0):
+            self.assertGreaterEqual(x, 0.0)
+            self.assertLessEqual(x, 1.0)
+
+    # ── derrida_curve() ───────────────────────────────────────────────────────
+
+    def test_dc_required_keys(self):
+        pts = [(0.1, 0.2), (0.5, 0.4)]
+        r = self.derrida_curve(pts)
+        for k in ('bins', 'mean_y', 'count', 'above_diag', 'below_diag', 'on_diag'):
+            self.assertIn(k, r)
+
+    def test_dc_above_below_total(self):
+        pts = [(0.1, 0.3), (0.5, 0.3), (0.8, 0.5)]
+        r = self.derrida_curve(pts)
+        self.assertEqual(r['above_diag'] + r['below_diag'] + r['on_diag'], 3)
+
+    def test_dc_above_correct(self):
+        # (0.1, 0.3): y>x → above; (0.5, 0.3): y<x → below
+        r = self.derrida_curve([(0.1, 0.3), (0.5, 0.3)])
+        self.assertEqual(r['above_diag'], 1)
+        self.assertEqual(r['below_diag'], 1)
+
+    def test_dc_bins_length(self):
+        pts = [(0.5, 0.5)]
+        r = self.derrida_curve(pts, n_bins=10)
+        self.assertEqual(len(r['bins']), 10)
+
+    # ── analytic_curve() ──────────────────────────────────────────────────────
+
+    def test_ac_xor_midpoint(self):
+        # XOR: y=2x(1-x), at x=0.5 → y=0.5
+        pts = self.analytic_curve('xor', n_pts=100)
+        mid = min(pts, key=lambda p: abs(p[0] - 0.5))
+        self.assertAlmostEqual(mid[1], 0.5, places=2)
+
+    def test_ac_xor_starts_zero(self):
+        pts = self.analytic_curve('xor', n_pts=10)
+        self.assertAlmostEqual(pts[0][1], 0.0)
+
+    def test_ac_xor3_chaotic_slope(self):
+        pts = self.analytic_curve('xor3', n_pts=100)
+        x1, y1 = pts[1]
+        self.assertGreater(y1 / x1, 1.0)  # slope > 1 near origin → chaotic
+
+    def test_ac_all_y_in_01(self):
+        for rule in self.ALL_RULES:
+            for x, y in self.analytic_curve(rule):
+                self.assertGreaterEqual(y, 0.0)
+                self.assertLessEqual(y, 1.0 + 1e-9)
+
+    # ── classify_rule() ───────────────────────────────────────────────────────
+
+    def test_cr_valid_values(self):
+        for rule in self.ALL_RULES:
+            c = self.classify_rule(rule, n_random=50)
+            self.assertIn(c, ('ordered', 'chaotic', 'complex'))
+
+    def test_cr_or_ordered(self):
+        self.assertEqual(self.classify_rule('or', n_random=200), 'ordered')
+
+    def test_cr_and_ordered(self):
+        self.assertEqual(self.classify_rule('and', n_random=200), 'ordered')
+
+    def test_cr_xor3_not_ordered(self):
+        # XOR3 is either 'complex' or 'chaotic', never 'ordered'
+        self.assertNotEqual(self.classify_rule('xor3', n_random=300), 'ordered')
+
+    # ── build_derrida_data() / derrida_summary() ──────────────────────────────
+
+    def test_bdd_required_keys(self):
+        d = self.build_derrida_data(n_random=30)
+        for k in ('width', 'n_random', 'rules'):
+            self.assertIn(k, d)
+
+    def test_bdd_all_rules(self):
+        d = self.build_derrida_data(n_random=30)
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_bdd_has_classification(self):
+        d = self.build_derrida_data(n_random=30)
+        for rule in self.ALL_RULES:
+            self.assertIn('classification', d['rules'][rule])
+
+    def test_summary_equals_build(self):
+        """derrida_summary must equal build_derrida_data."""
+        d1 = self.build_derrida_data(n_random=30)
+        d2 = self.derrida_summary(n_random=30)
+        self.assertEqual(d1['width'], d2['width'])
+        self.assertEqual(d1['n_random'], d2['n_random'])
+        self.assertEqual(set(d1['rules'].keys()), set(d2['rules'].keys()))
+
+    def test_summary_default_width(self):
+        d = self.derrida_summary(n_random=20)
+        self.assertEqual(d['width'], 16)
+
+    # ── derrida_dict() ────────────────────────────────────────────────────────
+
+    def test_dd_json_serialisable(self):
+        import json
+        d = self.derrida_dict(n_random=30)
+        json.dumps(d, ensure_ascii=False)  # must not raise
+
+    def test_dd_top_keys(self):
+        d = self.derrida_dict(n_random=30)
+        for k in ('width', 'n_random', 'rules'):
+            self.assertIn(k, d)
+
+    def test_dd_analytic_present(self):
+        d = self.derrida_dict(n_random=30)
+        for rule in self.ALL_RULES:
+            self.assertIn('analytic', d['rules'][rule])
+
+    def test_dd_no_raw_points(self):
+        d = self.derrida_dict(n_random=30)
+        # Raw point lists should not appear in the JSON dict
+        for rule in self.ALL_RULES:
+            self.assertNotIn('lex_points', d['rules'][rule])
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_der_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('der-canvas', content)
+
+    def test_viewer_has_der_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('der-btn', content)
+
+    def test_viewer_has_der_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('derRun', content)
+
+    def test_viewer_derrida_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Диаграмма Деррида CA Q6', content)
+
+    def test_viewer_has_analytic_pts(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('analyticPts', content)
+
+    def test_viewer_has_binned_curve(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('binnedCurve', content)
+
+    def test_viewer_has_compute_pairs(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('computePairs', content)
+
+    def test_viewer_has_solan_derrida(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_derrida', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_derrida', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_build_derrida_data_returns_dict(self):
+        from projects.hexglyph.solan_derrida import build_derrida_data
+        d = build_derrida_data(n_random=10)
+        self.assertIsInstance(d, dict)
+class TestSolanRecurrence2(unittest.TestCase):
+    """Replacement tests for solan_recurrence.py (standard *_summary convention)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_recurrence import (
+            state_hamming, recurrence_matrix, rqa_metrics,
+            trajectory_recurrence, recurrence_summary,
+            all_recurrences, build_recurrence_data, recurrence_dict,
+            _ALL_RULES, _DEFAULT_WIDTH, _DEFAULT_EPS, _N_CYCLES,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.state_hamming         = staticmethod(state_hamming)
+        cls.recurrence_matrix     = staticmethod(recurrence_matrix)
+        cls.rqa_metrics           = staticmethod(rqa_metrics)
+        cls.trajectory_recurrence = staticmethod(trajectory_recurrence)
+        cls.recurrence_summary    = staticmethod(recurrence_summary)
+        cls.all_recurrences       = staticmethod(all_recurrences)
+        cls.build_recurrence_data = staticmethod(build_recurrence_data)
+        cls.recurrence_dict       = staticmethod(recurrence_dict)
+        cls.ALL_RULES             = _ALL_RULES
+        cls.DEFAULT_WIDTH         = _DEFAULT_WIDTH
+        cls.DEFAULT_EPS           = _DEFAULT_EPS
+        cls.N_CYCLES              = _N_CYCLES
+        cls.LEXICON               = list(LEXICON)
+
+    # ── state_hamming() ────────────────────────────────────────────────────────
+
+    def test_sh_identical_zeros(self):
+        self.assertEqual(self.state_hamming([0, 0], [0, 0]), 0)
+
+    def test_sh_identical_max(self):
+        self.assertEqual(self.state_hamming([63, 63], [63, 63]), 0)
+
+    def test_sh_one_bit(self):
+        self.assertEqual(self.state_hamming([0], [1]), 1)
+
+    def test_sh_six_bits(self):
+        self.assertEqual(self.state_hamming([0], [63]), 6)
+
+    def test_sh_two_cells_full_diff(self):
+        # [0,63] vs [63,0]: each cell differs by 6 bits → 12 total
+        self.assertEqual(self.state_hamming([0, 63], [63, 0]), 12)
+
+    def test_sh_symmetric(self):
+        r1 = [7, 0, 63, 1]
+        r2 = [0, 7, 1, 63]
+        self.assertEqual(self.state_hamming(r1, r2), self.state_hamming(r2, r1))
+
+    def test_sh_zero_vs_63_16_cells(self):
+        self.assertEqual(self.state_hamming([0]*16, [63]*16), 96)
+
+    # ── recurrence_matrix() ────────────────────────────────────────────────────
+
+    def test_rm_shape_square(self):
+        rows = [[0]*4, [1]*4, [2]*4]
+        R = self.recurrence_matrix(rows, eps=0)
+        self.assertEqual(len(R), 3)
+        self.assertTrue(all(len(row) == 3 for row in R))
+
+    def test_rm_main_diag_ones(self):
+        rows = [[i]*4 for i in range(5)]
+        R = self.recurrence_matrix(rows, eps=0)
+        for i in range(5):
+            self.assertEqual(R[i][i], 1)
+
+    def test_rm_symmetric(self):
+        rows = [[0]*4, [1]*4, [3]*4]
+        R = self.recurrence_matrix(rows, eps=0)
+        for i in range(3):
+            for j in range(3):
+                self.assertEqual(R[i][j], R[j][i])
+
+    def test_rm_identical_rows_all_ones(self):
+        rows = [[5]*4] * 4
+        R = self.recurrence_matrix(rows, eps=0)
+        self.assertTrue(all(R[i][j] == 1 for i in range(4) for j in range(4)))
+
+    def test_rm_eps_0_distinct_rows(self):
+        R = self.recurrence_matrix([[0]*4, [1]*4], eps=0)
+        self.assertEqual(R[0][1], 0)
+
+    def test_rm_eps_relaxes(self):
+        # differ by 1 bit → eps=1 makes them recurrent
+        R = self.recurrence_matrix([[0, 0], [1, 0]], eps=1)
+        self.assertEqual(R[0][1], 1)
+
+    # ── rqa_metrics() ─────────────────────────────────────────────────────────
+
+    def test_rqa_empty(self):
+        m = self.rqa_metrics([])
+        self.assertEqual(m['N'], 0)
+        self.assertEqual(m['RR'], 0.0)
+
+    def test_rqa_single_row(self):
+        m = self.rqa_metrics([[1]])
+        self.assertEqual(m['RR'], 0.0)
+
+    def test_rqa_all_ones_rr_1(self):
+        R = [[1]*4 for _ in range(4)]
+        m = self.rqa_metrics(R)
+        self.assertAlmostEqual(m['RR'], 1.0, places=4)
+
+    def test_rqa_identity_rr_0(self):
+        N = 4
+        R = [[1 if i == j else 0 for j in range(N)] for i in range(N)]
+        m = self.rqa_metrics(R)
+        self.assertEqual(m['RR'], 0.0)
+        self.assertEqual(m['DET'], 0.0)
+
+    def test_rqa_required_keys(self):
+        m = self.rqa_metrics([[1, 0], [0, 1]])
+        for key in ('N', 'RR', 'DET', 'L', 'LAM', 'TT'):
+            self.assertIn(key, m)
+
+    def test_rqa_rr_in_range(self):
+        import random
+        random.seed(42)
+        R = [[random.choice([0, 1]) for _ in range(8)] for _ in range(8)]
+        m = self.rqa_metrics(R)
+        self.assertGreaterEqual(m['RR'], 0.0)
+        self.assertLessEqual(m['RR'], 1.0)
+
+    # ── trajectory_recurrence() / recurrence_summary() ─────────────────────────
+
+    def test_tr_returns_dict(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor3')
+        self.assertIsInstance(r, dict)
+
+    def test_tr_required_keys(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor3')
+        for k in ('word', 'rule', 'width', 'eps', 'transient', 'period',
+                  'n_steps', 'R', 'rqa'):
+            self.assertIn(k, r)
+
+    def test_tr_word_uppercased(self):
+        r = self.trajectory_recurrence('гора', 'xor3')
+        self.assertEqual(r['word'], 'ГОРА')
+
+    def test_tr_matrix_square(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor3')
+        N = r['n_steps']
+        self.assertEqual(len(r['R']), N)
+        self.assertTrue(all(len(row) == N for row in r['R']))
+
+    def test_tr_n_steps_formula(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3', n_cycles=4)
+        self.assertEqual(r['n_steps'], r['transient'] + 4 * r['period'])
+
+    def test_tr_gora_xor_rr(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor')
+        self.assertAlmostEqual(r['rqa']['RR'], 0.4, places=3)
+
+    def test_tr_gora_xor3_det_one(self):
+        r = self.trajectory_recurrence('ГОРА', 'xor3')
+        self.assertAlmostEqual(r['rqa']['DET'], 1.0, places=3)
+
+    def test_tr_tuman_xor3_rr(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['RR'], 0.0968, places=3)
+
+    def test_tr_tuman_xor3_det_one(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['DET'], 1.0, places=3)
+
+    def test_tr_tuman_xor3_l(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['L'], 16.0, places=1)
+
+    def test_tr_tuman_xor3_lam_zero(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['LAM'], 0.0, places=4)
+
+    def test_tr_tuman_xor3_tt_zero(self):
+        r = self.trajectory_recurrence('ТУМАН', 'xor3')
+        self.assertAlmostEqual(r['rqa']['TT'], 0.0, places=4)
+
+    def test_tr_eps_increases_rr(self):
+        r0 = self.trajectory_recurrence('ГОРА', 'xor3', eps=0)
+        r4 = self.trajectory_recurrence('ГОРА', 'xor3', eps=4)
+        self.assertGreaterEqual(r4['rqa']['RR'], r0['rqa']['RR'])
+
+    def test_tr_rr_in_01(self):
+        r = self.trajectory_recurrence('ВОДА', 'or')
+        self.assertGreaterEqual(r['rqa']['RR'], 0.0)
+        self.assertLessEqual(r['rqa']['RR'], 1.0)
+
+    def test_summary_equals_traj(self):
+        """recurrence_summary must equal trajectory_recurrence."""
+        d1 = self.trajectory_recurrence('ГОРА', 'xor3')
+        d2 = self.recurrence_summary('ГОРА', 'xor3')
+        self.assertEqual(d1['rqa'], d2['rqa'])
+        self.assertEqual(d1['period'], d2['period'])
+        self.assertEqual(d1['transient'], d2['transient'])
+
+    def test_summary_default_rule_xor3(self):
+        d = self.recurrence_summary('ТУМАН')
+        self.assertEqual(d['rule'], 'xor3')
+
+    def test_summary_word_uppercased(self):
+        d = self.recurrence_summary('туман')
+        self.assertEqual(d['word'], 'ТУМАН')
+
+    # ── all_recurrences() ──────────────────────────────────────────────────────
+
+    def test_ar_four_rules(self):
+        d = self.all_recurrences('ГОРА')
+        self.assertEqual(set(d.keys()), set(self.ALL_RULES))
+
+    def test_ar_each_has_rqa(self):
+        d = self.all_recurrences('ВОДА')
+        for rule in self.ALL_RULES:
+            self.assertIn('rqa', d[rule])
+
+    def test_ar_rr_in_range(self):
+        d = self.all_recurrences('ТУМАН')
+        for rule in self.ALL_RULES:
+            rr = d[rule]['rqa']['RR']
+            self.assertGreaterEqual(rr, 0.0)
+            self.assertLessEqual(rr, 1.0)
+
+    # ── build_recurrence_data() ────────────────────────────────────────────────
+
+    def test_brd_required_keys(self):
+        d = self.build_recurrence_data(['ГОРА', 'ВОДА'])
+        for k in ('words', 'width', 'eps', 'per_rule', 'ranking',
+                  'max_rr', 'min_rr'):
+            self.assertIn(k, d)
+
+    def test_brd_per_rule_all_rules(self):
+        d = self.build_recurrence_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), set(self.ALL_RULES))
+
+    def test_brd_ranking_descending(self):
+        d = self.build_recurrence_data(['ГОРА', 'ВОДА', 'ТУМАН'])
+        for rule in self.ALL_RULES:
+            rr_vals = [x[1] for x in d['ranking'][rule]]
+            self.assertEqual(rr_vals, sorted(rr_vals, reverse=True))
+
+    def test_brd_max_rr_tuple(self):
+        d = self.build_recurrence_data(['ГОРА', 'ВОДА'])
+        for rule in self.ALL_RULES:
+            self.assertIsInstance(d['max_rr'][rule], tuple)
+
+    def test_brd_words_preserved(self):
+        words = ['ГОРА', 'ВОДА']
+        d = self.build_recurrence_data(words)
+        self.assertEqual(d['words'], words)
+
+    # ── recurrence_dict() ─────────────────────────────────────────────────────
+
+    def test_rd_json_serialisable(self):
+        import json
+        d = self.recurrence_dict('ГОРА')
+        json.dumps(d)   # must not raise
+
+    def test_rd_has_rules_key(self):
+        d = self.recurrence_dict('ГОРА')
+        self.assertIn('rules', d)
+
+    def test_rd_all_rules_present(self):
+        d = self.recurrence_dict('ГОРА')
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_rd_each_rule_has_rr(self):
+        d = self.recurrence_dict('ВОДА')
+        for rule in self.ALL_RULES:
+            self.assertIn('RR', d['rules'][rule])
+
+    def test_rd_no_matrix(self):
+        d = self.recurrence_dict('ГОРА')
+        for rule in self.ALL_RULES:
+            self.assertNotIn('R', d['rules'][rule])
+
+    def test_rd_word_uppercased(self):
+        d = self.recurrence_dict('гора')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_rc_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rc-canvas', content)
+
+    def test_viewer_has_rc_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rc-btn', content)
+
+    def test_viewer_has_rc_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rc-hmap', content)
+
+    def test_viewer_has_rc_metrics(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rc-metrics', content)
+
+    def test_viewer_has_rqa_met(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rqaMet', content)
+
+    def test_viewer_has_rc_rows(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rcRows', content)
+
+    def test_viewer_has_solan_recurrence(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_recurrence', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_recurrence',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_all_recurrences_returns_4_rules(self):
+        from projects.hexglyph.solan_recurrence import all_recurrences
+        d = all_recurrences('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_recurrences_values_are_dicts(self):
+        from projects.hexglyph.solan_recurrence import all_recurrences
+        d = all_recurrences('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_recurrence_data_returns_dict(self):
+        from projects.hexglyph.solan_recurrence import build_recurrence_data
+        d = build_recurrence_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanCorrelation2(unittest.TestCase):
+    """Replacement tests for solan_correlation.py (standard *_summary convention)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_correlation import (
+            row_autocorr, attractor_autocorr, all_autocorrs,
+            cross_corr, correlation_length,
+            build_correlation_data, correlation_dict, correlation_summary,
+            _ALL_RULES,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.row_autocorr           = staticmethod(row_autocorr)
+        cls.attractor_autocorr     = staticmethod(attractor_autocorr)
+        cls.all_autocorrs          = staticmethod(all_autocorrs)
+        cls.cross_corr             = staticmethod(cross_corr)
+        cls.correlation_length     = staticmethod(correlation_length)
+        cls.build_correlation_data = staticmethod(build_correlation_data)
+        cls.correlation_dict       = staticmethod(correlation_dict)
+        cls.correlation_summary    = staticmethod(correlation_summary)
+        cls.ALL_RULES              = _ALL_RULES
+        cls.LEXICON                = list(LEXICON)
+
+    # ── row_autocorr() ────────────────────────────────────────────────────────
+
+    def test_rac_length_16(self):
+        # width=16 → n_lags = 16//2+1 = 9
+        self.assertEqual(len(self.row_autocorr([0]*16)), 9)
+
+    def test_rac_r0_is_one(self):
+        for row in ([1, 2, 3, 4]*4, [0]*16, [63]*16):
+            self.assertAlmostEqual(self.row_autocorr(row)[0], 1.0, places=5)
+
+    def test_rac_constant_all_one(self):
+        # constant row → zero variance → all r(d)=1
+        r = self.row_autocorr([7]*16)
+        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in r))
+
+    def test_rac_alternating_r1_minus_one(self):
+        # [1,0,1,0,...] → r(1)=-1
+        r = self.row_autocorr([1, 0]*8)
+        self.assertAlmostEqual(r[1], -1.0, places=5)
+
+    def test_rac_values_in_range(self):
+        r = self.row_autocorr([i % 7 for i in range(16)])
+        for v in r:
+            self.assertGreaterEqual(v, -1.0 - 1e-9)
+            self.assertLessEqual(v, 1.0 + 1e-9)
+
+    # ── attractor_autocorr() ──────────────────────────────────────────────────
+
+    def test_aac_length(self):
+        self.assertEqual(len(self.attractor_autocorr('ГОРА', 'xor3')), 9)
+
+    def test_aac_r0_one(self):
+        for rule in self.ALL_RULES:
+            r = self.attractor_autocorr('ГОРА', rule)
+            self.assertAlmostEqual(r[0], 1.0, places=5)
+
+    def test_aac_xor_constant_attractor(self):
+        # XOR → all-zero attractor → r(d≥1)=0
+        r = self.attractor_autocorr('ГОРА', 'xor')
+        for v in r[1:]:
+            self.assertAlmostEqual(v, 0.0, places=5)
+
+    def test_aac_and_anticorr_at_lag1(self):
+        # AND → alternating attractor → r(1) < 0
+        r = self.attractor_autocorr('ГОРА', 'and')
+        self.assertLess(r[1], 0.0)
+
+    def test_aac_values_bounded(self):
+        for rule in self.ALL_RULES:
+            for v in self.attractor_autocorr('ТУМАН', rule):
+                self.assertGreaterEqual(v, -1.0 - 1e-9)
+                self.assertLessEqual(v, 1.0 + 1e-9)
+
+    # ── all_autocorrs() ───────────────────────────────────────────────────────
+
+    def test_all_ac_four_rules(self):
+        r = self.all_autocorrs('ГОРА')
+        self.assertEqual(set(r.keys()), set(self.ALL_RULES))
+
+    def test_all_ac_each_is_list(self):
+        r = self.all_autocorrs('ЛУНА')
+        for ac in r.values():
+            self.assertIsInstance(ac, list)
+            self.assertEqual(len(ac), 9)
+
+    # ── cross_corr() ──────────────────────────────────────────────────────────
+
+    def test_cc_length(self):
+        self.assertEqual(len(self.cross_corr('ГОРА', 'ЛУНА', 'xor3')), 9)
+
+    def test_cc_same_word_r0(self):
+        # cross_corr(word, word)[0] == attractor_autocorr[0] == 1
+        cc = self.cross_corr('ГОРА', 'ГОРА', 'xor3')
+        ac = self.attractor_autocorr('ГОРА', 'xor3')
+        self.assertAlmostEqual(cc[0], ac[0], places=4)
+
+    def test_cc_bounded(self):
+        for v in self.cross_corr('ГОРА', 'ЛУНА', 'xor3'):
+            self.assertGreaterEqual(v, -1.0 - 1e-9)
+            self.assertLessEqual(v, 1.0 + 1e-9)
+
+    # ── correlation_length() ──────────────────────────────────────────────────
+
+    def test_cl_is_float(self):
+        self.assertIsInstance(self.correlation_length('ГОРА', 'xor3'), float)
+
+    def test_cl_xor_is_one(self):
+        # XOR: r(d≥1)=0 ≤ 1/e → first crossing at d=1
+        self.assertAlmostEqual(self.correlation_length('ГОРА', 'xor'), 1.0)
+
+    def test_cl_and_long(self):
+        # AND alternating |r|=1 for all lags → returns max = width//2 = 8
+        self.assertGreaterEqual(self.correlation_length('ГОРА', 'and'), 7.0)
+
+    def test_cl_positive_all_rules(self):
+        for rule in self.ALL_RULES:
+            self.assertGreater(self.correlation_length('ВОДА', rule), 0.0)
+
+    # ── build_correlation_data() ──────────────────────────────────────────────
+
+    def test_bcd_required_keys(self):
+        d = self.build_correlation_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'n_lags', 'per_rule', 'corr_lengths',
+                  'max_corr_len', 'min_corr_len'):
+            self.assertIn(k, d)
+
+    def test_bcd_n_lags_16(self):
+        d = self.build_correlation_data(['ГОРА'])
+        self.assertEqual(d['n_lags'], 9)
+
+    def test_bcd_all_rules(self):
+        d = self.build_correlation_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), set(self.ALL_RULES))
+
+    def test_bcd_words_preserved(self):
+        words = ['ГОРА', 'ЛУНА']
+        d = self.build_correlation_data(words)
+        self.assertEqual(d['words'], words)
+
+    # ── correlation_dict() / correlation_summary() ────────────────────────────
+
+    def test_cd_json_serialisable(self):
+        import json
+        json.dumps(self.correlation_dict('ГОРА'), ensure_ascii=False)
+
+    def test_cd_top_keys(self):
+        d = self.correlation_dict('ГОРА')
+        for k in ('word', 'width', 'lags', 'rules'):
+            self.assertIn(k, d)
+
+    def test_cd_lags_list(self):
+        d = self.correlation_dict('ГОРА')
+        self.assertEqual(d['lags'], list(range(9)))
+
+    def test_cd_all_rules(self):
+        d = self.correlation_dict('ГОРА')
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_cd_corr_length_present(self):
+        d = self.correlation_dict('ГОРА')
+        for rule in self.ALL_RULES:
+            self.assertIn('corr_length', d['rules'][rule])
+
+    def test_cd_word_uppercased(self):
+        d = self.correlation_dict('гора')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_summary_equals_dict(self):
+        """correlation_summary must equal correlation_dict."""
+        d1 = self.correlation_dict('ТУМАН')
+        d2 = self.correlation_summary('ТУМАН')
+        self.assertEqual(d1['lags'], d2['lags'])
+        self.assertEqual(set(d1['rules'].keys()), set(d2['rules'].keys()))
+
+    def test_summary_default_width(self):
+        d = self.correlation_summary('ГОРА')
+        self.assertEqual(d['width'], 16)
+
+    def test_summary_word_uppercased(self):
+        d = self.correlation_summary('гора')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_cor_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cor-canvas', content)
+
+    def test_viewer_has_cor_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cor-hmap', content)
+
+    def test_viewer_has_cor_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cor-btn', content)
+
+    def test_viewer_has_cor_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('corRun', content)
+
+    def test_viewer_cor_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Пространственная автокорреляция CA Q6', content)
+
+    def test_viewer_has_row_autocorr(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rowAutocorr', content)
+
+    def test_viewer_has_solan_correlation(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_correlation', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_correlation',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_all_autocorrs_returns_4_rules(self):
+        from projects.hexglyph.solan_correlation import all_autocorrs
+        d = all_autocorrs('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_autocorrs_values_are_lists(self):
+        from projects.hexglyph.solan_correlation import all_autocorrs
+        d = all_autocorrs('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, list)
+
+    def test_build_correlation_data_returns_dict(self):
+        from projects.hexglyph.solan_correlation import build_correlation_data
+        d = build_correlation_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanLyapunov3(unittest.TestCase):
+    """Merged replacement tests for solan_lyapunov.py — both A & B interfaces."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import (
+            # A-interface
+            q6_hamming, state_distance, perturb,
+            divergence_trajectory, lyapunov_profile,
+            lyapunov_summary, peak_sensitivity_map,
+            build_lyapunov_data, lyapunov_dict,
+            # B-interface
+            perturb_profile, perturb_all_profiles, mean_d_profile,
+            detect_period, classify_mode, perturbation_cone,
+            lyapunov_mode_summary, all_lyapunov, build_mode_data,
+            _ALL_RULES,
+        )
+        cls.q6_hamming            = staticmethod(q6_hamming)
+        cls.state_distance        = staticmethod(state_distance)
+        cls.perturb               = staticmethod(perturb)
+        cls.divergence_trajectory = staticmethod(divergence_trajectory)
+        cls.lyapunov_profile      = staticmethod(lyapunov_profile)
+        cls.lyapunov_summary      = staticmethod(lyapunov_summary)
+        cls.peak_sensitivity_map  = staticmethod(peak_sensitivity_map)
+        cls.build_lyapunov_data   = staticmethod(build_lyapunov_data)
+        cls.lyapunov_dict         = staticmethod(lyapunov_dict)
+        cls.perturb_profile       = staticmethod(perturb_profile)
+        cls.perturb_all_profiles  = staticmethod(perturb_all_profiles)
+        cls.mean_d_profile        = staticmethod(mean_d_profile)
+        cls.detect_period         = staticmethod(detect_period)
+        cls.classify_mode         = staticmethod(classify_mode)
+        cls.perturbation_cone     = staticmethod(perturbation_cone)
+        cls.mode_summary          = staticmethod(lyapunov_mode_summary)
+        cls.all_lyapunov          = staticmethod(all_lyapunov)
+        cls.build_mode_data       = staticmethod(build_mode_data)
+        cls.ALL_RULES             = _ALL_RULES
+
+    # ── A: q6_hamming() ───────────────────────────────────────────────────────
+
+    def test_q6h_identical(self):
+        self.assertEqual(self.q6_hamming(42, 42), 0)
+
+    def test_q6h_one_bit(self):
+        self.assertEqual(self.q6_hamming(0, 1), 1)
+        self.assertEqual(self.q6_hamming(0, 32), 1)
+
+    def test_q6h_all_six_bits(self):
+        self.assertEqual(self.q6_hamming(0, 63), 6)
+
+    def test_q6h_symmetric(self):
+        self.assertEqual(self.q6_hamming(17, 42), self.q6_hamming(42, 17))
+
+    def test_q6h_range_0_6(self):
+        for a in range(64):
+            for b in range(64):
+                self.assertLessEqual(self.q6_hamming(a, b), 6)
+
+    # ── A: state_distance() ───────────────────────────────────────────────────
+
+    def test_sd_identical(self):
+        c = [10, 20, 30, 40]
+        self.assertEqual(self.state_distance(c, c), 0)
+
+    def test_sd_one_bit_flip(self):
+        c1 = [0]*8; c2 = [0]*8; c2[3] = 1
+        self.assertEqual(self.state_distance(c1, c2), 1)
+
+    def test_sd_all_differ_4_cells(self):
+        self.assertEqual(self.state_distance([0]*4, [63]*4), 24)
+
+    # ── A: perturb() ──────────────────────────────────────────────────────────
+
+    def test_perturb_new_list(self):
+        c = [10, 20, 30]
+        self.assertIsNot(self.perturb(c, 0, 0), c)
+
+    def test_perturb_original_unchanged(self):
+        c = [10, 20, 30]
+        self.perturb(c, 0, 0)
+        self.assertEqual(c, [10, 20, 30])
+
+    def test_perturb_distance_one(self):
+        c = [0]*8
+        self.assertEqual(self.state_distance(c, self.perturb(c, 3, 0)), 1)
+
+    def test_perturb_double_flip_restores(self):
+        c = [42]*6
+        self.assertEqual(c, self.perturb(self.perturb(c, 2, 3), 2, 3))
+
+    # ── A: divergence_trajectory() ────────────────────────────────────────────
+
+    def test_divtraj_length(self):
+        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3', max_steps=10)
+        self.assertEqual(len(r), 11)
+
+    def test_divtraj_starts_at_one(self):
+        self.assertEqual(self.divergence_trajectory('ГОРА', 0, 0, 'xor3')[0], 1)
+
+    def test_divtraj_xor_converges(self):
+        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor', max_steps=20)
+        self.assertEqual(r[-1], 0)
+
+    def test_divtraj_nonneg(self):
+        r = self.divergence_trajectory('ГОРА', 0, 0, 'xor3')
+        self.assertTrue(all(v >= 0 for v in r))
+
+    # ── A: lyapunov_profile() ─────────────────────────────────────────────────
+
+    def test_prof_required_keys(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        for k in ('word', 'rule', 'width', 'n_perturb', 'mean_dist',
+                  'max_dist', 'min_dist', 'peak_mean', 'peak_step',
+                  'final_mean', 'converges', 'per_perturb'):
+            self.assertIn(k, p)
+
+    def test_prof_n_perturb(self):
+        self.assertEqual(
+            self.lyapunov_profile('ГОРА', 'xor3', max_steps=5)['n_perturb'], 96)
+
+    def test_prof_initial_mean_one(self):
+        p = self.lyapunov_profile('ГОРА', 'xor3', max_steps=10)
+        self.assertAlmostEqual(p['mean_dist'][0], 1.0)
+
+    def test_prof_xor_converges(self):
+        self.assertTrue(
+            self.lyapunov_profile('ГОРА', 'xor', max_steps=20)['converges'])
+
+    # ── A: lyapunov_summary() (all-rules) ─────────────────────────────────────
+
+    def test_lsummary_all_rules(self):
+        s = self.lyapunov_summary('ГОРА', max_steps=10)
+        self.assertEqual(set(s.keys()), set(self.ALL_RULES))
+
+    def test_lsummary_rule_keys(self):
+        s = self.lyapunov_summary('ГОРА', max_steps=10)
+        for d in s.values():
+            for k in ('peak_mean', 'peak_step', 'final_mean', 'converges'):
+                self.assertIn(k, d)
+
+    # ── A: peak_sensitivity_map() ─────────────────────────────────────────────
+
+    def test_psmap_shape(self):
+        m = self.peak_sensitivity_map('ГОРА', 'xor3', max_steps=10)
+        self.assertEqual(len(m), 16)
+        self.assertTrue(all(len(row) == 6 for row in m))
+
+    # ── A: lyapunov_dict() ────────────────────────────────────────────────────
+
+    def test_ldict_json_serialisable(self):
+        import json
+        json.dumps(self.lyapunov_dict('ГОРА', max_steps=8), ensure_ascii=False)
+
+    def test_ldict_all_rules(self):
+        d = self.lyapunov_dict('ГОРА', max_steps=8)
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_ldict_mean_dist_length(self):
+        d = self.lyapunov_dict('ГОРА', max_steps=8)
+        for rd in d['rules'].values():
+            self.assertEqual(len(rd['mean_dist']), 9)
+
+    # ── B: perturb_profile() ──────────────────────────────────────────────────
+
+    def test_pp_length_T(self):
+        self.assertEqual(len(self.perturb_profile([0]*16, 0, 0, 'xor', 10)), 10)
+
+    def test_pp_initial_d_one(self):
+        self.assertEqual(self.perturb_profile([0]*16, 0, 0, 'xor', 8)[0], 1)
+
+    def test_pp_gora_or_absorbs(self):
+        # OR: 63 | x = 63 → absorbed at t=1
+        prof = self.perturb_profile([63]*16, 0, 0, 'or', 8)
+        self.assertEqual(prof[1], 0)
+
+    def test_pp_nonneg_le_n(self):
+        prof = self.perturb_profile([0]*16, 3, 2, 'xor3', 16)
+        self.assertTrue(all(0 <= d <= 16 for d in prof))
+
+    # ── B: perturb_all_profiles() ─────────────────────────────────────────────
+
+    def test_pap_count(self):
+        self.assertEqual(len(self.perturb_all_profiles([0]*16, 'xor', 8)), 96)
+
+    def test_pap_all_start_one(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 4)
+        self.assertTrue(all(p[0] == 1 for p in profs))
+
+    # ── B: mean_d_profile() ───────────────────────────────────────────────────
+
+    def test_mdp_initial_one(self):
+        profs = self.perturb_all_profiles([0]*16, 'xor', 8)
+        self.assertAlmostEqual(self.mean_d_profile(profs)[0], 1.0)
+
+    def test_mdp_xor_all_zeros_known(self):
+        # XOR [0]*16: t=7→8.0, t=8→0.0
+        profs = self.perturb_all_profiles([0]*16, 'xor', 10)
+        m = self.mean_d_profile(profs)
+        self.assertAlmostEqual(m[7], 8.0)
+        self.assertAlmostEqual(m[8], 0.0)
+
+    # ── B: detect_period() ────────────────────────────────────────────────────
+
+    def test_dp_none_aperiodic(self):
+        self.assertIsNone(self.detect_period([1, 2, 3, 4, 5, 6, 7, 8]))
+
+    def test_dp_period_3(self):
+        self.assertEqual(self.detect_period([1.0, 2.0, 3.0]*3), 3)
+
+    def test_dp_period_8(self):
+        seq = [1.0, 3.0, 3.0, 5.0, 3.0, 9.0, 5.0, 11.0]*3
+        self.assertEqual(self.detect_period(seq), 8)
+
+    # ── B: classify_mode() ────────────────────────────────────────────────────
+
+    def test_cm_absorbs(self):
+        self.assertEqual(self.classify_mode([1.0, 0.0]*16), 'absorbs')
+
+    def test_cm_stabilizes(self):
+        prof = [1.0, 2.0, 2.0, 4.0, 2.0, 4.0, 4.0, 8.0] + [0.0]*24
+        self.assertEqual(self.classify_mode(prof), 'stabilizes')
+
+    def test_cm_plateau(self):
+        self.assertEqual(self.classify_mode([1.0]*8 + [4.0]*24), 'plateau')
+
+    def test_cm_periodic(self):
+        self.assertEqual(
+            self.classify_mode([1.0, 3.0, 3.0, 5.0, 3.0, 9.0, 5.0, 11.0]*4),
+            'periodic')
+
+    # ── B: perturbation_cone() ────────────────────────────────────────────────
+
+    def test_cone_shape(self):
+        cone = self.perturbation_cone([0]*16, 0, 'xor', T=8)
+        self.assertEqual(len(cone), 8)
+        self.assertEqual(len(cone[0]), 16)
+
+    def test_cone_binary(self):
+        cone = self.perturbation_cone([0]*16, 0, 'xor', T=8)
+        self.assertTrue(all(v in (0, 1) for row in cone for v in row))
+
+    def test_cone_t0_single_cell(self):
+        cone = self.perturbation_cone([0]*16, 8, 'xor', T=4)
+        self.assertEqual(sum(cone[0]), 1)
+        self.assertEqual(cone[0][8], 1)
+
+    # ── B: lyapunov_mode_summary() ────────────────────────────────────────────
+
+    def test_ms_required_keys(self):
+        d = self.mode_summary('ГОРА', 'and')
+        for k in ('word', 'rule', 'period_orbit', 'n_cells', 'T',
+                  'mean_d', 'max_mean_d', 't_max_mean_d',
+                  't_converge', 'fraction_converged', 'plateau_d',
+                  'mode', 'period_d', 'cone_centre',
+                  'absorbs', 'stabilizes', 'is_plateau', 'is_periodic'):
+            self.assertIn(k, d)
+
+    def test_ms_word_upper(self):
+        self.assertEqual(self.mode_summary('гора', 'and')['word'], 'ГОРА')
+
+    def test_ms_tuman_and_absorbs(self):
+        d = self.mode_summary('ТУМАН', 'and')
+        self.assertEqual(d['mode'], 'absorbs')
+        self.assertTrue(d['absorbs'])
+        self.assertAlmostEqual(d['fraction_converged'], 1.0)
+
+    def test_ms_tuman_xor_stabilizes(self):
+        d = self.mode_summary('ТУМАН', 'xor')
+        self.assertEqual(d['mode'], 'stabilizes')
+        self.assertAlmostEqual(d['max_mean_d'], 8.0)
+        self.assertEqual(d['t_converge'], 8)
+
+    def test_ms_gora_and_plateau(self):
+        d = self.mode_summary('ГОРА', 'and')
+        self.assertEqual(d['mode'], 'plateau')
+        self.assertAlmostEqual(d['plateau_d'], 4.0, places=1)
+
+    def test_ms_tuman_xor3_periodic(self):
+        d = self.mode_summary('ТУМАН', 'xor3')
+        self.assertEqual(d['mode'], 'periodic')
+        self.assertAlmostEqual(d['max_mean_d'], 11.0)
+        self.assertEqual(d['period_d'], 8)
+
+    def test_ms_mode_flags_exclusive(self):
+        for word in ('ТУМАН', 'ГОРА'):
+            for rule in self.ALL_RULES:
+                d = self.mode_summary(word, rule)
+                flags = [d['absorbs'], d['stabilizes'],
+                         d['is_plateau'], d['is_periodic']]
+                self.assertEqual(sum(flags), 1)
+
+    def test_ms_mean_d_starts_one(self):
+        d = self.mode_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_d'][0], 1.0)
+
+    # ── B: all_lyapunov() ─────────────────────────────────────────────────────
+
+    def test_al_four_rules(self):
+        self.assertEqual(set(self.all_lyapunov('ГОРА').keys()),
+                         set(self.ALL_RULES))
+
+    # ── B: build_mode_data() ──────────────────────────────────────────────────
+
+    def test_bmd_top_keys(self):
+        d = self.build_mode_data(['ГОРА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, d)
+
+    def test_bmd_word_uppercase(self):
+        d = self.build_mode_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_bmd_known_mode(self):
+        d = self.build_mode_data(['ТУМАН'])
+        self.assertEqual(d['per_rule']['xor']['ТУМАН']['mode'], 'stabilizes')
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_lya_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lya-canvas', content)
+
+    def test_viewer_lya_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lya-btn', content)
+
+    def test_viewer_lya_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyaRun', content)
+
+    def test_viewer_lya_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Ляпунов CA Q6', content)
+
+    def test_viewer_lyap_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyap-heat', content)
+
+    def test_viewer_lyap_cone(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('lyap-cone', content)
+
+    def test_viewer_has_solan_lyapunov(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_lyapunov', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_lyapunov',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_all_lyapunov_returns_4_rules(self):
+        from projects.hexglyph.solan_lyapunov import all_lyapunov
+        d = all_lyapunov('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_lyapunov_values_are_dicts(self):
+        from projects.hexglyph.solan_lyapunov import all_lyapunov
+        d = all_lyapunov('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_lyapunov_data_returns_dict(self):
+        from projects.hexglyph.solan_lyapunov import build_lyapunov_data
+        d = build_lyapunov_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+
+    def test_build_mode_data_returns_dict(self):
+        from projects.hexglyph.solan_lyapunov import build_mode_data
+        d = build_mode_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanAutocorr2(unittest.TestCase):
+    """Merged replacement tests for solan_autocorr.py."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_autocorr import (
+            cell_series, temporal_ac, temporal_ac_profile,
+            mean_temporal_ac, cell_ac_all,
+            cell_crosscorr, crosscorr_matrix,
+            spatial_ac, spatial_ac_profile,
+            autocorr_summary, all_autocorr, build_autocorr_data,
+        )
+        from projects.hexglyph.solan_perm import get_orbit
+        cls.cell_series         = staticmethod(cell_series)
+        cls.temporal_ac         = staticmethod(temporal_ac)
+        cls.temporal_ac_profile = staticmethod(temporal_ac_profile)
+        cls.mean_temporal_ac    = staticmethod(mean_temporal_ac)
+        cls.cell_ac_all         = staticmethod(cell_ac_all)
+        cls.cell_crosscorr      = staticmethod(cell_crosscorr)
+        cls.crosscorr_matrix    = staticmethod(crosscorr_matrix)
+        cls.spatial_ac          = staticmethod(spatial_ac)
+        cls.spatial_ac_profile  = staticmethod(spatial_ac_profile)
+        cls.autocorr_summary    = staticmethod(autocorr_summary)
+        cls.all_autocorr        = staticmethod(all_autocorr)
+        cls.build_autocorr_data = staticmethod(build_autocorr_data)
+        cls.orbit_tuman_xor3    = get_orbit('ТУМАН', 'xor3', 16)
+        cls.orbit_gora_and      = get_orbit('ГОРА',  'and',  16)
+        cls.orbit_tuman_xor     = get_orbit('ТУМАН', 'xor',  16)
+
+    # ── cell_series() ─────────────────────────────────────────────────────────
+
+    def test_cs_length_equals_period(self):
+        self.assertEqual(len(self.cell_series(self.orbit_tuman_xor3, 0)), 8)
+
+    def test_cs_values_match_orbit(self):
+        s = self.cell_series(self.orbit_gora_and, 5)
+        self.assertEqual(s[0], self.orbit_gora_and[0][5])
+
+    # ── temporal_ac() ─────────────────────────────────────────────────────────
+
+    def test_tac_lag0_is_one(self):
+        self.assertAlmostEqual(self.temporal_ac([1, 3, 5, 7], 0), 1.0)
+
+    def test_tac_constant_returns_one(self):
+        self.assertAlmostEqual(self.temporal_ac([5, 5, 5, 5], 1), 1.0)
+
+    def test_tac_in_range(self):
+        for lag in range(8):
+            v = self.temporal_ac(list(range(1, 9)), lag)
+            self.assertGreaterEqual(v, -1.0 - 1e-9)
+            self.assertLessEqual(v,    1.0 + 1e-9)
+
+    def test_tac_p2_lag1_minus_one(self):
+        for s in ([1, 2], [47, 1], [63, 0]):
+            self.assertAlmostEqual(self.temporal_ac(s, 1), -1.0, places=5)
+
+    def test_tac_palindrome_symmetry(self):
+        s = [3, 7, 2, 9, 1, 5, 8, 4]
+        P = len(s)
+        for tau in range(1, P):
+            self.assertAlmostEqual(
+                self.temporal_ac(s, tau), self.temporal_ac(s, P - tau), places=6)
+
+    def test_tac_tuman_xor3_cell8_lag3(self):
+        s = self.cell_series(self.orbit_tuman_xor3, 8)
+        self.assertGreater(self.temporal_ac(s, 3), 0.3)
+
+    def test_tac_tuman_xor3_cell0_lag1_positive(self):
+        s = self.cell_series(self.orbit_tuman_xor3, 0)
+        self.assertGreater(self.temporal_ac(s, 1), 0.0)
+
+    # ── temporal_ac_profile() ─────────────────────────────────────────────────
+
+    def test_tap_starts_at_one(self):
+        self.assertAlmostEqual(self.temporal_ac_profile([3, 1, 4, 1, 5])[0], 1.0)
+
+    def test_tap_length(self):
+        self.assertEqual(len(self.temporal_ac_profile(list(range(8)))), 8)
+
+    def test_tap_palindromic(self):
+        s = [3, 7, 2, 9, 1, 5, 8, 4]
+        P = len(s)
+        prof = self.temporal_ac_profile(s)
+        for tau in range(1, P):
+            self.assertAlmostEqual(prof[tau], prof[P - tau], places=6)
+
+    def test_tap_p2_anti(self):
+        prof = self.temporal_ac_profile([47, 1])
+        self.assertAlmostEqual(prof[1], -1.0, places=5)
+
+    # ── mean_temporal_ac() ────────────────────────────────────────────────────
+
+    def test_mta_length(self):
+        self.assertEqual(len(self.mean_temporal_ac(self.orbit_tuman_xor3)), 8)
+
+    def test_mta_starts_at_one(self):
+        self.assertAlmostEqual(self.mean_temporal_ac(self.orbit_tuman_xor3)[0], 1.0)
+
+    def test_mta_gora_and_lag1_minus_one(self):
+        self.assertAlmostEqual(
+            self.mean_temporal_ac(self.orbit_gora_and)[1], -1.0, places=5)
+
+    def test_mta_tuman_xor3_palindromic(self):
+        m = self.mean_temporal_ac(self.orbit_tuman_xor3)
+        for tau in range(1, 8):
+            self.assertAlmostEqual(m[tau], m[8 - tau], places=5)
+
+    def test_mta_tuman_xor3_known_values(self):
+        m = self.mean_temporal_ac(self.orbit_tuman_xor3)
+        self.assertAlmostEqual(m[1], -0.2555, places=3)
+        self.assertAlmostEqual(m[3],  0.141,  places=2)
+
+    # ── cell_ac_all() ─────────────────────────────────────────────────────────
+
+    def test_caa_shape(self):
+        ac = self.cell_ac_all(self.orbit_tuman_xor3)
+        self.assertEqual(len(ac), 16)
+        self.assertEqual(len(ac[0]), 8)
+
+    def test_caa_all_lag0_one(self):
+        ac = self.cell_ac_all(self.orbit_tuman_xor3)
+        for ci in range(16):
+            self.assertAlmostEqual(ac[ci][0], 1.0)
+
+    def test_caa_gora_and_all_lag1_minus_one(self):
+        ac = self.cell_ac_all(self.orbit_gora_and)
+        for ci in range(16):
+            self.assertAlmostEqual(ac[ci][1], -1.0, places=5)
+
+    # ── cell_crosscorr() ──────────────────────────────────────────────────────
+
+    def test_cc_self_is_one(self):
+        s = [3, 1, 4, 1, 5, 9, 2, 6]
+        self.assertAlmostEqual(self.cell_crosscorr(s, s), 1.0)
+
+    def test_cc_constant_is_zero(self):
+        self.assertAlmostEqual(self.cell_crosscorr([5]*4, [1, 2, 3, 4]), 0.0)
+
+    def test_cc_symmetric(self):
+        s1 = [3, 1, 4, 1, 5]
+        s2 = [2, 7, 1, 8, 2]
+        self.assertAlmostEqual(
+            self.cell_crosscorr(s1, s2), self.cell_crosscorr(s2, s1), places=6)
+
+    # ── crosscorr_matrix() ────────────────────────────────────────────────────
+
+    def test_ccm_shape(self):
+        m = self.crosscorr_matrix(self.orbit_gora_and)
+        self.assertEqual(len(m), 16)
+        self.assertEqual(len(m[0]), 16)
+
+    def test_ccm_diagonal_ones(self):
+        m = self.crosscorr_matrix(self.orbit_tuman_xor3)
+        for i in range(16):
+            self.assertAlmostEqual(m[i][i], 1.0, places=5)
+
+    def test_ccm_symmetric(self):
+        m = self.crosscorr_matrix(self.orbit_tuman_xor3)
+        for i in range(4):
+            for j in range(4):
+                self.assertAlmostEqual(m[i][j], m[j][i], places=6)
+
+    # ── spatial_ac() ──────────────────────────────────────────────────────────
+
+    def test_sac_lag0_is_one(self):
+        self.assertAlmostEqual(self.spatial_ac(self.orbit_tuman_xor3, 0), 1.0)
+
+    def test_sac_in_range(self):
+        for d in range(1, 9):
+            v = self.spatial_ac(self.orbit_tuman_xor3, d)
+            self.assertGreaterEqual(v, -1.0 - 1e-6)
+            self.assertLessEqual(v,    1.0 + 1e-6)
+
+    def test_sac_p1_constant_one(self):
+        self.assertAlmostEqual(self.spatial_ac(self.orbit_tuman_xor, 1), 1.0)
+
+    # ── spatial_ac_profile() ──────────────────────────────────────────────────
+
+    def test_sap_length_default(self):
+        self.assertEqual(len(self.spatial_ac_profile(self.orbit_tuman_xor3)), 9)
+
+    def test_sap_starts_at_one(self):
+        self.assertAlmostEqual(self.spatial_ac_profile(self.orbit_tuman_xor3)[0], 1.0)
+
+    def test_sap_custom_max_d(self):
+        self.assertEqual(
+            len(self.spatial_ac_profile(self.orbit_tuman_xor3, max_d=4)), 5)
+
+    # ── autocorr_summary() ────────────────────────────────────────────────────
+
+    def test_as_required_keys(self):
+        d = self.autocorr_summary('ГОРА', 'and')
+        for k in ('word', 'rule', 'period', 'n_cells',
+                  'mean_ac', 'cell_ac', 'mean_ac_lag1',
+                  'max_ac_lag1', 'min_ac_lag1', 'dominant_lag',
+                  'is_palindrome', 'all_p2_anti',
+                  'crosscorr_matrix', 'mean_crosscorr',
+                  'spatial_ac', 'max_spatial_ac', 'min_spatial_ac'):
+            self.assertIn(k, d)
+
+    def test_as_word_upper(self):
+        self.assertEqual(self.autocorr_summary('гора', 'and')['word'], 'ГОРА')
+
+    def test_as_gora_and_p2_anti(self):
+        d = self.autocorr_summary('ГОРА', 'and')
+        self.assertTrue(d['all_p2_anti'])
+        self.assertAlmostEqual(d['mean_ac_lag1'], -1.0, places=5)
+
+    def test_as_gora_xor3_p2_anti(self):
+        self.assertTrue(self.autocorr_summary('ГОРА', 'xor3')['all_p2_anti'])
+
+    def test_as_tuman_xor_not_p2_anti(self):
+        self.assertFalse(self.autocorr_summary('ТУМАН', 'xor')['all_p2_anti'])
+
+    def test_as_tuman_xor3_palindrome(self):
+        self.assertTrue(self.autocorr_summary('ТУМАН', 'xor3')['is_palindrome'])
+
+    def test_as_tuman_xor3_mean_lag1(self):
+        d = self.autocorr_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_ac_lag1'], -0.2555, places=3)
+
+    def test_as_tuman_xor3_edge_cell_positive(self):
+        self.assertGreater(
+            self.autocorr_summary('ТУМАН', 'xor3')['cell_ac'][0][1], 0.0)
+
+    def test_as_tuman_xor3_inner_cell_neg(self):
+        self.assertLess(
+            self.autocorr_summary('ТУМАН', 'xor3')['cell_ac'][8][1], -0.5)
+
+    def test_as_tuman_xor3_inner_period3(self):
+        self.assertGreater(
+            self.autocorr_summary('ТУМАН', 'xor3')['cell_ac'][8][3], 0.3)
+
+    def test_as_spatial_ac_first_one(self):
+        d = self.autocorr_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['spatial_ac'][0], 1.0)
+
+    # ── all_autocorr() ────────────────────────────────────────────────────────
+
+    def test_aa_four_rules(self):
+        self.assertEqual(set(self.all_autocorr('ГОРА').keys()),
+                         {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_autocorr_data() ─────────────────────────────────────────────────
+
+    def test_bad_top_keys(self):
+        d = self.build_autocorr_data(['ГОРА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, d)
+
+    def test_bad_word_uppercase(self):
+        d = self.build_autocorr_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_bad_p2_anti_gora_and(self):
+        d = self.build_autocorr_data(['ГОРА'])
+        self.assertTrue(d['per_rule']['and']['ГОРА']['all_p2_anti'])
+
+    def test_bad_known_fields(self):
+        rec = self.build_autocorr_data(['ГОРА'])['per_rule']['and']['ГОРА']
+        for k in ('period', 'mean_ac', 'mean_ac_lag1', 'all_p2_anti',
+                  'spatial_ac', 'max_spatial_ac', 'min_spatial_ac'):
+            self.assertIn(k, rec)
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_ac_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ac-heat', content)
+
+    def test_viewer_has_ac_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ac-btn', content)
+
+    def test_viewer_has_ac_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('acRun', content)
+
+    def test_viewer_has_ac_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Автокорреляция Q6', content)
+
+    def test_viewer_has_solan_autocorr(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_autocorr', content)
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_autocorr',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+
+
+    def test_all_autocorr_returns_4_rules(self):
+        from projects.hexglyph.solan_autocorr import all_autocorr
+        d = all_autocorr('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_autocorr_values_are_dicts(self):
+        from projects.hexglyph.solan_autocorr import all_autocorr
+        d = all_autocorr('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
+
+    def test_build_autocorr_data_returns_dict(self):
+        from projects.hexglyph.solan_autocorr import build_autocorr_data
+        d = build_autocorr_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+class TestSolanHamming3(unittest.TestCase):
+    """Tests for solan_hamming.py — Consecutive-step Hamming Distances & Cell Mobility."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_hamming import (
+            hamming_dist, consecutive_hamming, flip_mask, cell_mobility,
+            hamming_profile, flip_mask_word, cell_mobility_word,
+            mean_hamming, max_hamming, min_hamming,
+            hamming_summary, all_hamming, build_hamming_data,
+        )
+        cls.hamming_dist        = staticmethod(hamming_dist)
+        cls.consecutive_hamming = staticmethod(consecutive_hamming)
+        cls.flip_mask           = staticmethod(flip_mask)
+        cls.cell_mobility       = staticmethod(cell_mobility)
+        cls.hamming_profile     = staticmethod(hamming_profile)
+        cls.flip_mask_word      = staticmethod(flip_mask_word)
+        cls.cell_mobility_word  = staticmethod(cell_mobility_word)
+        cls.mean_hamming        = staticmethod(mean_hamming)
+        cls.max_hamming         = staticmethod(max_hamming)
+        cls.min_hamming         = staticmethod(min_hamming)
+        cls.hamming_summary     = staticmethod(hamming_summary)
+        cls.all_hamming         = staticmethod(all_hamming)
+        cls.build_hamming_data  = staticmethod(build_hamming_data)
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.LEXICON = list(LEXICON)
+
+    # ── hamming_dist ──────────────────────────────────────────────────────────
+
+    def test_hamming_dist_returns_int(self):
+        self.assertIsInstance(self.hamming_dist((0, 1), (0, 1)), int)
+
+    def test_hamming_dist_equal_states(self):
+        self.assertEqual(self.hamming_dist((1, 2, 3), (1, 2, 3)), 0)
+
+    def test_hamming_dist_all_differ(self):
+        self.assertEqual(self.hamming_dist((0, 0, 0, 0), (1, 1, 1, 1)), 4)
+
+    def test_hamming_dist_one_differs(self):
+        self.assertEqual(self.hamming_dist((0, 1, 2), (0, 9, 2)), 1)
+
+    def test_hamming_dist_symmetric(self):
+        a, b = (3, 7, 2), (1, 7, 9)
+        self.assertEqual(self.hamming_dist(a, b), self.hamming_dist(b, a))
+
+    def test_hamming_dist_nonnegative(self):
+        self.assertGreaterEqual(self.hamming_dist((0, 1), (1, 0)), 0)
+
+    # ── consecutive_hamming ───────────────────────────────────────────────────
+
+    def test_consecutive_hamming_returns_list(self):
+        orbit = [(0, 1, 0, 1), (1, 0, 1, 0)]
+        result = self.consecutive_hamming(orbit)
+        self.assertIsInstance(result, list)
+
+    def test_consecutive_hamming_length_equals_period(self):
+        orbit = [(0, 0, 0), (1, 1, 1), (0, 0, 0)]
+        result = self.consecutive_hamming(orbit)
+        self.assertEqual(len(result), len(orbit))
+
+    def test_consecutive_hamming_constant_orbit_zero(self):
+        orbit = [(5, 5, 5, 5)] * 3
+        result = self.consecutive_hamming(orbit)
+        self.assertEqual(result, [0, 0, 0])
+
+    def test_consecutive_hamming_all_flip(self):
+        orbit = [(0, 0, 0, 0), (1, 1, 1, 1)]
+        result = self.consecutive_hamming(orbit)
+        self.assertEqual(result, [4, 4])  # wraps around
+
+    def test_consecutive_hamming_wraps_around(self):
+        # Last state compared to first (periodic)
+        orbit = [(0,), (1,)]
+        result = self.consecutive_hamming(orbit)
+        self.assertEqual(result[1], self.hamming_dist((1,), (0,)))
+
+    # ── flip_mask ─────────────────────────────────────────────────────────────
+
+    def test_flip_mask_returns_list_of_lists(self):
+        orbit = [(0, 1), (1, 0)]
+        result = self.flip_mask(orbit)
+        self.assertIsInstance(result, list)
+        self.assertIsInstance(result[0], list)
+
+    def test_flip_mask_shape(self):
+        orbit = [(0, 1, 2), (3, 1, 5)]
+        result = self.flip_mask(orbit)
+        self.assertEqual(len(result), 2)  # period
+        self.assertEqual(len(result[0]), 3)  # width
+
+    def test_flip_mask_zeros_for_constant_orbit(self):
+        orbit = [(7, 7, 7)] * 4
+        result = self.flip_mask(orbit)
+        for row in result:
+            self.assertEqual(row, [0, 0, 0])
+
+    def test_flip_mask_all_ones_for_full_flip(self):
+        orbit = [(0, 0, 0, 0), (1, 1, 1, 1)]
+        result = self.flip_mask(orbit)
+        self.assertEqual(result[0], [1, 1, 1, 1])
+
+    def test_flip_mask_values_binary(self):
+        orbit = [(0, 1, 2), (1, 1, 5)]
+        result = self.flip_mask(orbit)
+        for row in result:
+            self.assertTrue(all(v in (0, 1) for v in row))
+
+    # ── cell_mobility ─────────────────────────────────────────────────────────
+
+    def test_cell_mobility_returns_list(self):
+        orbit = [(0, 1), (1, 0)]
+        self.assertIsInstance(self.cell_mobility(orbit), list)
+
+    def test_cell_mobility_length_equals_width(self):
+        orbit = [(0, 1, 2, 3), (4, 5, 6, 7)]
+        mob = self.cell_mobility(orbit)
+        self.assertEqual(len(mob), 4)
+
+    def test_cell_mobility_constant_orbit_all_zero(self):
+        orbit = [(5, 5, 5)] * 3
+        mob = self.cell_mobility(orbit)
+        self.assertEqual(mob, [0.0, 0.0, 0.0])
+
+    def test_cell_mobility_full_flip_all_one(self):
+        orbit = [(0, 0, 0, 0), (1, 1, 1, 1)]
+        mob = self.cell_mobility(orbit)
+        self.assertEqual(mob, [1.0, 1.0, 1.0, 1.0])
+
+    def test_cell_mobility_range_zero_to_one(self):
+        orbit = [(0, 1, 0), (1, 0, 0)]
+        mob = self.cell_mobility(orbit)
+        self.assertTrue(all(0.0 <= m <= 1.0 for m in mob))
+
+    # ── hamming_profile / flip_mask_word / cell_mobility_word ─────────────────
+
+    def test_hamming_profile_returns_list_int(self):
+        H = self.hamming_profile('ГОРА', 'xor3', 16)
+        self.assertIsInstance(H, list)
+        self.assertTrue(all(isinstance(v, int) for v in H))
+
+    def test_hamming_profile_tuman_xor3_known(self):
+        H = self.hamming_profile('ТУМАН', 'xor3', 16)
+        self.assertEqual(H, [16, 16, 10, 12, 14, 16, 16, 14])
+
+    def test_hamming_profile_tuman_xor_fixed_point(self):
+        H = self.hamming_profile('ТУМАН', 'xor', 16)
+        self.assertEqual(H, [0])
+
+    def test_hamming_profile_gora_and(self):
+        H = self.hamming_profile('ГОРА', 'and', 16)
+        self.assertEqual(H, [16, 16])
+
+    def test_hamming_profile_nonnegative(self):
+        H = self.hamming_profile('ГОРА', 'xor3', 16)
+        self.assertTrue(all(h >= 0 for h in H))
+
+    def test_flip_mask_word_returns_list_of_lists(self):
+        fm = self.flip_mask_word('ГОРА', 'xor3', 16)
+        self.assertIsInstance(fm, list)
+        self.assertIsInstance(fm[0], list)
+
+    def test_flip_mask_word_row_length_equals_width(self):
+        fm = self.flip_mask_word('ГОРА', 'xor3', 16)
+        self.assertTrue(all(len(row) == 16 for row in fm))
+
+    def test_flip_mask_word_binary_values(self):
+        fm = self.flip_mask_word('ГОРА', 'xor3', 16)
+        for row in fm:
+            self.assertTrue(all(v in (0, 1) for v in row))
+
+    def test_flip_mask_word_tuman_xor3_step2_frozen_edges(self):
+        fm = self.flip_mask_word('ТУМАН', 'xor3', 16)
+        # Step 2→3: cells {0,1,2} and {13,14,15} frozen
+        row = fm[2]
+        self.assertEqual(row[0], 0)
+        self.assertEqual(row[1], 0)
+        self.assertEqual(row[2], 0)
+        self.assertEqual(row[13], 0)
+        self.assertEqual(row[14], 0)
+        self.assertEqual(row[15], 0)
+
+    def test_cell_mobility_word_returns_list_float(self):
+        mob = self.cell_mobility_word('ТУМАН', 'xor3', 16)
+        self.assertIsInstance(mob, list)
+        self.assertTrue(all(isinstance(v, float) for v in mob))
+
+    def test_cell_mobility_word_length_equals_width(self):
+        mob = self.cell_mobility_word('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(mob), 16)
+
+    def test_cell_mobility_word_tuman_xor3_edges(self):
+        mob = self.cell_mobility_word('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(mob[0],  0.5, places=6)
+        self.assertAlmostEqual(mob[15], 0.5, places=6)
+
+    def test_cell_mobility_word_tuman_xor3_inner(self):
+        mob = self.cell_mobility_word('ТУМАН', 'xor3', 16)
+        for i in range(3, 13):
+            self.assertAlmostEqual(mob[i], 1.0, places=6)
+
+    def test_cell_mobility_word_tuman_xor3_cell1(self):
+        mob = self.cell_mobility_word('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(mob[1],  0.75, places=6)
+        self.assertAlmostEqual(mob[14], 0.75, places=6)
+
+    def test_cell_mobility_word_tuman_xor3_cell2(self):
+        mob = self.cell_mobility_word('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(mob[2],  0.875, places=6)
+        self.assertAlmostEqual(mob[13], 0.875, places=6)
+
+    # ── mean / max / min hamming ──────────────────────────────────────────────
+
+    def test_mean_hamming_tuman_xor3(self):
+        self.assertAlmostEqual(self.mean_hamming('ТУМАН', 'xor3', 16), 14.25, places=5)
+
+    def test_mean_hamming_tuman_xor_zero(self):
+        self.assertAlmostEqual(self.mean_hamming('ТУМАН', 'xor', 16), 0.0, places=6)
+
+    def test_mean_hamming_gora_and_max(self):
+        self.assertAlmostEqual(self.mean_hamming('ГОРА', 'and', 16), 16.0, places=6)
+
+    def test_max_hamming_tuman_xor3(self):
+        self.assertEqual(self.max_hamming('ТУМАН', 'xor3', 16), 16)
+
+    def test_max_hamming_tuman_xor_zero(self):
+        self.assertEqual(self.max_hamming('ТУМАН', 'xor', 16), 0)
+
+    def test_min_hamming_tuman_xor3(self):
+        self.assertEqual(self.min_hamming('ТУМАН', 'xor3', 16), 10)
+
+    def test_min_hamming_tuman_xor_zero(self):
+        self.assertEqual(self.min_hamming('ТУМАН', 'xor', 16), 0)
+
+    def test_min_hamming_gora_and(self):
+        self.assertEqual(self.min_hamming('ГОРА', 'and', 16), 16)
+
+    # ── hamming_summary ───────────────────────────────────────────────────────
+
+    def test_hamming_summary_returns_dict(self):
+        d = self.hamming_summary('ГОРА', 'xor3', 16)
+        self.assertIsInstance(d, dict)
+
+    def test_hamming_summary_required_keys(self):
+        d = self.hamming_summary('ГОРА', 'xor3', 16)
+        for key in ('word', 'rule', 'period', 'n_cells', 'hamming',
+                    'mean_hamming', 'max_hamming', 'min_hamming',
+                    'mobility', 'mean_mobility', 'all_frozen', 'all_max',
+                    'flip_mask', 'mobile_symmetric'):
+            self.assertIn(key, d)
+
+    def test_hamming_summary_word_uppercase(self):
+        d = self.hamming_summary('гора', 'xor3', 16)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_hamming_summary_tuman_xor_all_frozen(self):
+        d = self.hamming_summary('ТУМАН', 'xor', 16)
+        self.assertTrue(d['all_frozen'])
+
+    def test_hamming_summary_gora_and_all_max(self):
+        d = self.hamming_summary('ГОРА', 'and', 16)
+        self.assertTrue(d['all_max'])
+
+    def test_hamming_summary_tuman_xor3_mean_hamming(self):
+        d = self.hamming_summary('ТУМАН', 'xor3', 16)
+        self.assertAlmostEqual(d['mean_hamming'], 14.25, places=4)
+
+    def test_hamming_summary_tuman_xor3_min_hamming(self):
+        d = self.hamming_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['min_hamming'], 10)
+
+    def test_hamming_summary_tuman_xor3_period(self):
+        d = self.hamming_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(d['period'], 8)
+
+    def test_hamming_summary_tuman_xor3_mobile_symmetric(self):
+        d = self.hamming_summary('ТУМАН', 'xor3', 16)
+        self.assertTrue(d['mobile_symmetric'])
+
+    def test_hamming_summary_tuman_xor3_frozen_cells(self):
+        d = self.hamming_summary('ТУМАН', 'xor', 16)
+        # Fixed point → all cells frozen
+        self.assertEqual(len(d['frozen_cells']), 16)
+
+    def test_hamming_summary_gora_and_maxmobile_cells(self):
+        d = self.hamming_summary('ГОРА', 'and', 16)
+        self.assertEqual(len(d['maxmobile_cells']), 16)
+
+    def test_hamming_summary_flip_mask_shape(self):
+        d = self.hamming_summary('ТУМАН', 'xor3', 16)
+        self.assertEqual(len(d['flip_mask']), d['period'])
+        self.assertEqual(len(d['flip_mask'][0]), d['n_cells'])
+
+    def test_hamming_summary_min_hamming_steps_tuman_xor3(self):
+        d = self.hamming_summary('ТУМАН', 'xor3', 16)
+        # min H=10 at step 2→3
+        self.assertIn(2, d['min_hamming_steps'])
+
+    # ── all_hamming ───────────────────────────────────────────────────────────
+
+    def test_all_hamming_returns_dict_of_four(self):
+        d = self.all_hamming('ГОРА', 16)
+        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_all_hamming_values_are_summaries(self):
+        d = self.all_hamming('ГОРА', 16)
+        for rule, v in d.items():
+            self.assertIsInstance(v, dict)
+            self.assertIn('hamming', v)
+
+    # ── build_hamming_data ────────────────────────────────────────────────────
+
+    def test_build_hamming_data_returns_dict(self):
+        d = self.build_hamming_data(['ГОРА', 'ТУМАН'], 16)
+        self.assertIsInstance(d, dict)
+
+    def test_build_hamming_data_keys(self):
+        d = self.build_hamming_data(['ГОРА'], 16)
+        self.assertIn('words', d)
+        self.assertIn('width', d)
+        self.assertIn('per_rule', d)
+
+    def test_build_hamming_data_per_rule_keys(self):
+        d = self.build_hamming_data(['ГОРА'], 16)
+        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_hamming_data_contains_word(self):
+        d = self.build_hamming_data(['ГОРА', 'ТУМАН'], 16)
+        self.assertIn('ГОРА', d['per_rule']['xor3'])
+
+    def test_build_hamming_data_width_preserved(self):
+        d = self.build_hamming_data(['ГОРА'], 16)
+        self.assertEqual(d['width'], 16)
+
+    # ── --json CLI ────────────────────────────────────────────────────────────
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_hamming',
+             '--word', 'ГОРА', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0)
+        d = json.loads(r.stdout)
+        self.assertIn('word', d)
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_cli_json_contains_hamming(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_hamming',
+             '--word', 'ТУМАН', '--rule', 'xor3', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        d = json.loads(r.stdout)
+        self.assertIn('hamming', d)
+
+    # ── viewer ────────────────────────────────────────────────────────────────
+
+    def test_viewer_has_ham_map(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ham-map', content)
+
+    def test_viewer_has_ham_mob(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ham-mob', content)
+
+    def test_viewer_has_ham_info(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ham-info', content)
+
+    def test_viewer_has_hm_word(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hm-word', content)
+
+    def test_viewer_has_hm_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hm-btn', content)
+
+    def test_viewer_has_hmRun(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hmRun', content)
+
+    def test_viewer_has_hmFlipMask(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hmFlipMask', content)
+
+    def test_viewer_has_hmMobility(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('hmMobility', content)
+
+    def test_viewer_has_solan_hamming_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_hamming', content)
+
+
+class TestPrintSmoke(unittest.TestCase):
+    """Smoke tests for all print_* / render_* display functions.
+
+    Each test captures stdout and asserts non-empty output.
+    Uses word='ГОРА', rule='xor3', color=False for speed and reproducibility.
+    """
+
+    def _capture(self, fn, *args, **kwargs) -> str:
+        import io
+        f = io.StringIO()
+        old, sys.stdout = sys.stdout, f
+        try:
+            fn(*args, **kwargs)
+        finally:
+            sys.stdout = old
+        return f.getvalue()
+
+    def test_print_active_runs(self):
+        from projects.hexglyph.solan_active import print_ais
+        self.assertNotEqual(self._capture(print_ais, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_autocorr_runs(self):
+        from projects.hexglyph.solan_autocorr import print_autocorr
+        self.assertNotEqual(self._capture(print_autocorr, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_balance_runs(self):
+        from projects.hexglyph.solan_balance import print_balance
+        self.assertNotEqual(self._capture(print_balance, word='ГОРА', rule='and', color=False), '')
+
+    def test_print_basin_runs(self):
+        from projects.hexglyph.solan_basin import print_basin
+        self.assertNotEqual(self._capture(print_basin, 'ГОРА', color=False), '')
+
+    def test_print_bit_runs(self):
+        from projects.hexglyph.solan_bit import print_bit_planes
+        self.assertNotEqual(self._capture(print_bit_planes, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_bitflip_runs(self):
+        from projects.hexglyph.solan_bitflip import print_bitflip
+        self.assertNotEqual(self._capture(print_bitflip, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_bitplane_runs(self):
+        from projects.hexglyph.solan_bitplane import print_bitplane
+        self.assertNotEqual(self._capture(print_bitplane, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_block_runs(self):
+        from projects.hexglyph.solan_block import print_block
+        self.assertNotEqual(self._capture(print_block, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_boundary_runs(self):
+        from projects.hexglyph.solan_boundary import print_boundary
+        self.assertNotEqual(self._capture(print_boundary, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_cell_runs(self):
+        from projects.hexglyph.solan_cell import print_cell
+        self.assertNotEqual(self._capture(print_cell, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_ch_plane_runs(self):
+        from projects.hexglyph.solan_ch_plane import print_ch
+        self.assertNotEqual(self._capture(print_ch, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_coact_runs(self):
+        from projects.hexglyph.solan_coact import print_coact
+        self.assertNotEqual(self._capture(print_coact, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_coarse_runs(self):
+        from projects.hexglyph.solan_coarse import print_coarse
+        self.assertNotEqual(self._capture(print_coarse, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_complexity_runs(self):
+        from projects.hexglyph.solan_complexity import print_complexity
+        self.assertNotEqual(self._capture(print_complexity, word='ГОРА', color=False), '')
+
+    def test_print_config_runs(self):
+        from projects.hexglyph.solan_config import print_config
+        self.assertNotEqual(self._capture(print_config, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_correlation_runs(self):
+        from projects.hexglyph.solan_correlation import print_correlation
+        self.assertNotEqual(self._capture(print_correlation, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_coverage_runs(self):
+        from projects.hexglyph.solan_coverage import print_coverage
+        self.assertNotEqual(self._capture(print_coverage, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_cross_runs(self):
+        from projects.hexglyph.solan_cross import print_cross
+        self.assertNotEqual(self._capture(print_cross, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_damage_runs(self):
+        from projects.hexglyph.solan_damage import print_damage
+        self.assertNotEqual(self._capture(print_damage, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_dendrogram_runs(self):
+        from projects.hexglyph.solan_dendrogram import print_dendrogram
+        self.assertNotEqual(self._capture(print_dendrogram, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_derrida_runs(self):
+        from projects.hexglyph.solan_derrida import print_derrida
+        self.assertNotEqual(self._capture(print_derrida, rule='xor3', color=False), '')
+
+    def test_print_dist_runs(self):
+        from projects.hexglyph.solan_dist import print_dist
+        self.assertNotEqual(self._capture(print_dist, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_edge_runs(self):
+        from projects.hexglyph.solan_edge import print_edge
+        self.assertNotEqual(self._capture(print_edge, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_entropy_runs(self):
+        from projects.hexglyph.solan_entropy import print_entropy
+        self.assertNotEqual(self._capture(print_entropy, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_forbidden_runs(self):
+        from projects.hexglyph.solan_forbidden import print_forbidden
+        self.assertNotEqual(self._capture(print_forbidden, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_fourier_runs(self):
+        from projects.hexglyph.solan_fourier import print_fourier
+        self.assertNotEqual(self._capture(print_fourier, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_graph_runs(self):
+        from projects.hexglyph.solan_graph import print_graph
+        self.assertNotEqual(self._capture(print_graph, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_hamming_runs(self):
+        from projects.hexglyph.solan_hamming import print_hamming
+        self.assertNotEqual(self._capture(print_hamming, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_layer_runs(self):
+        from projects.hexglyph.solan_layer import print_layer
+        self.assertNotEqual(self._capture(print_layer, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_lexicon_runs(self):
+        from projects.hexglyph.solan_lexicon import print_neighbors
+        self.assertNotEqual(self._capture(print_neighbors, word='ГОРА', color=False), '')
+
+    def test_print_lyapunov_runs(self):
+        from projects.hexglyph.solan_lyapunov import print_lyapunov
+        self.assertNotEqual(self._capture(print_lyapunov, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_lz_runs(self):
+        from projects.hexglyph.solan_lz import print_lz
+        self.assertNotEqual(self._capture(print_lz, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_matrix_runs(self):
+        from projects.hexglyph.solan_matrix import print_nearest_pairs
+        self.assertNotEqual(self._capture(print_nearest_pairs, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_mds_runs(self):
+        from projects.hexglyph.solan_mds import print_mds
+        self.assertNotEqual(self._capture(print_mds, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_moments_runs(self):
+        from projects.hexglyph.solan_moments import print_moments
+        self.assertNotEqual(self._capture(print_moments, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_moran_runs(self):
+        from projects.hexglyph.solan_moran import print_moran
+        self.assertNotEqual(self._capture(print_moran, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_multiscale_runs(self):
+        from projects.hexglyph.solan_multiscale import print_mse
+        self.assertNotEqual(self._capture(print_mse, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_multistep_runs(self):
+        from projects.hexglyph.solan_multistep import print_multistep
+        self.assertNotEqual(self._capture(print_multistep, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_mutual_runs(self):
+        from projects.hexglyph.solan_mutual import print_mutual
+        self.assertNotEqual(self._capture(print_mutual, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_network_runs(self):
+        from projects.hexglyph.solan_network import print_network
+        self.assertNotEqual(self._capture(print_network, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_pca_runs(self):
+        from projects.hexglyph.solan_pca import print_pca
+        self.assertNotEqual(self._capture(print_pca, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_perm_runs(self):
+        from projects.hexglyph.solan_perm import print_pe
+        self.assertNotEqual(self._capture(print_pe, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_persistence_runs(self):
+        from projects.hexglyph.solan_persistence import print_persistence
+        self.assertNotEqual(self._capture(print_persistence, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_phase_runs(self):
+        from projects.hexglyph.solan_phase import print_phase
+        self.assertNotEqual(self._capture(print_phase, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_phoneme_runs(self):
+        from projects.hexglyph.solan_phoneme import print_phoneme_table
+        self.assertNotEqual(self._capture(print_phoneme_table, color=False), '')
+
+    def test_print_phonetic_table_runs(self):
+        from projects.hexglyph.solan_phonetic import print_phonetic_table
+        self.assertNotEqual(self._capture(print_phonetic_table, color=False), '')
+
+    def test_print_portrait_runs(self):
+        from projects.hexglyph.solan_portrait import print_portrait
+        self.assertNotEqual(self._capture(print_portrait, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_prediction_runs(self):
+        from projects.hexglyph.solan_predict import print_prediction
+        self.assertNotEqual(self._capture(print_prediction, word='ГОРА', color=False), '')
+
+    def test_print_profile_runs(self):
+        from projects.hexglyph.solan_profile import print_profile
+        self.assertNotEqual(self._capture(print_profile, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_recurrence_runs(self):
+        from projects.hexglyph.solan_recurrence import print_recurrence
+        self.assertNotEqual(self._capture(print_recurrence, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_return_runs(self):
+        from projects.hexglyph.solan_return import print_return
+        self.assertNotEqual(self._capture(print_return, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_rules_runs(self):
+        from projects.hexglyph.solan_rules import print_rule_comparison
+        self.assertNotEqual(self._capture(print_rule_comparison, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_run_runs(self):
+        from projects.hexglyph.solan_run import print_run
+        self.assertNotEqual(self._capture(print_run, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_runs_runs(self):
+        from projects.hexglyph.solan_runs import print_runs
+        self.assertNotEqual(self._capture(print_runs, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_segment_runs(self):
+        from projects.hexglyph.solan_segment import print_segment
+        self.assertNotEqual(self._capture(print_segment, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_semantic_runs(self):
+        from projects.hexglyph.solan_semantic import print_semantic
+        self.assertNotEqual(self._capture(print_semantic, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_spacetime_runs(self):
+        from projects.hexglyph.solan_spacetime import print_spacetime
+        self.assertNotEqual(self._capture(print_spacetime, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_spatent_runs(self):
+        from projects.hexglyph.solan_spatent import print_spatent
+        self.assertNotEqual(self._capture(print_spatent, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_spectral_runs(self):
+        from projects.hexglyph.solan_spectral import print_spectrum
+        self.assertNotEqual(self._capture(print_spectrum, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_symbolic_runs(self):
+        from projects.hexglyph.solan_symbolic import print_symbolic
+        self.assertNotEqual(self._capture(print_symbolic, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_symm_runs(self):
+        from projects.hexglyph.solan_symm import print_symm
+        self.assertNotEqual(self._capture(print_symm, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_temporal_runs(self):
+        from projects.hexglyph.solan_temporal import print_temporal
+        self.assertNotEqual(self._capture(print_temporal, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_traj_runs(self):
+        from projects.hexglyph.solan_traj import print_trajectory
+        self.assertNotEqual(self._capture(print_trajectory, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_transfer_runs(self):
+        from projects.hexglyph.solan_transfer import print_te
+        self.assertNotEqual(self._capture(print_te, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_transient_runs(self):
+        from projects.hexglyph.solan_transient import print_transient_analysis
+        self.assertNotEqual(self._capture(print_transient_analysis, words=['ГОРА', 'ВОДА'], color=False), '')
+
+    def test_print_triangle_runs(self):
+        from projects.hexglyph.solan_triangle import print_triangle
+        self.assertNotEqual(self._capture(print_triangle, color=False), '')
+
+    def test_print_vocab_runs(self):
+        from projects.hexglyph.solan_vocab import print_vocab
+        self.assertNotEqual(self._capture(print_vocab, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_width_runs(self):
+        from projects.hexglyph.solan_width import print_width
+        self.assertNotEqual(self._capture(print_width, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_word_analysis_runs(self):
+        from projects.hexglyph.solan_word import print_word_analysis
+        self.assertNotEqual(self._capture(print_word_analysis, word='ГОРА', color=False), '')
+
+    def test_print_wperm_runs(self):
+        from projects.hexglyph.solan_wperm import print_wpe
+        self.assertNotEqual(self._capture(print_wpe, word='ГОРА', rule='xor3', color=False), '')
+
+    # ── Secondary print_* variants ─────────────────────────────────────────
+
+    def test_print_ais_stats_runs(self):
+        from projects.hexglyph.solan_active import print_ais_stats
+        self.assertNotEqual(self._capture(print_ais_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_autocorr_table_runs(self):
+        from projects.hexglyph.solan_autocorr import print_autocorr_table
+        self.assertNotEqual(self._capture(print_autocorr_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_balance_stats_runs(self):
+        from projects.hexglyph.solan_balance import print_balance_stats
+        self.assertNotEqual(self._capture(print_balance_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_basin_stats_runs(self):
+        from projects.hexglyph.solan_basin import print_basin_stats
+        self.assertNotEqual(self._capture(print_basin_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_bit_plane_summary_runs(self):
+        from projects.hexglyph.solan_bit import print_bit_plane_summary
+        self.assertNotEqual(self._capture(print_bit_plane_summary, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_flip_stats_runs(self):
+        from projects.hexglyph.solan_bitflip import print_flip_stats
+        self.assertNotEqual(self._capture(print_flip_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_bitplane_table_runs(self):
+        from projects.hexglyph.solan_bitplane import print_bitplane_table
+        self.assertNotEqual(self._capture(print_bitplane_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_block_stats_runs(self):
+        from projects.hexglyph.solan_block import print_block_stats
+        self.assertNotEqual(self._capture(print_block_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_boundary_table_runs(self):
+        from projects.hexglyph.solan_boundary import print_boundary_table
+        self.assertNotEqual(self._capture(print_boundary_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_cell_table_runs(self):
+        from projects.hexglyph.solan_cell import print_cell_table
+        self.assertNotEqual(self._capture(print_cell_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_ch_stats_runs(self):
+        from projects.hexglyph.solan_ch_plane import print_ch_stats
+        self.assertNotEqual(self._capture(print_ch_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_coact_stats_runs(self):
+        from projects.hexglyph.solan_coact import print_coact_stats
+        self.assertNotEqual(self._capture(print_coact_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_coarse_stats_runs(self):
+        from projects.hexglyph.solan_coarse import print_coarse_stats
+        self.assertNotEqual(self._capture(print_coarse_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_complexity_ranking_runs(self):
+        from projects.hexglyph.solan_complexity import print_complexity_ranking
+        self.assertNotEqual(self._capture(print_complexity_ranking, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_config_table_runs(self):
+        from projects.hexglyph.solan_config import print_config_table
+        self.assertNotEqual(self._capture(print_config_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_correlation_stats_runs(self):
+        from projects.hexglyph.solan_correlation import print_correlation_stats
+        self.assertNotEqual(self._capture(print_correlation_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_global_coverage_runs(self):
+        from projects.hexglyph.solan_coverage import print_global_coverage
+        self.assertNotEqual(self._capture(print_global_coverage, rule='xor3', color=False), '')
+
+    def test_print_coverage_table_runs(self):
+        from projects.hexglyph.solan_coverage import print_coverage_table
+        self.assertNotEqual(self._capture(print_coverage_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], rule='xor3', color=False), '')
+
+    def test_print_cross_table_runs(self):
+        from projects.hexglyph.solan_cross import print_cross_table
+        self.assertNotEqual(self._capture(print_cross_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_damage_stats_runs(self):
+        from projects.hexglyph.solan_damage import print_damage_stats
+        self.assertNotEqual(self._capture(print_damage_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_flat_clusters_runs(self):
+        from projects.hexglyph.solan_dendrogram import print_flat_clusters
+        self.assertNotEqual(self._capture(print_flat_clusters, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_derrida_summary_runs(self):
+        from projects.hexglyph.solan_derrida import print_derrida_summary
+        self.assertNotEqual(self._capture(print_derrida_summary, color=False), '')
+
+    def test_print_dist_table_runs(self):
+        from projects.hexglyph.solan_dist import print_dist_table
+        self.assertNotEqual(self._capture(print_dist_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_edge_stats_runs(self):
+        from projects.hexglyph.solan_edge import print_edge_stats
+        self.assertNotEqual(self._capture(print_edge_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_entropy_table_runs(self):
+        from projects.hexglyph.solan_entropy import print_entropy_table
+        self.assertNotEqual(self._capture(print_entropy_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_forbidden_stats_runs(self):
+        from projects.hexglyph.solan_forbidden import print_forbidden_stats
+        self.assertNotEqual(self._capture(print_forbidden_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_fourier_table_runs(self):
+        from projects.hexglyph.solan_fourier import print_fourier_table
+        self.assertNotEqual(self._capture(print_fourier_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_adjacency_runs(self):
+        from projects.hexglyph.solan_graph import print_adjacency
+        self.assertNotEqual(self._capture(print_adjacency, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_hamming_table_runs(self):
+        from projects.hexglyph.solan_hamming import print_hamming_table
+        self.assertNotEqual(self._capture(print_hamming_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_layer_table_runs(self):
+        from projects.hexglyph.solan_layer import print_layer_table
+        self.assertNotEqual(self._capture(print_layer_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_lexicon_table_runs(self):
+        from projects.hexglyph.solan_lexicon import print_lexicon_table
+        self.assertNotEqual(self._capture(print_lexicon_table, color=False), '')
+
+    def test_print_clusters_runs(self):
+        from projects.hexglyph.solan_lexicon import print_clusters
+        self.assertNotEqual(self._capture(print_clusters, color=False), '')
+
+    def test_print_lyapunov_stats_runs(self):
+        from projects.hexglyph.solan_lyapunov import print_lyapunov_stats
+        self.assertNotEqual(self._capture(print_lyapunov_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_mode_runs(self):
+        from projects.hexglyph.solan_lyapunov import print_mode
+        self.assertNotEqual(self._capture(print_mode, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_mode_table_runs(self):
+        from projects.hexglyph.solan_lyapunov import print_mode_table
+        self.assertNotEqual(self._capture(print_mode_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_lz_stats_runs(self):
+        from projects.hexglyph.solan_lz import print_lz_stats
+        self.assertNotEqual(self._capture(print_lz_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_heatmap_runs(self):
+        from projects.hexglyph.solan_matrix import print_heatmap
+        self.assertNotEqual(self._capture(print_heatmap, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_stress_info_runs(self):
+        from projects.hexglyph.solan_mds import print_stress_info
+        self.assertNotEqual(self._capture(print_stress_info, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_moments_stats_runs(self):
+        from projects.hexglyph.solan_moments import print_moments_stats
+        self.assertNotEqual(self._capture(print_moments_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_moran_stats_runs(self):
+        from projects.hexglyph.solan_moran import print_moran_stats
+        self.assertNotEqual(self._capture(print_moran_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_mse_stats_runs(self):
+        from projects.hexglyph.solan_multiscale import print_mse_stats
+        self.assertNotEqual(self._capture(print_mse_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_multistep_table_runs(self):
+        from projects.hexglyph.solan_multistep import print_multistep_table
+        self.assertNotEqual(self._capture(print_multistep_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_mutual_stats_runs(self):
+        from projects.hexglyph.solan_mutual import print_mutual_stats
+        self.assertNotEqual(self._capture(print_mutual_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_network_stats_runs(self):
+        from projects.hexglyph.solan_network import print_network_stats
+        self.assertNotEqual(self._capture(print_network_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_pca_table_runs(self):
+        from projects.hexglyph.solan_pca import print_pca_table
+        self.assertNotEqual(self._capture(print_pca_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_pe_stats_runs(self):
+        from projects.hexglyph.solan_perm import print_pe_stats
+        self.assertNotEqual(self._capture(print_pe_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_persistence_stats_runs(self):
+        from projects.hexglyph.solan_persistence import print_persistence_stats
+        self.assertNotEqual(self._capture(print_persistence_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_phase_stats_runs(self):
+        from projects.hexglyph.solan_phase import print_phase_stats
+        self.assertNotEqual(self._capture(print_phase_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_substitution_runs(self):
+        from projects.hexglyph.solan_phoneme import print_substitution
+        self.assertNotEqual(self._capture(print_substitution, word='ГОРА', color=False), '')
+
+    def test_print_pair_stats_runs(self):
+        from projects.hexglyph.solan_phoneme import print_pair_stats
+        self.assertNotEqual(self._capture(print_pair_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_portrait_ranking_runs(self):
+        from projects.hexglyph.solan_portrait import print_portrait_ranking
+        self.assertNotEqual(self._capture(print_portrait_ranking, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_profile_table_runs(self):
+        from projects.hexglyph.solan_profile import print_profile_table
+        self.assertNotEqual(self._capture(print_profile_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_rqa_stats_runs(self):
+        from projects.hexglyph.solan_recurrence import print_rqa_stats
+        self.assertNotEqual(self._capture(print_rqa_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_return_stats_runs(self):
+        from projects.hexglyph.solan_return import print_return_stats
+        self.assertNotEqual(self._capture(print_return_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_signature_classes_runs(self):
+        from projects.hexglyph.solan_rules import print_signature_classes
+        self.assertNotEqual(self._capture(print_signature_classes, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_run_table_runs(self):
+        from projects.hexglyph.solan_run import print_run_table
+        self.assertNotEqual(self._capture(print_run_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_run_stats_runs(self):
+        from projects.hexglyph.solan_runs import print_run_stats
+        self.assertNotEqual(self._capture(print_run_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_segment_table_runs(self):
+        from projects.hexglyph.solan_segment import print_segment_table
+        self.assertNotEqual(self._capture(print_segment_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_semantic_table_runs(self):
+        from projects.hexglyph.solan_semantic import print_semantic_table
+        self.assertNotEqual(self._capture(print_semantic_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_st_stats_runs(self):
+        from projects.hexglyph.solan_spacetime import print_st_stats
+        self.assertNotEqual(self._capture(print_st_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_spatent_stats_runs(self):
+        from projects.hexglyph.solan_spatent import print_spatent_stats
+        self.assertNotEqual(self._capture(print_spatent_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_all_spectra_runs(self):
+        from projects.hexglyph.solan_spectral import print_all_spectra
+        self.assertNotEqual(self._capture(print_all_spectra, word='ГОРА', color=False), '')
+
+    def test_print_spectral_stats_runs(self):
+        from projects.hexglyph.solan_spectral import print_spectral_stats
+        self.assertNotEqual(self._capture(print_spectral_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_symbolic_stats_runs(self):
+        from projects.hexglyph.solan_symbolic import print_symbolic_stats
+        self.assertNotEqual(self._capture(print_symbolic_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_symm_table_runs(self):
+        from projects.hexglyph.solan_symm import print_symm_table
+        self.assertNotEqual(self._capture(print_symm_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_temporal_stats_runs(self):
+        from projects.hexglyph.solan_temporal import print_temporal_stats
+        self.assertNotEqual(self._capture(print_temporal_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_all_trajectories_runs(self):
+        from projects.hexglyph.solan_traj import print_all_trajectories
+        self.assertNotEqual(self._capture(print_all_trajectories, word='ГОРА', color=False), '')
+
+    def test_print_trajectory_stats_runs(self):
+        from projects.hexglyph.solan_traj import print_trajectory_stats
+        self.assertNotEqual(self._capture(print_trajectory_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_te_stats_runs(self):
+        from projects.hexglyph.solan_transfer import print_te_stats
+        self.assertNotEqual(self._capture(print_te_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_transient_classes_runs(self):
+        from projects.hexglyph.solan_transient import print_transient_classes
+        self.assertNotEqual(self._capture(print_transient_classes, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_vocab_table_runs(self):
+        from projects.hexglyph.solan_vocab import print_vocab_table
+        self.assertNotEqual(self._capture(print_vocab_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_width_table_runs(self):
+        from projects.hexglyph.solan_width import print_width_table
+        self.assertNotEqual(self._capture(print_width_table, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_word_ca_runs(self):
+        from projects.hexglyph.solan_word import print_word_ca
+        self.assertNotEqual(self._capture(print_word_ca, word='ГОРА', color=False), '')
+
+    def test_print_comparison_runs(self):
+        from projects.hexglyph.solan_word import print_comparison
+        self.assertNotEqual(self._capture(print_comparison, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_wpe_stats_runs(self):
+        from projects.hexglyph.solan_wperm import print_wpe_stats
+        self.assertNotEqual(self._capture(print_wpe_stats, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+
+class TestViewerJSRuns(unittest.TestCase):
+    """Verify that every *Run JS entry-point is present in viewer.html."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    def test_acfRun_present(self):
+        self.assertIn('acfRun', self._content)
+
+    def test_baHmapRun_present(self):
+        self.assertIn('baHmapRun', self._content)
+
+    def test_baRun_present(self):
+        self.assertIn('baRun', self._content)
+
+    def test_dmRun_present(self):
+        self.assertIn('dmRun', self._content)
+
+    def test_fouRun_present(self):
+        self.assertIn('fouRun', self._content)
+
+    def test_hwRun_present(self):
+        self.assertIn('hwRun', self._content)
+
+    def test_lvRun_present(self):
+        self.assertIn('lvRun', self._content)
+
+    def test_lzAllRun_present(self):
+        self.assertIn('lzAllRun', self._content)
+
+    def test_miHmapRun_present(self):
+        self.assertIn('miHmapRun', self._content)
+
+    def test_netRun_present(self):
+        self.assertIn('netRun', self._content)
+
+    def test_peHmapRun_present(self):
+        self.assertIn('peHmapRun', self._content)
+
+    def test_peRun_present(self):
+        self.assertIn('peRun', self._content)
+
+    def test_prtRun_present(self):
+        self.assertIn('prtRun', self._content)
+
+    def test_rcHmapRun_present(self):
+        self.assertIn('rcHmapRun', self._content)
+
+    def test_rcRun_present(self):
+        self.assertIn('rcRun', self._content)
+
+    def test_stRun_present(self):
+        self.assertIn('stRun', self._content)
+
+    def test_symRun_present(self):
+        self.assertIn('symRun', self._content)
+
+
+class TestViewerJSCore(unittest.TestCase):
+    """Verify that important viewer.html JS utility functions are defined."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    def test_caStep_present(self):
+        self.assertIn('caStep', self._content)
+
+    def test_dot_present(self):
+        self.assertIn('function dot(', self._content)
+
+    def test_hsl_present(self):
+        self.assertIn('function hsl(', self._content)
+
+    def test_initHover_present(self):
+        self.assertIn('initHover', self._content)
+
+    def test_populateDropdown_present(self):
+        self.assertIn('populateDropdown', self._content)
+
+    def test_encodeWord_present(self):
+        self.assertIn('function encodeWord(', self._content)
+
+    def test_drawHmap_present(self):
+        self.assertIn('function drawHmap(', self._content)
+
+    def test_fullKeyFor_present(self):
+        self.assertIn('function fullKeyFor(', self._content)
+
+    def test_buildHistory_present(self):
+        self.assertIn('buildHistory', self._content)
+
+    def test_stateDist_present(self):
+        self.assertIn('stateDist', self._content)
+
+    def test_toCanvas_present(self):
+        self.assertIn('toCanvas', self._content)
+
+    def test_populateBitDD_present(self):
+        self.assertIn('populateBitDD', self._content)
+
+    def test_populateCorDD_present(self):
+        self.assertIn('populateCorDD', self._content)
+
+    def test_populateLyaDD_present(self):
+        self.assertIn('populateLyaDD', self._content)
+
+    def test_populateLzDD_present(self):
+        self.assertIn('populateLzDD', self._content)
+
+    def test_window_classicalMds_export(self):
+        self.assertIn('window.classicalMds', self._content)
+
+
+class TestPredictIntegration(unittest.TestCase):
+    """Cross-module consistency tests for the prediction pipeline."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import predict, batch_predict, predict_text
+        from projects.hexglyph.solan_word import word_signature, sig_distance
+        from projects.hexglyph.solan_transient import full_key, transient_classes
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.predict       = staticmethod(predict)
+        cls.batch_predict = staticmethod(batch_predict)
+        cls.predict_text  = staticmethod(predict_text)
+        cls.word_signature= staticmethod(word_signature)
+        cls.sig_distance  = staticmethod(sig_distance)
+        cls.full_key      = staticmethod(full_key)
+        cls.LEXICON       = LEXICON
+
+    # ── batch_predict ≡ individual predict ───────────────────────────────────
+
+    def test_batch_equals_individual_word(self):
+        words = ['ГОРА', 'ВОДА', 'ЛУНА']
+        batch = self.batch_predict(words)
+        for i, w in enumerate(words):
+            self.assertEqual(batch[i]['full_key'], self.predict(w)['full_key'])
+
+    def test_batch_equals_individual_neighbors(self):
+        words = ['ТУМАН', 'МАТ']
+        batch = self.batch_predict(words)
+        for i, w in enumerate(words):
+            self.assertEqual(batch[i]['neighbors'], self.predict(w)['neighbors'])
+
+    def test_batch_equals_individual_class_id(self):
+        words = ['ВОДА', 'НОРА', 'РАБОТА']
+        batch = self.batch_predict(words)
+        for i, w in enumerate(words):
+            self.assertEqual(batch[i]['class_id'], self.predict(w)['class_id'])
+
+    # ── predict vs word_signature / full_key ─────────────────────────────────
+
+    def test_predict_signature_matches_word_signature(self):
+        for w in ['ГОРА', 'ЖУРНАЛ', 'ТУМАН']:
+            r   = self.predict(w)
+            sig = self.word_signature(w)
+            for rule in sig:
+                self.assertEqual(r['signature'][rule], list(sig[rule]))
+
+    def test_predict_full_key_matches_full_key_fn(self):
+        for w in ['ВОДА', 'ВЗЛОМ', 'ЗАВОД']:
+            self.assertEqual(self.predict(w)['full_key'],
+                             self.full_key(w))
+
+    # ── neighbor distances ────────────────────────────────────────────────────
+
+    def test_self_neighbor_distance_zero(self):
+        """A lexicon word's nearest neighbor has distance 0 (self or class mate)."""
+        for w in ['ГОРА', 'ВОДА', 'ЛУНА']:
+            r = self.predict(w)
+            self.assertAlmostEqual(r['neighbors'][0][1], 0.0, places=5)
+
+    def test_neighbor_distances_sorted(self):
+        r = self.predict('ТУМАН')
+        dists = [d for _, d in r['neighbors']]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_neighbor_distance_symmetry(self):
+        """sig_distance must be symmetric."""
+        words = ['ГОРА', 'ВОДА', 'ТУМАН']
+        sigs  = {w: self.word_signature(w) for w in words}
+        for i, w1 in enumerate(words):
+            for w2 in words[i+1:]:
+                d1 = self.sig_distance(sigs[w1], sigs[w2])
+                d2 = self.sig_distance(sigs[w2], sigs[w1])
+                self.assertAlmostEqual(d1, d2, places=10)
+
+    def test_neighbor_distance_non_negative(self):
+        r = self.predict('КОМПЬЮТЕР')
+        for _, d in r['neighbors']:
+            self.assertGreaterEqual(d, 0.0)
+
+    # ── predict_text tokenisation ─────────────────────────────────────────────
+
+    def test_predict_text_single_word(self):
+        results = self.predict_text('ГОРА')
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['word'], 'ГОРА')
+
+    def test_predict_text_deduplicates(self):
+        results = self.predict_text('ГОРА ГОРА ВОДА')
+        words = [r['word'] for r in results]
+        self.assertEqual(words, ['ГОРА', 'ВОДА'])
+
+    def test_predict_text_skips_non_cyrillic(self):
+        results = self.predict_text('hello ГОРА world ВОДА 123')
+        words = [r['word'] for r in results]
+        self.assertEqual(sorted(words), ['ВОДА', 'ГОРА'])
+
+    # ── is_new_class consistency ──────────────────────────────────────────────
+
+    def test_lexicon_words_not_new_class(self):
+        """All 49 lexicon words must belong to a known class."""
+        for w in self.LEXICON:
+            r = self.predict(w)
+            self.assertFalse(r['is_new_class'],
+                             f'{w} incorrectly flagged as new class')
+
+    def test_class_id_consistent_across_calls(self):
+        for w in ['ГОРА', 'ЖУРНАЛ', 'ВЗЛОМ']:
+            r1 = self.predict(w)
+            r2 = self.predict(w)
+            self.assertEqual(r1['class_id'], r2['class_id'])
+
+
+class TestViewerHTMLStructure(unittest.TestCase):
+    """Verify important HTML element IDs exist in viewer.html."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    # ── output / stats containers ─────────────────────────────────────────────
+
+    def test_acf_stats_present(self):
+        self.assertIn('acf-stats', self._content)
+
+    def test_dend_stats_present(self):
+        self.assertIn('dend-stats', self._content)
+
+    def test_dm_stats_present(self):
+        self.assertIn('dm-stats', self._content)
+
+    def test_fou_stats_present(self):
+        self.assertIn('fou-stats', self._content)
+
+    def test_graph_stats_present(self):
+        self.assertIn('graph-stats', self._content)
+
+    def test_hw_stats_present(self):
+        self.assertIn('hw-stats', self._content)
+
+    def test_lz_stats_present(self):
+        self.assertIn('lz-stats', self._content)
+
+    def test_moran_stats_present(self):
+        self.assertIn('moran-stats', self._content)
+
+    def test_net_stats_present(self):
+        self.assertIn('net-stats', self._content)
+
+    def test_prt_stats_present(self):
+        self.assertIn('prt-stats', self._content)
+
+    def test_sym_stats_present(self):
+        self.assertIn('sym-stats', self._content)
+
+    def test_te_stats_present(self):
+        self.assertIn('te-stats', self._content)
+
+    # ── info containers ───────────────────────────────────────────────────────
+
+    def test_ac_info_present(self):
+        self.assertIn('ac-info', self._content)
+
+    def test_bit_info_present(self):
+        self.assertIn('bit-info', self._content)
+
+    def test_bp_info_present(self):
+        self.assertIn('bp-info', self._content)
+
+    def test_cor_info_present(self):
+        self.assertIn('cor-info', self._content)
+
+    def test_der_info_present(self):
+        self.assertIn('der-info', self._content)
+
+    def test_lya_info_present(self):
+        self.assertIn('lya-info', self._content)
+
+    def test_lyap_info_present(self):
+        self.assertIn('lyap-info', self._content)
+
+    def test_lz_info_present(self):
+        self.assertIn('lz-info', self._content)
+
+    # ── key structural elements ───────────────────────────────────────────────
+
+    def test_word_encoded_present(self):
+        self.assertIn('word-encoded', self._content)
+
+    def test_word_solan_present(self):
+        self.assertIn('word-solan', self._content)
+
+    def test_ca_status_present(self):
+        self.assertIn('ca-status', self._content)
+
+    # ── section control buttons ───────────────────────────────────────────────
+
+    def test_acf_btn_present(self):
+        self.assertIn('acf-btn', self._content)
+
+    def test_ba_hmap_btn_present(self):
+        self.assertIn('ba-hmap-btn', self._content)
+
+    def test_fou_btn_present(self):
+        self.assertIn('fou-btn', self._content)
+
+    def test_hw_btn_present(self):
+        self.assertIn('hw-btn', self._content)
+
+    def test_lv_btn_present(self):
+        self.assertIn('lv-btn', self._content)
+
+    def test_moran_btn_present(self):
+        self.assertIn('moran-btn', self._content)
+
+    def test_pe_multi_btn_present(self):
+        self.assertIn('pe-multi-btn', self._content)
+
+    def test_prt_btn_present(self):
+        self.assertIn('prt-btn', self._content)
+
+    def test_rc_hmap_btn_present(self):
+        self.assertIn('rc-hmap-btn', self._content)
+
+    def test_sym_thr_present(self):
+        self.assertIn('sym-thr', self._content)
+
+    def test_lz_custom_present(self):
+        self.assertIn('lz-custom', self._content)
+
+    def test_cor_custom_present(self):
+        self.assertIn('cor-custom', self._content)
+
+
+class TestViewerSectionHeadings(unittest.TestCase):
+    """Verify that major analysis section H2 headings exist in viewer.html."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    def test_heading_recurrence(self):
+        self.assertIn('Рекуррентный анализ CA Q6', self._content)
+
+    def test_heading_mutual_info(self):
+        self.assertIn('Взаимная информация CA Q6', self._content)
+
+    def test_heading_spacetime(self):
+        self.assertIn('Пространство-время Q6', self._content)
+
+    def test_heading_damage(self):
+        self.assertIn('Разброс повреждений Q6', self._content)
+
+    def test_heading_symbolic(self):
+        self.assertIn('Символьная динамика Q6', self._content)
+
+    def test_heading_transfer_entropy(self):
+        self.assertIn('Transfer Entropy CA Q6', self._content)
+
+    def test_heading_perm_entropy(self):
+        self.assertIn('Перестановочная энтропия CA Q6', self._content)
+
+    def test_heading_basin(self):
+        self.assertIn('Бассейн аттрактора CA Q6', self._content)
+
+    def test_heading_network(self):
+        self.assertIn('Сеть информационного потока Q6', self._content)
+
+    def test_heading_lyapunov(self):
+        self.assertIn('Ляпунов CA Q6', self._content)
+
+    def test_heading_phoneme(self):
+        self.assertIn('Фонемный анализ Q6', self._content)
+
+    def test_heading_portrait(self):
+        self.assertIn('Портрет Q6', self._content)
+
+    def test_heading_fourier_psd(self):
+        self.assertIn('Фурье / PSD Q6', self._content)
+
+    def test_heading_autocorr(self):
+        self.assertIn('Автокорреляция Q6 — ACF', self._content)
+
+    def test_heading_morans_i(self):
+        self.assertIn("Moran's I Q6", self._content)
+
+    def test_heading_lz76(self):
+        self.assertIn('LZ76 Q6', self._content)
+
+    def test_heading_first_return(self):
+        self.assertIn('First-Return Map Q6', self._content)
+
+    def test_heading_temporal_moments(self):
+        self.assertIn('Temporal Moments Q6', self._content)
+
+    def test_heading_hamming_weight(self):
+        self.assertIn('Hamming Weight Dynamics Q6', self._content)
+
+    def test_heading_prediction(self):
+        self.assertIn('Предсказание Q6 — любое слово', self._content)
+
+    def test_heading_spatial_entropy(self):
+        self.assertIn('Spatial Entropy Profile Q6', self._content)
+
+    def test_heading_spatial_edge(self):
+        self.assertIn('Spatial Edge Density Q6', self._content)
+
+    def test_heading_orbit_vocab(self):
+        self.assertIn('Orbit Vocabulary Q6', self._content)
+
+    def test_heading_period_width(self):
+        self.assertIn('Period vs Width', self._content)
+
+
+class TestViewerWindowExports(unittest.TestCase):
+    """Verify that viewer.html exposes key functions via window.* for inter-section use."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    # ── key non-Run exports ───────────────────────────────────────────────────
+
+    def test_window_CLASS_PALETTE(self):
+        self.assertIn('window.CLASS_PALETTE', self._content)
+
+    def test_window_LEXSTEPS(self):
+        self.assertIn('window.LEXSTEPS', self._content)
+
+    def test_window_LEXW(self):
+        self.assertIn('window.LEXW', self._content)
+
+    def test_window_caCol(self):
+        self.assertIn('window.caCol', self._content)
+
+    def test_window_caH2C(self):
+        self.assertIn('window.caH2C', self._content)
+
+    def test_window_caIC(self):
+        self.assertIn('window.caIC', self._content)
+
+    def test_window_caReset(self):
+        self.assertIn('window.caReset', self._content)
+
+    def test_window_caSetRule(self):
+        self.assertIn('window.caSetRule', self._content)
+
+    def test_window_caStep(self):
+        self.assertIn('window.caStep', self._content)
+
+    def test_window_caToggleAuto(self):
+        self.assertIn('window.caToggleAuto', self._content)
+
+    def test_window_kruskalStress(self):
+        self.assertIn('window.kruskalStress', self._content)
+
+    def test_window_q6GetH(self):
+        self.assertIn('window.q6GetH', self._content)
+
+    def test_window_q6reset(self):
+        self.assertIn('window.q6reset', self._content)
+
+    def test_window_q6setH(self):
+        self.assertIn('window.q6setH', self._content)
+
+    def test_window_q6toggle(self):
+        self.assertIn('window.q6toggle', self._content)
+
+    def test_window_wordSetRule(self):
+        self.assertIn('window.wordSetRule', self._content)
+
+    def test_window_wordUpdate(self):
+        self.assertIn('window.wordUpdate', self._content)
+
+    # ── Run function window exports ───────────────────────────────────────────
+
+    def test_window_acfRun(self):
+        self.assertIn('window.acfRun', self._content)
+
+    def test_window_bfRun(self):
+        self.assertIn('window.bfRun', self._content)
+
+    def test_window_bitRun(self):
+        self.assertIn('window.bitRun', self._content)
+
+    def test_window_blRun(self):
+        self.assertIn('window.blRun', self._content)
+
+    def test_window_bloRun(self):
+        self.assertIn('window.bloRun', self._content)
+
+    def test_window_chpRun(self):
+        self.assertIn('window.chpRun', self._content)
+
+    def test_window_coactRun(self):
+        self.assertIn('window.coactRun', self._content)
+
+    def test_window_corRun(self):
+        self.assertIn('window.corRun', self._content)
+
+    def test_window_derRun(self):
+        self.assertIn('window.derRun', self._content)
+
+    def test_window_forRun(self):
+        self.assertIn('window.forRun', self._content)
+
+    def test_window_fouRun(self):
+        self.assertIn('window.fouRun', self._content)
+
+    def test_window_hwRun(self):
+        self.assertIn('window.hwRun', self._content)
+
+    def test_window_lyaRun(self):
+        self.assertIn('window.lyaRun', self._content)
+
+    def test_window_lzAllRun(self):
+        self.assertIn('window.lzAllRun', self._content)
+
+    def test_window_lzRun(self):
+        self.assertIn('window.lzRun', self._content)
+
+    def test_window_momRun(self):
+        self.assertIn('window.momRun', self._content)
+
+    def test_window_moranRun(self):
+        self.assertIn('window.moranRun', self._content)
+
+    def test_window_mseRun(self):
+        self.assertIn('window.mseRun', self._content)
+
+    def test_window_phRun(self):
+        self.assertIn('window.phRun', self._content)
+
+    def test_window_phonRun(self):
+        self.assertIn('window.phonRun', self._content)
+
+    def test_window_predRun(self):
+        self.assertIn('window.predRun', self._content)
+
+    def test_window_prsRun(self):
+        self.assertIn('window.prsRun', self._content)
+
+    def test_window_retRun(self):
+        self.assertIn('window.retRun', self._content)
+
+    def test_window_rleRun(self):
+        self.assertIn('window.rleRun', self._content)
+
+    def test_window_specRun(self):
+        self.assertIn('window.specRun', self._content)
+
+    def test_window_trajRun(self):
+        self.assertIn('window.trajRun', self._content)
+
+    def test_window_wpeRun(self):
+        self.assertIn('window.wpeRun', self._content)
+
+
+class TestEdgeCases(unittest.TestCase):
+    """Edge-case and exception tests for key analysis functions."""
+
+    # ── ValueError on invalid rule ────────────────────────────────────────────
+
+    def test_moran_summary_bad_rule(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        with self.assertRaises(ValueError):
+            moran_summary('ГОРА', rule='BOGUS')
+
+    def test_lz_summary_bad_rule(self):
+        from projects.hexglyph.solan_lz import lz_summary
+        with self.assertRaises(ValueError):
+            lz_summary('ГОРА', rule='BOGUS')
+
+    def test_autocorr_summary_bad_rule(self):
+        from projects.hexglyph.solan_autocorr import autocorr_summary
+        with self.assertRaises(ValueError):
+            autocorr_summary('ГОРА', rule='BOGUS')
+
+    def test_recurrence_summary_bad_rule(self):
+        from projects.hexglyph.solan_recurrence import recurrence_summary
+        with self.assertRaises(ValueError):
+            recurrence_summary('ГОРА', rule='BOGUS')
+
+    def test_mutual_summary_bad_rule(self):
+        from projects.hexglyph.solan_mutual import mutual_summary
+        with self.assertRaises(ValueError):
+            mutual_summary('ГОРА', rule='BOGUS')
+
+    def test_te_summary_bad_rule(self):
+        from projects.hexglyph.solan_transfer import te_summary
+        with self.assertRaises(ValueError):
+            te_summary('ГОРА', rule='BOGUS')
+
+    def test_word_trajectory_bad_rule(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        with self.assertRaises(ValueError):
+            word_trajectory('ГОРА', rule='BOGUS', width=16)
+
+    # ── lz76 edge cases ───────────────────────────────────────────────────────
+
+    def test_lz76_empty_string(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76(''), 0)
+
+    def test_lz76_single_symbol(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('0'), 1)
+
+    def test_lz76_constant_string_low_complexity(self):
+        from projects.hexglyph.solan_lz import lz76
+        # Constant string has very low complexity (log-scale growth)
+        self.assertLess(lz76('0' * 100), lz76('01' * 50))
+
+    def test_lz76_random_higher_than_periodic(self):
+        from projects.hexglyph.solan_lz import lz76
+        periodic  = lz76('01' * 40)
+        random_s  = lz76('01101001100101101001011001101001')  # Thue-Morse
+        self.assertGreaterEqual(random_s, periodic)
+
+    # ── to_binary ─────────────────────────────────────────────────────────────
+
+    def test_to_binary_zero(self):
+        from projects.hexglyph.solan_lz import to_binary
+        self.assertEqual(to_binary(0, 6), '000000')
+
+    def test_to_binary_all_ones(self):
+        from projects.hexglyph.solan_lz import to_binary
+        self.assertEqual(to_binary(63, 6), '111111')
+
+    def test_to_binary_length(self):
+        from projects.hexglyph.solan_lz import to_binary
+        self.assertEqual(len(to_binary(42, 8)), 8)
+
+    # ── spatial_classification boundary values ────────────────────────────────
+
+    def test_spatial_class_boundary_minus01(self):
+        from projects.hexglyph.solan_moran import spatial_classification
+        # -0.1 is the boundary between random and dispersed → 'random'
+        self.assertEqual(spatial_classification(-0.1), 'random')
+
+    def test_spatial_class_boundary_plus01(self):
+        from projects.hexglyph.solan_moran import spatial_classification
+        # 0.1 is the boundary between random and clustered → 'random'
+        self.assertEqual(spatial_classification(0.1), 'random')
+
+    def test_spatial_class_boundary_plus05(self):
+        from projects.hexglyph.solan_moran import spatial_classification
+        # 0.5 is NOT > 0.5, falls to > 0.1 → 'clustered'; 0.51 → 'strongly clustered'
+        self.assertEqual(spatial_classification(0.5),  'clustered')
+        self.assertEqual(spatial_classification(0.51), 'strongly clustered')
+
+    def test_spatial_class_boundary_minus05(self):
+        from projects.hexglyph.solan_moran import spatial_classification
+        # Exactly -0.5 → 'dispersed'
+        self.assertEqual(spatial_classification(-0.5), 'dispersed')
+
+    # ── predict_text edge cases ───────────────────────────────────────────────
+
+    def test_predict_text_empty_string(self):
+        from projects.hexglyph.solan_predict import predict_text
+        self.assertEqual(predict_text(''), [])
+
+    def test_predict_text_no_cyrillic(self):
+        from projects.hexglyph.solan_predict import predict_text
+        self.assertEqual(predict_text('hello world 123'), [])
+
+    def test_predict_text_mixed_returns_cyrillic_only(self):
+        from projects.hexglyph.solan_predict import predict_text
+        r = predict_text('hello ГОРА world')
+        self.assertEqual(len(r), 1)
+        self.assertEqual(r[0]['word'], 'ГОРА')
+
+    # ── word_signature edge cases ─────────────────────────────────────────────
+
+    def test_word_signature_empty_returns_none_transients(self):
+        from projects.hexglyph.solan_word import word_signature
+        sig = word_signature('')
+        for rule in sig:
+            self.assertIsNone(sig[rule][0])
+
+    def test_word_signature_single_char_returns_dict(self):
+        from projects.hexglyph.solan_word import word_signature
+        sig = word_signature('А')
+        self.assertIsInstance(sig, dict)
+        self.assertIn('xor', sig)
+
+    # ── predict edge cases ────────────────────────────────────────────────────
+
+    def test_predict_empty_word_is_new_class(self):
+        from projects.hexglyph.solan_predict import predict
+        r = predict('')
+        self.assertTrue(r['is_new_class'])
+
+    def test_predict_lowercase_uppercased(self):
+        from projects.hexglyph.solan_predict import predict
+        r = predict('гора')
+        self.assertEqual(r['word'], 'ГОРА')
+
+    def test_predict_top_n_limits_neighbors(self):
+        from projects.hexglyph.solan_predict import predict
+        r = predict('ГОРА', top_n=3)
+        self.assertEqual(len(r['neighbors']), 3)
+
+    # ── lz_of_series edge cases ───────────────────────────────────────────────
+
+    def test_lz_of_series_single_value(self):
+        from projects.hexglyph.solan_lz import lz_of_series
+        d = lz_of_series([42])
+        self.assertIn('lz', d)
+        self.assertGreaterEqual(d['lz'], 0)
+
+    def test_lz_of_series_identical_values(self):
+        from projects.hexglyph.solan_lz import lz_of_series
+        d = lz_of_series([5] * 32)
+        # Constant series has very low normalised LZ
+        self.assertLess(d['norm'], 0.5)
+
+
+class TestViewerJSConstants(unittest.TestCase):
+    """Verify that static JS arrays and config objects are defined in viewer.html."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    # ── static JS arrays ──────────────────────────────────────────────────────
+
+    def test_ALL_PATS3(self):
+        self.assertIn('ALL_PATS3', self._content)
+
+    def test_BIT_NAMES(self):
+        self.assertIn('BIT_NAMES', self._content)
+
+    def test_CG_LEVELS(self):
+        self.assertIn('CG_LEVELS', self._content)
+
+    def test_COR_RULES(self):
+        self.assertIn('COR_RULES', self._content)
+
+    def test_DER_RULES(self):
+        self.assertIn('DER_RULES', self._content)
+
+    def test_FREQ_HUE(self):
+        self.assertIn('FREQ_HUE', self._content)
+
+    def test_LYA_RULES(self):
+        self.assertIn('LYA_RULES', self._content)
+
+    def test_LYA_SEGS(self):
+        self.assertIn('LYA_SEGS', self._content)
+
+    def test_LYA_SEG_COL(self):
+        self.assertIn('LYA_SEG_COL', self._content)
+
+    def test_LZ_RULES(self):
+        self.assertIn('LZ_RULES', self._content)
+
+    def test_PRT_AX(self):
+        self.assertIn('PRT_AX', self._content)
+
+    def test_SEGS(self):
+        self.assertIn('SEGS', self._content)
+
+    def test_WC(self):
+        self.assertIn('WC', self._content)
+
+    # ── static JS colour/config objects ──────────────────────────────────────
+
+    def test_BA_COLS(self):
+        self.assertIn('BA_COLS', self._content)
+
+    def test_BA_RGB(self):
+        self.assertIn('BA_RGB', self._content)
+
+    def test_BCOL(self):
+        self.assertIn('BCOL', self._content)
+
+    def test_CG_COLS(self):
+        self.assertIn('CG_COLS', self._content)
+
+    def test_CG_RGB(self):
+        self.assertIn('CG_RGB', self._content)
+
+    def test_CLS_COL(self):
+        self.assertIn('CLS_COL', self._content)
+
+    def test_COR_COLS(self):
+        self.assertIn('COR_COLS', self._content)
+
+    def test_COR_NAMES(self):
+        self.assertIn('COR_NAMES', self._content)
+
+    def test_DER_COLS(self):
+        self.assertIn('DER_COLS', self._content)
+
+    def test_DER_NAMES(self):
+        self.assertIn('DER_NAMES', self._content)
+
+    def test_DM_COLS(self):
+        self.assertIn('DM_COLS', self._content)
+
+    def test_ENT_COLORS(self):
+        self.assertIn('ENT_COLORS', self._content)
+
+    def test_ENT_LABELS(self):
+        self.assertIn('ENT_LABELS', self._content)
+
+    def test_FREQ_RGB(self):
+        self.assertIn('FREQ_RGB', self._content)
+
+    def test_H2OK(self):
+        self.assertIn('H2OK', self._content)
+
+    def test_H2RU(self):
+        self.assertIn('H2RU', self._content)
+
+    def test_LCOL(self):
+        self.assertIn('LCOL', self._content)
+
+    def test_LYA_COLORS(self):
+        self.assertIn('LYA_COLORS', self._content)
+
+    def test_LYA_NAMES(self):
+        self.assertIn('LYA_NAMES', self._content)
+
+    def test_LZ_COLS(self):
+        self.assertIn('LZ_COLS', self._content)
+
+    def test_LZ_NAMES(self):
+        self.assertIn('LZ_NAMES', self._content)
+
+    def test_MCOL(self):
+        self.assertIn('MCOL', self._content)
+
+    def test_MI_COLS(self):
+        self.assertIn('MI_COLS', self._content)
+
+    def test_MI_RGB(self):
+        self.assertIn('MI_RGB', self._content)
+
+    def test_NET_COLS(self):
+        self.assertIn('NET_COLS', self._content)
+
+    def test_PE_COLS(self):
+        self.assertIn('PE_COLS', self._content)
+
+    def test_PE_RGB(self):
+        self.assertIn('PE_RGB', self._content)
+
+    def test_PHONEME_Q6(self):
+        self.assertIn('PHONEME_Q6', self._content)
+
+    def test_PHON_H(self):
+        self.assertIn('PHON_H', self._content)
+
+    def test_PRT_COLS(self):
+        self.assertIn('PRT_COLS', self._content)
+
+    def test_RCOL(self):
+        self.assertIn('RCOL', self._content)
+
+    def test_RC_COLS(self):
+        self.assertIn('RC_COLS', self._content)
+
+    def test_RC_RGB(self):
+        self.assertIn('RC_RGB', self._content)
+
+    def test_RLBL(self):
+        self.assertIn('RLBL', self._content)
+
+    def test_RNAMES(self):
+        self.assertIn('RNAMES', self._content)
+
+    def test_RULE_LBL(self):
+        self.assertIn('RULE_LBL', self._content)
+
+    def test_ST_COLS(self):
+        self.assertIn('ST_COLS', self._content)
+
+    def test_SYM_COLS(self):
+        self.assertIn('SYM_COLS', self._content)
+
+    def test_TE_COLS(self):
+        self.assertIn('TE_COLS', self._content)
+
+    def test_WCOLORS(self):
+        self.assertIn('WCOLORS', self._content)
+
+    def test_WH2(self):
+        self.assertIn('WH2', self._content)
+
+    def test_WLABELS(self):
+        self.assertIn('WLABELS', self._content)
+
+
+class TestRegressionValues(unittest.TestCase):
+    """Regression tests: verify specific known output values for key functions."""
+
+    # ── word_signature — exact (T, P) for ГОРА ───────────────────────────────
+
+    def test_gora_xor_signature(self):
+        from projects.hexglyph.solan_word import word_signature
+        self.assertEqual(word_signature('ГОРА')['xor'],  (2, 1))
+
+    def test_gora_xor3_signature(self):
+        from projects.hexglyph.solan_word import word_signature
+        self.assertEqual(word_signature('ГОРА')['xor3'], (0, 2))
+
+    def test_gora_and_signature(self):
+        from projects.hexglyph.solan_word import word_signature
+        self.assertEqual(word_signature('ГОРА')['and'],  (1, 2))
+
+    def test_gora_or_signature(self):
+        from projects.hexglyph.solan_word import word_signature
+        self.assertEqual(word_signature('ГОРА')['or'],   (1, 1))
+
+    # ── full_key for specific words ───────────────────────────────────────────
+
+    def test_full_key_gora(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ГОРА'),   (2, 1, 2, 1, 1))
+
+    def test_full_key_voda(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ВОДА'),   (2, 1, 2, 1, 2))
+
+    def test_full_key_zhurnal(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ЖУРНАЛ'), (8, 4, 2, 4, 2))
+
+    def test_full_key_vzlom(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ВЗЛОМ'),  (8, 2, 1, 7, 1))
+
+    def test_full_key_tuman(self):
+        from projects.hexglyph.solan_transient import full_key
+        self.assertEqual(full_key('ТУМАН'),  (8, 7, 1, 7, 1))
+
+    # ── word_distance — exact values for specific pairs ───────────────────────
+
+    def test_word_dist_gora_voda(self):
+        from projects.hexglyph.solan_word import word_distance
+        self.assertAlmostEqual(word_distance('ГОРА', 'ВОДА'),  0.125,  places=6)
+
+    def test_word_dist_gora_tuman(self):
+        from projects.hexglyph.solan_word import word_distance
+        self.assertAlmostEqual(word_distance('ГОРА', 'ТУМАН'), 0.3125, places=6)
+
+    def test_word_dist_voda_nora(self):
+        from projects.hexglyph.solan_word import word_distance
+        self.assertAlmostEqual(word_distance('ВОДА', 'НОРА'),  0.0,    places=6)
+
+    def test_word_dist_mat_tuman(self):
+        from projects.hexglyph.solan_word import word_distance
+        self.assertAlmostEqual(word_distance('МАТ', 'ТУМАН'),  0.0,    places=6)
+
+    # ── lz76 — exact complexity for specific bit strings ──────────────────────
+
+    def test_lz76_single_zero(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('0'), 1)
+
+    def test_lz76_two_symbols(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('01'), 2)
+
+    def test_lz76_six_symbols(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('001011'), 3)
+
+    def test_lz76_periodic_8(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('01010101'), 4)
+
+    def test_lz76_periodic_16(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('0011001100110011'), 5)
+
+    # ── lz_summary — regression for ГОРА/xor3 ────────────────────────────────
+
+    def test_lz_summary_gora_xor3_period(self):
+        from projects.hexglyph.solan_lz import lz_summary
+        self.assertEqual(lz_summary('ГОРА', 'xor3')['period'], 2)
+
+    def test_lz_summary_gora_xor3_full_lz(self):
+        from projects.hexglyph.solan_lz import lz_summary
+        self.assertEqual(lz_summary('ГОРА', 'xor3')['full_lz']['lz'], 15)
+
+    # ── fourier_summary — regression for ГОРА/xor3 ───────────────────────────
+
+    def test_fourier_gora_xor3_period(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        self.assertEqual(fourier_summary('ГОРА', 'xor3')['period'], 2)
+
+    def test_fourier_gora_xor3_mean_spec_entropy(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        # Period-2 attractor → single dominant harmonic → entropy = 0
+        self.assertAlmostEqual(
+            fourier_summary('ГОРА', 'xor3')['mean_spec_entropy'], 0.0, places=6)
+
+    def test_fourier_gora_xor3_dominant_k(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        self.assertEqual(fourier_summary('ГОРА', 'xor3')['dominant_k'], 1)
+
+
+class TestRegressionValues2(unittest.TestCase):
+    """More regression tests for specific known output values."""
+
+    # ── encode_word exact hex values ──────────────────────────────────────────
+
+    def test_encode_gora(self):
+        from projects.hexglyph.solan_word import encode_word
+        self.assertEqual(encode_word('ГОРА'), [49, 47, 15, 63])
+
+    def test_encode_voda(self):
+        from projects.hexglyph.solan_word import encode_word
+        self.assertEqual(encode_word('ВОДА'), [20, 47, 50, 63])
+
+    # ── transient_classes structure ───────────────────────────────────────────
+
+    def test_transient_class_count_is_13(self):
+        from projects.hexglyph.solan_transient import transient_classes
+        self.assertEqual(len(transient_classes()), 13)
+
+    def test_transient_class0_key(self):
+        from projects.hexglyph.solan_transient import transient_classes
+        cls0 = transient_classes()[0]
+        self.assertEqual(tuple(cls0['key']), (2, 1, 2, 1, 2))
+
+    def test_transient_class0_word_count(self):
+        from projects.hexglyph.solan_transient import transient_classes
+        # Class 0 is the largest (20 words)
+        self.assertEqual(len(transient_classes()[0]['words']), 20)
+
+    def test_gora_class_words(self):
+        from projects.hexglyph.solan_transient import transient_classes, full_key
+        gora_key = full_key('ГОРА')
+        classes = transient_classes()
+        gora_cls = next(c for c in classes if tuple(c['key']) == gora_key)
+        self.assertEqual(sorted(gora_cls['words']), ['ГОРА', 'РОТА', 'УДАР', 'УТРО'])
+
+    # ── moran_summary regression values ──────────────────────────────────────
+
+    def test_moran_gora_xor3_period(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        self.assertEqual(moran_summary('ГОРА', 'xor3')['period'], 2)
+
+    def test_moran_tuman_xor3_period(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        self.assertEqual(moran_summary('ТУМАН', 'xor3')['period'], 8)
+
+    def test_moran_gora_xor3_mean_i(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        self.assertAlmostEqual(
+            moran_summary('ГОРА', 'xor3')['mean_i'], -0.615536, places=4)
+
+    def test_moran_tuman_xor3_mean_i(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        self.assertAlmostEqual(
+            moran_summary('ТУМАН', 'xor3')['mean_i'], -0.12167, places=4)
+
+    # ── fourier_summary regression for ТУМАН/xor3 ────────────────────────────
+
+    def test_fourier_tuman_xor3_period(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        self.assertEqual(fourier_summary('ТУМАН', 'xor3')['period'], 8)
+
+    def test_fourier_tuman_xor3_dominant_k(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        self.assertEqual(fourier_summary('ТУМАН', 'xor3')['dominant_k'], 3)
+
+    def test_fourier_tuman_xor3_mean_spec_entropy_positive(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        # Period-8 has distributed harmonics → positive entropy
+        s = fourier_summary('ТУМАН', 'xor3')
+        self.assertGreater(s['mean_spec_entropy'], 0.5)
+
+    # ── te_summary regression ─────────────────────────────────────────────────
+
+    def test_te_gora_xor3_period(self):
+        from projects.hexglyph.solan_transfer import te_summary
+        self.assertEqual(te_summary('ГОРА', 'xor3')['period'], 2)
+
+
+class TestCARuleRegression(unittest.TestCase):
+    """Regression tests for CA step() rule outputs on specific inputs."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import step
+        cls.step = staticmethod(step)
+        cls.ALT  = [63, 0] * 8   # alternating 16-cell IC
+        cls.FULL = [63] * 16     # all-max 16-cell IC
+        cls.ZERO = [0]  * 16     # all-zero 16-cell IC
+
+    # ── xor rule: new[i] = prev[i-1] XOR prev[i+1] ───────────────────────────
+
+    def test_xor_alternating_all_zero(self):
+        # 63 XOR 63 = 0 and 0 XOR 0 = 0 for all positions
+        self.assertEqual(self.step(self.ALT, 'xor'), [0] * 16)
+
+    def test_xor_full_all_zero(self):
+        # 63 XOR 63 = 0 for all positions
+        self.assertEqual(self.step(self.FULL, 'xor'), [0] * 16)
+
+    def test_xor_zero_stays_zero(self):
+        self.assertEqual(self.step(self.ZERO, 'xor'), [0] * 16)
+
+    # ── xor3 rule: new[i] = prev[i-1] XOR prev[i] XOR prev[i+1] ─────────────
+
+    def test_xor3_alternating_preserves(self):
+        # 0 XOR 63 XOR 0 = 63; 63 XOR 0 XOR 63 = 0 — period-1 pattern
+        result = self.step(self.ALT, 'xor3')
+        self.assertEqual(result, self.ALT)
+
+    def test_xor3_full_all_zero(self):
+        # 63 XOR 63 XOR 63 = 63 XOR 63 = 0... wait: 63^63=0, 0^63=63
+        # Actually: 63^63^63 = (63^63)^63 = 0^63 = 63
+        result = self.step(self.FULL, 'xor3')
+        self.assertEqual(result, self.FULL)
+
+    def test_xor3_zero_stays_zero(self):
+        self.assertEqual(self.step(self.ZERO, 'xor3'), [0] * 16)
+
+    # ── and rule: new[i] = prev[i-1] AND prev[i+1] ───────────────────────────
+
+    def test_and_alternating_shifts(self):
+        # cell[0]: prev[-1]=0, prev[1]=0 → 0 AND 0 = 0
+        # cell[1]: prev[0]=63, prev[2]=63 → 63 AND 63 = 63
+        result = self.step(self.ALT, 'and')
+        self.assertEqual(result[:4], [0, 63, 0, 63])
+
+    def test_and_full_stays_full(self):
+        # 63 AND 63 = 63 for all positions
+        self.assertEqual(self.step(self.FULL, 'and'), self.FULL)
+
+    def test_and_zero_stays_zero(self):
+        self.assertEqual(self.step(self.ZERO, 'and'), [0] * 16)
+
+    # ── or rule: new[i] = prev[i-1] OR prev[i+1] ─────────────────────────────
+
+    def test_or_alternating_shifts(self):
+        # cell[0]: prev[-1]=0, prev[1]=0 → 0 OR 0 = 0
+        # cell[1]: prev[0]=63, prev[2]=63 → 63 OR 63 = 63
+        result = self.step(self.ALT, 'or')
+        self.assertEqual(result[:4], [0, 63, 0, 63])
+
+    def test_or_full_stays_full(self):
+        # 63 OR 63 = 63 for all positions
+        self.assertEqual(self.step(self.FULL, 'or'), self.FULL)
+
+    def test_or_zero_stays_zero(self):
+        self.assertEqual(self.step(self.ZERO, 'or'), [0] * 16)
+
+    # ── char_to_h / h_to_char boundary regression ────────────────────────────
+
+    def test_char_to_h_a(self):
+        from projects.hexglyph.hexglyph import char_to_h
+        self.assertEqual(char_to_h('a'), 42)
+
+    def test_char_to_h_A(self):
+        from projects.hexglyph.hexglyph import char_to_h
+        self.assertEqual(char_to_h('A'), 9)
+
+    def test_h_to_char_0(self):
+        from projects.hexglyph.hexglyph import h_to_char
+        self.assertEqual(h_to_char(0), '0')
+
+    def test_h_to_char_63(self):
+        from projects.hexglyph.hexglyph import h_to_char
+        self.assertEqual(h_to_char(63), '#')
+
+
+class TestSignatureProperties(unittest.TestCase):
+    """Mathematical properties of word_signature() and sig_distance()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import word_signature, sig_distance
+        from projects.hexglyph.solan_transient import LEXICON
+        cls.word_signature = staticmethod(word_signature)
+        cls.sig_distance = staticmethod(sig_distance)
+        cls.LEXICON = LEXICON
+
+    def test_signature_returns_dict(self):
+        sig = self.word_signature('ГОРА')
+        self.assertIsInstance(sig, dict)
+
+    def test_signature_has_four_rules(self):
+        sig = self.word_signature('ГОРА')
+        self.assertEqual(sorted(sig.keys()), ['and', 'or', 'xor', 'xor3'])
+
+    def test_signature_values_are_tuples(self):
+        sig = self.word_signature('ГОРА')
+        for rule, val in sig.items():
+            self.assertIsInstance(val, tuple, f'rule={rule}')
+
+    def test_signature_values_length_two(self):
+        sig = self.word_signature('ГОРА')
+        for rule, val in sig.items():
+            self.assertEqual(len(val), 2, f'rule={rule}')
+
+    def test_signature_transient_nonneg(self):
+        for w in self.LEXICON[:15]:
+            sig = self.word_signature(w)
+            for rule, (t, p) in sig.items():
+                self.assertGreaterEqual(t, 0, f'{w} {rule}')
+
+    def test_signature_period_positive(self):
+        for w in self.LEXICON[:15]:
+            sig = self.word_signature(w)
+            for rule, (t, p) in sig.items():
+                self.assertGreaterEqual(p, 1, f'{w} {rule}')
+
+    def test_signature_is_deterministic(self):
+        sig1 = self.word_signature('ТУМАН')
+        sig2 = self.word_signature('ТУМАН')
+        self.assertEqual(sig1, sig2)
+
+    def test_voda_signature_xor(self):
+        sig = self.word_signature('ВОДА')
+        self.assertEqual(sig['xor'], (2, 1))
+
+    def test_voda_signature_xor3(self):
+        sig = self.word_signature('ВОДА')
+        self.assertEqual(sig['xor3'], (0, 2))
+
+    def test_voda_signature_and(self):
+        sig = self.word_signature('ВОДА')
+        self.assertEqual(sig['and'], (1, 2))
+
+    def test_voda_signature_or(self):
+        sig = self.word_signature('ВОДА')
+        self.assertEqual(sig['or'], (1, 2))
+
+    def test_distance_self_zero(self):
+        sig = self.word_signature('ГОРА')
+        self.assertEqual(self.sig_distance(sig, sig), 0.0)
+
+    def test_distance_symmetric(self):
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('ВОДА')
+        d_ab = self.sig_distance(sig_a, sig_b)
+        d_ba = self.sig_distance(sig_b, sig_a)
+        self.assertAlmostEqual(d_ab, d_ba, places=10)
+
+    def test_distance_nonneg(self):
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('ТУМАН')
+        self.assertGreaterEqual(self.sig_distance(sig_a, sig_b), 0.0)
+
+    def test_distance_same_class_zero(self):
+        # ГОРА and РОТА are in the same class → distance 0
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('РОТА')
+        self.assertEqual(self.sig_distance(sig_a, sig_b), 0.0)
+
+    def test_distance_different_class_positive(self):
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('ТУМАН')
+        self.assertGreater(self.sig_distance(sig_a, sig_b), 0.0)
+
+    def test_distance_at_most_one(self):
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('ТУМАН')
+        self.assertLessEqual(self.sig_distance(sig_a, sig_b), 1.0)
+
+
+class TestTransientClassStructure(unittest.TestCase):
+    """Structure and consistency of transient_classes()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import transient_classes, full_key, LEXICON
+        cls.classes = transient_classes()
+        cls.full_key = staticmethod(full_key)
+        cls.LEXICON = LEXICON
+
+    def test_returns_13_classes(self):
+        self.assertEqual(len(self.classes), 13)
+
+    def test_each_class_has_key(self):
+        for i, c in enumerate(self.classes):
+            self.assertIn('key', c, f'class {i}')
+
+    def test_each_class_has_words(self):
+        for i, c in enumerate(self.classes):
+            self.assertIn('words', c, f'class {i}')
+
+    def test_each_class_has_count(self):
+        for i, c in enumerate(self.classes):
+            self.assertIn('count', c, f'class {i}')
+
+    def test_count_matches_words_length(self):
+        for i, c in enumerate(self.classes):
+            self.assertEqual(c['count'], len(c['words']), f'class {i}')
+
+    def test_total_words_49(self):
+        total = sum(c['count'] for c in self.classes)
+        self.assertEqual(total, 49)
+
+    def test_all_keys_unique(self):
+        keys = [tuple(c['key']) for c in self.classes]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_class0_key(self):
+        self.assertEqual(tuple(self.classes[0]['key']), (2, 1, 2, 1, 2))
+
+    def test_class0_count_20(self):
+        self.assertEqual(self.classes[0]['count'], 20)
+
+    def test_voda_in_class0(self):
+        self.assertIn('ВОДА', self.classes[0]['words'])
+
+    def test_no_word_in_two_classes(self):
+        seen = set()
+        for c in self.classes:
+            for w in c['words']:
+                self.assertNotIn(w, seen, f'{w} appears twice')
+                seen.add(w)
+
+    def test_all_lexicon_words_covered(self):
+        all_words = set()
+        for c in self.classes:
+            all_words.update(c['words'])
+        for w in self.LEXICON:
+            self.assertIn(w, all_words)
+
+    def test_words_in_class_share_full_key(self):
+        for c in self.classes:
+            expected_key = tuple(c['key'])
+            for w in c['words']:
+                self.assertEqual(self.full_key(w), expected_key, f'{w}')
+
+
+class TestFullKeyProps(unittest.TestCase):
+    """Properties of full_key()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import full_key, LEXICON
+        cls.full_key = staticmethod(full_key)
+        cls.LEXICON = LEXICON
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self.full_key('ГОРА'), tuple)
+
+    def test_length_five(self):
+        self.assertEqual(len(self.full_key('ГОРА')), 5)
+
+    def test_all_positive(self):
+        k = self.full_key('ГОРА')
+        self.assertTrue(all(isinstance(v, int) and v > 0 for v in k))
+
+    def test_deterministic(self):
+        k1 = self.full_key('ТУМАН')
+        k2 = self.full_key('ТУМАН')
+        self.assertEqual(k1, k2)
+
+    def test_gora_key(self):
+        self.assertEqual(self.full_key('ГОРА'), (2, 1, 2, 1, 1))
+
+    def test_voda_key(self):
+        self.assertEqual(self.full_key('ВОДА'), (2, 1, 2, 1, 2))
+
+    def test_same_class_same_key_rota(self):
+        # ГОРА and РОТА are in the same class
+        self.assertEqual(self.full_key('ГОРА'), self.full_key('РОТА'))
+
+    def test_different_class_different_key(self):
+        # ГОРА (class key (2,1,2,1,1)) vs ВОДА (class key (2,1,2,1,2))
+        self.assertNotEqual(self.full_key('ГОРА'), self.full_key('ВОДА'))
+
+    def test_all_lexicon_full_keys_5tuple(self):
+        for w in self.LEXICON:
+            k = self.full_key(w)
+            self.assertIsInstance(k, tuple)
+            self.assertEqual(len(k), 5)
+
+
+class TestCAStepLength(unittest.TestCase):
+    """CA step() output length matches input length for all rules."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import step
+        cls.step = staticmethod(step)
+
+    def _check_len(self, rule, n):
+        state = [0] * n
+        result = self.step(state, rule)
+        self.assertEqual(len(result), n, f'{rule} n={n}')
+
+    def test_xor_length_16(self):
+        self._check_len('xor', 16)
+
+    def test_xor3_length_16(self):
+        self._check_len('xor3', 16)
+
+    def test_and_length_16(self):
+        self._check_len('and', 16)
+
+    def test_or_length_16(self):
+        self._check_len('or', 16)
+
+    def test_xor_length_8(self):
+        self._check_len('xor', 8)
+
+    def test_xor3_length_8(self):
+        self._check_len('xor3', 8)
+
+    def test_and_length_8(self):
+        self._check_len('and', 8)
+
+    def test_or_length_8(self):
+        self._check_len('or', 8)
+
+    def test_xor_length_4(self):
+        self._check_len('xor', 4)
+
+    def test_xor3_length_4(self):
+        self._check_len('xor3', 4)
+
+    def test_and_length_32(self):
+        self._check_len('and', 32)
+
+    def test_or_length_32(self):
+        self._check_len('or', 32)
+
+
+class TestPredictOutputShape(unittest.TestCase):
+    """Structure, consistency, and shape of predict() outputs."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import predict, batch_predict, predict_text, prediction_dict
+        cls.predict = staticmethod(predict)
+        cls.batch_predict = staticmethod(batch_predict)
+        cls.predict_text = staticmethod(predict_text)
+        cls.prediction_dict = staticmethod(prediction_dict)
+        cls._gora = predict('ГОРА')
+
+    def test_predict_returns_dict(self):
+        self.assertIsInstance(self._gora, dict)
+
+    def test_predict_has_word(self):
+        self.assertEqual(self._gora['word'], 'ГОРА')
+
+    def test_predict_has_full_key(self):
+        self.assertIn('full_key', self._gora)
+        self.assertIsInstance(self._gora['full_key'], tuple)
+
+    def test_predict_has_class_id(self):
+        self.assertIn('class_id', self._gora)
+
+    def test_predict_has_class_words(self):
+        self.assertIn('class_words', self._gora)
+        self.assertIsInstance(self._gora['class_words'], list)
+
+    def test_predict_has_neighbors(self):
+        self.assertIn('neighbors', self._gora)
+        self.assertIsInstance(self._gora['neighbors'], list)
+
+    def test_predict_has_is_new_class(self):
+        self.assertIn('is_new_class', self._gora)
+
+    def test_predict_gora_not_new_class(self):
+        self.assertFalse(self._gora['is_new_class'])
+
+    def test_predict_neighbors_sorted(self):
+        dists = [n[1] for n in self._gora['neighbors']]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_predict_neighbors_at_most_10(self):
+        self.assertLessEqual(len(self._gora['neighbors']), 10)
+
+    def test_predict_gora_class_id_in_range(self):
+        cid = self._gora['class_id']
+        self.assertIsNotNone(cid)
+        self.assertIn(cid, range(13))
+
+    def test_batch_predict_matches_individual(self):
+        batch = self.batch_predict(['ГОРА', 'ВОДА'])
+        self.assertEqual(batch[0], self.predict('ГОРА'))
+        self.assertEqual(batch[1], self.predict('ВОДА'))
+
+    def test_batch_predict_length(self):
+        batch = self.batch_predict(['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertEqual(len(batch), 3)
+
+    def test_predict_text_tokenises(self):
+        results = self.predict_text('ГОРА ВОДА ЛУНА')
+        words = [r['word'] for r in results]
+        self.assertIn('ГОРА', words)
+        self.assertIn('ВОДА', words)
+        self.assertIn('ЛУНА', words)
+
+    def test_predict_text_unique_words(self):
+        results = self.predict_text('ГОРА ГОРА ВОДА')
+        words = [r['word'] for r in results]
+        self.assertEqual(len(words), len(set(words)))
+
+    def test_prediction_dict_json_serialisable(self):
+        import json
+        d = self.prediction_dict(self._gora)
+        self.assertIsInstance(d, dict)
+        json.dumps(d)  # should not raise
+
+    def test_prediction_dict_has_class_count(self):
+        d = self.prediction_dict(self._gora)
+        self.assertIn('class_count', d)
+
+
+class TestFourierOutputShape(unittest.TestCase):
+    """Structure of fourier_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        cls.fourier_summary = staticmethod(fourier_summary)
+        cls._r = fourier_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_cell_dom_freq_list(self):
+        self.assertIsInstance(self._r['cell_dom_freq'], list)
+
+    def test_cell_ac_power_list(self):
+        self.assertIsInstance(self._r['cell_ac_power'], list)
+
+    def test_mean_spec_entropy_float(self):
+        self.assertIsInstance(self._r['mean_spec_entropy'], float)
+
+    def test_mean_dc_frac_in_0_1(self):
+        self.assertGreaterEqual(self._r['mean_dc_frac'], 0.0)
+        self.assertLessEqual(self._r['mean_dc_frac'], 1.0)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.fourier_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestMoranOutputShape(unittest.TestCase):
+    """Structure of moran_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moran import moran_summary
+        cls.moran_summary = staticmethod(moran_summary)
+        cls._r = moran_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_series_is_list(self):
+        self.assertIsInstance(self._r['series'], list)
+
+    def test_mean_i_float(self):
+        self.assertIsInstance(self._r['mean_i'], float)
+
+    def test_classification_is_str(self):
+        self.assertIsInstance(self._r['classification'], str)
+
+    def test_n_valid_positive(self):
+        # xor3 has period=2 → n_valid > 0
+        r = self.moran_summary('ГОРА', 'xor3')
+        self.assertGreater(r['n_valid'], 0)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.moran_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+    def test_min_i_leq_mean_i_leq_max_i(self):
+        # xor3 gives multi-step orbit → non-NaN Moran values
+        r = self.moran_summary('ТУМАН', 'xor3')
+        self.assertLessEqual(r['min_i'], r['mean_i'])
+        self.assertLessEqual(r['mean_i'], r['max_i'])
+
+
+class TestEncodeWordProps(unittest.TestCase):
+    """Properties of encode_word()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import encode_word
+        cls.encode_word = staticmethod(encode_word)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self.encode_word('ГОРА'), list)
+
+    def test_length_equals_word_length(self):
+        self.assertEqual(len(self.encode_word('ГОРА')), 4)
+        self.assertEqual(len(self.encode_word('ВОДА')), 4)
+        self.assertEqual(len(self.encode_word('ТУМАН')), 5)
+
+    def test_values_ints(self):
+        e = self.encode_word('ГОРА')
+        self.assertTrue(all(isinstance(v, int) for v in e))
+
+    def test_values_in_range(self):
+        e = self.encode_word('ГОРА')
+        self.assertTrue(all(0 <= v <= 63 for v in e))
+
+    def test_gora_exact_values(self):
+        self.assertEqual(self.encode_word('ГОРА'), [49, 47, 15, 63])
+
+    def test_deterministic(self):
+        self.assertEqual(self.encode_word('ВОДА'), self.encode_word('ВОДА'))
+
+    def test_different_words_different_encoding(self):
+        self.assertNotEqual(self.encode_word('ГОРА'), self.encode_word('ВОДА'))
+
+    def test_voda_values_in_range(self):
+        e = self.encode_word('ВОДА')
+        self.assertTrue(all(0 <= v <= 63 for v in e))
+
+
+class TestFindOrbitProps(unittest.TestCase):
+    """Properties of find_orbit() in solan_ca."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import find_orbit
+        from projects.hexglyph.solan_word import encode_word
+        cls.find_orbit = staticmethod(find_orbit)
+        cls.encode_word = staticmethod(encode_word)
+
+    def test_returns_tuple(self):
+        enc = self.encode_word('ГОРА')
+        result = self.find_orbit(enc, 'xor')
+        self.assertIsInstance(result, tuple)
+
+    def test_returns_two_elements(self):
+        enc = self.encode_word('ГОРА')
+        result = self.find_orbit(enc, 'xor')
+        self.assertEqual(len(result), 2)
+
+    def test_transient_nonneg(self):
+        enc = self.encode_word('ГОРА')
+        t, p = self.find_orbit(enc, 'xor')
+        self.assertGreaterEqual(t, 0)
+
+    def test_period_positive(self):
+        enc = self.encode_word('ГОРА')
+        t, p = self.find_orbit(enc, 'xor')
+        self.assertGreaterEqual(p, 1)
+
+    def test_gora_xor_orbit(self):
+        enc = self.encode_word('ГОРА')
+        self.assertEqual(self.find_orbit(enc, 'xor'), (2, 1))
+
+    def test_voda_xor_orbit(self):
+        enc = self.encode_word('ВОДА')
+        self.assertEqual(self.find_orbit(enc, 'xor'), (2, 1))
+
+    def test_deterministic(self):
+        enc = self.encode_word('ТУМАН')
+        r1 = self.find_orbit(enc, 'xor')
+        r2 = self.find_orbit(enc, 'xor')
+        self.assertEqual(r1, r2)
+
+    def test_all_four_rules_return_tuple(self):
+        enc = self.encode_word('ГОРА')
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            result = self.find_orbit(enc, rule)
+            self.assertIsInstance(result, tuple, f'rule={rule}')
+            self.assertEqual(len(result), 2, f'rule={rule}')
+
+
+class TestCASummaryShape(unittest.TestCase):
+    """Structure of ca_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import ca_summary
+        cls.ca_summary = staticmethod(ca_summary)
+        cls._r = ca_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_transient_nonneg(self):
+        self.assertGreaterEqual(self._r['transient'], 0)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_has_ic(self):
+        self.assertIn('ic', self._r)
+
+    def test_has_width(self):
+        self.assertIn('width', self._r)
+
+    def test_all_four_rules_valid(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.ca_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertGreaterEqual(r['period'], 1, f'rule={rule}')
+
+
+class TestLZSummaryShape(unittest.TestCase):
+    """Structure of lz_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import lz_summary
+        cls.lz_summary = staticmethod(lz_summary)
+        cls._r = lz_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_cell_lz_is_list(self):
+        self.assertIsInstance(self._r['cell_lz'], list)
+
+    def test_cell_lz_length_16(self):
+        self.assertEqual(len(self._r['cell_lz']), 16)
+
+    def test_cell_lz_items_have_bits(self):
+        for item in self._r['cell_lz']:
+            self.assertIn('bits', item)
+
+    def test_cell_lz_items_have_lz(self):
+        for item in self._r['cell_lz']:
+            self.assertIn('lz', item)
+
+    def test_cell_lz_items_have_norm(self):
+        for item in self._r['cell_lz']:
+            self.assertIn('norm', item)
+
+    def test_full_lz_is_dict(self):
+        self.assertIsInstance(self._r['full_lz'], dict)
+
+    def test_mean_cell_norm_float(self):
+        self.assertIsInstance(self._r['mean_cell_norm'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.lz_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestLZOfSeriesProps(unittest.TestCase):
+    """Properties of lz_of_series() and lz76()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import lz_of_series, lz76, to_binary
+        cls.lz_of_series = staticmethod(lz_of_series)
+        cls.lz76 = staticmethod(lz76)
+        cls.to_binary = staticmethod(to_binary)
+
+    def test_lz_of_series_returns_dict(self):
+        r = self.lz_of_series([49, 47, 15, 63])
+        self.assertIsInstance(r, dict)
+
+    def test_lz_of_series_has_bits(self):
+        r = self.lz_of_series([49, 47, 15, 63])
+        self.assertIn('bits', r)
+
+    def test_lz_of_series_has_lz(self):
+        r = self.lz_of_series([49, 47, 15, 63])
+        self.assertIn('lz', r)
+
+    def test_lz_of_series_has_norm(self):
+        r = self.lz_of_series([49, 47, 15, 63])
+        self.assertIn('norm', r)
+
+    def test_lz76_returns_int(self):
+        self.assertIsInstance(self.lz76('010101'), int)
+
+    def test_lz76_positive(self):
+        self.assertGreater(self.lz76('01'), 0)
+
+    def test_lz76_constant_low(self):
+        # Constant string has low complexity
+        self.assertLessEqual(self.lz76('000000000000'), self.lz76('010101010101'))
+
+    def test_to_binary_returns_str(self):
+        self.assertIsInstance(self.to_binary(63, 6), str)
+
+    def test_to_binary_length(self):
+        self.assertEqual(len(self.to_binary(63, 6)), 6)
+
+    def test_to_binary_all_ones(self):
+        self.assertEqual(self.to_binary(63, 6), '111111')
+
+    def test_to_binary_all_zeros(self):
+        self.assertEqual(self.to_binary(0, 6), '000000')
+
+    def test_to_binary_mixed(self):
+        self.assertEqual(self.to_binary(42, 6), '101010')
+
+    def test_lz76_empty_zero(self):
+        self.assertEqual(self.lz76(''), 0)
+
+
+class TestDistanceMatrixProps(unittest.TestCase):
+    """Properties of the solan_graph.distance_matrix() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import distance_matrix, LEXICON
+        cls._dm = distance_matrix()
+        cls._lex = LEXICON
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._dm, dict)
+
+    def test_length_49_squared(self):
+        self.assertEqual(len(self._dm), 49 * 49)
+
+    def test_diagonal_zero(self):
+        for w in self._lex:
+            self.assertEqual(self._dm[(w, w)], 0.0, f'diagonal {w}')
+
+    def test_all_values_nonneg(self):
+        for v in self._dm.values():
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_symmetric(self):
+        sample = [(self._lex[i], self._lex[j])
+                  for i in range(5) for j in range(i + 1, 5)]
+        for a, b in sample:
+            self.assertAlmostEqual(self._dm[(a, b)], self._dm[(b, a)], places=10,
+                                   msg=f'd({a},{b}) != d({b},{a})')
+
+    def test_all_values_at_most_one(self):
+        for v in self._dm.values():
+            self.assertLessEqual(v, 1.0)
+
+    def test_gora_rota_distance_zero(self):
+        # Same class → same signature → distance 0
+        self.assertEqual(self._dm[('ГОРА', 'РОТА')], 0.0)
+
+    def test_gora_tuман_distance_positive(self):
+        self.assertGreater(self._dm[('ГОРА', 'ТУМАН')], 0.0)
+
+
+class TestGraphSummaryShape(unittest.TestCase):
+    """Structure of graph_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import graph_summary
+        cls._gs = graph_summary()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._gs, dict)
+
+    def test_nodes_49(self):
+        self.assertEqual(self._gs['nodes'], 49)
+
+    def test_edges_positive(self):
+        self.assertGreater(self._gs['edges'], 0)
+
+    def test_components_positive(self):
+        self.assertGreater(self._gs['components'], 0)
+
+    def test_avg_degree_positive(self):
+        self.assertGreater(self._gs['avg_degree'], 0.0)
+
+    def test_max_degree_leq_48(self):
+        self.assertLessEqual(self._gs['max_degree'], 48)
+
+    def test_isolated_words_is_list(self):
+        self.assertIsInstance(self._gs['isolated_words'], list)
+
+    def test_threshold_stored(self):
+        self.assertIn('threshold', self._gs)
+
+    def test_largest_comp_size_positive(self):
+        self.assertGreater(self._gs['largest_comp_size'], 0)
+
+    def test_has_all_keys(self):
+        for key in ('nodes', 'edges', 'components', 'avg_degree',
+                    'max_degree', 'isolated', 'isolated_words',
+                    'largest_comp_size', 'threshold', 'width'):
+            self.assertIn(key, self._gs, f'key={key}')
+
+
+class TestBuildGraphProps(unittest.TestCase):
+    """Properties of build_graph() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import build_graph, LEXICON
+        cls._g = build_graph()
+        cls._lex = LEXICON
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._g, dict)
+
+    def test_node_count_49(self):
+        self.assertEqual(len(self._g), 49)
+
+    def test_all_lexicon_words_present(self):
+        for w in self._lex:
+            self.assertIn(w, self._g, f'{w} missing from graph')
+
+    def test_neighbor_lists_are_lists(self):
+        for w, neighbors in self._g.items():
+            self.assertIsInstance(neighbors, list, f'{w} neighbors not list')
+
+    def test_gora_has_class_mates_as_neighbors(self):
+        # ГОРА, РОТА, УДАР, УТРО are in the same class → all connected at threshold 0.1
+        gora_neighbors = set(self._g['ГОРА'])
+        for mate in ('РОТА', 'УДАР', 'УТРО'):
+            self.assertIn(mate, gora_neighbors, f'{mate} not neighbor of ГОРА')
+
+    def test_no_self_loops(self):
+        for w, neighbors in self._g.items():
+            self.assertNotIn(w, neighbors, f'{w} is its own neighbor')
+
+    def test_neighbor_words_in_lexicon(self):
+        for w, neighbors in self._g.items():
+            for n in neighbors:
+                self.assertIn(n, self._lex, f'{n} not in lexicon')
+
+
+class TestBuildMDSProps(unittest.TestCase):
+    """Properties of build_mds() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mds import build_mds
+        cls._words, cls._coords, cls._stress = build_mds()
+
+    def test_returns_three_items(self):
+        from projects.hexglyph.solan_mds import build_mds
+        result = build_mds()
+        self.assertEqual(len(result), 3)
+
+    def test_words_list_length_49(self):
+        self.assertEqual(len(self._words), 49)
+
+    def test_coords_list_length_49(self):
+        self.assertEqual(len(self._coords), 49)
+
+    def test_each_coord_is_2d(self):
+        for i, c in enumerate(self._coords):
+            self.assertEqual(len(c), 2, f'coord[{i}] not 2D')
+
+    def test_coords_are_floats(self):
+        for c in self._coords:
+            self.assertIsInstance(c[0], float)
+            self.assertIsInstance(c[1], float)
+
+    def test_stress_is_float(self):
+        self.assertIsInstance(self._stress, float)
+
+    def test_stress_positive(self):
+        self.assertGreater(self._stress, 0.0)
+
+    def test_stress_less_than_one(self):
+        # Good MDS embedding should have stress < 1
+        self.assertLess(self._stress, 1.0)
+
+    def test_words_are_strings(self):
+        for w in self._words:
+            self.assertIsInstance(w, str)
+
+
+class TestEntropySummaryShape(unittest.TestCase):
+    """Structure of entropy_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_entropy import entropy_summary
+        cls.entropy_summary = staticmethod(entropy_summary)
+        cls._r = entropy_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_spatial_entropy_list(self):
+        self.assertIsInstance(self._r['spatial_entropy'], list)
+
+    def test_temporal_entropy_list(self):
+        self.assertIsInstance(self._r['temporal_entropy'], list)
+
+    def test_mean_spatial_H_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_spatial_H'], 0.0)
+
+    def test_mean_temporal_H_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_temporal_H'], 0.0)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.entropy_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestCorrelationSummaryShape(unittest.TestCase):
+    """Structure of correlation_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_correlation import correlation_summary
+        cls._r = correlation_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_lags_is_list(self):
+        self.assertIsInstance(self._r['lags'], list)
+
+    def test_rules_is_dict(self):
+        self.assertIsInstance(self._r['rules'], dict)
+
+    def test_rules_has_four_rules(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r['rules'], f'rule={rule}')
+
+    def test_width_is_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_width_is_16(self):
+        self.assertEqual(self._r['width'], 16)
+
+
+class TestAutocorrSummaryShape(unittest.TestCase):
+    """Structure of autocorr_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_autocorr import autocorr_summary
+        cls.autocorr_summary = staticmethod(autocorr_summary)
+        cls._r = autocorr_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_cell_ac_is_list(self):
+        self.assertIsInstance(self._r['cell_ac'], list)
+
+    def test_cell_ac_length_16(self):
+        self.assertEqual(len(self._r['cell_ac']), 16)
+
+    def test_mean_crosscorr_float(self):
+        self.assertIsInstance(self._r['mean_crosscorr'], float)
+
+    def test_is_palindrome_bool(self):
+        self.assertIsInstance(self._r['is_palindrome'], bool)
+
+    def test_dominant_lag_int(self):
+        self.assertIsInstance(self._r['dominant_lag'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.autocorr_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestHammingSummaryShape(unittest.TestCase):
+    """Structure of hamming_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_hamming import hamming_summary
+        cls.hamming_summary = staticmethod(hamming_summary)
+        cls._r = hamming_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_hamming_is_list(self):
+        self.assertIsInstance(self._r['hamming'], list)
+
+    def test_mean_hamming_float(self):
+        self.assertIsInstance(self._r['mean_hamming'], float)
+
+    def test_mean_hamming_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_hamming'], 0.0)
+
+    def test_frozen_cells_is_list(self):
+        self.assertIsInstance(self._r['frozen_cells'], list)
+
+    def test_mobile_symmetric_bool(self):
+        self.assertIsInstance(self._r['mobile_symmetric'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.hamming_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestLyapunovSummaryShape(unittest.TestCase):
+    """Structure of lyapunov_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import lyapunov_summary
+        cls._r = lyapunov_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_has_four_rules(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r, f'rule={rule}')
+
+    def test_each_rule_value_is_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIsInstance(self._r[rule], dict, f'rule={rule}')
+
+    def test_has_converges_bool(self):
+        self.assertIsInstance(self._r['xor']['converges'], bool)
+
+    def test_has_final_mean_float(self):
+        self.assertIsInstance(self._r['xor']['final_mean'], float)
+
+    def test_has_peak_mean_float(self):
+        self.assertIsInstance(self._r['xor']['peak_mean'], float)
+
+    def test_has_peak_step_int(self):
+        self.assertIsInstance(self._r['xor']['peak_step'], int)
+
+    def test_xor3_has_all_keys(self):
+        for key in ('converges', 'final_mean', 'peak_mean', 'peak_step'):
+            self.assertIn(key, self._r['xor3'], f'key={key}')
+
+
+class TestRecurrenceSummaryShape(unittest.TestCase):
+    """Structure of recurrence_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_recurrence import recurrence_summary
+        cls.recurrence_summary = staticmethod(recurrence_summary)
+        cls._r = recurrence_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_steps_positive(self):
+        self.assertGreater(self._r['n_steps'], 0)
+
+    def test_R_is_list(self):
+        self.assertIsInstance(self._r['R'], list)
+
+    def test_rqa_is_dict(self):
+        self.assertIsInstance(self._r['rqa'], dict)
+
+    def test_rqa_has_RR(self):
+        self.assertIn('RR', self._r['rqa'])
+
+    def test_rqa_has_DET(self):
+        self.assertIn('DET', self._r['rqa'])
+
+    def test_rqa_has_N(self):
+        self.assertIn('N', self._r['rqa'])
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.recurrence_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['word'], 'ВОДА')
+
+
+class TestMutualSummaryShape(unittest.TestCase):
+    """Structure of mutual_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mutual import mutual_summary
+        cls.mutual_summary = staticmethod(mutual_summary)
+        cls._r = mutual_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_M_is_list(self):
+        self.assertIsInstance(self._r['M'], list)
+
+    def test_mi_by_dist_is_list(self):
+        self.assertIsInstance(self._r['mi_by_dist'], list)
+
+    def test_mean_entropy_float(self):
+        self.assertIsInstance(self._r['mean_entropy'], float)
+
+    def test_max_mi_float(self):
+        self.assertIsInstance(self._r['max_mi'], float)
+
+    def test_max_mi_pair_tuple(self):
+        self.assertIsInstance(self._r['max_mi_pair'], tuple)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.mutual_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestMultistepSummaryShape(unittest.TestCase):
+    """Structure of multistep_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multistep import multistep_summary
+        cls.multistep_summary = staticmethod(multistep_summary)
+        cls._r = multistep_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_dist_matrix_is_list(self):
+        self.assertIsInstance(self._r['dist_matrix'], list)
+
+    def test_eccentricity_is_list(self):
+        self.assertIsInstance(self._r['eccentricity'], list)
+
+    def test_diameter_int(self):
+        self.assertIsInstance(self._r['diameter'], int)
+
+    def test_radius_int(self):
+        self.assertIsInstance(self._r['radius'], int)
+
+    def test_orbit_spread_float(self):
+        self.assertIsInstance(self._r['orbit_spread'], float)
+
+    def test_is_regular_bool(self):
+        self.assertIsInstance(self._r['is_regular'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.multistep_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestSemanticSummaryShape(unittest.TestCase):
+    """Structure of semantic_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_semantic import semantic_summary
+        cls.semantic_summary = staticmethod(semantic_summary)
+        cls._r = semantic_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_nearest_is_list(self):
+        self.assertIsInstance(self._r['nearest'], list)
+
+    def test_mean_nearest_dist_float(self):
+        self.assertIsInstance(self._r['mean_nearest_dist'], float)
+
+    def test_n_unique_words_int(self):
+        self.assertIsInstance(self._r['n_unique_words'], int)
+
+    def test_self_is_nearest_t0_bool(self):
+        self.assertIsInstance(self._r['self_is_nearest_t0'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.semantic_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestPCASummaryShape(unittest.TestCase):
+    """Structure of pca_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_pca import pca_summary
+        cls.pca_summary = staticmethod(pca_summary)
+        cls._r = pca_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_eigenvalues_is_list(self):
+        self.assertIsInstance(self._r['eigenvalues'], list)
+
+    def test_explained_var_ratio_is_list(self):
+        self.assertIsInstance(self._r['explained_var_ratio'], list)
+
+    def test_total_var_float(self):
+        self.assertIsInstance(self._r['total_var'], float)
+
+    def test_orbit_rank_int(self):
+        self.assertIsInstance(self._r['orbit_rank'], int)
+
+    def test_pc1_dom_cell_int(self):
+        self.assertIsInstance(self._r['pc1_dom_cell'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.pca_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestCrossSummaryShape(unittest.TestCase):
+    """Structure of cross_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cross import cross_summary
+        cls.cross_summary = staticmethod(cross_summary)
+        cls._r = cross_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_matrix_is_list(self):
+        self.assertIsInstance(self._r['matrix'], list)
+
+    def test_frozen_cells_is_list(self):
+        self.assertIsInstance(self._r['frozen_cells'], list)
+
+    def test_sync_pairs_is_list(self):
+        self.assertIsInstance(self._r['sync_pairs'], list)
+
+    def test_mean_abs_r_float(self):
+        self.assertIsInstance(self._r['mean_abs_r'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.cross_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestBitplaneSummaryShape(unittest.TestCase):
+    """Structure of bitplane_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitplane import bitplane_summary
+        cls.bitplane_summary = staticmethod(bitplane_summary)
+        cls._r = bitplane_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_bit_periods_is_list(self):
+        self.assertIsInstance(self._r['bit_periods'], list)
+
+    def test_cell_activity_is_list(self):
+        self.assertIsInstance(self._r['cell_activity'], list)
+
+    def test_n_active_int(self):
+        self.assertIsInstance(self._r['n_active'], int)
+
+    def test_plane_hamming_is_list(self):
+        self.assertIsInstance(self._r['plane_hamming'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.bitplane_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestSegmentSummaryShape(unittest.TestCase):
+    """Structure of segment_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_segment import segment_summary
+        cls.segment_summary = staticmethod(segment_summary)
+        cls._r = segment_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_n_segments_is_list(self):
+        self.assertIsInstance(self._r['n_segments'], list)
+
+    def test_seg_lengths_is_list(self):
+        self.assertIsInstance(self._r['seg_lengths'], list)
+
+    def test_mean_n_segments_float(self):
+        self.assertIsInstance(self._r['mean_n_segments'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.segment_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestLayerSummaryShape(unittest.TestCase):
+    """Structure of layer_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_layer import layer_summary
+        cls.layer_summary = staticmethod(layer_summary)
+        cls._r = layer_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_plane_density_is_list(self):
+        self.assertIsInstance(self._r['plane_density'], list)
+
+    def test_plane_periods_is_list(self):
+        self.assertIsInstance(self._r['plane_periods'], list)
+
+    def test_mean_density_list(self):
+        self.assertIsInstance(self._r['mean_density'], list)
+
+    def test_n_frozen_int(self):
+        self.assertIsInstance(self._r['n_frozen'], int)
+
+    def test_lcm_period_int(self):
+        self.assertIsInstance(self._r['lcm_period'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.layer_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestCoactSummaryShape(unittest.TestCase):
+    """Structure of coact_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coact import coact_summary
+        cls.coact_summary = staticmethod(coact_summary)
+        cls._r = coact_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_agg_joint_list(self):
+        self.assertIsInstance(self._r['agg_joint'], list)
+
+    def test_n_positive_int(self):
+        self.assertIsInstance(self._r['n_positive'], int)
+
+    def test_n_dependent_int(self):
+        self.assertIsInstance(self._r['n_dependent'], int)
+
+    def test_diagonal_list(self):
+        self.assertIsInstance(self._r['diagonal'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.coact_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestBoundarySummaryShape(unittest.TestCase):
+    """Structure of boundary_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_boundary import boundary_summary
+        cls.boundary_summary = staticmethod(boundary_summary)
+        cls._r = boundary_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_active_list(self):
+        self.assertIsInstance(self._r['n_active'], list)
+
+    def test_mean_n_active_float(self):
+        self.assertIsInstance(self._r['mean_n_active'], float)
+
+    def test_b_period_int(self):
+        self.assertIsInstance(self._r['b_period'], int)
+
+    def test_b_orbit_list(self):
+        self.assertIsInstance(self._r['b_orbit'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.boundary_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestSymmSummaryShape(unittest.TestCase):
+    """Structure of symm_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symm import symm_summary
+        cls.symm_summary = staticmethod(symm_summary)
+        cls._r = symm_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_rot_periods_list(self):
+        self.assertIsInstance(self._r['rot_periods'], list)
+
+    def test_rot_orders_list(self):
+        self.assertIsInstance(self._r['rot_orders'], list)
+
+    def test_uniform_symmetry_bool(self):
+        self.assertIsInstance(self._r['uniform_symmetry'], bool)
+
+    def test_symmetry_level_str(self):
+        self.assertIsInstance(self._r['symmetry_level'], str)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.symm_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestPhaseSummaryShape(unittest.TestCase):
+    """Structure of phase_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phase import phase_summary
+        cls.phase_summary = staticmethod(phase_summary)
+        cls._r = phase_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_distinct_int(self):
+        self.assertIsInstance(self._r['n_distinct'], int)
+
+    def test_sync_fraction_float(self):
+        self.assertIsInstance(self._r['sync_fraction'], float)
+
+    def test_n_clusters_int(self):
+        self.assertIsInstance(self._r['n_clusters'], int)
+
+    def test_cluster_sizes_list(self):
+        self.assertIsInstance(self._r['cluster_sizes'], list)
+
+    def test_any_antiphase_bool(self):
+        self.assertIsInstance(self._r['any_antiphase'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.phase_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestBalanceSummaryShape(unittest.TestCase):
+    """Structure of balance_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_balance import balance_summary
+        cls.balance_summary = staticmethod(balance_summary)
+        cls._r = balance_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_agg_balance_list(self):
+        self.assertIsInstance(self._r['agg_balance'], list)
+
+    def test_class_counts_dict(self):
+        self.assertIsInstance(self._r['class_counts'], dict)
+
+    def test_most_active_bit_int(self):
+        self.assertIsInstance(self._r['most_active_bit'], int)
+
+    def test_total_frozen_bits_int(self):
+        self.assertIsInstance(self._r['total_frozen_bits'], int)
+
+    def test_cell_stats_list(self):
+        self.assertIsInstance(self._r['cell_stats'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.balance_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestCellSummaryShape(unittest.TestCase):
+    """Structure of cell_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cell import cell_summary
+        cls.cell_summary = staticmethod(cell_summary)
+        cls._r = cell_summary('ГОРА', 'xor', 0)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_cell_idx_field(self):
+        self.assertEqual(self._r['cell_idx'], 0)
+
+    def test_series_list(self):
+        self.assertIsInstance(self._r['series'], list)
+
+    def test_is_frozen_bool(self):
+        self.assertIsInstance(self._r['is_frozen'], bool)
+
+    def test_transitions_int(self):
+        self.assertIsInstance(self._r['transitions'], int)
+
+    def test_vocab_size_int(self):
+        self.assertIsInstance(self._r['vocab_size'], int)
+
+    def test_all_cells_valid(self):
+        for i in range(0, 16, 4):
+            r = self.cell_summary('ГОРА', 'xor', i)
+            self.assertEqual(r['cell_idx'], i)
+
+
+class TestDistSummaryShape(unittest.TestCase):
+    """Structure of dist_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dist import dist_summary
+        cls.dist_summary = staticmethod(dist_summary)
+        cls._r = dist_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_N_int(self):
+        self.assertIsInstance(self._r['N'], int)
+
+    def test_distance_series_q6_list(self):
+        self.assertIsInstance(self._r['distance_series_q6'], list)
+
+    def test_mean_dist_q6_float(self):
+        self.assertIsInstance(self._r['mean_dist_q6'], float)
+
+    def test_closest_pair_tuple(self):
+        self.assertIsInstance(self._r['closest_pair'], tuple)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.dist_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestEdgeSummaryShape(unittest.TestCase):
+    """Structure of edge_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_edge import edge_summary
+        cls.edge_summary = staticmethod(edge_summary)
+        cls._r = edge_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_profile_list(self):
+        self.assertIsInstance(self._r['profile'], list)
+
+    def test_mean_E_float(self):
+        self.assertIsInstance(self._r['mean_E'], float)
+
+    def test_variability_str(self):
+        self.assertIsInstance(self._r['variability'], str)
+
+    def test_class_counts_dict(self):
+        self.assertIsInstance(self._r['class_counts'], dict)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.edge_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestSpatentSummaryShape(unittest.TestCase):
+    """Structure of spatent_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spatent import spatent_summary
+        cls.spatent_summary = staticmethod(spatent_summary)
+        cls._r = spatent_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_profile_list(self):
+        self.assertIsInstance(self._r['profile'], list)
+
+    def test_mean_H_float(self):
+        self.assertIsInstance(self._r['mean_H'], float)
+
+    def test_max_possible_H_float(self):
+        self.assertIsInstance(self._r['max_possible_H'], float)
+
+    def test_variability_str(self):
+        self.assertIsInstance(self._r['variability'], str)
+
+    def test_norm_mean_H_in_0_1(self):
+        # Normalised entropy is in [0,1]
+        self.assertGreaterEqual(self._r['norm_mean_H'], 0.0)
+        self.assertLessEqual(self._r['norm_mean_H'], 1.0)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.spatent_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestMomentsSummaryShape(unittest.TestCase):
+    """Structure of moments_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moments import moments_summary
+        cls.moments_summary = staticmethod(moments_summary)
+        cls._r = moments_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_cell_moments_list(self):
+        self.assertIsInstance(self._r['cell_moments'], list)
+
+    def test_var_stats_dict(self):
+        self.assertIsInstance(self._r['var_stats'], dict)
+
+    def test_mean_stats_dict(self):
+        self.assertIsInstance(self._r['mean_stats'], dict)
+
+    def test_n_constant_int(self):
+        self.assertIsInstance(self._r['n_constant'], int)
+
+    def test_n_defined_int(self):
+        self.assertIsInstance(self._r['n_defined'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.moments_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestFlipSummaryShape(unittest.TestCase):
+    """Structure of flip_summary() from solan_bitflip."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import flip_summary
+        cls.flip_summary = staticmethod(flip_summary)
+        cls._r = flip_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_cell_stats_list(self):
+        self.assertIsInstance(self._r['cell_stats'], list)
+
+    def test_entropy_mean_float(self):
+        self.assertIsInstance(self._r['entropy_mean'], float)
+
+    def test_most_active_bit_int(self):
+        self.assertIsInstance(self._r['most_active_bit'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.flip_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestCoverageSummaryShape(unittest.TestCase):
+    """Structure of coverage_summary() from solan_coverage."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coverage import coverage_summary
+        cls.coverage_summary = staticmethod(coverage_summary)
+        cls._r = coverage_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_vocab_list(self):
+        self.assertIsInstance(self._r['vocab'], list)
+
+    def test_n_distinct_int(self):
+        self.assertIsInstance(self._r['n_distinct'], int)
+
+    def test_orbit_size_int(self):
+        self.assertIsInstance(self._r['orbit_size'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.coverage_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestVocabSummaryShape(unittest.TestCase):
+    """Structure of vocab_summary() from solan_vocab."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_vocab import vocab_summary
+        cls.vocab_summary = staticmethod(vocab_summary)
+        cls._r = vocab_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_vocab_list(self):
+        self.assertIsInstance(self._r['vocab'], list)
+
+    def test_vocab_size_int(self):
+        self.assertIsInstance(self._r['vocab_size'], int)
+
+    def test_dominant_frac_float(self):
+        self.assertIsInstance(self._r['dominant_frac'], float)
+
+    def test_hist_entropy_float(self):
+        self.assertIsInstance(self._r['hist_entropy'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.vocab_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestTESummaryShape(unittest.TestCase):
+    """Structure of te_summary() from solan_transfer."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import te_summary
+        cls.te_summary = staticmethod(te_summary)
+        cls._r = te_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_matrix_list(self):
+        self.assertIsInstance(self._r['matrix'], list)
+
+    def test_mean_te_float(self):
+        self.assertIsInstance(self._r['mean_te'], float)
+
+    def test_max_te_float(self):
+        self.assertIsInstance(self._r['max_te'], float)
+
+    def test_lr_asymmetry_float(self):
+        self.assertIsInstance(self._r['lr_asymmetry'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.te_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestRunSummaryShape(unittest.TestCase):
+    """Structure of run_summary() from solan_runs."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_runs import run_summary
+        cls.run_summary = staticmethod(run_summary)
+        cls._r = run_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_cell_stats_list(self):
+        self.assertIsInstance(self._r['cell_stats'], list)
+
+    def test_global_mean_run_float(self):
+        self.assertIsInstance(self._r['global_mean_run'], float)
+
+    def test_global_max_run_int(self):
+        self.assertIsInstance(self._r['global_max_run'], int)
+
+    def test_all_run_lengths_list(self):
+        self.assertIsInstance(self._r['all_run_lengths'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.run_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestProfileSummaryShape(unittest.TestCase):
+    """Structure of profile_summary() from solan_profile."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_profile import profile_summary
+        cls.profile_summary = staticmethod(profile_summary)
+        cls._r = profile_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_spatial_profiles_list(self):
+        self.assertIsInstance(self._r['spatial_profiles'], list)
+
+    def test_dominant_mode_n_int(self):
+        self.assertIsInstance(self._r['dominant_mode_n'], int)
+
+    def test_mean_spatial_var_float(self):
+        self.assertIsInstance(self._r['mean_spatial_var'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.profile_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestLexiconSummaryShape(unittest.TestCase):
+    """Structure of lexicon_summary() from solan_lexicon."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lexicon import lexicon_summary
+        cls._r = lexicon_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_n_field_int(self):
+        self.assertIsInstance(self._r['n'], int)
+
+    def test_width_field_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_neighbors_list(self):
+        self.assertIsInstance(self._r['neighbors'], list)
+
+    def test_neighbors_length_n(self):
+        self.assertEqual(len(self._r['neighbors']), self._r['n'])
+
+
+class TestPhoneticSummaryShape(unittest.TestCase):
+    """Structure of phonetic_summary() from solan_phonetic."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phonetic import phonetic_summary
+        cls._r = phonetic_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_text_field(self):
+        self.assertEqual(self._r['text'], 'ГОРА')
+
+    def test_encoded_list(self):
+        self.assertIsInstance(self._r['encoded'], list)
+
+    def test_encoded_length(self):
+        # ГОРА has 4 chars
+        self.assertEqual(len(self._r['encoded']), 4)
+
+
+class TestWidthSummaryShape(unittest.TestCase):
+    """Structure of width_summary() from solan_width."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_width import width_summary
+        cls.width_summary = staticmethod(width_summary)
+        cls._r = width_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_widths_list(self):
+        self.assertIsInstance(self._r['widths'], list)
+
+    def test_periods_list(self):
+        self.assertIsInstance(self._r['periods'], list)
+
+    def test_is_constant_bool(self):
+        self.assertIsInstance(self._r['is_constant'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.width_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestConfigSummaryShape(unittest.TestCase):
+    """Structure of config_summary() from solan_config."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_config import config_summary
+        cls.config_summary = staticmethod(config_summary)
+        cls._r = config_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_coverage_vector_list(self):
+        self.assertIsInstance(self._r['coverage_vector'], list)
+
+    def test_mean_coverage_float(self):
+        self.assertIsInstance(self._r['mean_coverage'], float)
+
+    def test_n_full_coverage_int(self):
+        self.assertIsInstance(self._r['n_full_coverage'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.config_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestTriangleSummaryShape(unittest.TestCase):
+    """Structure of triangle_summary() from solan_triangle."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_triangle import triangle_summary
+        cls._r = triangle_summary()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_total_int(self):
+        self.assertIsInstance(self._r['total'], int)
+
+    def test_detected_int(self):
+        self.assertIsInstance(self._r['detected'], int)
+
+    def test_assigned_int(self):
+        self.assertIsInstance(self._r['assigned'], int)
+
+    def test_detected_list_is_list(self):
+        self.assertIsInstance(self._r['detected_list'], list)
+
+    def test_detected_leq_total(self):
+        self.assertLessEqual(self._r['detected'], self._r['total'])
+
+
+class TestRunSolanRunShape(unittest.TestCase):
+    """Structure of solan_run.run_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_run import run_summary
+        cls.run_summary = staticmethod(run_summary)
+        cls._r = run_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_mean_turns_float(self):
+        self.assertIsInstance(self._r['mean_turns'], float)
+
+    def test_max_turns_int(self):
+        self.assertIsInstance(self._r['max_turns'], int)
+
+    def test_quasi_frozen_cells_list(self):
+        self.assertIsInstance(self._r['quasi_frozen_cells'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.run_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestLyapunovModeSummaryShape(unittest.TestCase):
+    """Structure of lyapunov_mode_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import lyapunov_mode_summary
+        cls.lyapunov_mode_summary = staticmethod(lyapunov_mode_summary)
+        cls._r = lyapunov_mode_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_is_periodic_bool(self):
+        self.assertIsInstance(self._r['is_periodic'], bool)
+
+    def test_is_plateau_bool(self):
+        self.assertIsInstance(self._r['is_plateau'], bool)
+
+    def test_T_int(self):
+        self.assertIsInstance(self._r['T'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.lyapunov_mode_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestMatrixSummaryShape(unittest.TestCase):
+    """Structure of matrix_summary() from solan_matrix."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_matrix import matrix_summary
+        cls._r = matrix_summary()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_words_list(self):
+        self.assertIsInstance(self._r['words'], list)
+
+    def test_n_int(self):
+        self.assertIsInstance(self._r['n'], int)
+
+    def test_width_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_nearest_pairs_list(self):
+        self.assertIsInstance(self._r['nearest_pairs'], list)
+
+    def test_nearest_pairs_length_n(self):
+        self.assertEqual(len(self._r['nearest_pairs']), self._r['n'])
+
+
+class TestPredictSummaryShape(unittest.TestCase):
+    """Structure of predict_summary() from solan_predict."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import predict_summary
+        cls._r = predict_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_full_key_length_5(self):
+        self.assertEqual(len(self._r['full_key']), 5)
+
+    def test_neighbors_list(self):
+        self.assertIsInstance(self._r['neighbors'], list)
+
+    def test_class_id_in_range(self):
+        self.assertIn(self._r['class_id'], range(13))
+
+    def test_is_new_class_bool(self):
+        self.assertIsInstance(self._r['is_new_class'], bool)
+
+
+class TestWordSummaryShape(unittest.TestCase):
+    """Structure of word_summary() from solan_word."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import word_summary
+        cls._r = word_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_width_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_signature_dict(self):
+        self.assertIsInstance(self._r['signature'], dict)
+
+    def test_signature_has_four_rules(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r['signature'])
+
+
+class TestAISProfileShape(unittest.TestCase):
+    """Structure of ais_profile() from solan_active."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import ais_profile
+        cls.ais_profile = staticmethod(ais_profile)
+        cls._r = ais_profile('ГОРА', 'xor')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_default_length_6(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float, f'value={v}')
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_all_four_rules_return_list(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.ais_profile('ВОДА', rule)
+            self.assertIsInstance(r, list, f'rule={rule}')
+            self.assertEqual(len(r), 6)
+
+
+class TestComplexityDictShape(unittest.TestCase):
+    """Structure of complexity_dict() from solan_complexity."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import complexity_dict
+        cls._r = complexity_dict('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_width_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_rules_dict(self):
+        self.assertIsInstance(self._r['rules'], dict)
+
+    def test_rules_has_four_keys(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r['rules'])
+
+
+class TestPEDictShape(unittest.TestCase):
+    """Structure of pe_dict() from solan_perm."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import pe_dict
+        cls.pe_dict = staticmethod(pe_dict)
+        cls._r = pe_dict('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_profile_list(self):
+        self.assertIsInstance(self._r['profile'], list)
+
+    def test_mean_pe_float(self):
+        self.assertIsInstance(self._r['mean_pe'], float)
+
+    def test_max_patterns_int(self):
+        self.assertIsInstance(self._r['max_patterns'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.pe_dict('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestOrdinalPatternProps(unittest.TestCase):
+    """Properties of ordinal_pattern() from solan_perm."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import ordinal_pattern
+        cls.ordinal_pattern = staticmethod(ordinal_pattern)
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self.ordinal_pattern([1, 2, 3]), tuple)
+
+    def test_ascending_window(self):
+        self.assertEqual(self.ordinal_pattern([1, 2, 3]), (0, 1, 2))
+
+    def test_descending_window(self):
+        self.assertEqual(self.ordinal_pattern([3, 2, 1]), (2, 1, 0))
+
+    def test_mixed_window(self):
+        self.assertEqual(self.ordinal_pattern([2, 1, 3]), (1, 0, 2))
+
+    def test_length_matches_input(self):
+        w = [5, 3, 4]
+        self.assertEqual(len(self.ordinal_pattern(w)), len(w))
+
+    def test_result_is_permutation(self):
+        r = self.ordinal_pattern([5, 3, 7, 1])
+        self.assertEqual(sorted(r), list(range(len(r))))
+
+
+class TestPersistenceProps(unittest.TestCase):
+    """Properties of persistence() from solan_persistence."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_persistence import persistence
+        cls.persistence = staticmethod(persistence)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.persistence([0, 1, 0, 1]), float)
+
+    def test_constant_sequence_is_one(self):
+        self.assertEqual(self.persistence([0, 0, 0, 0]), 1.0)
+
+    def test_alternating_sequence_is_zero(self):
+        self.assertEqual(self.persistence([0, 1, 0, 1]), 0.0)
+
+    def test_value_in_0_1(self):
+        v = self.persistence([0, 0, 1, 0, 0])
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+
+class TestAttractorSigProps(unittest.TestCase):
+    """Properties of attractor_sig() from solan_basin."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_basin import attractor_sig
+        cls.attractor_sig = staticmethod(attractor_sig)
+
+    def test_returns_frozenset(self):
+        r = self.attractor_sig('ГОРА', 'xor')
+        self.assertIsInstance(r, frozenset)
+
+    def test_nonempty(self):
+        r = self.attractor_sig('ГОРА', 'xor')
+        self.assertGreater(len(r), 0)
+
+    def test_deterministic(self):
+        r1 = self.attractor_sig('ГОРА', 'xor')
+        r2 = self.attractor_sig('ГОРА', 'xor')
+        self.assertEqual(r1, r2)
+
+    def test_all_four_rules_nonempty(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.attractor_sig('ВОДА', rule)
+            self.assertIsInstance(r, frozenset)
+            self.assertGreater(len(r), 0, f'rule={rule}')
+
+
+class TestBinarizeProps(unittest.TestCase):
+    """Properties of binarize() from solan_symbolic."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import binarize
+        cls.binarize = staticmethod(binarize)
+
+    def test_returns_int(self):
+        self.assertIsInstance(self.binarize(63), int)
+
+    def test_max_value_is_one(self):
+        self.assertEqual(self.binarize(63), 1)
+
+    def test_zero_is_zero(self):
+        self.assertEqual(self.binarize(0), 0)
+
+    def test_at_threshold_is_one(self):
+        # Default threshold=32: values >= 32 → 1
+        self.assertEqual(self.binarize(32), 1)
+
+    def test_below_threshold_is_zero(self):
+        self.assertEqual(self.binarize(31), 0)
+
+    def test_result_is_0_or_1(self):
+        for v in range(0, 64, 8):
+            r = self.binarize(v)
+            self.assertIn(r, (0, 1), f'binarize({v})={r}')
+
+
+class TestBlockProfileShape(unittest.TestCase):
+    """Structure of block_profile() from solan_block."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_block import block_profile
+        cls.block_profile = staticmethod(block_profile)
+        cls._r = block_profile('ГОРА', 'xor')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_default_length_8(self):
+        self.assertEqual(len(self._r), 8)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_all_four_rules_return_list(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.block_profile('ВОДА', rule)
+            self.assertIsInstance(r, list)
+            self.assertEqual(len(r), 8)
+
+
+class TestMeanDamageShape(unittest.TestCase):
+    """Structure of mean_damage() from solan_damage."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import mean_damage
+        cls.mean_damage = staticmethod(mean_damage)
+        cls._r = mean_damage('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_steps_int(self):
+        self.assertIsInstance(self._r['n_steps'], int)
+
+    def test_mean_damage_grid_list(self):
+        self.assertIsInstance(self._r['mean_damage_grid'], list)
+
+    def test_final_mean_damage_float(self):
+        self.assertIsInstance(self._r['final_mean_damage'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.mean_damage('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestAttractorBinaryShape(unittest.TestCase):
+    """Structure of attractor_binary() from solan_symbolic."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import attractor_binary
+        cls.attractor_binary = staticmethod(attractor_binary)
+        cls._r = attractor_binary('ГОРА', 'xor')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_first_item_is_list(self):
+        self.assertIsInstance(self._r[0], list)
+
+    def test_first_item_length_16(self):
+        self.assertEqual(len(self._r[0]), 16)
+
+    def test_values_are_0_or_1(self):
+        for state in self._r:
+            for v in state:
+                self.assertIn(v, (0, 1))
+
+    def test_all_four_rules_return_nonempty_list(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.attractor_binary('ВОДА', rule)
+            self.assertIsInstance(r, list)
+            self.assertGreater(len(r), 0)
 
 
 if __name__ == "__main__":

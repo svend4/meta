@@ -37,6 +37,7 @@ Functions
   morans_i(spatial)                     → float
   morans_i_series(word, rule, width)    → list[float]
   spatial_classification(i_val)         → str
+  moran_summary(word, rule, width)      → dict   (≡ morans_i_dict)
   morans_i_dict(word, rule, width)      → dict
   all_morans_i(word, width)             → dict[str, dict]
   build_moran_data(words, width)        → dict
@@ -48,6 +49,7 @@ Functions
   python3 -m projects.hexglyph.solan_moran --word ТУМАН --rule xor3
   python3 -m projects.hexglyph.solan_moran --word ГОРА --all-rules --no-color
   python3 -m projects.hexglyph.solan_moran --stats --no-color
+  python3 -m projects.hexglyph.solan_moran --word ТУМАН --json
 """
 
 from __future__ import annotations
@@ -142,9 +144,14 @@ def morans_i_dict(word: str, rule: str, width: int = _DEFAULT_W) -> dict:
     }
 
 
+def moran_summary(word: str, rule: str = 'xor3', width: int = _DEFAULT_W) -> dict:
+    """Alias for morans_i_dict — standard *_summary convention."""
+    return morans_i_dict(word, rule, width)
+
+
 def all_morans_i(word: str, width: int = _DEFAULT_W) -> dict[str, dict]:
-    """morans_i_dict for all 4 rules."""
-    return {rule: morans_i_dict(word, rule, width) for rule in _RULES}
+    """moran_summary for all 4 rules."""
+    return {rule: moran_summary(word, rule, width) for rule in _RULES}
 
 
 def build_moran_data(words: list[str], width: int = _DEFAULT_W) -> dict:
@@ -214,16 +221,27 @@ def print_moran_stats(words: list[str] | None = None,
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 def _cli() -> None:
+    import json as _json
     p = argparse.ArgumentParser(
         description="Moran's I spatial autocorrelation for Q6 CA attractors")
     p.add_argument('--word',      default='ТУМАН')
     p.add_argument('--rule',      default='xor3', choices=_RULES)
     p.add_argument('--all-rules', action='store_true')
     p.add_argument('--stats',     action='store_true')
+    p.add_argument('--json',      action='store_true', help='JSON output')
     p.add_argument('--no-color',  action='store_true')
     args = p.parse_args()
     color = not args.no_color and sys.stdout.isatty()
-    if args.stats:
+    if args.json:
+        d = moran_summary(args.word, args.rule)
+        # nan not JSON serialisable — convert to None
+        def _fix(v):
+            import math
+            return None if isinstance(v, float) and math.isnan(v) else v
+        d_clean = {k: ([_fix(x) for x in v] if isinstance(v, list) else _fix(v))
+                   for k, v in d.items()}
+        print(_json.dumps(d_clean, ensure_ascii=False, indent=2))
+    elif args.stats:
         print_moran_stats(color=color)
     elif args.all_rules:
         for rule in _RULES:

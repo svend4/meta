@@ -280,6 +280,17 @@ def print_portrait_ranking(
               '  '.join(f"{col}{v:>8.3f}{rst}" for v in d['metrics']))
 
 
+
+# ── Все правила ────────────────────────────────────────────────────────────────
+
+def all_portrait(
+    word:  str,
+    width: int = _DEFAULT_W,
+) -> dict[str, dict]:
+    """portrait_dict for all 4 rules."""
+    return {rule: portrait_dict(word, rule, width) for rule in _ALL_RULES}
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 def _main() -> None:
@@ -289,9 +300,14 @@ def _main() -> None:
     parser.add_argument('--rule',    default=_DEFAULT_RULE, choices=_ALL_RULES)
     parser.add_argument('--ranking', action='store_true')
     parser.add_argument('--no-color',action='store_true')
+    parser.add_argument('--json',    action='store_true', help='JSON output')
     args  = parser.parse_args()
     color = not args.no_color
 
+    if args.json:
+        import json as _json
+        print(_json.dumps(portrait_dict(args.word, args.rule), ensure_ascii=False, indent=2))
+        return
     if args.compare:
         c = portrait_compare(args.compare[0], args.compare[1], args.rule)
         print_portrait(c['word1'], args.rule, color)

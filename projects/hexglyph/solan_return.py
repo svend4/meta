@@ -245,9 +245,16 @@ def _cli() -> None:
     p.add_argument('--all-rules', action='store_true')
     p.add_argument('--stats',     action='store_true')
     p.add_argument('--no-color',  action='store_true')
+    p.add_argument('--json',      action='store_true', help='JSON output')
     args = p.parse_args()
     color = not args.no_color and sys.stdout.isatty()
-    if args.stats:
+    if args.json:
+        import json as _json
+        d = return_dict(args.word, args.rule)
+        print(_json.dumps(
+            {k: v for k, v in d.items() if k not in ('cell_maps', 'agg_map')},
+            ensure_ascii=False, indent=2))
+    elif args.stats:
         print_return_stats(color=color)
     elif args.all_rules:
         for rule in _RULES:

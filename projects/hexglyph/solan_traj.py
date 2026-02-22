@@ -260,7 +260,7 @@ def print_trajectory(
     print()
     # Stats
     st = traj_stats(word, rule, width)
-    print(f"  {dim}  H_attr={st['athr_entropy']:.3f}  H_total={st['total_entropy']:.3f}"
+    print(f"  {dim}  H_attr={st['attr_entropy']:.3f}  H_total={st['total_entropy']:.3f}"
           f"  ⟨Q6⟩={st['mean_q6']:.1f}  unique_cells={st['unique_cells']}{rst}")
 
 
@@ -348,9 +348,15 @@ def _main() -> None:
     parser.add_argument('--stats', action='store_true', help='Таблица энтропий лексикона')
     parser.add_argument('--width', type=int, default=_DEFAULT_WIDTH)
     parser.add_argument('--no-color', action='store_true')
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     args = parser.parse_args()
 
     color = not args.no_color
+    if args.json:
+        import json as _json
+        print(_json.dumps(trajectory_dict(args.word, args.width), ensure_ascii=False, indent=2))
+        return
+
     if args.stats:
         print_trajectory_stats(color=color)
     elif args.all_rules:

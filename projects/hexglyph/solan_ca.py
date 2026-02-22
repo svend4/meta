@@ -446,6 +446,40 @@ def run_animate(
         print()
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def ca_summary(
+    word:  str,
+    rule:  str = 'xor3',
+    ic:    str = 'phonetic',
+    width: int = 40,
+) -> dict:
+    """JSON-friendly orbit summary for one word × rule pair."""
+    cells = make_initial(width, ic, word=word.upper())
+    t, p  = find_orbit(cells, rule)
+    return {
+        'word':     word.upper(),
+        'rule':     rule,
+        'ic':       ic,
+        'width':    width,
+        'transient': t,
+        'period':    p,
+    }
+
+
+
+# ── Все правила ─────────────────────────────────────────────────────────────
+
+def all_ca(
+    word:  str,
+    ic:    str = 'phonetic',
+    width: int = 40,
+) -> dict[str, dict]:
+    """ca_summary for all 4 rules."""
+    return {rule: ca_summary(word, rule, ic, width) for rule in _ALL_RULES}
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -470,6 +504,8 @@ if __name__ == '__main__':
                         help='режим рендеринга (default: char)')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--json',   action='store_true',
+                        help='JSON output: orbit stats for --word and --rule')
     parser.add_argument('--orbit', action='store_true',
                         help='найти транзиент и период орбиты, показать цикл')
     parser.add_argument('--compare', action='store_true',
@@ -485,6 +521,10 @@ if __name__ == '__main__':
     _color = not args.no_color
     _cells = make_initial(args.width, args.ic, word=args.word, seed=args.seed)
 
+    if args.json:
+        import json as _json, sys
+        print(_json.dumps(ca_summary(args.word, args.rule, args.ic, args.width), ensure_ascii=False, indent=2))
+        sys.exit(0)
     if args.orbit:
         print_orbit(_cells, rule=args.rule, color=_color)
     elif args.compare:

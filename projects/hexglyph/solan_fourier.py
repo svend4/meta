@@ -1,80 +1,87 @@
+"""solan_fourier.py — Discrete Fourier Transform of Q6 CA Cell Temporal Sequences.
+
+For a period-P attractor each cell i traces a Q6 value sequence x_i[0…P-1].
+Because the orbit is periodic with period P the DFT gives an exact spectral
+decomposition into sinusoidal components.
+
+    cell_spectrum(seq)              → per-cell one-sided spectral statistics
+    fourier_summary(word, rule)     → full per-cell + aggregate statistics
+    all_fourier(word)               → summary for all 4 CA rules
+
+Definitions
+──────────────────────────────────────────────────────────────────────────────
+  DFT:      F[k] = Σ_{t=0}^{P-1} x[t] · exp(−2πi · k · t / P)
+
+  One-sided normalised power:  S[k] = |F[k]|² / P   for k = 0 … ⌊P/2⌋
+
+  AC power (temporal variation):
+      ac_power = Σ_{k=1}^{⌊P/2⌋} S[k]
+
+  Parseval:  Σ_{k=0}^{P-1} |F[k]|² / P  =  Σ_t x[t]²
+
+  Dominant harmonic:   k* = argmax_{k≥1} S[k]   (DC excluded)
+
+  Spectral entropy (bits) over one-sided AC bins k = 1 … ⌊P/2⌋:
+      p[k] = S[k] / Σ_{j=1}^{⌊P/2⌋} S[j]
+      H    = −Σ p[k] · log₂ p[k]          0 → tonal; log₂(⌊P/2⌋) → flat
+
+  Normalised spectral entropy:  nH = H / log₂(⌊P/2⌋)  ∈ [0, 1]
+
+  Spectral flatness (Wiener entropy):
+      SF = geometric_mean(S) / arithmetic_mean(S) ∈ [0, 1]
+
+Key discoveries
+──────────────────────────────────────────────────────────────────────────────
+  P = 2 words (XOR3, 20/49 lexicon):
+      Only k=0 (DC) and k=1 (Nyquist) are non-zero.
+      dom_freq = 1 for every non-frozen cell.  spec_entropy = 0.
+
+  РАБОТА XOR3  (P=8), cell 1  [63,62,63,1,63,0,63,62]:
+      dom_freq = 4 (Nyquist)  →  strong 2-step alternation within the orbit.
+      dom_freq_hist: {1: 8, 2: 1, 3: 1, 4: 6} — Nyquist dominates 6 cells.
+
+  МОНТАЖ XOR3  (P=8):
+      mean_spec_entropy ≈ 1.618 bits — highest in the lexicon (closest to
+      theoretical maximum log₂(4) = 2.000 bits).
+
+  ГОРОД XOR3  (P=8):
+      dom_freq_hist: {1: 4, 3: 12} — 12/16 cells dominated by k=3
+      (3rd harmonic, effective period 8/3 ≈ 2.67 steps).  mean_H ≈ 1.163.
+
+  AND / OR rules (P=1 fixed points):
+      ac_power = 0 for all cells; spec_entropy = 0; dom_freq = 0.
+
+Запуск:
+    python3 -m projects.hexglyph.solan_fourier --word РАБОТА --rule xor3
+    python3 -m projects.hexglyph.solan_fourier --word МАТ --rule xor3
+    python3 -m projects.hexglyph.solan_fourier --table --rule xor3
+    python3 -m projects.hexglyph.solan_fourier --json --word РАБОТА
 """
-solan_fourier.py — DFT & Power Spectral Density of Q6 CA Attractor.
-
-For each cell's temporal series on the attractor (exactly one period P),
-the Discrete Fourier Transform reveals the frequency-domain structure:
-
-    X[k]  =  Σ_{t=0}^{P−1} x[t] · exp(−2πi·k·t/P)   k = 0,1,…,P−1
-
-One-sided power spectrum (k = 0 … ⌊P/2⌋):
-
-    S[k]  =  |X[k]|² / P
-
-For purely periodic sequences the DFT is exact (no spectral leakage):
-energy concentrates at harmonics k = 1/P, 2/P, … of the fundamental.
-
-Derived quantities
-──────────────────
-  Spectral entropy   H_sp = −Σ p[k] log₂ p[k]
-                     p[k] = S[k] / Σ S[k]
-                     nH_sp = H_sp / log₂(K+1)  ∈ [0,1]   K = ⌊P/2⌋
-                     0 → tonal (one dominant frequency)
-                     1 → spectrally flat (uniform power across bins)
-
-  Spectral flatness  SF = exp(Σ log S[k] / (K+1)) / mean(S)  ∈ [0,1]
-                     Wiener entropy.  0 → all energy at one bin, 1 → white.
-
-  DC fraction        dc_frac = S[0] / Σ S[k]
-                     Fraction of total energy in the mean component.
-
-  Dominant harmonic  k* = argmax_{k≥1} S[k]   (DC excluded)
-                     Effective period = P / k*.
-
-Key results  (m=3, width=16)
-─────────────────────────────
-  XOR  ТУМАН  (P=1)  : all cells → S=[S[0]],  nH_sp=0  (one bin, no spread)
-  AND/OR fixed-point : same
-  ГОРА AND    (P=2)  : two bins with nearly equal power → nH_sp ≈ 0.999
-  ТУМАН XOR3  (P=8)  : DC dominates (88–99%),  mean nH_sp ≈ 0.297
-
-Functions
-─────────
-  dft1(series)                          → list[complex]
-  power_spectrum(series)                → list[float]   one-sided
-  spectral_entropy(power)               → float  H_sp in bits
-  normalised_spectral_entropy(power)    → float  nH_sp ∈ [0,1]
-  spectral_flatness(power)              → float  ∈ [0,1]
-  dominant_harmonic(power)              → int    k* ≥ 1
-  cell_fourier(series)                  → dict
-  fourier_profile(word, rule, width)    → list[dict]  per-cell
-  fourier_dict(word, rule, width)       → dict
-  all_fourier(word, width)              → dict[str, dict]
-  build_fourier_data(words, width)      → dict
-  print_fourier(word, rule, color)      → None
-  print_fourier_stats(words, color)     → None
-
-Запуск
-──────
-  python3 -m projects.hexglyph.solan_fourier --word ТУМАН --rule xor3
-  python3 -m projects.hexglyph.solan_fourier --word ГОРА --all-rules --no-color
-  python3 -m projects.hexglyph.solan_fourier --stats --no-color
-"""
-
 from __future__ import annotations
-import math
-import cmath
-import sys
+
 import argparse
+import cmath
+import json
+import math
+import pathlib
+import sys
+from typing import Any
 
-# ── Constants ──────────────────────────────────────────────────────────────────
-_RULES:     list[str] = ['xor', 'xor3', 'and', 'or']
-_DEFAULT_W: int = 16
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+
+from projects.hexglyph.solan_ca import (
+    _RST, _BOLD, _DIM, _RULE_COLOR, _RULE_NAMES, _ALL_RULES,
+)
+
+RULES          = tuple(_ALL_RULES)
+_DEFAULT_WIDTH = 16
+_EPS           = 1e-20
 
 
-# ── DFT ────────────────────────────────────────────────────────────────────────
+# ── Core DFT primitives ───────────────────────────────────────────────────────
 
 def dft1(series: list[int | float]) -> list[complex]:
-    """Exact DFT of *series* (naive O(N²) — fine for small periods ≤ 128)."""
+    """Exact DFT of *series* (O(N²), suitable for period ≤ 128)."""
     N = len(series)
     if N == 0:
         return []
@@ -85,9 +92,9 @@ def dft1(series: list[int | float]) -> list[complex]:
 
 
 def power_spectrum(series: list[int | float]) -> list[float]:
-    """One-sided normalised power spectrum: S[k] = |X[k]|² / N.
+    """One-sided normalised power spectrum S[k] = |F[k]|² / N.
 
-    Returns K+1 values for k = 0, 1, …, ⌊N/2⌋.
+    Returns ⌊N/2⌋+1 values for k = 0, 1, …, ⌊N/2⌋.
     """
     N = len(series)
     if N == 0:
@@ -96,24 +103,22 @@ def power_spectrum(series: list[int | float]) -> list[float]:
     return [(X[k].real ** 2 + X[k].imag ** 2) / N for k in range(N // 2 + 1)]
 
 
-# ── Spectral statistics ────────────────────────────────────────────────────────
-
 def spectral_entropy(power: list[float]) -> float:
-    """Spectral entropy H_sp = −Σ p[k] log₂ p[k] in bits.
+    """Spectral entropy H = −Σ p[k] log₂ p[k] in bits over all bins.
 
-    Returns 0.0 for empty or all-zero power spectrum.
+    Returns 0.0 for empty or all-zero spectrum.
     """
     total = sum(power)
     if total <= 0:
         return 0.0
     return max(0.0, -sum(
         (v / total) * math.log2(v / total)
-        for v in power if v > 0
+        for v in power if v > _EPS
     ))
 
 
 def normalised_spectral_entropy(power: list[float]) -> float:
-    """Spectral entropy normalised by log₂(K+1), K+1 = len(power) ∈ [0, 1]."""
+    """Spectral entropy / log₂(len(power)) ∈ [0, 1]."""
     K1 = len(power)
     if K1 <= 1 or sum(power) <= 0:
         return 0.0
@@ -122,7 +127,7 @@ def normalised_spectral_entropy(power: list[float]) -> float:
 
 
 def spectral_flatness(power: list[float]) -> float:
-    """Wiener entropy (spectral flatness) = geometric_mean / arithmetic_mean ∈ [0, 1].
+    """Wiener entropy = geometric_mean / arithmetic_mean ∈ [0, 1].
 
     Returns 0.0 if any component is zero (perfectly tonal).
     """
@@ -132,7 +137,7 @@ def spectral_flatness(power: list[float]) -> float:
     total = sum(power)
     if total <= 0 or any(v <= 0 for v in power):
         return 0.0
-    log_mean = sum(math.log(v) for v in power) / n
+    log_mean   = sum(math.log(v) for v in power) / n
     arith_mean = total / n
     return round(min(math.exp(log_mean) / arith_mean, 1.0), 8)
 
@@ -140,10 +145,10 @@ def spectral_flatness(power: list[float]) -> float:
 def dominant_harmonic(power: list[float]) -> int:
     """Index k* ≥ 1 with maximum power (DC at k=0 excluded).
 
-    Returns 1 if spectrum has ≤ 1 bin.
+    Returns 0 for spectra with only a DC bin (P=1).
     """
     if len(power) <= 1:
-        return 1
+        return 0
     best_k, best_v = 1, power[1] if len(power) > 1 else 0.0
     for k in range(2, len(power)):
         if power[k] > best_v:
@@ -152,182 +157,362 @@ def dominant_harmonic(power: list[float]) -> int:
     return best_k
 
 
-# ── Per-cell analysis ──────────────────────────────────────────────────────────
+# ── Per-cell analysis ─────────────────────────────────────────────────────────
 
-def cell_fourier(series: list[int | float]) -> dict:
-    """Full spectral analysis of a single temporal series (one attractor period)."""
-    ps = power_spectrum(series)
-    total = sum(ps)
-    h_sp  = spectral_entropy(ps)
-    nh_sp = normalised_spectral_entropy(ps)
-    sf    = spectral_flatness(ps)
-    dom   = dominant_harmonic(ps)
-    dc    = ps[0] if ps else 0.0
-    ac    = sum(ps[1:]) if len(ps) > 1 else 0.0
-    dc_frac = round(dc / total, 8) if total > 0 else 1.0
+def cell_spectrum(seq: list[int]) -> dict[str, Any]:
+    """One-sided DFT spectral analysis of a single cell's time series.
+
+    Parameters
+    ──────────
+    seq : list[int]  — cell values at orbit steps t = 0 … P-1
+
+    Returns dict with keys:
+        power       : list[float]  — S[k] = |F[k]|²/P  for k = 0 … ⌊P/2⌋
+        dom_freq    : int          — k* ≥ 1 with max S[k]; 0 if P=1
+        ac_power    : float        — Σ_{k≥1} S[k]  (total AC energy)
+        dc          : float        — S[0]
+        dc_frac     : float        — S[0] / Σ S[k]
+        h_sp        : float        — spectral entropy over all bins (bits)
+        nh_sp       : float        — normalised spectral entropy ∈ [0,1]
+        spec_entropy: float        — H over AC-only bins k=1..⌊P/2⌋ (bits)
+        sf          : float        — spectral flatness
+        period      : int          — P
+    """
+    P = len(seq)
+    if P == 0:
+        return {'power': [], 'dom_freq': 0, 'ac_power': 0.0, 'dc': 0.0,
+                'dc_frac': 1.0, 'h_sp': 0.0, 'nh_sp': 0.0,
+                'spec_entropy': 0.0, 'sf': 0.0, 'period': 0}
+
+    ps     = power_spectrum(seq)     # one-sided, length = P//2 + 1
+    total  = sum(ps)
+    dc     = ps[0]
+    ac     = sum(ps[1:])
+    dom    = dominant_harmonic(ps)
+    h_sp   = spectral_entropy(ps)
+    nh_sp  = normalised_spectral_entropy(ps)
+    sf     = spectral_flatness(ps)
+    dc_frac = dc / total if total > _EPS else 1.0
+
+    # Spectral entropy over AC-only bins k=1..⌊P/2⌋
+    ac_ps  = ps[1:]
+    H_ac   = spectral_entropy(ac_ps)
+
     return {
-        'n':          len(series),
-        'power':      ps,
-        'h_sp':       round(h_sp, 8),
-        'nh_sp':      nh_sp,
-        'sf':         sf,
-        'dominant_k': dom,
-        'dc':         round(dc, 6),
-        'ac_total':   round(ac, 6),
-        'dc_frac':    dc_frac,
+        'power':        ps,
+        'dom_freq':     dom,
+        'ac_power':     round(ac, 6),
+        'dc':           round(dc, 6),
+        'dc_frac':      round(dc_frac, 8),
+        'h_sp':         round(h_sp, 8),
+        'nh_sp':        nh_sp,
+        'spec_entropy': round(H_ac, 8),
+        'sf':           sf,
+        'period':       P,
     }
 
 
-# ── Orbit helper ──────────────────────────────────────────────────────────────
+# ── Per-word summary ──────────────────────────────────────────────────────────
 
-def _get_attractor_series(word: str, rule: str,
-                          width: int) -> tuple[list[list[float]], int]:
-    """Return (cell_series_list, period).  Each series = exactly one period."""
-    from projects.hexglyph.solan_perm import get_orbit
-    orbit = get_orbit(word.upper(), rule, width)
-    P = len(orbit)
-    if P == 0:
-        return [[0.0]] * width, 0
-    series = [[float(orbit[t][i]) for t in range(P)] for i in range(width)]
-    return series, P
+def fourier_summary(
+    word:  str,
+    rule:  str,
+    width: int = _DEFAULT_WIDTH,
+) -> dict[str, Any]:
+    """Fourier spectral analysis for all cells of one word/rule attractor.
 
+    Keys
+    ────
+    word, rule, period, n_cells
 
-# ── Profile across cells ──────────────────────────────────────────────────────
+    # Per-cell lists (length = width)
+    cell_dom_freq     : list[int]    — dominant harmonic k* per cell
+    cell_ac_power     : list[float]  — AC power per cell
+    cell_dc           : list[float]  — S[0] per cell
+    cell_spec_entropy : list[float]  — AC-bin spectral entropy (bits)
+    cell_nh_sp        : list[float]  — normalised spectral entropy
+    cell_dc_frac      : list[float]  — DC fraction of total power
+    cell_power        : list[list[float]]  — one-sided power spectrum per cell
 
-def fourier_profile(word: str, rule: str,
-                    width: int = _DEFAULT_W) -> list[dict]:
-    """Per-cell spectral analysis (one period each)."""
-    cell_series, _ = _get_attractor_series(word, rule, width)
-    return [cell_fourier(s) for s in cell_series]
+    # Aggregate
+    max_ac_power       : float
+    max_ac_cell        : int
+    mean_ac_power      : float
+    dom_freq_hist      : dict[int, int]   — {k: n_cells}
+    most_common_dom_freq: int
+    n_nyquist_dom      : int   — cells where k* = ⌊P/2⌋
+    n_fundamental_dom  : int   — cells where k* = 1
+    mean_spec_entropy  : float
+    max_spec_entropy   : float
+    max_spec_entropy_cell: int
+    mean_nh_sp         : float
+    mean_dc_frac       : float
+    mean_ps            : list[float]  — mean S[k] across all cells
+    dominant_k         : int          — dominant harmonic of mean_ps
+    """
+    from projects.hexglyph.solan_transfer import get_orbit
 
+    orbit  = get_orbit(word, rule, width)
+    P, N   = len(orbit), width
 
-# ── Full dictionary ────────────────────────────────────────────────────────────
+    spectra = []
+    for i in range(N):
+        seq = [int(orbit[t][i]) for t in range(P)]
+        spectra.append(cell_spectrum(seq))
 
-def fourier_dict(word: str, rule: str, width: int = _DEFAULT_W) -> dict:
-    """Full spectral analysis for one word × rule."""
-    from projects.hexglyph.solan_traj import word_trajectory
-    traj   = word_trajectory(word.upper(), rule, width)
-    period = traj['period']
+    cell_dom_freq     = [s['dom_freq']     for s in spectra]
+    cell_ac_power     = [s['ac_power']     for s in spectra]
+    cell_dc           = [s['dc']           for s in spectra]
+    cell_spec_entropy = [s['spec_entropy'] for s in spectra]
+    cell_nh_sp        = [s['nh_sp']        for s in spectra]
+    cell_dc_frac      = [s['dc_frac']      for s in spectra]
+    cell_power        = [s['power']        for s in spectra]
 
-    cells = fourier_profile(word, rule, width)
-    N = len(cells)
+    max_ac   = max(cell_ac_power)
+    max_ac_c = cell_ac_power.index(max_ac)
 
-    mean_nh   = round(sum(c['nh_sp']   for c in cells) / N, 8)
-    mean_sf   = round(sum(c['sf']      for c in cells) / N, 8)
-    mean_dcf  = round(sum(c['dc_frac'] for c in cells) / N, 8)
+    dom_hist: dict[int, int] = {}
+    for f in cell_dom_freq:
+        dom_hist[f] = dom_hist.get(f, 0) + 1
+    most_common = max(dom_hist, key=lambda k: dom_hist[k]) if dom_hist else 0
+    half        = P // 2
+    n_nyquist   = dom_hist.get(half, 0)
+    n_fund      = dom_hist.get(1, 0)
 
-    # Mean power spectrum (pad shorter spectra with zeros)
-    max_bins = max(len(c['power']) for c in cells) if cells else 1
+    max_H   = max(cell_spec_entropy)
+    max_H_c = cell_spec_entropy.index(max_H)
+
+    # Mean power spectrum across cells
+    max_bins = max(len(p) for p in cell_power) if cell_power else 1
     mean_ps: list[float] = []
     for k in range(max_bins):
-        vals = [c['power'][k] for c in cells if k < len(c['power'])]
+        vals = [cell_power[i][k] for i in range(N) if k < len(cell_power[i])]
         mean_ps.append(round(sum(vals) / len(vals), 8) if vals else 0.0)
-
-    dom_k      = dominant_harmonic(mean_ps)
-    eff_period = period // dom_k if dom_k > 0 and period > 0 else period
+    dom_k = dominant_harmonic(mean_ps)
 
     return {
-        'word':         word.upper(),
-        'rule':         rule,
-        'period':       period,
-        'cell_fourier': cells,
-        'mean_nh_sp':   mean_nh,
-        'mean_sf':      mean_sf,
-        'mean_dc_frac': mean_dcf,
-        'mean_ps':      mean_ps,
-        'dominant_k':   dom_k,
-        'eff_period':   eff_period,
-        'n_bins':       max_bins,
+        'word':    word,
+        'rule':    rule,
+        'period':  P,
+        'n_cells': N,
+
+        'cell_dom_freq':     cell_dom_freq,
+        'cell_ac_power':     cell_ac_power,
+        'cell_dc':           cell_dc,
+        'cell_spec_entropy': cell_spec_entropy,
+        'cell_nh_sp':        cell_nh_sp,
+        'cell_dc_frac':      cell_dc_frac,
+        'cell_power':        cell_power,
+
+        'max_ac_power':       round(max_ac, 4),
+        'max_ac_cell':        max_ac_c,
+        'mean_ac_power':      round(sum(cell_ac_power) / N, 4),
+
+        'dom_freq_hist':         dom_hist,
+        'most_common_dom_freq':  most_common,
+        'n_nyquist_dom':         n_nyquist,
+        'n_fundamental_dom':     n_fund,
+
+        'mean_spec_entropy':     round(sum(cell_spec_entropy) / N, 6),
+        'max_spec_entropy':      round(max_H, 6),
+        'max_spec_entropy_cell': max_H_c,
+
+        'mean_nh_sp':    round(sum(cell_nh_sp) / N, 8),
+        'mean_dc_frac':  round(sum(cell_dc_frac) / N, 8),
+        'mean_ps':       mean_ps,
+        'dominant_k':    dom_k,
     }
 
 
-def all_fourier(word: str, width: int = _DEFAULT_W) -> dict[str, dict]:
-    """fourier_dict for all 4 rules."""
-    return {rule: fourier_dict(word, rule, width) for rule in _RULES}
+def all_fourier(
+    word:  str,
+    width: int = _DEFAULT_WIDTH,
+) -> dict[str, dict[str, Any]]:
+    """fourier_summary for all 4 CA rules."""
+    return {r: fourier_summary(word, r, width) for r in RULES}
 
 
-def build_fourier_data(words: list[str], width: int = _DEFAULT_W) -> dict:
-    """Aggregated spectral data for a list of words."""
-    per_rule: dict[str, dict[str, dict]] = {rule: {} for rule in _RULES}
-    for word in words:
-        for rule in _RULES:
-            d = fourier_dict(word, rule, width)
-            per_rule[rule][word.upper()] = {k: d[k] for k in (
-                'period', 'mean_nh_sp', 'mean_sf', 'mean_dc_frac',
-                'dominant_k', 'eff_period', 'n_bins')}
-    return {'words': [w.upper() for w in words], 'width': width,
-            'per_rule': per_rule}
+def build_fourier_data(
+    words: list[str] | None = None,
+    width: int = _DEFAULT_WIDTH,
+) -> dict[str, Any]:
+    """Full Fourier spectral analysis for the lexicon."""
+    from projects.hexglyph.solan_lexicon import LEXICON
+    if words is None:
+        words = list(LEXICON)
+    return {
+        'words': list(words),
+        'data':  {w: {r: fourier_summary(w, r, width) for r in RULES}
+                  for w in words},
+    }
 
 
-# ── Print helpers ──────────────────────────────────────────────────────────────
+def fourier_dict(s: dict[str, Any]) -> dict[str, Any]:
+    """JSON-serialisable version of fourier_summary.
 
-_RCOL = {'xor': '\033[96m', 'xor3': '\033[36m', 'and': '\033[91m', 'or': '\033[33m'}
-_RST  = '\033[0m'
-_BAR  = '█'
-_SHD  = '░'
+    cell_power keys are converted to lists of rounded floats.
+    dom_freq_hist keys are converted to strings (JSON requirement).
+    """
+    out: dict[str, Any] = {}
+    for k, v in s.items():
+        if k == 'dom_freq_hist':
+            out[k] = {str(freq): cnt for freq, cnt in v.items()}
+        elif k == 'cell_power':
+            out[k] = [[round(x, 6) for x in row] for row in v]
+        elif k == 'mean_ps':
+            out[k] = [round(x, 6) for x in v]
+        elif isinstance(v, list) and v and isinstance(v[0], float):
+            out[k] = [round(x, 6) for x in v]
+        else:
+            out[k] = v
+    return out
 
 
-def _bar(v: float, w: int = 20) -> str:
-    filled = round(min(max(v, 0.0), 1.0) * w)
-    return _BAR * filled + _SHD * (w - filled)
+# ── Terminal output ───────────────────────────────────────────────────────────
+
+_FREQ_COLORS = {
+    1: '\033[38;5;39m',    # blue  — fundamental
+    2: '\033[38;5;118m',   # green — 2nd harmonic
+    3: '\033[38;5;214m',   # orange — 3rd harmonic
+    4: '\033[38;5;196m',   # red — Nyquist
+}
 
 
-def print_fourier(word: str = 'ТУМАН', rule: str = 'xor3',
-                  color: bool = True) -> None:
-    d = fourier_dict(word, rule)
-    c = _RCOL.get(rule, '') if color else ''
-    r = _RST if color else ''
-    RULE = {'xor': 'XOR ⊕', 'xor3': 'XOR3', 'and': 'AND &', 'or': 'OR |'}.get(rule, rule)
-    P = d['period']
-    ps = d['mean_ps']
+def print_fourier(
+    word:  str,
+    rule:  str,
+    width: int  = _DEFAULT_WIDTH,
+    color: bool = True,
+) -> None:
+    """Print Fourier spectral analysis for one word/rule."""
+    bold  = _BOLD if color else ''
+    reset = _RST  if color else ''
+    dim   = _DIM  if color else ''
+    col   = (_RULE_COLOR.get(rule, '') if color else '')
+    lbl   = _RULE_NAMES.get(rule, rule.upper())
+
+    s = fourier_summary(word, rule, width)
+    P = s['period']
+    N = s['n_cells']
+    half = P // 2
+
+    print(bold + f"  ◈ Cell Fourier Spectrum  {word.upper()}  "
+          + col + lbl + reset + bold + f"  (P={P})" + reset)
+    print()
+
+    if P == 1:
+        print(f"  Fixed point (P=1): no temporal variation — AC power = 0.")
+        print()
+        return
+
+    # Per-cell table
+    ps = s['mean_ps']
     s_max = max(ps) if ps else 1.0
-    print(f'  {c}◈ Fourier/PSD  {word.upper()}  |  {RULE}  P={P}  '
-          f'k*={d["dominant_k"]}  T_eff={d["eff_period"]}'
-          f'  mean_nH_sp={d["mean_nh_sp"]:.4f}{r}')
-    print('  ' + '─' * 66)
-    print(f'  {"k":>4}  {"freq":>7}  {"mean_S[k]":>11}  bar')
-    print('  ' + '─' * 66)
-    for k, sk in enumerate(ps):
-        freq = k / max(P, 1)
-        bar  = _bar(sk / s_max if s_max > 0 else 0.0)
-        tag  = '← DC' if k == 0 else ('← k*' if k == d['dominant_k'] else '')
-        print(f'  {k:>4}  {freq:>7.4f}  {sk:>11.4f}  {bar}  {tag}')
-    print(f'\n  mean_nH_sp={d["mean_nh_sp"]:.4f}  '
-          f'mean_SF={d["mean_sf"]:.4f}  '
-          f'mean_DC_frac={d["mean_dc_frac"]:.4f}')
+
+    print(f"  {'cell':>4}  {'k*':>3}  {'H':>5}  {'nH':>5}  "
+          f"{'ac_pw':>8}  {'dc%':>5}  AC bins k=1..{half} (normalised per cell)")
+    print('  ' + '─' * 72)
+
+    for i in range(N):
+        df   = s['cell_dom_freq'][i]
+        H    = s['cell_spec_entropy'][i]
+        nH   = s['cell_nh_sp'][i]
+        ac   = s['cell_ac_power'][i]
+        dcf  = s['cell_dc_frac'][i]
+        pows = s['cell_power'][i]
+
+        fc = (_FREQ_COLORS.get(df, '') if color and df > 0 else '')
+        ac_str = f'{ac:.1f}'
+        dc_str = f'{dcf*100:.0f}%'
+
+        # Mini AC spectrum bar (k=1..P//2), normalised per-cell
+        ac_pows   = pows[1:]  # exclude DC
+        ac_max    = max(ac_pows) if ac_pows else 1.0
+        spec_bars = []
+        for k, pk in enumerate(ac_pows, start=1):
+            frac   = pk / ac_max if ac_max > _EPS else 0
+            filled = max(0, min(4, round(frac * 4)))
+            bc = (_FREQ_COLORS.get(k, dim) if color else '')
+            is_dom = (k == df)
+            spec_bars.append(
+                f'{bc}{"█" * filled + "·" * (4 - filled)}{reset}'
+                + ('←' if is_dom else ' ')
+            )
+        spec_str = '  '.join(spec_bars)
+
+        print(f"  {i:4d}  {fc}{df:3d}{reset}  {H:5.3f}  {nH:5.3f}  "
+              f"{ac_str:>8s}  {dc_str:>5s}  {spec_str}")
+
+    print()
+    print(f"  dom_freq hist : {dict(sorted(s['dom_freq_hist'].items()))}")
+    print(f"  most common k*: {s['most_common_dom_freq']}   "
+          f"Nyquist dom: {s['n_nyquist_dom']} cells   "
+          f"Fundamental dom: {s['n_fundamental_dom']} cells")
+    print(f"  mean H (AC)   : {s['mean_spec_entropy']:.3f} bits  "
+          f"(max={math.log2(half):.3f} bits = log₂({half}))")
+    print(f"  max H         : {s['max_spec_entropy']:.3f} at cell "
+          f"{s['max_spec_entropy_cell']}")
+    print(f"  mean nH_sp    : {s['mean_nh_sp']:.4f}   "
+          f"mean DC frac: {s['mean_dc_frac']:.4f}")
+    print(f"  max AC power  : {s['max_ac_power']:.1f} at cell {s['max_ac_cell']}")
     print()
 
 
-def print_fourier_stats(words: list[str] | None = None,
-                        color: bool = True) -> None:
-    from projects.hexglyph.solan_lexicon import all_words
+def print_fourier_table(
+    words: list[str] | None = None,
+    rule:  str  = 'xor3',
+    width: int  = _DEFAULT_WIDTH,
+    color: bool = True,
+) -> None:
+    """Summary table: Fourier spectral stats for all lexicon words."""
+    from projects.hexglyph.solan_lexicon import LEXICON
     if words is None:
-        words = all_words()
+        words = list(LEXICON)
+
+    bold  = _BOLD if color else ''
+    reset = _RST  if color else ''
+    lbl   = _RULE_NAMES.get(rule, rule.upper())
+
+    print(bold + f"  ◈ Cell Fourier Spectrum Summary ({lbl}, n={len(words)})" + reset)
+    print()
+    print(f"  {'Слово':12s}  {'P':>3}  {'dom_hist':26s}  "
+          f"{'mean_H':>6}  {'max_H':>5}  {'nyq':>3}  {'nH':>6}  {'dcF':>5}")
+    print('  ' + '─' * 80)
+
     for word in words:
-        for rule in _RULES:
-            print_fourier(word, rule, color)
+        s = fourier_summary(word, rule, width)
+        P2 = s['period']
+        if P2 == 1:
+            print(f"  {word.upper():12s}  {P2:>3}  {'—':26s}  "
+                  f"{'—':>6}  {'—':>5}  {'—':>3}  {'—':>6}  {'—':>5}")
+            continue
+        hist_str = str(dict(sorted(s['dom_freq_hist'].items())))
+        print(f"  {word.upper():12s}  {P2:>3}  {hist_str:26s}  "
+              f"{s['mean_spec_entropy']:>6.3f}  {s['max_spec_entropy']:>5.3f}  "
+              f"{s['n_nyquist_dom']:>3}  "
+              f"{s['mean_nh_sp']:>6.4f}  {s['mean_dc_frac']:>5.4f}")
+    print()
 
 
-# ── CLI ────────────────────────────────────────────────────────────────────────
-
-def _cli() -> None:
-    p = argparse.ArgumentParser(
-        description='DFT & Power Spectral Density for Q6 CA attractors')
-    p.add_argument('--word',      default='ТУМАН')
-    p.add_argument('--rule',      default='xor3', choices=_RULES)
-    p.add_argument('--all-rules', action='store_true')
-    p.add_argument('--stats',     action='store_true')
-    p.add_argument('--no-color',  action='store_true')
-    args = p.parse_args()
-    color = not args.no_color and sys.stdout.isatty()
-    if args.stats:
-        print_fourier_stats(color=color)
-    elif args.all_rules:
-        for rule in _RULES:
-            print_fourier(args.word, rule, color)
-    else:
-        print_fourier(args.word, args.rule, color)
-
+# ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    _cli()
+    parser = argparse.ArgumentParser(
+        description='DFT spectral analysis of Q6 CA cell temporal sequences')
+    parser.add_argument('--word',     metavar='WORD', default='РАБОТА')
+    parser.add_argument('--rule',     choices=list(RULES), default='xor3')
+    parser.add_argument('--table',    action='store_true')
+    parser.add_argument('--json',     action='store_true')
+    parser.add_argument('--width',    type=int, default=_DEFAULT_WIDTH)
+    parser.add_argument('--no-color', action='store_true')
+    args = parser.parse_args()
+
+    _color = not args.no_color
+
+    if args.json:
+        s = fourier_summary(args.word.upper(), args.rule, args.width)
+        print(json.dumps(fourier_dict(s), ensure_ascii=False, indent=2))
+    elif args.table:
+        print_fourier_table(rule=args.rule, width=args.width, color=_color)
+    else:
+        print_fourier(args.word.upper(), args.rule, args.width, _color)

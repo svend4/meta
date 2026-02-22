@@ -245,6 +245,21 @@ def print_adjacency(
           f"Компонент: {stats['components']}{reset}")
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def graph_summary(
+    words:     list[str] | None = None,
+    threshold: float = 0.10,
+    width:     int   = 16,
+) -> dict:
+    """JSON-friendly graph stats for the orbital similarity network."""
+    g = build_graph(words, threshold=threshold, width=width)
+    d = graph_stats(g)
+    d.update({'threshold': threshold, 'width': width})
+    return d
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -266,11 +281,17 @@ if __name__ == '__main__':
                         help='только статистика')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--json',     action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     _words = args.words if args.words else None
     _color = not args.no_color
 
+    if args.json:
+        import json as _json
+        print(_json.dumps(graph_summary(_words, threshold=args.threshold, width=args.width), ensure_ascii=False, indent=2))
+        import sys; sys.exit(0)
     if args.stats:
         g = build_graph(_words, threshold=args.threshold, width=args.width)
         st = graph_stats(g)

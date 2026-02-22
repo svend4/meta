@@ -312,8 +312,14 @@ def _main() -> None:
     parser.add_argument('--stats',     action='store_true')
     parser.add_argument('--width',     type=int, default=_DEFAULT_WIDTH)
     parser.add_argument('--no-color',  action='store_true')
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     args  = parser.parse_args()
     color = not args.no_color
+    if args.json:
+        import json as _json
+        print(_json.dumps(pe_dict(args.word, args.rule), ensure_ascii=False, indent=2))
+        return
+
     if args.stats:
         print_pe_stats(color=color, width=args.width, m=args.m)
     elif args.all_rules:

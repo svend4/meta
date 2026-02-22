@@ -244,6 +244,18 @@ def encode_phonetic(text: str) -> list[tuple[str, int | None, str]]:
     return result
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def phonetic_summary(text: str = 'ГОРА') -> dict:
+    """JSON-friendly phonetic encoding summary for *text*."""
+    enc = encode_phonetic(text)
+    return {
+        'text':    text,
+        'encoded': [[ch, h, sc] for ch, h, sc in enc],
+    }
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -258,10 +270,17 @@ if __name__ == '__main__':
                         help='режим отображения глифов: ascii (4×4 █/·), '
                              'quad (quadrant-block ▀▄, TVCP), '
                              'braille (2×4 Braille ⠿)')
+    parser.add_argument('--json',     action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     color = not args.no_color
 
+    if args.json:
+        import json as _json, sys
+        _text = args.encode if args.encode else 'ГОРА'
+        print(_json.dumps(phonetic_summary(_text), ensure_ascii=False, indent=2))
+        sys.exit(0)
     if args.encode:
         encoded = encode_phonetic(args.encode)
         solan_str = ''.join(sc for _, _, sc in encoded)

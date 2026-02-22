@@ -39,6 +39,7 @@ Functions
   to_binary(val, bits)                 → str
   lz_of_series(series)                 → dict
   lz_of_spatial(vals)                  → dict
+  lz_summary(word, rule, width)        → dict   (≡ lz_dict)
   lz_dict(word, rule, width)           → dict
   all_lz(word, width)                  → dict[str, dict]
   build_lz_data(words, width)          → dict
@@ -50,6 +51,7 @@ Functions
   python3 -m projects.hexglyph.solan_lz --word ТУМАН --rule xor3
   python3 -m projects.hexglyph.solan_lz --word ГОРА --all-rules --no-color
   python3 -m projects.hexglyph.solan_lz --stats --no-color
+  python3 -m projects.hexglyph.solan_lz --word ТУМАН --json
 """
 
 from __future__ import annotations
@@ -169,9 +171,14 @@ def lz_dict(word: str, rule: str, width: int = _DEFAULT_W) -> dict:
     }
 
 
+def lz_summary(word: str, rule: str = 'xor3', width: int = _DEFAULT_W) -> dict:
+    """Alias for lz_dict — standard *_summary convention."""
+    return lz_dict(word, rule, width)
+
+
 def all_lz(word: str, width: int = _DEFAULT_W) -> dict[str, dict]:
-    """lz_dict for all 4 rules."""
-    return {rule: lz_dict(word, rule, width) for rule in _RULES}
+    """lz_summary for all 4 rules."""
+    return {rule: lz_summary(word, rule, width) for rule in _RULES}
 
 
 def build_lz_data(words: list[str], width: int = _DEFAULT_W) -> dict:
@@ -236,16 +243,20 @@ def print_lz_stats(words: list[str] | None = None,
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 def _cli() -> None:
+    import json as _json
     p = argparse.ArgumentParser(
         description='LZ76 algorithmic complexity for Q6 CA attractors')
     p.add_argument('--word',      default='ТУМАН')
     p.add_argument('--rule',      default='xor3', choices=_RULES)
     p.add_argument('--all-rules', action='store_true')
     p.add_argument('--stats',     action='store_true')
+    p.add_argument('--json',      action='store_true', help='JSON output')
     p.add_argument('--no-color',  action='store_true')
     args = p.parse_args()
     color = not args.no_color and sys.stdout.isatty()
-    if args.stats:
+    if args.json:
+        print(_json.dumps(lz_summary(args.word, args.rule), ensure_ascii=False, indent=2))
+    elif args.stats:
         print_lz_stats(color=color)
     elif args.all_rules:
         for rule in _RULES:

@@ -107,6 +107,11 @@ for _w in LEXICON:
 LEXICON = _dedup
 
 
+def all_words() -> list[str]:
+    """Return the full lexicon as a list (alias for list(LEXICON))."""
+    return list(LEXICON)
+
+
 # ── Работа с лексиконом ──────────────────────────────────────────────────────
 
 def all_signatures(
@@ -293,6 +298,24 @@ def print_clusters(
         print()
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def lexicon_summary(
+    word:  str,
+    n:     int = 8,
+    width: int = 16,
+) -> dict:
+    """JSON-friendly summary: nearest orbital neighbors of *word*."""
+    nbrs = neighbors(word.upper(), n=n, width=width)
+    return {
+        'word':      word.upper(),
+        'n':         n,
+        'width':     width,
+        'neighbors': [[w, round(d, 6)] for w, d in nbrs],
+    }
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -312,10 +335,16 @@ if __name__ == '__main__':
                         help='ширина CA (default: 16)')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--json',     action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     _color = not args.no_color
 
+    if args.json:
+        import json as _json
+        print(_json.dumps(lexicon_summary(args.word, n=args.neighbors, width=args.width), ensure_ascii=False, indent=2))
+        import sys; sys.exit(0)
     if args.table:
         print_lexicon_table(width=args.width, color=_color)
     elif args.clusters:

@@ -370,8 +370,14 @@ def _main() -> None:
     parser.add_argument('--extra',       type=int, default=1)
     parser.add_argument('--width',       type=int, default=_DEFAULT_WIDTH)
     parser.add_argument('--no-color',    action='store_true')
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     args  = parser.parse_args()
     color = not args.no_color
+    if args.json:
+        import json as _json
+        print(_json.dumps(st_dict(args.word, args.rule, args.width), ensure_ascii=False, indent=2))
+        return
+
     if args.stats:
         print_st_stats(color=color, width=args.width)
     elif args.all_rules:

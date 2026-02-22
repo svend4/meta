@@ -253,6 +253,11 @@ def correlation_dict(word: str, width: int = _DEFAULT_WIDTH) -> dict:
     return result
 
 
+def correlation_summary(word: str, width: int = _DEFAULT_WIDTH) -> dict:
+    """Alias for correlation_dict — standard *_summary convention."""
+    return correlation_dict(word, width)
+
+
 # ── ASCII display ─────────────────────────────────────────────────────────────
 
 _BAR_W = 30
@@ -346,10 +351,15 @@ def _main() -> None:
     parser.add_argument('--all-rules', action='store_true')
     parser.add_argument('--stats',     action='store_true')
     parser.add_argument('--width',     type=int, default=_DEFAULT_WIDTH)
+    parser.add_argument('--json',      action='store_true', help='JSON output')
     parser.add_argument('--no-color',  action='store_true')
     args = parser.parse_args()
     color = not args.no_color
-    if args.stats:
+    if args.json:
+        import json as _json
+        print(_json.dumps(correlation_dict(args.word, args.width),
+                          ensure_ascii=False, indent=2))
+    elif args.stats:
         print_correlation_stats(color=color)
     elif args.all_rules:
         for rule in _ALL_RULES:
