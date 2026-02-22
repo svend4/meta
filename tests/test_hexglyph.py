@@ -22887,5 +22887,165 @@ class TestViewerWindowExports(unittest.TestCase):
         self.assertIn('window.wpeRun', self._content)
 
 
+class TestEdgeCases(unittest.TestCase):
+    """Edge-case and exception tests for key analysis functions."""
+
+    # ── ValueError on invalid rule ────────────────────────────────────────────
+
+    def test_moran_summary_bad_rule(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        with self.assertRaises(ValueError):
+            moran_summary('ГОРА', rule='BOGUS')
+
+    def test_lz_summary_bad_rule(self):
+        from projects.hexglyph.solan_lz import lz_summary
+        with self.assertRaises(ValueError):
+            lz_summary('ГОРА', rule='BOGUS')
+
+    def test_autocorr_summary_bad_rule(self):
+        from projects.hexglyph.solan_autocorr import autocorr_summary
+        with self.assertRaises(ValueError):
+            autocorr_summary('ГОРА', rule='BOGUS')
+
+    def test_recurrence_summary_bad_rule(self):
+        from projects.hexglyph.solan_recurrence import recurrence_summary
+        with self.assertRaises(ValueError):
+            recurrence_summary('ГОРА', rule='BOGUS')
+
+    def test_mutual_summary_bad_rule(self):
+        from projects.hexglyph.solan_mutual import mutual_summary
+        with self.assertRaises(ValueError):
+            mutual_summary('ГОРА', rule='BOGUS')
+
+    def test_te_summary_bad_rule(self):
+        from projects.hexglyph.solan_transfer import te_summary
+        with self.assertRaises(ValueError):
+            te_summary('ГОРА', rule='BOGUS')
+
+    def test_word_trajectory_bad_rule(self):
+        from projects.hexglyph.solan_traj import word_trajectory
+        with self.assertRaises(ValueError):
+            word_trajectory('ГОРА', rule='BOGUS', width=16)
+
+    # ── lz76 edge cases ───────────────────────────────────────────────────────
+
+    def test_lz76_empty_string(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76(''), 0)
+
+    def test_lz76_single_symbol(self):
+        from projects.hexglyph.solan_lz import lz76
+        self.assertEqual(lz76('0'), 1)
+
+    def test_lz76_constant_string_low_complexity(self):
+        from projects.hexglyph.solan_lz import lz76
+        # Constant string has very low complexity (log-scale growth)
+        self.assertLess(lz76('0' * 100), lz76('01' * 50))
+
+    def test_lz76_random_higher_than_periodic(self):
+        from projects.hexglyph.solan_lz import lz76
+        periodic  = lz76('01' * 40)
+        random_s  = lz76('01101001100101101001011001101001')  # Thue-Morse
+        self.assertGreaterEqual(random_s, periodic)
+
+    # ── to_binary ─────────────────────────────────────────────────────────────
+
+    def test_to_binary_zero(self):
+        from projects.hexglyph.solan_lz import to_binary
+        self.assertEqual(to_binary(0, 6), '000000')
+
+    def test_to_binary_all_ones(self):
+        from projects.hexglyph.solan_lz import to_binary
+        self.assertEqual(to_binary(63, 6), '111111')
+
+    def test_to_binary_length(self):
+        from projects.hexglyph.solan_lz import to_binary
+        self.assertEqual(len(to_binary(42, 8)), 8)
+
+    # ── spatial_classification boundary values ────────────────────────────────
+
+    def test_spatial_class_boundary_minus01(self):
+        from projects.hexglyph.solan_moran import spatial_classification
+        # -0.1 is the boundary between random and dispersed → 'random'
+        self.assertEqual(spatial_classification(-0.1), 'random')
+
+    def test_spatial_class_boundary_plus01(self):
+        from projects.hexglyph.solan_moran import spatial_classification
+        # 0.1 is the boundary between random and clustered → 'random'
+        self.assertEqual(spatial_classification(0.1), 'random')
+
+    def test_spatial_class_boundary_plus05(self):
+        from projects.hexglyph.solan_moran import spatial_classification
+        # 0.5 is NOT > 0.5, falls to > 0.1 → 'clustered'; 0.51 → 'strongly clustered'
+        self.assertEqual(spatial_classification(0.5),  'clustered')
+        self.assertEqual(spatial_classification(0.51), 'strongly clustered')
+
+    def test_spatial_class_boundary_minus05(self):
+        from projects.hexglyph.solan_moran import spatial_classification
+        # Exactly -0.5 → 'dispersed'
+        self.assertEqual(spatial_classification(-0.5), 'dispersed')
+
+    # ── predict_text edge cases ───────────────────────────────────────────────
+
+    def test_predict_text_empty_string(self):
+        from projects.hexglyph.solan_predict import predict_text
+        self.assertEqual(predict_text(''), [])
+
+    def test_predict_text_no_cyrillic(self):
+        from projects.hexglyph.solan_predict import predict_text
+        self.assertEqual(predict_text('hello world 123'), [])
+
+    def test_predict_text_mixed_returns_cyrillic_only(self):
+        from projects.hexglyph.solan_predict import predict_text
+        r = predict_text('hello ГОРА world')
+        self.assertEqual(len(r), 1)
+        self.assertEqual(r[0]['word'], 'ГОРА')
+
+    # ── word_signature edge cases ─────────────────────────────────────────────
+
+    def test_word_signature_empty_returns_none_transients(self):
+        from projects.hexglyph.solan_word import word_signature
+        sig = word_signature('')
+        for rule in sig:
+            self.assertIsNone(sig[rule][0])
+
+    def test_word_signature_single_char_returns_dict(self):
+        from projects.hexglyph.solan_word import word_signature
+        sig = word_signature('А')
+        self.assertIsInstance(sig, dict)
+        self.assertIn('xor', sig)
+
+    # ── predict edge cases ────────────────────────────────────────────────────
+
+    def test_predict_empty_word_is_new_class(self):
+        from projects.hexglyph.solan_predict import predict
+        r = predict('')
+        self.assertTrue(r['is_new_class'])
+
+    def test_predict_lowercase_uppercased(self):
+        from projects.hexglyph.solan_predict import predict
+        r = predict('гора')
+        self.assertEqual(r['word'], 'ГОРА')
+
+    def test_predict_top_n_limits_neighbors(self):
+        from projects.hexglyph.solan_predict import predict
+        r = predict('ГОРА', top_n=3)
+        self.assertEqual(len(r['neighbors']), 3)
+
+    # ── lz_of_series edge cases ───────────────────────────────────────────────
+
+    def test_lz_of_series_single_value(self):
+        from projects.hexglyph.solan_lz import lz_of_series
+        d = lz_of_series([42])
+        self.assertIn('lz', d)
+        self.assertGreaterEqual(d['lz'], 0)
+
+    def test_lz_of_series_identical_values(self):
+        from projects.hexglyph.solan_lz import lz_of_series
+        d = lz_of_series([5] * 32)
+        # Constant series has very low normalised LZ
+        self.assertLess(d['norm'], 0.5)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
