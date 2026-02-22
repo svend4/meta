@@ -27333,5 +27333,163 @@ class TestPairStatsShape(unittest.TestCase):
                     self.assertIn(k, v)
 
 
+# ---------------------------------------------------------------------------
+# TestSpacetimeShape
+# ---------------------------------------------------------------------------
+class TestSpacetimeShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spacetime import spacetime
+        cls.spacetime = staticmethod(spacetime)
+        cls._r = spacetime('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'transient', 'period', 'n_steps', 'grid'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_grid_is_list(self):
+        self.assertIsInstance(self._r['grid'], list)
+
+    def test_grid_nonempty(self):
+        self.assertGreater(len(self._r['grid']), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestSTDictShape
+# ---------------------------------------------------------------------------
+class TestSTDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spacetime import st_dict
+        cls.st_dict = staticmethod(st_dict)
+        cls._r = st_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'grid', 'spatial_entropy', 'temporal_entropy',
+                  'activity', 'mean_spatial_h', 'mean_temporal_h'):
+            self.assertIn(k, self._r)
+
+    def test_mean_spatial_h_float(self):
+        self.assertIsInstance(self._r['mean_spatial_h'], float)
+
+    def test_mean_temporal_h_float(self):
+        self.assertIsInstance(self._r['mean_temporal_h'], float)
+
+    def test_mean_spatial_h_nonneg(self):
+        self.assertGreaterEqual(self._r['mean_spatial_h'], 0.0)
+
+    def test_spatial_entropy_list(self):
+        self.assertIsInstance(self._r['spatial_entropy'], list)
+
+    def test_temporal_entropy_list(self):
+        self.assertIsInstance(self._r['temporal_entropy'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestSTSpatialEntropyShape
+# ---------------------------------------------------------------------------
+class TestSTSpatialEntropyShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spacetime import spacetime, st_spatial_entropy
+        cls.st_spatial_entropy = staticmethod(st_spatial_entropy)
+        st = spacetime('ГОРА', 'xor3')
+        cls._grid = st['grid']
+        cls._r = st_spatial_entropy(cls._grid)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_length_matches_grid(self):
+        self.assertEqual(len(self._r), len(self._grid))
+
+
+# ---------------------------------------------------------------------------
+# TestAllWordTrajShape
+# ---------------------------------------------------------------------------
+class TestAllWordTrajShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_traj import all_word_trajectories
+        cls.all_word_trajectories = staticmethod(all_word_trajectories)
+        cls._r = all_word_trajectories('ГОРА', 16)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_has_all_4_rules(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r)
+
+    def test_values_are_dicts(self):
+        for v in self._r.values():
+            self.assertIsInstance(v, dict)
+
+    def test_required_inner_keys(self):
+        for v in self._r.values():
+            for k in ('rows', 'transient', 'period', 'n_rows', 'word', 'rule'):
+                self.assertIn(k, v)
+
+    def test_period_positive(self):
+        for v in self._r.values():
+            self.assertGreaterEqual(v['period'], 1)
+
+    def test_rows_is_list(self):
+        for v in self._r.values():
+            self.assertIsInstance(v['rows'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestMDSStressProps
+# ---------------------------------------------------------------------------
+class TestMDSStressProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import mds_stress
+        cls.mds_stress = staticmethod(mds_stress)
+
+    def test_returns_float(self):
+        dmat = [[0.0, 1.0], [1.0, 0.0]]
+        coords = [[0.0, 0.0], [1.0, 0.0]]
+        self.assertIsInstance(self.mds_stress(dmat, coords), float)
+
+    def test_perfect_fit_zero_stress(self):
+        dmat = [[0.0, 1.0], [1.0, 0.0]]
+        coords = [[0.0, 0.0], [1.0, 0.0]]
+        self.assertAlmostEqual(self.mds_stress(dmat, coords), 0.0, places=5)
+
+    def test_nonneg(self):
+        dmat = [[0.0, 2.0, 3.0], [2.0, 0.0, 1.0], [3.0, 1.0, 0.0]]
+        coords = [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]]
+        self.assertGreaterEqual(self.mds_stress(dmat, coords), 0.0)
+
+    def test_deterministic(self):
+        dmat = [[0.0, 1.0], [1.0, 0.0]]
+        coords = [[0.0, 0.0], [1.0, 0.0]]
+        r1 = self.mds_stress(dmat, coords)
+        r2 = self.mds_stress(dmat, coords)
+        self.assertEqual(r1, r2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
