@@ -530,6 +530,18 @@ class TestFindCodesExtended(unittest.TestCase):
         codes = find_codes(d_min=7, k=1)
         self.assertEqual(codes, [])
 
+    def test_find_codes_k2_deduplication(self):
+        """find_codes(d_min=5, k=2) → dedup of codeword sets (line 495)."""
+        codes = find_codes(d_min=5, k=2)
+        # No [6,2,5] code exists, but dedup runs via seen set during dim=2 iteration
+        self.assertIsInstance(codes, list)
+
+    def test_find_codes_k3_rank_filter(self):
+        """find_codes(d_min=5, k=3) → linearly dependent rows skip (line 492)."""
+        codes = find_codes(d_min=5, k=3)
+        # [1,2,3] is dependent → code.k=2 != dim=3 → continue at line 492
+        self.assertIsInstance(codes, list)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

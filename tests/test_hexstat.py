@@ -592,5 +592,49 @@ class TestStatCLI(unittest.TestCase):
         self.assertIn('hexstat', out)
 
 
+class TestHexstatUncovered(unittest.TestCase):
+    """Тесты для непокрытых строк hexstat.py."""
+
+    def test_neighbors_function(self):
+        """_neighbors(h) возвращает 6 соседей (line 28)."""
+        from projects.hexstat.hexstat import _neighbors
+        nbrs = _neighbors(0)
+        self.assertEqual(len(nbrs), 6)
+        self.assertEqual(sorted(nbrs), [1, 2, 4, 8, 16, 32])
+
+    def test_distribution_repr(self):
+        """Q6Distribution.__repr__ (line 240)."""
+        d = Q6Distribution.uniform()
+        r = repr(d)
+        self.assertIn('Q6Distribution', r)
+        self.assertIn('H=', r)
+
+    def test_chi_square_p_value_zero_returns_one(self):
+        """chi_square_p_value(chi2=0, ...) → 1.0 (line 326)."""
+        p = chi_square_p_value(0.0, df=63)
+        self.assertEqual(p, 1.0)
+
+    def test_chi_square_p_value_negative_returns_one(self):
+        """chi_square_p_value(chi2=-1, ...) → 1.0 (line 326)."""
+        p = chi_square_p_value(-1.0, df=63)
+        self.assertEqual(p, 1.0)
+
+    def test_mutual_information_default_dist(self):
+        """q6_mutual_information с dist=None → использует uniform (line 403)."""
+        mi = q6_mutual_information(0, 1)
+        self.assertIsInstance(mi, float)
+        self.assertAlmostEqual(mi, 0.0, places=10)  # uniform → MI=0
+
+    def test_max_entropy_with_mean_yang_out_of_range(self):
+        """max_entropy_with_mean_yang с target_mean вне [0,6] → ValueError (line 435)."""
+        with self.assertRaises(ValueError):
+            max_entropy_with_mean_yang(target_mean=7.0)
+
+    def test_max_entropy_with_mean_yang_negative(self):
+        """max_entropy_with_mean_yang с target_mean < 0 → ValueError."""
+        with self.assertRaises(ValueError):
+            max_entropy_with_mean_yang(target_mean=-1.0)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

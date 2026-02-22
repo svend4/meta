@@ -3,6 +3,7 @@ import sys
 import os
 import io
 import json
+import pytest
 from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from projects.hexnav.hexnav import fmt_hex, print_current, print_path, TRIGRAM_NAMES, run
@@ -300,3 +301,17 @@ class TestNavMain:
         """main() с аргументом 42 → run(42)."""
         _, mock_run = self._run_main(['42'])
         mock_run.assert_called_once_with(42)
+
+    def test_main_out_of_range_exits(self):
+        """main() с аргументом 100 (out of range) → parser.error (line 212)."""
+        from projects.hexnav.hexnav import main
+        with patch('sys.argv', ['hexnav.py', '100']):
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_main_out_of_range_high(self):
+        """main() с аргументом 64 (=SIZE, out of range) → parser.error."""
+        from projects.hexnav.hexnav import main
+        with patch('sys.argv', ['hexnav.py', '64']):
+            with pytest.raises(SystemExit):
+                main()

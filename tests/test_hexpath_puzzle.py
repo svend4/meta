@@ -429,5 +429,18 @@ class TestInteractive(unittest.TestCase):
         self.assertIn('Нет ходов', out)
 
 
+class TestRatingWithNoPar(unittest.TestCase):
+    """Тест для rating() когда par < 0 (line 203)."""
+
+    def test_rating_returns_question_when_par_negative(self):
+        # Puzzle with all neighbors of start blocked → unsolvable → par = -1
+        # Create PuzzleState with path=[goal] directly (is_solved=True)
+        p = Puzzle(start=0, goal=63, blocked=frozenset({1, 2, 4, 8, 16, 32}))
+        # solve(p) is None → par = -1
+        st = PuzzleState(puzzle=p, path=[63], moves=5)
+        self.assertTrue(st.is_solved)
+        self.assertEqual(st.rating(), '?')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
