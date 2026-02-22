@@ -22374,5 +22374,173 @@ class TestViewerJSRuns(unittest.TestCase):
         self.assertIn('symRun', self._content)
 
 
+class TestViewerJSCore(unittest.TestCase):
+    """Verify that important viewer.html JS utility functions are defined."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    def test_caStep_present(self):
+        self.assertIn('caStep', self._content)
+
+    def test_dot_present(self):
+        self.assertIn('function dot(', self._content)
+
+    def test_hsl_present(self):
+        self.assertIn('function hsl(', self._content)
+
+    def test_initHover_present(self):
+        self.assertIn('initHover', self._content)
+
+    def test_populateDropdown_present(self):
+        self.assertIn('populateDropdown', self._content)
+
+    def test_encodeWord_present(self):
+        self.assertIn('function encodeWord(', self._content)
+
+    def test_drawHmap_present(self):
+        self.assertIn('function drawHmap(', self._content)
+
+    def test_fullKeyFor_present(self):
+        self.assertIn('function fullKeyFor(', self._content)
+
+    def test_buildHistory_present(self):
+        self.assertIn('buildHistory', self._content)
+
+    def test_stateDist_present(self):
+        self.assertIn('stateDist', self._content)
+
+    def test_toCanvas_present(self):
+        self.assertIn('toCanvas', self._content)
+
+    def test_populateBitDD_present(self):
+        self.assertIn('populateBitDD', self._content)
+
+    def test_populateCorDD_present(self):
+        self.assertIn('populateCorDD', self._content)
+
+    def test_populateLyaDD_present(self):
+        self.assertIn('populateLyaDD', self._content)
+
+    def test_populateLzDD_present(self):
+        self.assertIn('populateLzDD', self._content)
+
+    def test_window_classicalMds_export(self):
+        self.assertIn('window.classicalMds', self._content)
+
+
+class TestPredictIntegration(unittest.TestCase):
+    """Cross-module consistency tests for the prediction pipeline."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import predict, batch_predict, predict_text
+        from projects.hexglyph.solan_word import word_signature, sig_distance
+        from projects.hexglyph.solan_transient import full_key, transient_classes
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.predict       = staticmethod(predict)
+        cls.batch_predict = staticmethod(batch_predict)
+        cls.predict_text  = staticmethod(predict_text)
+        cls.word_signature= staticmethod(word_signature)
+        cls.sig_distance  = staticmethod(sig_distance)
+        cls.full_key      = staticmethod(full_key)
+        cls.LEXICON       = LEXICON
+
+    # ── batch_predict ≡ individual predict ───────────────────────────────────
+
+    def test_batch_equals_individual_word(self):
+        words = ['ГОРА', 'ВОДА', 'ЛУНА']
+        batch = self.batch_predict(words)
+        for i, w in enumerate(words):
+            self.assertEqual(batch[i]['full_key'], self.predict(w)['full_key'])
+
+    def test_batch_equals_individual_neighbors(self):
+        words = ['ТУМАН', 'МАТ']
+        batch = self.batch_predict(words)
+        for i, w in enumerate(words):
+            self.assertEqual(batch[i]['neighbors'], self.predict(w)['neighbors'])
+
+    def test_batch_equals_individual_class_id(self):
+        words = ['ВОДА', 'НОРА', 'РАБОТА']
+        batch = self.batch_predict(words)
+        for i, w in enumerate(words):
+            self.assertEqual(batch[i]['class_id'], self.predict(w)['class_id'])
+
+    # ── predict vs word_signature / full_key ─────────────────────────────────
+
+    def test_predict_signature_matches_word_signature(self):
+        for w in ['ГОРА', 'ЖУРНАЛ', 'ТУМАН']:
+            r   = self.predict(w)
+            sig = self.word_signature(w)
+            for rule in sig:
+                self.assertEqual(r['signature'][rule], list(sig[rule]))
+
+    def test_predict_full_key_matches_full_key_fn(self):
+        for w in ['ВОДА', 'ВЗЛОМ', 'ЗАВОД']:
+            self.assertEqual(self.predict(w)['full_key'],
+                             self.full_key(w))
+
+    # ── neighbor distances ────────────────────────────────────────────────────
+
+    def test_self_neighbor_distance_zero(self):
+        """A lexicon word's nearest neighbor has distance 0 (self or class mate)."""
+        for w in ['ГОРА', 'ВОДА', 'ЛУНА']:
+            r = self.predict(w)
+            self.assertAlmostEqual(r['neighbors'][0][1], 0.0, places=5)
+
+    def test_neighbor_distances_sorted(self):
+        r = self.predict('ТУМАН')
+        dists = [d for _, d in r['neighbors']]
+        self.assertEqual(dists, sorted(dists))
+
+    def test_neighbor_distance_symmetry(self):
+        """sig_distance must be symmetric."""
+        words = ['ГОРА', 'ВОДА', 'ТУМАН']
+        sigs  = {w: self.word_signature(w) for w in words}
+        for i, w1 in enumerate(words):
+            for w2 in words[i+1:]:
+                d1 = self.sig_distance(sigs[w1], sigs[w2])
+                d2 = self.sig_distance(sigs[w2], sigs[w1])
+                self.assertAlmostEqual(d1, d2, places=10)
+
+    def test_neighbor_distance_non_negative(self):
+        r = self.predict('КОМПЬЮТЕР')
+        for _, d in r['neighbors']:
+            self.assertGreaterEqual(d, 0.0)
+
+    # ── predict_text tokenisation ─────────────────────────────────────────────
+
+    def test_predict_text_single_word(self):
+        results = self.predict_text('ГОРА')
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['word'], 'ГОРА')
+
+    def test_predict_text_deduplicates(self):
+        results = self.predict_text('ГОРА ГОРА ВОДА')
+        words = [r['word'] for r in results]
+        self.assertEqual(words, ['ГОРА', 'ВОДА'])
+
+    def test_predict_text_skips_non_cyrillic(self):
+        results = self.predict_text('hello ГОРА world ВОДА 123')
+        words = [r['word'] for r in results]
+        self.assertEqual(sorted(words), ['ВОДА', 'ГОРА'])
+
+    # ── is_new_class consistency ──────────────────────────────────────────────
+
+    def test_lexicon_words_not_new_class(self):
+        """All 49 lexicon words must belong to a known class."""
+        for w in self.LEXICON:
+            r = self.predict(w)
+            self.assertFalse(r['is_new_class'],
+                             f'{w} incorrectly flagged as new class')
+
+    def test_class_id_consistent_across_calls(self):
+        for w in ['ГОРА', 'ЖУРНАЛ', 'ВЗЛОМ']:
+            r1 = self.predict(w)
+            r2 = self.predict(w)
+            self.assertEqual(r1['class_id'], r2['class_id'])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
