@@ -25822,5 +25822,177 @@ class TestWordSummaryShape(unittest.TestCase):
             self.assertIn(rule, self._r['signature'])
 
 
+class TestAISProfileShape(unittest.TestCase):
+    """Structure of ais_profile() from solan_active."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import ais_profile
+        cls.ais_profile = staticmethod(ais_profile)
+        cls._r = ais_profile('ГОРА', 'xor')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_default_length_6(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float, f'value={v}')
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_all_four_rules_return_list(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.ais_profile('ВОДА', rule)
+            self.assertIsInstance(r, list, f'rule={rule}')
+            self.assertEqual(len(r), 6)
+
+
+class TestComplexityDictShape(unittest.TestCase):
+    """Structure of complexity_dict() from solan_complexity."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_complexity import complexity_dict
+        cls._r = complexity_dict('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_width_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_rules_dict(self):
+        self.assertIsInstance(self._r['rules'], dict)
+
+    def test_rules_has_four_keys(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r['rules'])
+
+
+class TestPEDictShape(unittest.TestCase):
+    """Structure of pe_dict() from solan_perm."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import pe_dict
+        cls.pe_dict = staticmethod(pe_dict)
+        cls._r = pe_dict('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_profile_list(self):
+        self.assertIsInstance(self._r['profile'], list)
+
+    def test_mean_pe_float(self):
+        self.assertIsInstance(self._r['mean_pe'], float)
+
+    def test_max_patterns_int(self):
+        self.assertIsInstance(self._r['max_patterns'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.pe_dict('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestOrdinalPatternProps(unittest.TestCase):
+    """Properties of ordinal_pattern() from solan_perm."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_perm import ordinal_pattern
+        cls.ordinal_pattern = staticmethod(ordinal_pattern)
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self.ordinal_pattern([1, 2, 3]), tuple)
+
+    def test_ascending_window(self):
+        self.assertEqual(self.ordinal_pattern([1, 2, 3]), (0, 1, 2))
+
+    def test_descending_window(self):
+        self.assertEqual(self.ordinal_pattern([3, 2, 1]), (2, 1, 0))
+
+    def test_mixed_window(self):
+        self.assertEqual(self.ordinal_pattern([2, 1, 3]), (1, 0, 2))
+
+    def test_length_matches_input(self):
+        w = [5, 3, 4]
+        self.assertEqual(len(self.ordinal_pattern(w)), len(w))
+
+    def test_result_is_permutation(self):
+        r = self.ordinal_pattern([5, 3, 7, 1])
+        self.assertEqual(sorted(r), list(range(len(r))))
+
+
+class TestPersistenceProps(unittest.TestCase):
+    """Properties of persistence() from solan_persistence."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_persistence import persistence
+        cls.persistence = staticmethod(persistence)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.persistence([0, 1, 0, 1]), float)
+
+    def test_constant_sequence_is_one(self):
+        self.assertEqual(self.persistence([0, 0, 0, 0]), 1.0)
+
+    def test_alternating_sequence_is_zero(self):
+        self.assertEqual(self.persistence([0, 1, 0, 1]), 0.0)
+
+    def test_value_in_0_1(self):
+        v = self.persistence([0, 0, 1, 0, 0])
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 1.0)
+
+
+class TestAttractorSigProps(unittest.TestCase):
+    """Properties of attractor_sig() from solan_basin."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_basin import attractor_sig
+        cls.attractor_sig = staticmethod(attractor_sig)
+
+    def test_returns_frozenset(self):
+        r = self.attractor_sig('ГОРА', 'xor')
+        self.assertIsInstance(r, frozenset)
+
+    def test_nonempty(self):
+        r = self.attractor_sig('ГОРА', 'xor')
+        self.assertGreater(len(r), 0)
+
+    def test_deterministic(self):
+        r1 = self.attractor_sig('ГОРА', 'xor')
+        r2 = self.attractor_sig('ГОРА', 'xor')
+        self.assertEqual(r1, r2)
+
+    def test_all_four_rules_nonempty(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.attractor_sig('ВОДА', rule)
+            self.assertIsInstance(r, frozenset)
+            self.assertGreater(len(r), 0, f'rule={rule}')
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
