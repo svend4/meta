@@ -159,6 +159,15 @@ class TestConvolution(unittest.TestCase):
         for h in range(64):
             self.assertAlmostEqual(fg_direct[h], fg_fft[h], places=9)
 
+    def test_correlate_equals_convolve_in_z2n(self):
+        """В (Z₂)^n инверсия = тождественная: correlate(f,g) = convolve(f,g)."""
+        f = [float(h % 3) for h in range(64)]
+        g = [1.0 if _popcount(h) == 2 else 0.0 for h in range(64)]
+        corr = correlate(f, g)
+        conv = convolve(f, g)
+        for h in range(64):
+            self.assertAlmostEqual(corr[h], conv[h], places=9)
+
     def test_autocorrelation_at_0(self):
         """AC_f(0) = Σ_h f(h)² = ‖f‖²."""
         f = [float(_popcount(h)) for h in range(64)]
@@ -282,6 +291,18 @@ class TestSubgroups(unittest.TestCase):
         for u in perp:
             for h in H:
                 self.assertEqual(_inner_product(u, h), 0)
+
+    def test_index_of_subgroup_trivial(self):
+        """Индекс тривиальной подгруппы = 64."""
+        H = subgroup_generated([0])  # {0}
+        idx = index_of_subgroup(H)
+        self.assertEqual(idx, 64 // len(H))
+
+    def test_index_of_subgroup_full(self):
+        """Индекс всей группы Q6 = 1."""
+        H = subgroup_generated([1, 2, 4, 8, 16, 32])  # all Q6
+        idx = index_of_subgroup(H)
+        self.assertEqual(idx, 64 // len(H))
 
     def test_pontryagin_dual_length(self):
         """Двойственный характер — список длины 64."""

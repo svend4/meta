@@ -357,6 +357,11 @@ class TestPolynomials:
         for n in range(1, 5):
             assert zeta_polynomial(n) > 0
 
+    def test_zeta_polynomial_n0(self):
+        """Z(0) = 0 для n ≤ 0."""
+        assert zeta_polynomial(0) == 0
+        assert zeta_polynomial(-1) == 0
+
 
 # ============================================================
 # Глобальная структура
