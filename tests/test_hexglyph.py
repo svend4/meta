@@ -22663,5 +22663,85 @@ class TestViewerHTMLStructure(unittest.TestCase):
         self.assertIn('cor-custom', self._content)
 
 
+class TestViewerSectionHeadings(unittest.TestCase):
+    """Verify that major analysis section H2 headings exist in viewer.html."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    def test_heading_recurrence(self):
+        self.assertIn('Рекуррентный анализ CA Q6', self._content)
+
+    def test_heading_mutual_info(self):
+        self.assertIn('Взаимная информация CA Q6', self._content)
+
+    def test_heading_spacetime(self):
+        self.assertIn('Пространство-время Q6', self._content)
+
+    def test_heading_damage(self):
+        self.assertIn('Разброс повреждений Q6', self._content)
+
+    def test_heading_symbolic(self):
+        self.assertIn('Символьная динамика Q6', self._content)
+
+    def test_heading_transfer_entropy(self):
+        self.assertIn('Transfer Entropy CA Q6', self._content)
+
+    def test_heading_perm_entropy(self):
+        self.assertIn('Перестановочная энтропия CA Q6', self._content)
+
+    def test_heading_basin(self):
+        self.assertIn('Бассейн аттрактора CA Q6', self._content)
+
+    def test_heading_network(self):
+        self.assertIn('Сеть информационного потока Q6', self._content)
+
+    def test_heading_lyapunov(self):
+        self.assertIn('Ляпунов CA Q6', self._content)
+
+    def test_heading_phoneme(self):
+        self.assertIn('Фонемный анализ Q6', self._content)
+
+    def test_heading_portrait(self):
+        self.assertIn('Портрет Q6', self._content)
+
+    def test_heading_fourier_psd(self):
+        self.assertIn('Фурье / PSD Q6', self._content)
+
+    def test_heading_autocorr(self):
+        self.assertIn('Автокорреляция Q6 — ACF', self._content)
+
+    def test_heading_morans_i(self):
+        self.assertIn("Moran's I Q6", self._content)
+
+    def test_heading_lz76(self):
+        self.assertIn('LZ76 Q6', self._content)
+
+    def test_heading_first_return(self):
+        self.assertIn('First-Return Map Q6', self._content)
+
+    def test_heading_temporal_moments(self):
+        self.assertIn('Temporal Moments Q6', self._content)
+
+    def test_heading_hamming_weight(self):
+        self.assertIn('Hamming Weight Dynamics Q6', self._content)
+
+    def test_heading_prediction(self):
+        self.assertIn('Предсказание Q6 — любое слово', self._content)
+
+    def test_heading_spatial_entropy(self):
+        self.assertIn('Spatial Entropy Profile Q6', self._content)
+
+    def test_heading_spatial_edge(self):
+        self.assertIn('Spatial Edge Density Q6', self._content)
+
+    def test_heading_orbit_vocab(self):
+        self.assertIn('Orbit Vocabulary Q6', self._content)
+
+    def test_heading_period_width(self):
+        self.assertIn('Period vs Width', self._content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
