@@ -26961,5 +26961,202 @@ class TestBitFlipFreqsShape(unittest.TestCase):
             self.assertIsInstance(v, float)
 
 
+# ---------------------------------------------------------------------------
+# TestCoarsenProps
+# ---------------------------------------------------------------------------
+class TestCoarsenProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import coarsen
+        cls.coarsen = staticmethod(coarsen)
+
+    def test_returns_int(self):
+        self.assertIsInstance(self.coarsen(49, 4), int)
+
+    def test_result_in_range(self):
+        for v in (0, 32, 63):
+            r = self.coarsen(v, 4)
+            self.assertGreaterEqual(r, 0)
+            self.assertLess(r, 4)
+
+    def test_zero_maps_to_zero(self):
+        self.assertEqual(self.coarsen(0, 4), 0)
+
+    def test_deterministic(self):
+        self.assertEqual(self.coarsen(49, 8), self.coarsen(49, 8))
+
+
+# ---------------------------------------------------------------------------
+# TestCommutatorTrajShape
+# ---------------------------------------------------------------------------
+class TestCommutatorTrajShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import commutator_traj
+        cls.commutator_traj = staticmethod(commutator_traj)
+        cls._r = commutator_traj('ГОРА', 'xor3', 4)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_first_element_zero(self):
+        self.assertAlmostEqual(self._r[0], 0.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestMSECellShape
+# ---------------------------------------------------------------------------
+class TestMSECellShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import mse_cell
+        cls.mse_cell = staticmethod(mse_cell)
+        import random
+        rng = random.Random(42)
+        cls._series = [rng.random() for _ in range(200)]
+        cls._r = mse_cell(cls._series)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_8(self):
+        self.assertEqual(len(self._r), 8)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r2 = self.mse_cell(self._series)
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestCoarseGrainShape
+# ---------------------------------------------------------------------------
+class TestCoarseGrainShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import coarse_grain
+        cls.coarse_grain = staticmethod(coarse_grain)
+        cls._series = [0.1, 0.5, 0.9, 0.3, 0.7, 0.2, 0.8, 0.4]
+        cls._r = coarse_grain(cls._series, 2)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_half_length(self):
+        self.assertEqual(len(self._r), len(self._series) // 2)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_tau1_preserves_length(self):
+        r = self.coarse_grain(self._series, 1)
+        self.assertEqual(len(r), len(self._series))
+
+
+# ---------------------------------------------------------------------------
+# TestRowSpectrumShape
+# ---------------------------------------------------------------------------
+class TestRowSpectrumShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spectral import row_spectrum
+        cls.row_spectrum = staticmethod(row_spectrum)
+        cls._cells = [49, 47, 15, 63, 49, 47, 15, 63, 49, 47, 15, 63, 49, 47, 15, 63]
+        cls._r = row_spectrum(cls._cells)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_9(self):
+        self.assertEqual(len(self._r), 9)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_dc_component_positive(self):
+        # First element is the DC component (always positive for non-zero input)
+        self.assertGreater(self._r[0], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestCriticalPositionsShape
+# ---------------------------------------------------------------------------
+class TestCriticalPositionsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import critical_positions
+        cls.critical_positions = staticmethod(critical_positions)
+        cls._r = critical_positions('ГОРА')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_all_ints(self):
+        for v in self._r:
+            self.assertIsInstance(v, int)
+
+    def test_all_in_range(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0)
+            self.assertLess(v, 16)
+
+    def test_deterministic(self):
+        r2 = self.critical_positions('ГОРА')
+        self.assertEqual(self._r, r2)
+
+    def test_gora_has_two_critical(self):
+        self.assertEqual(self._r, [0, 2])
+
+
+# ---------------------------------------------------------------------------
+# TestNeutralPositionsShape
+# ---------------------------------------------------------------------------
+class TestNeutralPositionsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import neutral_positions
+        cls.neutral_positions = staticmethod(neutral_positions)
+        cls._r = neutral_positions('ГОРА')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_all_ints(self):
+        for v in self._r:
+            self.assertIsInstance(v, int)
+
+    def test_all_in_range(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0)
+            self.assertLess(v, 16)
+
+    def test_gora_has_one_neutral(self):
+        self.assertEqual(self._r, [1])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
