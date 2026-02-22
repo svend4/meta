@@ -23047,5 +23047,182 @@ class TestEdgeCases(unittest.TestCase):
         self.assertLess(d['norm'], 0.5)
 
 
+class TestViewerJSConstants(unittest.TestCase):
+    """Verify that static JS arrays and config objects are defined in viewer.html."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    # ── static JS arrays ──────────────────────────────────────────────────────
+
+    def test_ALL_PATS3(self):
+        self.assertIn('ALL_PATS3', self._content)
+
+    def test_BIT_NAMES(self):
+        self.assertIn('BIT_NAMES', self._content)
+
+    def test_CG_LEVELS(self):
+        self.assertIn('CG_LEVELS', self._content)
+
+    def test_COR_RULES(self):
+        self.assertIn('COR_RULES', self._content)
+
+    def test_DER_RULES(self):
+        self.assertIn('DER_RULES', self._content)
+
+    def test_FREQ_HUE(self):
+        self.assertIn('FREQ_HUE', self._content)
+
+    def test_LYA_RULES(self):
+        self.assertIn('LYA_RULES', self._content)
+
+    def test_LYA_SEGS(self):
+        self.assertIn('LYA_SEGS', self._content)
+
+    def test_LYA_SEG_COL(self):
+        self.assertIn('LYA_SEG_COL', self._content)
+
+    def test_LZ_RULES(self):
+        self.assertIn('LZ_RULES', self._content)
+
+    def test_PRT_AX(self):
+        self.assertIn('PRT_AX', self._content)
+
+    def test_SEGS(self):
+        self.assertIn('SEGS', self._content)
+
+    def test_WC(self):
+        self.assertIn('WC', self._content)
+
+    # ── static JS colour/config objects ──────────────────────────────────────
+
+    def test_BA_COLS(self):
+        self.assertIn('BA_COLS', self._content)
+
+    def test_BA_RGB(self):
+        self.assertIn('BA_RGB', self._content)
+
+    def test_BCOL(self):
+        self.assertIn('BCOL', self._content)
+
+    def test_CG_COLS(self):
+        self.assertIn('CG_COLS', self._content)
+
+    def test_CG_RGB(self):
+        self.assertIn('CG_RGB', self._content)
+
+    def test_CLS_COL(self):
+        self.assertIn('CLS_COL', self._content)
+
+    def test_COR_COLS(self):
+        self.assertIn('COR_COLS', self._content)
+
+    def test_COR_NAMES(self):
+        self.assertIn('COR_NAMES', self._content)
+
+    def test_DER_COLS(self):
+        self.assertIn('DER_COLS', self._content)
+
+    def test_DER_NAMES(self):
+        self.assertIn('DER_NAMES', self._content)
+
+    def test_DM_COLS(self):
+        self.assertIn('DM_COLS', self._content)
+
+    def test_ENT_COLORS(self):
+        self.assertIn('ENT_COLORS', self._content)
+
+    def test_ENT_LABELS(self):
+        self.assertIn('ENT_LABELS', self._content)
+
+    def test_FREQ_RGB(self):
+        self.assertIn('FREQ_RGB', self._content)
+
+    def test_H2OK(self):
+        self.assertIn('H2OK', self._content)
+
+    def test_H2RU(self):
+        self.assertIn('H2RU', self._content)
+
+    def test_LCOL(self):
+        self.assertIn('LCOL', self._content)
+
+    def test_LYA_COLORS(self):
+        self.assertIn('LYA_COLORS', self._content)
+
+    def test_LYA_NAMES(self):
+        self.assertIn('LYA_NAMES', self._content)
+
+    def test_LZ_COLS(self):
+        self.assertIn('LZ_COLS', self._content)
+
+    def test_LZ_NAMES(self):
+        self.assertIn('LZ_NAMES', self._content)
+
+    def test_MCOL(self):
+        self.assertIn('MCOL', self._content)
+
+    def test_MI_COLS(self):
+        self.assertIn('MI_COLS', self._content)
+
+    def test_MI_RGB(self):
+        self.assertIn('MI_RGB', self._content)
+
+    def test_NET_COLS(self):
+        self.assertIn('NET_COLS', self._content)
+
+    def test_PE_COLS(self):
+        self.assertIn('PE_COLS', self._content)
+
+    def test_PE_RGB(self):
+        self.assertIn('PE_RGB', self._content)
+
+    def test_PHONEME_Q6(self):
+        self.assertIn('PHONEME_Q6', self._content)
+
+    def test_PHON_H(self):
+        self.assertIn('PHON_H', self._content)
+
+    def test_PRT_COLS(self):
+        self.assertIn('PRT_COLS', self._content)
+
+    def test_RCOL(self):
+        self.assertIn('RCOL', self._content)
+
+    def test_RC_COLS(self):
+        self.assertIn('RC_COLS', self._content)
+
+    def test_RC_RGB(self):
+        self.assertIn('RC_RGB', self._content)
+
+    def test_RLBL(self):
+        self.assertIn('RLBL', self._content)
+
+    def test_RNAMES(self):
+        self.assertIn('RNAMES', self._content)
+
+    def test_RULE_LBL(self):
+        self.assertIn('RULE_LBL', self._content)
+
+    def test_ST_COLS(self):
+        self.assertIn('ST_COLS', self._content)
+
+    def test_SYM_COLS(self):
+        self.assertIn('SYM_COLS', self._content)
+
+    def test_TE_COLS(self):
+        self.assertIn('TE_COLS', self._content)
+
+    def test_WCOLORS(self):
+        self.assertIn('WCOLORS', self._content)
+
+    def test_WH2(self):
+        self.assertIn('WH2', self._content)
+
+    def test_WLABELS(self):
+        self.assertIn('WLABELS', self._content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
