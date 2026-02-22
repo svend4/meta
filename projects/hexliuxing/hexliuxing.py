@@ -151,7 +151,7 @@ class LiuElement:
         g_v = (self._data["rgb"][1] + other._data["rgb"][1]) / 2
         b = (self._data["rgb"][2] + other._data["rgb"][2]) / 2
         # Определяем получившийся цвет
-        result_rgb = (round(r), round(g_v), round(b))
+        result_rgb = (1 if r > 0 else 0, 1 if g_v > 0 else 0, 1 if b > 0 else 0)
         mix_name = _rgb_to_name(result_rgb)
         return {
             "a": self.name,
