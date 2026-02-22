@@ -26121,5 +26121,126 @@ class TestAttractorBinaryShape(unittest.TestCase):
             self.assertGreater(len(r), 0)
 
 
+class TestCoarseOrbitShape(unittest.TestCase):
+    """Structure of coarse_orbit() from solan_coarse."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import coarse_orbit
+        cls.coarse_orbit = staticmethod(coarse_orbit)
+        cls._r = coarse_orbit('ГОРА', 'xor', 2)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_transient_nonneg(self):
+        self.assertGreaterEqual(self._r['transient'], 0)
+
+    def test_entropy_float(self):
+        self.assertIsInstance(self._r['entropy'], float)
+
+    def test_entropy_norm_in_0_1(self):
+        self.assertGreaterEqual(self._r['entropy_norm'], 0.0)
+        self.assertLessEqual(self._r['entropy_norm'], 1.0)
+
+    def test_n_unique_int(self):
+        self.assertIsInstance(self._r['n_unique'], int)
+
+
+class TestAttractorSpectrumShape(unittest.TestCase):
+    """Structure of attractor_spectrum() from solan_spectral."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spectral import attractor_spectrum
+        cls.attractor_spectrum = staticmethod(attractor_spectrum)
+        cls._r = attractor_spectrum('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_wavelengths_list(self):
+        self.assertIsInstance(self._r['wavelengths'], list)
+
+    def test_power_list(self):
+        self.assertIsInstance(self._r['power'], list)
+
+    def test_dominant_amp_float(self):
+        self.assertIsInstance(self._r['dominant_amp'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.attractor_spectrum('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestNWPEProps(unittest.TestCase):
+    """Properties of nwpe() from solan_wperm."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import nwpe
+        cls.nwpe = staticmethod(nwpe)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.nwpe([0, 1, 0, 1, 0, 1], 3), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.nwpe([0, 1, 0, 1, 0, 1], 3), 0.0)
+
+    def test_constant_series_low_entropy(self):
+        # Constant series has very low (near 0) NWPE
+        v = self.nwpe([0, 0, 0, 0, 0, 0, 0, 0], 3)
+        self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r1 = self.nwpe([0, 1, 2, 1, 0, 1, 2, 1], 3)
+        r2 = self.nwpe([0, 1, 2, 1, 0, 1, 2, 1], 3)
+        self.assertEqual(r1, r2)
+
+
+class TestMSEProfileShape(unittest.TestCase):
+    """Structure of mean_mse_profile() from solan_multiscale."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import mean_mse_profile
+        cls.mean_mse_profile = staticmethod(mean_mse_profile)
+        cls._r = mean_mse_profile('ГОРА', 'xor')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_default_length_8(self):
+        self.assertEqual(len(self._r), 8)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_all_four_rules_return_list(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.mean_mse_profile('ВОДА', rule)
+            self.assertIsInstance(r, list)
+            self.assertEqual(len(r), 8)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
