@@ -27927,5 +27927,119 @@ class TestSampleEntropyProps(unittest.TestCase):
         self.assertGreaterEqual(r, 0.0)
 
 
+# ---------------------------------------------------------------------------
+# TestWindowWeightProps
+# ---------------------------------------------------------------------------
+class TestWindowWeightProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import window_weight
+        cls.window_weight = staticmethod(window_weight)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.window_weight([0, 1, 2]), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.window_weight([0, 1, 2]), 0.0)
+
+    def test_deterministic(self):
+        r1 = self.window_weight([0, 1, 2, 1, 0])
+        r2 = self.window_weight([0, 1, 2, 1, 0])
+        self.assertEqual(r1, r2)
+
+    def test_identity_pattern_max_weight(self):
+        # Ascending pattern [0,1,2] → maximally weighted (weight = 1.0)
+        r = self.window_weight([0, 1, 2])
+        self.assertAlmostEqual(r, 1.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestWPEProps
+# ---------------------------------------------------------------------------
+class TestWPEProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_wperm import wpe
+        cls.wpe = staticmethod(wpe)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.wpe([0, 1, 2, 0, 1, 2], 3), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.wpe([0, 1, 2, 0, 1, 2], 3), 0.0)
+
+    def test_deterministic(self):
+        series = [0, 1, 2, 0, 1, 2, 0, 1, 2, 0]
+        r1 = self.wpe(series, 3)
+        r2 = self.wpe(series, 3)
+        self.assertEqual(r1, r2)
+
+    def test_constant_series_zero_wpe(self):
+        const = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        r = self.wpe(const, 3)
+        self.assertAlmostEqual(r, 0.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestAISDictShape
+# ---------------------------------------------------------------------------
+class TestAISDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import ais_dict
+        cls.ais_dict = staticmethod(ais_dict)
+        cls._r = ais_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'max_k', 'h1', 'ais_profile',
+                  'total_ais', 'mean_ais', 'cell_ais'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_ais_profile_list(self):
+        self.assertIsInstance(self._r['ais_profile'], list)
+
+    def test_ais_profile_length_max_k(self):
+        self.assertEqual(len(self._r['ais_profile']), self._r['max_k'])
+
+    def test_mean_ais_float(self):
+        self.assertIsInstance(self._r['mean_ais'], float)
+
+    def test_cell_ais_length_16(self):
+        self.assertEqual(len(self._r['cell_ais']), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestPhonemeDictShape
+# ---------------------------------------------------------------------------
+class TestPhonemeDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import phoneme_dict
+        cls.phoneme_dict = staticmethod(phoneme_dict)
+        cls._r = phoneme_dict('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'width', 'profile', 'positions'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_profile_length_matches_word(self):
+        self.assertEqual(len(self._r['profile']), 4)
+
+    def test_positions_length_matches_word(self):
+        self.assertEqual(len(self._r['positions']), 4)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
