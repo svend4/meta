@@ -1156,6 +1156,18 @@ class TestSolanCA(unittest.TestCase):
         d = all_ca('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_run_ca_produces_output(self):
+        import io, sys
+        from projects.hexglyph.solan_ca import run_ca
+        f = io.StringIO()
+        old, sys.stdout = sys.stdout, f
+        try:
+            run_ca(width=16, steps=3, rule='xor3', ic='phonetic', word='ГОРА', color=False)
+        finally:
+            sys.stdout = old
+        self.assertTrue(f.getvalue())
+
 class TestSolanEntropy(unittest.TestCase):
     """Тесты модуля solan_entropy."""
 

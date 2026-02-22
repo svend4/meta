@@ -1,243 +1,267 @@
-"""solan_predict.py — Предсказание орбитального класса Q6 для произвольного слова.
+"""solan_predict.py — Q6 CA Prediction for Arbitrary Russian Words.
 
-Для любого русского слова (не обязательно из 49-словного лексикона)
-вычисляет полную орбитальную сигнатуру, определяет принадлежность к одному
-из 13 транзиентных классов и находит ближайших соседей в лексиконе.
+Given any Russian word (including words outside the 49-word lexicon),
+classify it into one of the 13 transient classes and find its nearest
+lexicon neighbors by orbital distance.
 
-Возможности:
-  • predict()        — полное предсказание для одного слова
-  • batch_predict()  — батч (общий кэш сигнатур лексикона)
-  • predict_text()   — предсказание для каждого слова в тексте
-  • print_prediction()  — цветной вывод в терминал
+Pipeline:
+    word "КОМПЬЮТЕР"
+    → encode via solan_word.encode_word()
+    → pad to width 16
+    → word_signature() : orbit (T, P) for 4 rules
+    → full_key()       : (xor_t, and_t, and_p, or_t, or_p)
+    → match against 13 known transient classes
+    → measure orbital distance to all 49 lexicon words
+    → return top-N nearest neighbors
 
-Запуск:
-    python3 -m projects.hexglyph.solan_predict --word ГОРА
-    python3 -m projects.hexglyph.solan_predict --word КОМПЬЮТЕР
-    python3 -m projects.hexglyph.solan_predict --text "ГОРА ЛУНА ЖУРНАЛ"
-    python3 -m projects.hexglyph.solan_predict --word ГОРА --json
-    python3 -m projects.hexglyph.solan_predict --word ГОРА --no-color
+Functions
+─────────
+  predict(word, width, top_n)           → dict
+  batch_predict(words, width, top_n)    → list[dict]
+  predict_text(text, width, top_n)      → list[dict]
+  print_prediction(word, width, color)  → None
+  prediction_dict(result)               → dict
+  predict_summary(word, width)          → dict
+
+Запуск
+──────
+  python3 -m projects.hexglyph.solan_predict --word ГОРА --no-color
+  python3 -m projects.hexglyph.solan_predict --word КОМПЬЮТЕР --no-color
+  python3 -m projects.hexglyph.solan_predict --text "ГОРА ЛУНА ЖУРНАЛ" --no-color
+  python3 -m projects.hexglyph.solan_predict --word ГОРА --json
 """
 from __future__ import annotations
 
 import argparse
-import json
-import math
-import pathlib
 import re
 import sys
-from typing import Any
+import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
+from projects.hexglyph.solan_ca import (
+    _RST, _BOLD, _DIM, _RULE_NAMES, _RULE_COLOR, _ALL_RULES,
+)
+from projects.hexglyph.solan_word import word_signature, sig_distance
+from projects.hexglyph.solan_transient import full_key, transient_classes
 from projects.hexglyph.solan_lexicon import LEXICON
-from projects.hexglyph.solan_ca      import _RST, _BOLD, _DIM, _RULE_COLOR, _RULE_NAMES, _ALL_RULES
 
-RULES = tuple(_ALL_RULES)
+# ── Known class table (computed once at import) ─────────────────────────────
 
-
-# ── Internal helpers ──────────────────────────────────────────────────────────
-
-def _lex_sigs(width: int = 16) -> dict:
-    """Кэшированные сигнатуры всего лексикона."""
-    from projects.hexglyph.solan_lexicon import all_signatures
-    return all_signatures(width=width)
+_CLASSES: list[dict] = transient_classes()
+_CLASS_KEYS: list[tuple] = [tuple(c['key']) for c in _CLASSES]
 
 
-def _get_transient_classes(width: int = 16) -> list[dict]:
-    """13 транзиентных классов эквивалентности."""
-    from projects.hexglyph.solan_transient import transient_classes
-    return transient_classes(width=width)
+# ── Core prediction ─────────────────────────────────────────────────────────
 
+def predict(word: str, width: int = 16, top_n: int = 10) -> dict:
+    """Full Q6 prediction for *word*.
 
-# ── Public API ────────────────────────────────────────────────────────────────
-
-def predict(
-    word:  str,
-    width: int = 16,
-    *,
-    _lex_cache: dict | None = None,
-    _cls_cache: list | None = None,
-    top_n: int = 10,
-) -> dict[str, Any]:
-    """Полное предсказание орбитального класса Q6.
-
-    Параметры
-    ---------
-    word        : произвольное русское слово
-    width       : ширина CA (default 16)
-    _lex_cache  : предвычисленные сигнатуры лексикона (для батча)
-    _cls_cache  : предвычисленные классы (для батча)
-    top_n       : число ближайших соседей
-
-    Возвращает dict:
-      word, signature, full_key, class_id, class_words, is_new_class,
-      neighbors [(word, dist)]
+    Returns
+    ───────
+    word          : str              uppercased input word
+    width         : int
+    signature     : dict[rule → [transient, period]]
+    full_key      : tuple[int, ...]  (xor_t, and_t, and_p, or_t, or_p)
+    class_id      : int | None       0-based index into the 13 known classes
+    class_words   : list[str]        lexicon words sharing the same class
+    neighbors     : list[(word, dist)]  top-N nearest, ascending
+    is_new_class  : bool             True when key not in any known class
     """
-    from projects.hexglyph.solan_word      import word_signature, sig_distance
-    from projects.hexglyph.solan_transient import full_key as _full_key
+    w   = word.upper()
+    sig = word_signature(w, width=width)
+    fk  = full_key(w, width=width)
 
-    sig    = word_signature(word, width=width)
-    fk     = _full_key(word, width=width)
-    lsigs  = _lex_cache  if _lex_cache  is not None else _lex_sigs(width)
-    clses  = _cls_cache  if _cls_cache  is not None else _get_transient_classes(width)
-
-    # Find class membership
-    class_id    = None
+    # Class lookup
+    class_id: int | None = None
     class_words: list[str] = []
-    for ci, cls in enumerate(clses):
-        if fk == cls['key']:
-            class_id    = ci           # 0-based
-            class_words = cls['words']
-            break
+    if fk in _CLASS_KEYS:
+        class_id   = _CLASS_KEYS.index(fk)
+        class_words = list(_CLASSES[class_id]['words'])
 
-    is_new_class = class_id is None
-
-    # Nearest neighbors in lexicon (excluding self)
-    dists = sorted(
-        ((w, sig_distance(sig, s)) for w, s in lsigs.items()),
-        key=lambda x: (float('inf') if math.isnan(x[1]) else x[1], x[0]),
-    )
-    neighbors = [(w, d) for w, d in dists if not math.isnan(d)][:top_n]
+    # Neighbor distances against the full lexicon
+    lex_sigs = {lw: word_signature(lw, width=width) for lw in LEXICON}
+    dists = [(lw, sig_distance(sig, lex_sigs[lw])) for lw in LEXICON]
+    dists.sort(key=lambda x: x[1])
+    neighbors = [(lw, round(d, 6)) for lw, d in dists[:top_n]]
 
     return {
-        'word':         word,
-        'signature':    sig,
-        'full_key':     fk,
-        'class_id':     class_id,
-        'class_words':  class_words,
-        'is_new_class': is_new_class,
-        'neighbors':    neighbors,
+        'word':        w,
+        'width':       width,
+        'signature':   {r: list(v) for r, v in sig.items()},
+        'full_key':    fk,
+        'class_id':    class_id,
+        'class_words': class_words,
+        'neighbors':   neighbors,
+        'is_new_class': class_id is None,
     }
 
 
-def batch_predict(
-    words:  list[str],
-    width:  int = 16,
-    top_n:  int = 10,
-) -> list[dict[str, Any]]:
-    """Предсказание для списка слов с общим кэшем лексикона."""
-    lex   = _lex_sigs(width)
-    clses = _get_transient_classes(width)
-    return [
-        predict(w, width=width, _lex_cache=lex, _cls_cache=clses, top_n=top_n)
-        for w in words
-    ]
+def batch_predict(words: list[str], width: int = 16, top_n: int = 10) -> list[dict]:
+    """Predict for multiple words (re-uses shared lexicon signature cache)."""
+    lex_sigs = {lw: word_signature(lw, width=width) for lw in LEXICON}
+
+    results = []
+    for word in words:
+        w   = word.upper()
+        sig = word_signature(w, width=width)
+        fk  = full_key(w, width=width)
+
+        class_id: int | None = None
+        class_words: list[str] = []
+        if fk in _CLASS_KEYS:
+            class_id   = _CLASS_KEYS.index(fk)
+            class_words = list(_CLASSES[class_id]['words'])
+
+        dists = [(lw, sig_distance(sig, lex_sigs[lw])) for lw in LEXICON]
+        dists.sort(key=lambda x: x[1])
+        neighbors = [(lw, round(d, 6)) for lw, d in dists[:top_n]]
+
+        results.append({
+            'word':        w,
+            'width':       width,
+            'signature':   {r: list(v) for r, v in sig.items()},
+            'full_key':    fk,
+            'class_id':    class_id,
+            'class_words': class_words,
+            'neighbors':   neighbors,
+            'is_new_class': class_id is None,
+        })
+    return results
 
 
-def predict_text(
-    text:  str,
-    width: int = 16,
-    top_n: int = 5,
-) -> list[dict[str, Any]]:
-    """Токенизировать русский текст и предсказать для каждого уникального слова."""
-    tokens = [t.upper() for t in re.findall(r'[А-ЯЁа-яё]+', text)]
-    seen: set[str] = set()
-    unique = [t for t in tokens if t not in seen and not seen.add(t)]  # type: ignore[func-returns-value]
-    return batch_predict(unique, width=width, top_n=top_n)
+def predict_text(text: str, width: int = 16, top_n: int = 10) -> list[dict]:
+    """Tokenise *text* into Russian words, predict each unique word.
+
+    Splits on non-Cyrillic characters; returns predictions for unique words
+    in order of first appearance.
+    """
+    tokens = re.findall(r'[А-ЯЁа-яё]+', text)
+    seen: list[str] = []
+    for t in tokens:
+        t_up = t.upper()
+        if t_up not in seen:
+            seen.append(t_up)
+    return batch_predict(seen, width=width, top_n=top_n)
 
 
-def prediction_dict(result: dict[str, Any]) -> dict[str, Any]:
-    """JSON-сериализуемое представление результата predict()."""
-    sig_out: dict[str, dict] = {}
-    for rule, (t, p) in result['signature'].items():
-        sig_out[rule] = {'transient': t, 'period': p}
+# ── JSON-friendly wrappers ──────────────────────────────────────────────────
+
+def prediction_dict(result: dict) -> dict:
+    """Return a JSON-serialisable copy of a predict() result.
+
+    neighbors are returned as [{'word': w, 'dist': d}, ...] dicts.
+    full_key is returned as a list (not tuple).
+    """
+    neighbors = [{'word': w, 'dist': d} for w, d in result['neighbors']]
     return {
-        'word':         result['word'],
-        'signature':    sig_out,
-        'full_key':     list(result['full_key']),
-        'class_id':     result['class_id'],
-        'class_words':  result['class_words'],
+        'word':        result['word'],
+        'width':       result['width'],
+        'signature':   result['signature'],
+        'full_key':    list(result['full_key']),
+        'class_id':    result['class_id'],
+        'class_count': len(_CLASSES),
+        'class_words': result['class_words'],
+        'neighbors':   neighbors,
         'is_new_class': result['is_new_class'],
-        'neighbors':    [
-            {'word': w, 'dist': round(d, 6)}
-            for w, d in result['neighbors']
-        ],
     }
 
 
-# ── Terminal output ───────────────────────────────────────────────────────────
+def predict_summary(word: str, width: int = 16) -> dict:
+    """JSON-serialisable prediction summary for *word*."""
+    return prediction_dict(predict(word, width=width))
+
+
+# ── Pretty-printing ─────────────────────────────────────────────────────────
 
 def print_prediction(
     word:  str,
     width: int  = 16,
     color: bool = True,
 ) -> None:
-    """Вывести полное предсказание для слова."""
-    bold  = _BOLD if color else ''
-    reset = _RST  if color else ''
-    dim   = _DIM  if color else ''
+    """Pretty-print the full Q6 prediction for *word*."""
+    bold = _BOLD if color else ''
+    rst  = _RST  if color else ''
 
     result = predict(word, width=width)
-    clses  = _get_transient_classes(width)
+    w      = result['word']
+    sig    = result['signature']
+    fk     = result['full_key']
 
-    print(bold + f"  ◈ Предсказание Q6  {word.upper()}  (width={width})" + reset)
+    print(bold + f"  ◈ Предсказание Q6  {w}  (width={width})" + rst)
     print()
 
     # Signature table
-    print(f"  {'Правило':<10}  {'Транзиент':>10}  {'Период':>8}")
-    print('  ' + '─' * 32)
-    for rule in RULES:
-        t, p = result['signature'].get(rule, (None, None))
-        col  = (_RULE_COLOR.get(rule, '') if color else '')
-        lbl  = _RULE_NAMES.get(rule, rule.upper())
-        t_s  = str(t) if t is not None else '?'
-        p_s  = str(p) if p is not None else '?'
-        print(f"  {col}{lbl:<10}{reset}  {t_s:>10}  {p_s:>8}")
+    print(f"  {'Правило':8s}  {'Транзиент':>12s}  {'Период':>8s}")
+    print('  ' + '─' * 36)
+    for r in _ALL_RULES:
+        t, p  = sig[r]
+        col   = _RULE_COLOR.get(r, '') if color else ''
+        t_str = str(t) if t is not None else '—'
+        p_str = str(p) if p is not None else '>2000'
+        lbl   = _RULE_NAMES.get(r, r.upper())
+        print(f"  {col}{lbl:8s}{rst}  {t_str:>12s}  {p_str:>8s}")
     print()
 
-    # Class
-    fk  = result['full_key']
-    fk_s = f"({','.join(str(v) for v in fk)})"
-    if result['is_new_class']:
-        cls_s = (f"\033[38;5;220m" if color else '') + "Новый класс!" + reset
-        print(f"  Класс:  {cls_s}  ключ={fk_s}")
+    # Class info
+    cid     = result['class_id']
+    cwords  = result['class_words']
+    new_str = ('Нет' if not result['is_new_class']
+               else bold + 'ДА (новый класс)' + rst)
+    key_str = '(' + ','.join(str(x) for x in fk) + ')'
+
+    if cid is not None:
+        sample = ' '.join(cwords[:5])
+        extra  = (f'  ({len(cwords)} слов: {sample} …)'
+                  if len(cwords) > 5
+                  else f'  ({len(cwords)} слов: {sample})')
+        print(f"  Класс:  {cid + 1} / {len(_CLASSES)}  ключ={key_str}{extra}")
     else:
-        ci   = result['class_id']
-        cw   = result['class_words']
-        col  = '\033[38;5;75m' if color else ''
-        nt   = len(clses)
-        print(f"  Класс:  {col}{ci + 1} / {nt}{reset}  ключ={fk_s}  "
-              f"({len(cw)} слов: {dim}{' '.join(cw[:6])}"
-              f"{'...' if len(cw) > 6 else ''}{reset})")
-    print(f"  Новый?  {'Да' if result['is_new_class'] else 'Нет'}")
+        print(f"  Класс:  — (новый)  ключ={key_str}")
+    print(f"  Новый?  {new_str}")
     print()
 
     # Neighbors
-    print(bold + f"  Ближайшие соседи (top-{len(result['neighbors'])}):" + reset)
-    for rank, (nbr, dist) in enumerate(result['neighbors'], 1):
-        col = ('\033[38;5;117m' if color else '')
-        d_s = f"{dist:.6f}" if dist > 0 else '0 (одинаковая орбита)'
-        print(f"  {rank:>3}. {col}{nbr:<14}{reset}  d={d_s}")
+    print(bold + "  Ближайшие соседи:" + rst)
+    for i, (nw, d) in enumerate(result['neighbors'], 1):
+        bar = '█' * int((1 - d) * 10)
+        print(f"    {i:2d}. {nw:12s}  d={d:.4f}  {bar}")
     print()
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
+# ── CLI ─────────────────────────────────────────────────────────────────────
+
+def _cli() -> None:
+    parser = argparse.ArgumentParser(
+        description='Q6 CA Prediction for Arbitrary Russian Words')
+    parser.add_argument('--word',  default='ГОРА',
+                        help='Russian word to predict')
+    parser.add_argument('--text',  default=None,
+                        help='Russian text to tokenise and predict')
+    parser.add_argument('--width', type=int, default=16)
+    parser.add_argument('--no-color', action='store_true')
+    parser.add_argument('--json',     action='store_true', help='JSON output')
+    args  = parser.parse_args()
+    color = not args.no_color and sys.stdout.isatty()
+
+    if args.json:
+        import json as _json
+        if args.text:
+            results = predict_text(args.text, width=args.width)
+            print(_json.dumps([prediction_dict(r) for r in results],
+                               ensure_ascii=False, indent=2))
+        else:
+            print(_json.dumps(predict_summary(args.word, args.width),
+                               ensure_ascii=False, indent=2))
+        return
+
+    if args.text:
+        results = predict_text(args.text, width=args.width)
+        for r in results:
+            print_prediction(r['word'], width=args.width, color=color)
+    else:
+        print_prediction(args.word, width=args.width, color=color)
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description='Предсказание орбитального класса Q6 для произвольного слова')
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--word',  metavar='WORD', help='одно слово')
-    group.add_argument('--text',  metavar='TEXT', help='русский текст (несколько слов)')
-    parser.add_argument('--json',     action='store_true')
-    parser.add_argument('--width',    type=int, default=16)
-    parser.add_argument('--top',      type=int, default=10, dest='top_n')
-    parser.add_argument('--no-color', action='store_true')
-    args = parser.parse_args()
-
-    _color = not args.no_color
-
-    if args.word:
-        if args.json:
-            r = predict(args.word.upper(), width=args.width, top_n=args.top_n)
-            print(json.dumps(prediction_dict(r), ensure_ascii=False, indent=2))
-        else:
-            print_prediction(args.word.upper(), width=args.width, color=_color)
-    else:
-        results = predict_text(args.text, width=args.width, top_n=args.top_n)
-        if args.json:
-            print(json.dumps([prediction_dict(r) for r in results],
-                             ensure_ascii=False, indent=2))
-        else:
-            for r in results:
-                print_prediction(r['word'], width=args.width, color=_color)
+    _cli()
