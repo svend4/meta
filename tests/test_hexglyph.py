@@ -23502,5 +23502,262 @@ class TestCARuleRegression(unittest.TestCase):
         self.assertEqual(h_to_char(63), '#')
 
 
+class TestSignatureProperties(unittest.TestCase):
+    """Mathematical properties of word_signature() and sig_distance()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import word_signature, sig_distance
+        from projects.hexglyph.solan_transient import LEXICON
+        cls.word_signature = staticmethod(word_signature)
+        cls.sig_distance = staticmethod(sig_distance)
+        cls.LEXICON = LEXICON
+
+    def test_signature_returns_dict(self):
+        sig = self.word_signature('ГОРА')
+        self.assertIsInstance(sig, dict)
+
+    def test_signature_has_four_rules(self):
+        sig = self.word_signature('ГОРА')
+        self.assertEqual(sorted(sig.keys()), ['and', 'or', 'xor', 'xor3'])
+
+    def test_signature_values_are_tuples(self):
+        sig = self.word_signature('ГОРА')
+        for rule, val in sig.items():
+            self.assertIsInstance(val, tuple, f'rule={rule}')
+
+    def test_signature_values_length_two(self):
+        sig = self.word_signature('ГОРА')
+        for rule, val in sig.items():
+            self.assertEqual(len(val), 2, f'rule={rule}')
+
+    def test_signature_transient_nonneg(self):
+        for w in self.LEXICON[:15]:
+            sig = self.word_signature(w)
+            for rule, (t, p) in sig.items():
+                self.assertGreaterEqual(t, 0, f'{w} {rule}')
+
+    def test_signature_period_positive(self):
+        for w in self.LEXICON[:15]:
+            sig = self.word_signature(w)
+            for rule, (t, p) in sig.items():
+                self.assertGreaterEqual(p, 1, f'{w} {rule}')
+
+    def test_signature_is_deterministic(self):
+        sig1 = self.word_signature('ТУМАН')
+        sig2 = self.word_signature('ТУМАН')
+        self.assertEqual(sig1, sig2)
+
+    def test_voda_signature_xor(self):
+        sig = self.word_signature('ВОДА')
+        self.assertEqual(sig['xor'], (2, 1))
+
+    def test_voda_signature_xor3(self):
+        sig = self.word_signature('ВОДА')
+        self.assertEqual(sig['xor3'], (0, 2))
+
+    def test_voda_signature_and(self):
+        sig = self.word_signature('ВОДА')
+        self.assertEqual(sig['and'], (1, 2))
+
+    def test_voda_signature_or(self):
+        sig = self.word_signature('ВОДА')
+        self.assertEqual(sig['or'], (1, 2))
+
+    def test_distance_self_zero(self):
+        sig = self.word_signature('ГОРА')
+        self.assertEqual(self.sig_distance(sig, sig), 0.0)
+
+    def test_distance_symmetric(self):
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('ВОДА')
+        d_ab = self.sig_distance(sig_a, sig_b)
+        d_ba = self.sig_distance(sig_b, sig_a)
+        self.assertAlmostEqual(d_ab, d_ba, places=10)
+
+    def test_distance_nonneg(self):
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('ТУМАН')
+        self.assertGreaterEqual(self.sig_distance(sig_a, sig_b), 0.0)
+
+    def test_distance_same_class_zero(self):
+        # ГОРА and РОТА are in the same class → distance 0
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('РОТА')
+        self.assertEqual(self.sig_distance(sig_a, sig_b), 0.0)
+
+    def test_distance_different_class_positive(self):
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('ТУМАН')
+        self.assertGreater(self.sig_distance(sig_a, sig_b), 0.0)
+
+    def test_distance_at_most_one(self):
+        sig_a = self.word_signature('ГОРА')
+        sig_b = self.word_signature('ТУМАН')
+        self.assertLessEqual(self.sig_distance(sig_a, sig_b), 1.0)
+
+
+class TestTransientClassStructure(unittest.TestCase):
+    """Structure and consistency of transient_classes()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import transient_classes, full_key, LEXICON
+        cls.classes = transient_classes()
+        cls.full_key = staticmethod(full_key)
+        cls.LEXICON = LEXICON
+
+    def test_returns_13_classes(self):
+        self.assertEqual(len(self.classes), 13)
+
+    def test_each_class_has_key(self):
+        for i, c in enumerate(self.classes):
+            self.assertIn('key', c, f'class {i}')
+
+    def test_each_class_has_words(self):
+        for i, c in enumerate(self.classes):
+            self.assertIn('words', c, f'class {i}')
+
+    def test_each_class_has_count(self):
+        for i, c in enumerate(self.classes):
+            self.assertIn('count', c, f'class {i}')
+
+    def test_count_matches_words_length(self):
+        for i, c in enumerate(self.classes):
+            self.assertEqual(c['count'], len(c['words']), f'class {i}')
+
+    def test_total_words_49(self):
+        total = sum(c['count'] for c in self.classes)
+        self.assertEqual(total, 49)
+
+    def test_all_keys_unique(self):
+        keys = [tuple(c['key']) for c in self.classes]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_class0_key(self):
+        self.assertEqual(tuple(self.classes[0]['key']), (2, 1, 2, 1, 2))
+
+    def test_class0_count_20(self):
+        self.assertEqual(self.classes[0]['count'], 20)
+
+    def test_voda_in_class0(self):
+        self.assertIn('ВОДА', self.classes[0]['words'])
+
+    def test_no_word_in_two_classes(self):
+        seen = set()
+        for c in self.classes:
+            for w in c['words']:
+                self.assertNotIn(w, seen, f'{w} appears twice')
+                seen.add(w)
+
+    def test_all_lexicon_words_covered(self):
+        all_words = set()
+        for c in self.classes:
+            all_words.update(c['words'])
+        for w in self.LEXICON:
+            self.assertIn(w, all_words)
+
+    def test_words_in_class_share_full_key(self):
+        for c in self.classes:
+            expected_key = tuple(c['key'])
+            for w in c['words']:
+                self.assertEqual(self.full_key(w), expected_key, f'{w}')
+
+
+class TestFullKeyProps(unittest.TestCase):
+    """Properties of full_key()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import full_key, LEXICON
+        cls.full_key = staticmethod(full_key)
+        cls.LEXICON = LEXICON
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self.full_key('ГОРА'), tuple)
+
+    def test_length_five(self):
+        self.assertEqual(len(self.full_key('ГОРА')), 5)
+
+    def test_all_positive(self):
+        k = self.full_key('ГОРА')
+        self.assertTrue(all(isinstance(v, int) and v > 0 for v in k))
+
+    def test_deterministic(self):
+        k1 = self.full_key('ТУМАН')
+        k2 = self.full_key('ТУМАН')
+        self.assertEqual(k1, k2)
+
+    def test_gora_key(self):
+        self.assertEqual(self.full_key('ГОРА'), (2, 1, 2, 1, 1))
+
+    def test_voda_key(self):
+        self.assertEqual(self.full_key('ВОДА'), (2, 1, 2, 1, 2))
+
+    def test_same_class_same_key_rota(self):
+        # ГОРА and РОТА are in the same class
+        self.assertEqual(self.full_key('ГОРА'), self.full_key('РОТА'))
+
+    def test_different_class_different_key(self):
+        # ГОРА (class key (2,1,2,1,1)) vs ВОДА (class key (2,1,2,1,2))
+        self.assertNotEqual(self.full_key('ГОРА'), self.full_key('ВОДА'))
+
+    def test_all_lexicon_full_keys_5tuple(self):
+        for w in self.LEXICON:
+            k = self.full_key(w)
+            self.assertIsInstance(k, tuple)
+            self.assertEqual(len(k), 5)
+
+
+class TestCAStepLength(unittest.TestCase):
+    """CA step() output length matches input length for all rules."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import step
+        cls.step = staticmethod(step)
+
+    def _check_len(self, rule, n):
+        state = [0] * n
+        result = self.step(state, rule)
+        self.assertEqual(len(result), n, f'{rule} n={n}')
+
+    def test_xor_length_16(self):
+        self._check_len('xor', 16)
+
+    def test_xor3_length_16(self):
+        self._check_len('xor3', 16)
+
+    def test_and_length_16(self):
+        self._check_len('and', 16)
+
+    def test_or_length_16(self):
+        self._check_len('or', 16)
+
+    def test_xor_length_8(self):
+        self._check_len('xor', 8)
+
+    def test_xor3_length_8(self):
+        self._check_len('xor3', 8)
+
+    def test_and_length_8(self):
+        self._check_len('and', 8)
+
+    def test_or_length_8(self):
+        self._check_len('or', 8)
+
+    def test_xor_length_4(self):
+        self._check_len('xor', 4)
+
+    def test_xor3_length_4(self):
+        self._check_len('xor3', 4)
+
+    def test_and_length_32(self):
+        self._check_len('and', 32)
+
+    def test_or_length_32(self):
+        self._check_len('or', 32)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
