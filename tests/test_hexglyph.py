@@ -22542,5 +22542,126 @@ class TestPredictIntegration(unittest.TestCase):
             self.assertEqual(r1['class_id'], r2['class_id'])
 
 
+class TestViewerHTMLStructure(unittest.TestCase):
+    """Verify important HTML element IDs exist in viewer.html."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    # ── output / stats containers ─────────────────────────────────────────────
+
+    def test_acf_stats_present(self):
+        self.assertIn('acf-stats', self._content)
+
+    def test_dend_stats_present(self):
+        self.assertIn('dend-stats', self._content)
+
+    def test_dm_stats_present(self):
+        self.assertIn('dm-stats', self._content)
+
+    def test_fou_stats_present(self):
+        self.assertIn('fou-stats', self._content)
+
+    def test_graph_stats_present(self):
+        self.assertIn('graph-stats', self._content)
+
+    def test_hw_stats_present(self):
+        self.assertIn('hw-stats', self._content)
+
+    def test_lz_stats_present(self):
+        self.assertIn('lz-stats', self._content)
+
+    def test_moran_stats_present(self):
+        self.assertIn('moran-stats', self._content)
+
+    def test_net_stats_present(self):
+        self.assertIn('net-stats', self._content)
+
+    def test_prt_stats_present(self):
+        self.assertIn('prt-stats', self._content)
+
+    def test_sym_stats_present(self):
+        self.assertIn('sym-stats', self._content)
+
+    def test_te_stats_present(self):
+        self.assertIn('te-stats', self._content)
+
+    # ── info containers ───────────────────────────────────────────────────────
+
+    def test_ac_info_present(self):
+        self.assertIn('ac-info', self._content)
+
+    def test_bit_info_present(self):
+        self.assertIn('bit-info', self._content)
+
+    def test_bp_info_present(self):
+        self.assertIn('bp-info', self._content)
+
+    def test_cor_info_present(self):
+        self.assertIn('cor-info', self._content)
+
+    def test_der_info_present(self):
+        self.assertIn('der-info', self._content)
+
+    def test_lya_info_present(self):
+        self.assertIn('lya-info', self._content)
+
+    def test_lyap_info_present(self):
+        self.assertIn('lyap-info', self._content)
+
+    def test_lz_info_present(self):
+        self.assertIn('lz-info', self._content)
+
+    # ── key structural elements ───────────────────────────────────────────────
+
+    def test_word_encoded_present(self):
+        self.assertIn('word-encoded', self._content)
+
+    def test_word_solan_present(self):
+        self.assertIn('word-solan', self._content)
+
+    def test_ca_status_present(self):
+        self.assertIn('ca-status', self._content)
+
+    # ── section control buttons ───────────────────────────────────────────────
+
+    def test_acf_btn_present(self):
+        self.assertIn('acf-btn', self._content)
+
+    def test_ba_hmap_btn_present(self):
+        self.assertIn('ba-hmap-btn', self._content)
+
+    def test_fou_btn_present(self):
+        self.assertIn('fou-btn', self._content)
+
+    def test_hw_btn_present(self):
+        self.assertIn('hw-btn', self._content)
+
+    def test_lv_btn_present(self):
+        self.assertIn('lv-btn', self._content)
+
+    def test_moran_btn_present(self):
+        self.assertIn('moran-btn', self._content)
+
+    def test_pe_multi_btn_present(self):
+        self.assertIn('pe-multi-btn', self._content)
+
+    def test_prt_btn_present(self):
+        self.assertIn('prt-btn', self._content)
+
+    def test_rc_hmap_btn_present(self):
+        self.assertIn('rc-hmap-btn', self._content)
+
+    def test_sym_thr_present(self):
+        self.assertIn('sym-thr', self._content)
+
+    def test_lz_custom_present(self):
+        self.assertIn('lz-custom', self._content)
+
+    def test_cor_custom_present(self):
+        self.assertIn('cor-custom', self._content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
