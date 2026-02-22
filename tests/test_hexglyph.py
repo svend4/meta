@@ -29958,5 +29958,160 @@ class TestMoranProps(unittest.TestCase):
         self.assertGreater(len(self._mis), 0)
 
 
+# ---------------------------------------------------------------------------
+# TestSolanPredictProps
+# ---------------------------------------------------------------------------
+class TestSolanPredictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import (
+            predict, predict_text, prediction_dict, batch_predict,
+        )
+        cls.predict         = staticmethod(predict)
+        cls.prediction_dict = staticmethod(prediction_dict)
+        cls.batch_predict   = staticmethod(batch_predict)
+        cls._r   = predict('ГОРА')
+        cls._pt  = predict_text('ГОРА ВОДА')
+        cls._bp  = batch_predict(['ГОРА', 'ВОДА'])
+        cls._pd  = prediction_dict(cls._r)
+
+    def test_predict_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_predict_required_keys(self):
+        for k in ('word', 'full_key', 'class_id', 'neighbors', 'is_new_class'):
+            self.assertIn(k, self._r)
+
+    def test_predict_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_predict_not_new_class(self):
+        self.assertFalse(self._r['is_new_class'])
+
+    def test_predict_neighbors_list(self):
+        self.assertIsInstance(self._r['neighbors'], list)
+
+    def test_predict_neighbor_self_first(self):
+        first_word, first_dist = self._r['neighbors'][0]
+        self.assertEqual(first_word, 'ГОРА')
+        self.assertEqual(first_dist, 0.0)
+
+    def test_predict_text_list(self):
+        self.assertIsInstance(self._pt, list)
+
+    def test_predict_text_two_words(self):
+        self.assertEqual(len(self._pt), 2)
+
+    def test_batch_predict_length(self):
+        self.assertEqual(len(self._bp), 2)
+
+    def test_prediction_dict_serializable(self):
+        import json
+        json.dumps(self._pd)   # must not raise
+
+
+# ---------------------------------------------------------------------------
+# TestAutocorrProps
+# ---------------------------------------------------------------------------
+class TestAutocorrProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_autocorr import (
+            temporal_ac, temporal_ac_profile, spatial_ac, cell_crosscorr,
+        )
+        from projects.hexglyph.solan_network import get_orbit
+        cls.temporal_ac = staticmethod(temporal_ac)
+        cls.spatial_ac  = staticmethod(spatial_ac)
+        cls._series = [49, 47, 15, 63] * 3
+        cls._orbit  = get_orbit('ВОЛНА', 'xor3')
+        cls._tap    = temporal_ac_profile(cls._series)
+        cls._cc     = cell_crosscorr(cls._series, cls._series)
+
+    def test_temporal_ac_float(self):
+        v = self.temporal_ac(self._series, lag=1)
+        self.assertIsInstance(v, float)
+
+    def test_temporal_ac_range(self):
+        v = self.temporal_ac(self._series, lag=0)
+        self.assertAlmostEqual(v, 1.0, places=5)
+
+    def test_temporal_ac_profile_list(self):
+        self.assertIsInstance(self._tap, list)
+
+    def test_spatial_ac_float(self):
+        v = self.spatial_ac(self._orbit, d=1)
+        self.assertIsInstance(v, float)
+
+    def test_cell_crosscorr_same_is_one(self):
+        self.assertAlmostEqual(self._cc, 1.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestBalanceProps
+# ---------------------------------------------------------------------------
+class TestBalanceProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_balance import bit_balance, aggregate_balance, bit_profile, balance_summary
+        cls._series = [49, 47, 15, 63] * 3
+        cls._bb = bit_balance(cls._series)
+        cls._ab = aggregate_balance('ГОРА', 'xor3')
+        cls._bp = bit_profile(cls._series)
+        cls._bs = balance_summary('ГОРА', 'xor3')
+
+    def test_bit_balance_list(self):
+        self.assertIsInstance(self._bb, list)
+
+    def test_bit_balance_6_items(self):
+        self.assertEqual(len(self._bb), 6)
+
+    def test_aggregate_balance_dict(self):
+        self.assertIsInstance(self._ab, dict)
+
+    def test_bit_profile_list(self):
+        self.assertIsInstance(self._bp, list)
+
+    def test_bit_profile_6_items(self):
+        self.assertEqual(len(self._bp), 6)
+
+    def test_balance_summary_dict(self):
+        self.assertIsInstance(self._bs, dict)
+
+    def test_balance_summary_word_preserved(self):
+        self.assertEqual(self._bs['word'], 'ГОРА')
+
+
+# ---------------------------------------------------------------------------
+# TestCorrelationProps
+# ---------------------------------------------------------------------------
+class TestCorrelationProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_correlation import correlation_dict, correlation_length, cross_corr
+        cls.correlation_length = staticmethod(correlation_length)
+        cls.cross_corr         = staticmethod(cross_corr)
+        cls._cd = correlation_dict('ГОРА')
+        cls._cl = correlation_length('ГОРА', 'xor3')
+        cls._xc = cross_corr('ГОРА', 'ВОДА', 'xor3')
+
+    def test_correlation_dict_dict(self):
+        self.assertIsInstance(self._cd, dict)
+
+    def test_correlation_dict_has_rules(self):
+        self.assertIn('rules', self._cd)
+
+    def test_correlation_length_float(self):
+        self.assertIsInstance(self._cl, float)
+
+    def test_correlation_length_positive(self):
+        self.assertGreater(self._cl, 0.0)
+
+    def test_cross_corr_list(self):
+        self.assertIsInstance(self._xc, list)
+
+    def test_cross_corr_nonempty(self):
+        self.assertGreater(len(self._xc), 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
