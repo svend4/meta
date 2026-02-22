@@ -30714,5 +30714,149 @@ class TestCrossProps(unittest.TestCase):
         self.assertAlmostEqual(v, 1.0, places=5)
 
 
+# ---------------------------------------------------------------------------
+# TestBoundaryProps
+# ---------------------------------------------------------------------------
+class TestBoundaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_boundary import boundary_orbit, boundary_period, boundary_summary
+        cls.boundary_period = staticmethod(boundary_period)
+        cls._bo = boundary_orbit('ГОРА', 'xor3')
+        cls._bp = boundary_period('ГОРА', 'xor3')
+        cls._bs = boundary_summary('ГОРА', 'xor3')
+
+    def test_boundary_orbit_list(self):
+        self.assertIsInstance(self._bo, list)
+
+    def test_boundary_orbit_nonempty(self):
+        self.assertGreater(len(self._bo), 0)
+
+    def test_boundary_period_int(self):
+        self.assertIsInstance(self._bp, int)
+
+    def test_boundary_period_positive(self):
+        self.assertGreater(self._bp, 0)
+
+    def test_boundary_summary_dict(self):
+        self.assertIsInstance(self._bs, dict)
+
+    def test_boundary_summary_word_preserved(self):
+        self.assertEqual(self._bs['word'], 'ГОРА')
+
+
+# ---------------------------------------------------------------------------
+# TestRecurrenceProps
+# ---------------------------------------------------------------------------
+class TestRecurrenceProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_recurrence import (
+            recurrence_matrix, rqa_metrics, recurrence_summary, state_hamming,
+        )
+        from projects.hexglyph.solan_network import get_orbit
+        cls.state_hamming = staticmethod(state_hamming)
+        orbit = get_orbit('ВОЛНА', 'xor3')
+        cls._rm  = recurrence_matrix(orbit)
+        cls._rqa = rqa_metrics(cls._rm)
+        cls._rs  = recurrence_summary('ГОРА', 'xor3')
+
+    def test_recurrence_matrix_list(self):
+        self.assertIsInstance(self._rm, list)
+
+    def test_recurrence_matrix_square(self):
+        self.assertEqual(len(self._rm), len(self._rm[0]))
+
+    def test_rqa_metrics_dict(self):
+        self.assertIsInstance(self._rqa, dict)
+
+    def test_rqa_metrics_has_RR(self):
+        self.assertIn('RR', self._rqa)
+
+    def test_recurrence_summary_dict(self):
+        self.assertIsInstance(self._rs, dict)
+
+    def test_recurrence_summary_word_preserved(self):
+        self.assertEqual(self._rs['word'], 'ГОРА')
+
+    def test_state_hamming_int(self):
+        v = self.state_hamming([49, 47, 15], [49, 47, 63])
+        self.assertIsInstance(v, int)
+
+
+# ---------------------------------------------------------------------------
+# TestSemanticDistProps
+# ---------------------------------------------------------------------------
+class TestSemanticDistProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_semantic import dist_to_self
+        from projects.hexglyph.solan_network import get_orbit
+        orbit = get_orbit('ВОЛНА', 'xor3')
+        cls._dts = dist_to_self('ГОРА', orbit)
+
+    def test_dist_to_self_list(self):
+        self.assertIsInstance(self._dts, list)
+
+    def test_dist_to_self_nonempty(self):
+        self.assertGreater(len(self._dts), 0)
+
+    def test_dist_to_self_nonneg(self):
+        for v in self._dts:
+            self.assertGreaterEqual(v, 0)
+
+
+# ---------------------------------------------------------------------------
+# TestProfileSummaryProps
+# ---------------------------------------------------------------------------
+class TestProfileSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_profile import profile_summary, profile_dict
+        cls._ps = profile_summary('ГОРА', 'xor3')
+        cls._pd = profile_dict(cls._ps)
+
+    def test_profile_summary_dict(self):
+        self.assertIsInstance(self._ps, dict)
+
+    def test_profile_summary_word_preserved(self):
+        self.assertEqual(self._ps['word'], 'ГОРА')
+
+    def test_profile_dict_dict(self):
+        self.assertIsInstance(self._pd, dict)
+
+    def test_profile_dict_has_spatial_mean(self):
+        self.assertIn('spatial_mean', self._pd)
+
+    def test_mean_spatial_mean_float(self):
+        self.assertIsInstance(self._ps['mean_spatial_mean'], float)
+
+
+# ---------------------------------------------------------------------------
+# TestMomentsSummaryProps
+# ---------------------------------------------------------------------------
+class TestMomentsSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moments import all_moments, moments_summary
+        cls._am = all_moments('ГОРА')
+        cls._ms = moments_summary('ГОРА', 'xor3')
+
+    def test_all_moments_dict(self):
+        self.assertIsInstance(self._am, dict)
+
+    def test_all_moments_four_rules(self):
+        self.assertEqual(len(self._am), 4)
+
+    def test_moments_summary_dict(self):
+        self.assertIsInstance(self._ms, dict)
+
+    def test_moments_summary_word_preserved(self):
+        self.assertEqual(self._ms['word'], 'ГОРА')
+
+    def test_moments_summary_has_var_stats(self):
+        self.assertIn('var_stats', self._ms)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
