@@ -25525,5 +25525,186 @@ class TestProfileSummaryShape(unittest.TestCase):
             self.assertEqual(r['rule'], rule)
 
 
+class TestLexiconSummaryShape(unittest.TestCase):
+    """Structure of lexicon_summary() from solan_lexicon."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lexicon import lexicon_summary
+        cls._r = lexicon_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_n_field_int(self):
+        self.assertIsInstance(self._r['n'], int)
+
+    def test_width_field_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_neighbors_list(self):
+        self.assertIsInstance(self._r['neighbors'], list)
+
+    def test_neighbors_length_n(self):
+        self.assertEqual(len(self._r['neighbors']), self._r['n'])
+
+
+class TestPhoneticSummaryShape(unittest.TestCase):
+    """Structure of phonetic_summary() from solan_phonetic."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phonetic import phonetic_summary
+        cls._r = phonetic_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_text_field(self):
+        self.assertEqual(self._r['text'], 'ГОРА')
+
+    def test_encoded_list(self):
+        self.assertIsInstance(self._r['encoded'], list)
+
+    def test_encoded_length(self):
+        # ГОРА has 4 chars
+        self.assertEqual(len(self._r['encoded']), 4)
+
+
+class TestWidthSummaryShape(unittest.TestCase):
+    """Structure of width_summary() from solan_width."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_width import width_summary
+        cls.width_summary = staticmethod(width_summary)
+        cls._r = width_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_widths_list(self):
+        self.assertIsInstance(self._r['widths'], list)
+
+    def test_periods_list(self):
+        self.assertIsInstance(self._r['periods'], list)
+
+    def test_is_constant_bool(self):
+        self.assertIsInstance(self._r['is_constant'], bool)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.width_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestConfigSummaryShape(unittest.TestCase):
+    """Structure of config_summary() from solan_config."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_config import config_summary
+        cls.config_summary = staticmethod(config_summary)
+        cls._r = config_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_coverage_vector_list(self):
+        self.assertIsInstance(self._r['coverage_vector'], list)
+
+    def test_mean_coverage_float(self):
+        self.assertIsInstance(self._r['mean_coverage'], float)
+
+    def test_n_full_coverage_int(self):
+        self.assertIsInstance(self._r['n_full_coverage'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.config_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestTriangleSummaryShape(unittest.TestCase):
+    """Structure of triangle_summary() from solan_triangle."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_triangle import triangle_summary
+        cls._r = triangle_summary()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_total_int(self):
+        self.assertIsInstance(self._r['total'], int)
+
+    def test_detected_int(self):
+        self.assertIsInstance(self._r['detected'], int)
+
+    def test_assigned_int(self):
+        self.assertIsInstance(self._r['assigned'], int)
+
+    def test_detected_list_is_list(self):
+        self.assertIsInstance(self._r['detected_list'], list)
+
+    def test_detected_leq_total(self):
+        self.assertLessEqual(self._r['detected'], self._r['total'])
+
+
+class TestRunSolanRunShape(unittest.TestCase):
+    """Structure of solan_run.run_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_run import run_summary
+        cls.run_summary = staticmethod(run_summary)
+        cls._r = run_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_mean_turns_float(self):
+        self.assertIsInstance(self._r['mean_turns'], float)
+
+    def test_max_turns_int(self):
+        self.assertIsInstance(self._r['max_turns'], int)
+
+    def test_quasi_frozen_cells_list(self):
+        self.assertIsInstance(self._r['quasi_frozen_cells'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.run_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
