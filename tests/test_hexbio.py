@@ -1,7 +1,9 @@
 """Тесты для hexbio — биоинформатика на Q6."""
 import sys
 import os
+import io
 import unittest
+from contextlib import redirect_stdout
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from projects.hexbio.hexbio import (
@@ -16,6 +18,8 @@ from projects.hexbio.hexbio import (
     amino_acids, codon_table_summary,
     synonymous_mutation_fraction, mutation_graph_edges,
     q6_vs_mutation_comparison,
+    evolutionary_distance_matrix,
+    _cmd_info, _cmd_codon, _cmd_mutation, _cmd_graph, _cmd_wobble,
 )
 
 
@@ -41,6 +45,13 @@ class TestCodonEncoding(unittest.TestCase):
         self.assertEqual(int_to_codon(0), 'AAA')
     def test_int_to_codon_aug(self):
         self.assertEqual(int_to_codon(codon_to_int('AUG')), 'AUG')
+
+    def test_int_to_codon_out_of_range(self):
+        """int_to_codon вне диапазона 0-63 вызывает ValueError."""
+        with self.assertRaises(ValueError):
+            int_to_codon(-1)
+        with self.assertRaises(ValueError):
+            int_to_codon(64)
     def test_codon_nucleotides(self):
         n = codon_to_int('AUG')
         x, y, z = codon_nucleotides(n)
@@ -153,6 +164,22 @@ class TestSynonymousMutations(unittest.TestCase):
         path = synonymous_path(a, b)
         self.assertIsNotNone(path); self.assertEqual(path[0], a); self.assertEqual(path[-1], b)
 
+    def test_synonymous_path_different_aa_returns_none(self):
+        """synonymous_path возвращает None для кодонов разных аминокислот."""
+        a = codon_to_int('GCU')  # Ala
+        b = codon_to_int('AUG')  # Met
+        assert translate(a) != translate(b)
+        path = synonymous_path(a, b)
+        assert path is None
+
+    def test_is_synonymous_mutation_non_adjacent_returns_false(self):
+        """is_synonymous_mutation возвращает False при расстоянии != 1."""
+        # GCU и CGU отличаются в двух позициях (расстояние > 1)
+        a = codon_to_int('GCU')
+        b = codon_to_int('CGU')
+        assert mutation_distance(a, b) > 1
+        assert is_synonymous_mutation(a, b) is False
+
 
 class TestThirdPosition(unittest.TestCase):
     def test_third_position_structure_keys(self):
@@ -234,6 +261,186 @@ class TestGranthamDistance(unittest.TestCase):
         self.assertEqual(amino_acid_distance('I', 'L'), 5)
     def test_cw_distance_max(self):
         self.assertEqual(amino_acid_distance('C', 'W'), 215)
+
+
+# ============================================================
+# Матрица эволюционных расстояний
+# ============================================================
+
+class TestEvolutionaryDistanceMatrix:
+    def test_returns_dict(self):
+        edm = evolutionary_distance_matrix()
+        assert isinstance(edm, dict)
+
+    def test_size(self):
+        """Пар (a, b) с a < b: C(64, 2) = 2016."""
+        edm = evolutionary_distance_matrix()
+        assert len(edm) == 2016
+
+    def test_keys_are_pairs(self):
+        edm = evolutionary_distance_matrix()
+        for key in list(edm.keys())[:5]:
+            assert isinstance(key, tuple)
+            assert len(key) == 2
+
+    def test_ordered_pairs(self):
+        """Ключ (a, b) всегда a < b."""
+        edm = evolutionary_distance_matrix()
+        for a, b in edm:
+            assert a < b
+
+    def test_distance_positive(self):
+        """Расстояние между разными кодонами > 0."""
+        edm = evolutionary_distance_matrix()
+        for dist in edm.values():
+            assert dist > 0
+
+    def test_distance_at_most_6(self):
+        """В Q6 расстояние не превышает диаметр = 6."""
+        edm = evolutionary_distance_matrix()
+        for dist in edm.values():
+            assert dist <= 6
+
+    def test_neighbors_have_distance_1(self):
+        """Соседи в Q6 имеют расстояние = 1."""
+        from libs.hexcore.hexcore import neighbors
+        edm = evolutionary_distance_matrix()
+        h = 0
+        for nb in neighbors(h):
+            key = (min(h, nb), max(h, nb))
+            assert edm[key] == 1
+
+
+# ============================================================
+# CLI-функции
+# ============================================================
+
+class TestCLI:
+    def _capture(self, fn, args=None):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(args or [])
+        return buf.getvalue()
+
+    def test_cmd_info_produces_output(self):
+        out = self._capture(_cmd_info)
+        assert len(out) > 0
+        assert 'кодон' in out.lower() or 'Q6' in out
+
+    def test_cmd_codon_valid(self):
+        out = self._capture(_cmd_codon, ['GCU'])
+        assert 'GCU' in out or 'Ala' in out
+
+    def test_cmd_codon_no_args(self):
+        out = self._capture(_cmd_codon, [])
+        assert 'Использование' in out
+
+    def test_cmd_mutation_valid(self):
+        out = self._capture(_cmd_mutation, ['GCU', 'GCG'])
+        assert 'расстояние' in out.lower() or 'GCU' in out
+
+    def test_cmd_mutation_no_args(self):
+        out = self._capture(_cmd_mutation, [])
+        assert 'Использование' in out
+
+    def test_cmd_graph_produces_output(self):
+        out = self._capture(_cmd_graph)
+        assert len(out) > 0
+
+    def test_cmd_wobble_produces_output(self):
+        out = self._capture(_cmd_wobble)
+        assert len(out) > 0
+
+
+class TestBioCLI:
+    """Тесты для hexbio.main() (lines 577-595)."""
+
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexbio.hexbio import main
+        old_argv = sys.argv
+        sys.argv = ['hexbio.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_no_args_shows_usage(self):
+        out = self._run([])
+        assert 'Использование' in out
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        assert len(out) > 0
+
+    def test_cmd_codon(self):
+        out = self._run(['codon', 'GCU'])
+        assert len(out) > 0
+
+    def test_cmd_mutation(self):
+        out = self._run(['mutation', 'GCU', 'GCG'])
+        assert len(out) > 0
+
+    def test_cmd_graph(self):
+        out = self._run(['graph'])
+        assert len(out) > 0
+
+    def test_cmd_wobble(self):
+        out = self._run(['wobble'])
+        assert len(out) > 0
+
+    def test_unknown_cmd(self):
+        out = self._run(['unknown'])
+        assert 'Неизвестная' in out
+
+
+class TestSynonymousPath:
+    """Тесты для synonymous_path BFS (lines 107-120)."""
+
+    def test_synonymous_path_same_codon(self):
+        """Путь от кодона до него самого (line 98-99)."""
+        # GCU = 39 (Ala)
+        path = synonymous_path(39, 39)
+        assert path == [39]
+
+    def test_synonymous_path_same_aa(self):
+        """Синонимичный путь между GCU(39) и GCC(37) (оба Ala) — hits lines 111-118."""
+        path = synonymous_path(39, 37)
+        assert path is not None
+        assert path[0] == 39
+        assert path[-1] == 37
+
+    def test_synonymous_path_returns_none_different_aa(self):
+        """synonymous_path между кодонами разных AA → None (line 105-106)."""
+        # GCU(39)=Ala and UUU(63)=Phe - different AA → early return None
+        path = synonymous_path(39, 63)
+        assert path is None
+
+    def test_synonymous_path_returns_none_no_bfs_path(self):
+        """synonymous_path когда BFS не находит путь → None (line 120)."""
+        aug = codon_to_int('AUG')
+        ugc = codon_to_int('UGC')  # Cys
+        path = synonymous_path(aug, ugc)  # different AA → None at line 105
+        assert path is None
+
+    def test_synonymous_path_leu_multi_hop_triggers_visited(self):
+        """BFS revisits visited nodes (line 112) for CUU(31)→UUA(60), both Leu."""
+        path = synonymous_path(31, 60)   # CUU=31, UUA=60 both Leu
+        assert path is not None
+        assert path[0] == 31
+        assert path[-1] == 60
+        assert all(translate(c) == 'L' for c in path)
+
+    def test_synonymous_path_ser_disconnected_returns_none(self):
+        """BFS exhaustion (line 120): UCU(55) and AGU(11) both Ser but disconnected."""
+        ucu = codon_to_int('UCU')  # 55, Ser (UC* group)
+        agu = codon_to_int('AGU')  # 11, Ser (AG* group)
+        path = synonymous_path(ucu, agu)
+        assert path is None
 
 
 if __name__ == '__main__':

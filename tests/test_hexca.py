@@ -2,11 +2,15 @@
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
+import io
 import unittest
-from projects.hexca.hexca import CA1D, CA2D
+from contextlib import redirect_stdout
+from unittest.mock import patch
+from projects.hexca.hexca import CA1D, CA2D, cell_char, demo_1d, demo_2d
+from projects.hexca.animate import animate_1d, animate_2d
 from projects.hexca.rules import (
     majority_vote, xor_rule, identity, conway_like, RULES, get_rule,
-    smooth_rule, cyclic_rule, outer_totalistic,
+    smooth_rule, cyclic_rule, outer_totalistic, random_walk,
 )
 from libs.hexcore.hexcore import neighbors, yang_count, SIZE
 
@@ -293,6 +297,291 @@ class TestCA1DXorPattern(unittest.TestCase):
             nonzero_positions = [i for i, h in enumerate(ca.grid) if h != 0]
             # После k шагов должно быть как минимум 2 ненулевых клетки
             self.assertGreaterEqual(len(nonzero_positions), 2 if step > 0 else 1)
+
+
+class TestCellChar(unittest.TestCase):
+    """Тесты cell_char: символ ячейки по числу ян-черт."""
+
+    def test_returns_string(self):
+        for h in range(SIZE):
+            self.assertIsInstance(cell_char(h), str)
+
+    def test_zero_yang_is_space(self):
+        # h=0: 0 ян → первый символ CELL_CHARS (пробел)
+        self.assertEqual(cell_char(0), ' ')
+
+    def test_six_yang_is_block(self):
+        # h=63: 6 ян → последний символ перед зеркала
+        # CELL_CHARS = ' ·░▒▓█▓' → index 6 = '▓'
+        self.assertEqual(cell_char(63), '▓')
+
+    def test_monotone_with_yang(self):
+        """Символ определяется только yang_count, одинаков для одинакового rang."""
+        for h in range(SIZE):
+            yc = yang_count(h)
+            # Любой другой узел с тем же yang_count даёт тот же символ
+            same = [x for x in range(SIZE) if yang_count(x) == yc]
+            for x in same:
+                self.assertEqual(cell_char(x), cell_char(h))
+
+    def test_lower_yang_gives_different_char_than_higher(self):
+        """Крайние уровни ян (0 и 6) дают разные символы."""
+        self.assertNotEqual(cell_char(0), cell_char(63))
+
+
+class TestRandomWalk(unittest.TestCase):
+    """Тесты random_walk: переход к случайному соседу."""
+
+    def test_returns_neighbor(self):
+        for h in range(0, SIZE, 8):
+            result = random_walk(h, neighbors(h))
+            self.assertIn(result, neighbors(h))
+
+    def test_returns_int(self):
+        result = random_walk(0, neighbors(0))
+        self.assertIsInstance(result, int)
+
+    def test_in_valid_range(self):
+        for h in range(SIZE):
+            result = random_walk(h, neighbors(h))
+            self.assertGreaterEqual(result, 0)
+            self.assertLess(result, SIZE)
+
+    def test_stays_connected(self):
+        """За 20 шагов random_walk обходит несколько вершин."""
+        visited = {0}
+        h = 0
+        for _ in range(20):
+            h = random_walk(h, neighbors(h))
+            visited.add(h)
+        self.assertGreater(len(visited), 1)
+
+
+class TestOuterTotalistic(unittest.TestCase):
+    """Тесты outer_totalistic: правило зависит от (yang(current), sum_yang_nbrs)."""
+
+    def test_identity_when_no_match(self):
+        """Пустая таблица: правило не меняет состояние."""
+        rule = outer_totalistic({})
+        for h in range(0, SIZE, 7):
+            self.assertEqual(rule(h, neighbors(h)), h)
+
+    def test_returns_callable(self):
+        rule = outer_totalistic({})
+        self.assertTrue(callable(rule))
+
+    def test_specific_transition(self):
+        """При совпадении (c, s) правило делает 1 бит-флип к новому yang_count."""
+        # h=0 (yang=0), nbrs=neighbors(0) — у всех соседей yang=1 → sum=6
+        # Зададим таблицу: (0, 6) → 3 (увеличить ян)
+        h = 0
+        nbrs = neighbors(h)  # yang=1 у каждого
+        s = sum(yang_count(n) for n in nbrs)  # = 6
+        rule = outer_totalistic({(0, s): 3})
+        result = rule(h, nbrs)
+        # Правило делает ровно 1 флип: yang_count 0→1
+        self.assertEqual(yang_count(result), 1)
+        self.assertIn(result, neighbors(h))
+
+    def test_no_change_when_same_yang(self):
+        """Если new_yang == current_yang, состояние не меняется."""
+        h = 0
+        nbrs = neighbors(h)
+        s = sum(yang_count(n) for n in nbrs)
+        # Таблица: переход в то же yang_count — нет изменения
+        rule = outer_totalistic({(0, s): 0})
+        self.assertEqual(rule(h, nbrs), h)
+
+    def test_ca1d_with_outer_totalistic(self):
+        """CA1D с outer_totalistic правилом делает корректный шаг."""
+        rule = outer_totalistic({})   # тождество — всё 0 → 0
+        ca = CA1D(width=8, rule=rule, init=[0] * 8)
+        ca.step()
+        self.assertEqual(ca.grid, [0] * 8)
+
+
+class TestDemoFunctions(unittest.TestCase):
+    """Тесты demo_1d и demo_2d — демонстрационные функции вывода."""
+
+    def _capture(self, fn, *args):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(*args)
+        return buf.getvalue()
+
+    # demo_1d ---------------------------------------------------------------
+
+    def test_demo_1d_produces_output(self):
+        out = self._capture(demo_1d, 'xor_rule', 8, 3)
+        self.assertGreater(len(out), 0)
+
+    def test_demo_1d_contains_rule_name(self):
+        out = self._capture(demo_1d, 'identity', 8, 2)
+        self.assertIn('identity', out)
+
+    def test_demo_1d_contains_generation(self):
+        out = self._capture(demo_1d, 'xor_rule', 8, 3)
+        self.assertIn('3', out)  # steps shown
+
+    def test_demo_1d_all_rules_no_crash(self):
+        """Все встроенные правила запускаются без ошибок."""
+        for rule_name in ['xor_rule', 'identity', 'majority_vote']:
+            self._capture(demo_1d, rule_name, 8, 2)
+
+    # demo_2d ---------------------------------------------------------------
+
+    def test_demo_2d_produces_output(self):
+        out = self._capture(demo_2d, 'xor_rule', 4, 4, 2)
+        self.assertGreater(len(out), 0)
+
+    def test_demo_2d_contains_rule_name(self):
+        out = self._capture(demo_2d, 'majority_vote', 4, 4, 2)
+        self.assertIn('majority_vote', out)
+
+    def test_demo_2d_contains_size(self):
+        out = self._capture(demo_2d, 'identity', 4, 4, 2)
+        self.assertIn('4', out)
+
+
+class TestAnimate(unittest.TestCase):
+    """Тесты animate_1d и animate_2d (fps=0 → мгновенный вывод)."""
+
+    def _capture(self, fn, *args, **kwargs) -> str:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(*args, **kwargs)
+        return buf.getvalue()
+
+    # animate_1d ---------------------------------------------------------------
+
+    def test_animate_1d_produces_output(self):
+        out = self._capture(animate_1d, 'xor_rule', 8, 2, 0, False, 'single')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_1d_shows_rule_name(self):
+        out = self._capture(animate_1d, 'majority_vote', 8, 2, 0, False, 'single')
+        self.assertIn('majority_vote', out)
+
+    def test_animate_1d_shows_step_count(self):
+        out = self._capture(animate_1d, 'xor_rule', 8, 3, 0, False, 'single')
+        self.assertIn('3', out)
+
+    def test_animate_1d_center_mode(self):
+        out = self._capture(animate_1d, 'identity', 8, 2, 0, False, 'center')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_1d_random_mode(self):
+        out = self._capture(animate_1d, 'identity', 8, 2, 0, False, 'random')
+        self.assertGreater(len(out), 0)
+
+    # animate_2d ---------------------------------------------------------------
+
+    def test_animate_2d_produces_output(self):
+        out = self._capture(animate_2d, 'xor_rule', 4, 4, 2, 0, False, 'single')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_2d_shows_rule_name(self):
+        out = self._capture(animate_2d, 'majority_vote', 4, 4, 2, 0, False, 'single')
+        self.assertIn('majority_vote', out)
+
+    # color=True ---------------------------------------------------------------
+
+    def test_animate_1d_color_true(self):
+        """animate_1d с color=True добавляет ANSI-escape коды."""
+        out = self._capture(animate_1d, 'xor_rule', 4, 1, 0, True, 'single')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_2d_color_true(self):
+        """animate_2d с color=True добавляет ANSI-escape коды."""
+        out = self._capture(animate_2d, 'xor_rule', 4, 4, 1, 0, True, 'single')
+        self.assertGreater(len(out), 0)
+
+    # init_mode ----------------------------------------------------------------
+
+    def test_animate_2d_random_mode(self):
+        """animate_2d с init_mode='random' инициализирует CA случайно."""
+        out = self._capture(animate_2d, 'xor_rule', 4, 4, 1, 0, False, 'random')
+        self.assertGreater(len(out), 0)
+
+    def test_animate_2d_center_mode(self):
+        """animate_2d с init_mode='center' ставит 42 в центр."""
+        out = self._capture(animate_2d, 'xor_rule', 4, 4, 1, 0, False, 'center')
+        self.assertGreater(len(out), 0)
+
+    # KeyboardInterrupt --------------------------------------------------------
+
+    def test_animate_1d_keyboard_interrupt(self):
+        """KeyboardInterrupt в цикле animate_1d обрабатывается корректно."""
+        with patch.object(CA1D, 'step', side_effect=KeyboardInterrupt):
+            with redirect_stdout(io.StringIO()):
+                animate_1d('xor_rule', 4, 1, 0, False, 'single')
+
+    def test_animate_2d_keyboard_interrupt(self):
+        """KeyboardInterrupt в цикле animate_2d обрабатывается корректно."""
+        with patch.object(CA2D, 'step', side_effect=KeyboardInterrupt):
+            with redirect_stdout(io.StringIO()):
+                animate_2d('xor_rule', 4, 4, 1, 0, False, 'single')
+
+
+class TestHexcaCLI(unittest.TestCase):
+    """Тесты main() из hexca.py."""
+
+    def _run(self, args):
+        from projects.hexca.hexca import main as hexca_main
+        buf = io.StringIO()
+        old_argv = sys.argv
+        sys.argv = ['hexca.py'] + args
+        try:
+            with redirect_stdout(buf):
+                hexca_main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_list_rules(self):
+        out = self._run(['--list-rules'])
+        self.assertIn('xor_rule', out)
+
+    def test_mode_1d(self):
+        out = self._run(['--mode', '1d', '--steps', '2', '--width', '4', '--rule', 'xor_rule'])
+        self.assertIn('hexca', out.lower())
+
+    def test_mode_2d(self):
+        out = self._run(['--mode', '2d', '--steps', '1', '--width', '4', '--height', '4'])
+        self.assertGreater(len(out), 0)
+
+
+class TestAnimateCLI(unittest.TestCase):
+    """Тесты main() из animate.py."""
+
+    def _run(self, args):
+        from projects.hexca.animate import main as animate_main
+        old_argv = sys.argv
+        sys.argv = ['animate.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                animate_main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_list_rules(self):
+        """--list-rules перечисляет правила и завершается."""
+        out = self._run(['--list-rules'])
+        self.assertIn('xor_rule', out)
+
+    def test_mode_1d(self):
+        """--mode 1d запускает 1D-анимацию."""
+        out = self._run(['--mode', '1d', '--steps', '2', '--width', '4',
+                         '--fps', '0', '--no-color', '--init', 'single'])
+        self.assertIn('hexca 1D', out)
+
+    def test_mode_2d(self):
+        """--mode 2d запускает 2D-анимацию."""
+        out = self._run(['--mode', '2d', '--steps', '1', '--width', '4',
+                         '--height', '4', '--fps', '0', '--no-color'])
+        self.assertGreater(len(out), 0)
 
 
 if __name__ == '__main__':

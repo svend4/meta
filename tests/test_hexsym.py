@@ -12,6 +12,8 @@ from projects.hexsym.hexsym import (
     cycle_decomposition, cycle_count, fixed_points,
     generate_group, burnside_count, burnside_subset,
     yang_orbits, antipodal_orbits, full_aut_orbits,
+    count_stabilizer, edge_orbits, cycle_index_s6_on_q6,
+    polya_count, orbit_size_distribution, group_order_estimate,
 )
 from libs.hexcore.hexcore import hamming, yang_count, SIZE
 
@@ -116,6 +118,19 @@ class TestAutomorphism(unittest.TestCase):
             for u in range(0, SIZE, 7):
                 for v in neighbors(u):
                     self.assertEqual(hamming(g(u), g(v)), 1)
+
+    def test_repr_contains_perm(self):
+        """__repr__ содержит перестановку."""
+        ident = identity_aut()
+        r = repr(ident)
+        self.assertIn('Aut', r)
+        self.assertIn('0', r)
+
+    def test_eq_with_non_automorphism(self):
+        """Сравнение с не-автоморфизмом возвращает NotImplemented (т.е. False)."""
+        ident = identity_aut()
+        self.assertNotEqual(ident, 42)
+        self.assertNotEqual(ident, 'not an automorphism')
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +361,135 @@ class TestBurnside(unittest.TestCase):
             # Просто проверяем что оба положительны
             self.assertGreater(c_k, 0)
             self.assertGreater(c_compl, 0)
+
+
+class TestCountStabilizer(unittest.TestCase):
+    """Тесты count_stabilizer через теорему орбита–стабилизатор."""
+
+    def test_returns_positive_int(self):
+        gens = s6_generators()
+        result = count_stabilizer(0, gens)
+        self.assertIsInstance(result, int)
+        self.assertGreater(result, 0)
+
+    def test_orbit_times_stabilizer_equals_group_order(self):
+        """|Orb(h)| × |Stab(h)| = |G| = 46080 для полной Aut(Q6)."""
+        gens = s6_generators()
+        for h in [0, 42, 63]:
+            orb_size = len(orbit(h, gens))
+            stab_size = count_stabilizer(h, gens)
+            self.assertEqual(orb_size * stab_size, 46080)
+
+    def test_stabilizer_positive_for_all_vertices(self):
+        gens = s6_generators()
+        for h in range(0, 64, 8):
+            self.assertGreater(count_stabilizer(h, gens), 0)
+
+
+class TestEdgeOrbits(unittest.TestCase):
+    """Тесты edge_orbits — орбиты рёбер."""
+
+    def test_identity_group_all_singletons(self):
+        """Тождественная группа: каждое ребро — отдельная орбита."""
+        gens = [identity_aut()]
+        orbs = edge_orbits(gens)
+        # Q6 имеет 192 рёбра → 192 одноэлементных орбиты
+        self.assertEqual(len(orbs), 192)
+
+    def test_returns_list(self):
+        gens = [identity_aut()]
+        orbs = edge_orbits(gens)
+        self.assertIsInstance(orbs, list)
+
+    def test_edges_partition(self):
+        """Орбиты рёбер покрывают все 192 рёбра Q6 без дублей."""
+        gens = [identity_aut()]
+        orbs = edge_orbits(gens)
+        all_edges = frozenset(e for orb in orbs for e in orb)
+        self.assertEqual(len(all_edges), 192)
+
+    def test_s6_fewer_orbits_than_edges(self):
+        """S₆ объединяет рёбра в крупные орбиты → меньше 192 орбит."""
+        gens = s6_generators()
+        orbs = edge_orbits(gens)
+        self.assertLess(len(orbs), 192)
+
+
+class TestCycleIndexAndPolya(unittest.TestCase):
+    """Тесты cycle_index_s6_on_q6 и polya_count."""
+
+    def test_cycle_index_returns_dict(self):
+        ci = cycle_index_s6_on_q6()
+        self.assertIsInstance(ci, dict)
+
+    def test_cycle_index_sums_to_720(self):
+        """Сумма кратностей = |S₆| = 6! = 720."""
+        ci = cycle_index_s6_on_q6()
+        self.assertEqual(sum(ci.values()), 720)
+
+    def test_cycle_index_identity_present(self):
+        """Тождественная перестановка → все 64 цикла длины 1."""
+        ci = cycle_index_s6_on_q6()
+        # Есть хотя бы один тип с 64 циклами длины 1 (или смешанный)
+        self.assertTrue(any(t[0] == 64 for t in ci if t))
+
+    def test_polya_count_1_color(self):
+        """1 цвет → 1 раскраска."""
+        self.assertEqual(polya_count(1), 1)
+
+    def test_polya_count_positive(self):
+        """Для любого n_colors > 0 результат положителен."""
+        for n in range(1, 4):
+            self.assertGreater(polya_count(n), 0)
+
+    def test_polya_count_increases_with_colors(self):
+        """Больше цветов → не меньше раскрасок."""
+        c1 = polya_count(1)
+        c2 = polya_count(2)
+        self.assertGreaterEqual(c2, c1)
+
+
+class TestOrbitSizeDistribution(unittest.TestCase):
+    """Тесты orbit_size_distribution."""
+
+    def test_returns_dict(self):
+        gens = [identity_aut()]
+        dist = orbit_size_distribution(gens)
+        self.assertIsInstance(dist, dict)
+
+    def test_identity_all_size_1(self):
+        """Тождественная группа: все орбиты размера 1."""
+        gens = [identity_aut()]
+        dist = orbit_size_distribution(gens)
+        self.assertEqual(dist, {1: 64})
+
+    def test_total_elements_64(self):
+        """Сумма size * count = 64 для любых генераторов."""
+        gens = s6_generators()
+        dist = orbit_size_distribution(gens)
+        total = sum(size * count for size, count in dist.items())
+        self.assertEqual(total, 64)
+
+    def test_s6_orbit_by_yang_count(self):
+        """S₆ действует по ярусам yang_count → 7 орбит (C(6,0)..C(6,6))."""
+        gens = s6_generators()
+        dist = orbit_size_distribution(gens)
+        # По одной орбите для каждого yang_count = 0..6
+        self.assertEqual(dist, {1: 2, 6: 2, 15: 2, 20: 1})
+
+
+class TestGroupOrderEstimate(unittest.TestCase):
+    """Тесты group_order_estimate (текущая реализация — заглушка)."""
+
+    def test_returns_int(self):
+        gens = [identity_aut()]
+        result = group_order_estimate(gens)
+        self.assertIsInstance(result, int)
+
+    def test_no_crash_with_s6(self):
+        """Не падает при вызове с генераторами S₆."""
+        result = group_order_estimate(s6_generators(), sample=10)
+        self.assertIsInstance(result, int)
 
 
 if __name__ == '__main__':

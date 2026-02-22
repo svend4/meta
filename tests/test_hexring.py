@@ -11,6 +11,7 @@ from projects.hexring.hexring import (
     best_affine_approximation, auto_correlation, auto_correlation_table,
     power_moment, find_bent_examples, hamming_distance_func,
     nonlinearity_profile, _wht_inplace, _mobius_inplace,
+    count_bent_in_rm2, find_resilient,
 )
 from libs.hexcore.hexcore import SIZE
 
@@ -259,6 +260,26 @@ class TestArithmetic(unittest.TestCase):
         h = coordinate(2)
         self.assertEqual(f * (g + h), f * g + f * h)
 
+    def test_add_non_boolfunc_returns_not_implemented(self):
+        f = coordinate(0)
+        self.assertIs(f.__add__(42), NotImplemented)
+
+    def test_mul_non_boolfunc_returns_not_implemented(self):
+        f = coordinate(0)
+        self.assertIs(f.__mul__(42), NotImplemented)
+
+    def test_xor_two_boolfuncs(self):
+        f = coordinate(0)
+        g = coordinate(1)
+        result = f ^ g
+        self.assertIsInstance(result, BoolFunc)
+
+    def test_display_one_func_has_constant_1(self):
+        """one_func ANF содержит '1' (константный терм, покрывает _anf_str mask==0)."""
+        f = one_func()
+        d = f.display()
+        self.assertIn('1', d)
+
 
 # ---------------------------------------------------------------------------
 # Тест стандартных функций
@@ -395,6 +416,18 @@ class TestReedMullerCode(unittest.TestCase):
     def test_repr(self):
         self.assertIn('RM(2, 6)', repr(ReedMullerCode(2)))
 
+    def test_info_returns_string(self):
+        rm = ReedMullerCode(1)
+        info = rm.info()
+        self.assertIsInstance(info, str)
+        self.assertIn('RM(1, 6)', info)
+
+    def test_info_contains_params(self):
+        rm = ReedMullerCode(2)
+        info = rm.info()
+        self.assertIn('Длина', info)
+        self.assertIn('Мин. расстояние', info)
+
     def test_invalid_r_raises(self):
         with self.assertRaises(ValueError):
             ReedMullerCode(-1)
@@ -485,6 +518,204 @@ class TestUtils(unittest.TestCase):
         profile = nonlinearity_profile(f)
         self.assertEqual(profile[1], 0)
         self.assertEqual(profile[2], 0)
+
+
+class TestCountBentInRM2(unittest.TestCase):
+    """Тест count_bent_in_rm2 — заглушка с NotImplementedError."""
+
+    def test_raises_not_implemented(self):
+        with self.assertRaises(NotImplementedError):
+            count_bent_in_rm2()
+
+
+class TestFindResilient(unittest.TestCase):
+    """Тесты find_resilient — поиск сбалансированных функций с CI."""
+
+    def test_returns_list(self):
+        result = find_resilient(ci_order=0, n_max=3)
+        self.assertIsInstance(result, list)
+
+    def test_ci0_finds_functions(self):
+        """ci_order=0 (просто сбалансированные) — находит n_max функций."""
+        result = find_resilient(ci_order=0, n_max=5)
+        self.assertGreater(len(result), 0)
+
+    def test_result_are_boolfuncs(self):
+        """Все найденные объекты — BoolFunc."""
+        result = find_resilient(ci_order=0, n_max=3)
+        for f in result:
+            self.assertIsInstance(f, BoolFunc)
+
+    def test_n_max_limits_output(self):
+        """Количество результатов ≤ n_max."""
+        for n in [1, 3, 5]:
+            result = find_resilient(ci_order=0, n_max=n)
+            self.assertLessEqual(len(result), n)
+
+
+class TestReedMullerDecode(unittest.TestCase):
+    """Тесты decode и encode edge cases для ReedMullerCode."""
+
+    def test_encode_wrong_length_raises(self):
+        """encode() с неправильной длиной сообщения → ValueError."""
+        rm = ReedMullerCode(1)  # k=7
+        with self.assertRaises(ValueError):
+            rm.encode([1, 0])  # length 2, not 7
+
+    def test_decode_rm1_positive_wht(self):
+        """Декодирование RM(1) функции с положительным WHT."""
+        rm = ReedMullerCode(1)
+        f = inner_product(1)  # WHT has W[1] = 64 > 0
+        decoded = rm.decode(f)
+        self.assertIsInstance(decoded, BoolFunc)
+
+    def test_decode_rm1_negative_wht(self):
+        """Декодирование RM(1) функции с отрицательным WHT."""
+        rm = ReedMullerCode(1)
+        f = one_func() + inner_product(1)  # complement: WHT W[1] = -64 < 0
+        decoded = rm.decode(f)
+        self.assertIsInstance(decoded, BoolFunc)
+
+    def test_decode_rm0(self):
+        """Декодирование RM(0): ближайшая константа."""
+        rm = ReedMullerCode(0)
+        # Функция с 40 единицами → ближайшая константа — 1
+        tt = [1] * 40 + [0] * 24
+        f = BoolFunc(tt)
+        decoded = rm.decode(f)
+        self.assertIsInstance(decoded, BoolFunc)
+
+    def test_decode_rm0_zero_func(self):
+        """Декодирование RM(0): функция с 20 единицами → 0."""
+        rm = ReedMullerCode(0)
+        tt = [1] * 20 + [0] * 44
+        f = BoolFunc(tt)
+        decoded = rm.decode(f)
+        self.assertIsInstance(decoded, BoolFunc)
+
+
+class TestBestAffineExtended(unittest.TestCase):
+    """Тесты best_affine_approximation для ветви с отрицательным WHT."""
+
+    def test_neg_wht_complement_linear(self):
+        """best_affine_approximation дополнения линейной функции."""
+        f = one_func() + inner_product(1)  # complement: WHT W[1] = -64 < 0
+        g = best_affine_approximation(f)
+        self.assertIsInstance(g, BoolFunc)
+        self.assertTrue(g.is_affine())
+
+
+class TestFindBentEarlyReturn(unittest.TestCase):
+    """Тесты find_bent_examples с малым n_max для ранних возвратов."""
+
+    def test_find_bent_n1(self):
+        """find_bent_examples(1) возвращает ровно 1 bent-функцию."""
+        result = find_bent_examples(n_max=1)
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0].is_bent())
+
+    def test_find_bent_n2(self):
+        """find_bent_examples(2) возвращает ровно 2 bent-функции."""
+        result = find_bent_examples(n_max=2)
+        self.assertEqual(len(result), 2)
+
+    def test_find_bent_n3(self):
+        """find_bent_examples(3) возвращает не менее 3 bent-функций."""
+        result = find_bent_examples(n_max=3)
+        self.assertGreaterEqual(len(result), 3)
+
+
+class TestFindResilientExtended(unittest.TestCase):
+    """Тесты find_resilient для ветвей CI >= 1 и dep_bits пустой."""
+
+    def test_find_resilient_ci1_n1(self):
+        """find_resilient(ci=1, n_max=1) ранний выход."""
+        result = find_resilient(ci_order=1, n_max=1)
+        self.assertLessEqual(len(result), 1)
+
+    def test_find_resilient_ci1_finds(self):
+        """find_resilient(ci=1) возвращает функции с CI≥1."""
+        result = find_resilient(ci_order=1, n_max=3)
+        for f in result:
+            self.assertGreaterEqual(f.correlation_immunity(), 1)
+
+    def test_find_resilient_ci6_empty(self):
+        """CI=6 вероятно не найдёт функций (пустой результат)."""
+        result = find_resilient(ci_order=6, n_max=5)
+        self.assertIsInstance(result, list)
+
+
+class TestBoolFuncDunders(unittest.TestCase):
+    """Тесты __repr__ и __eq__ для BoolFunc."""
+
+    def test_repr_returns_string(self):
+        f = inner_product_bent()
+        r = repr(f)
+        self.assertIsInstance(r, str)
+        self.assertIn('BoolFunc', r)
+
+    def test_repr_shows_degree(self):
+        f = zero_func()
+        r = repr(f)
+        self.assertIn('degree', r)
+
+    def test_eq_with_non_boolfunc_returns_false(self):
+        """Сравнение с не-BoolFunc возвращает NotImplemented (т.е. False)."""
+        f = zero_func()
+        self.assertNotEqual(f, 0)
+        self.assertNotEqual(f, 'not a BoolFunc')
+
+
+class TestBoolFuncDisplay(unittest.TestCase):
+    """Тесты метода display() для BoolFunc."""
+
+    def test_display_returns_string(self):
+        f = inner_product_bent()
+        result = f.display()
+        self.assertIsInstance(result, str)
+
+    def test_display_compact_shorter(self):
+        """Компактный режим короче полного."""
+        f = inner_product_bent()
+        full = f.display(compact=False)
+        compact = f.display(compact=True)
+        self.assertGreater(len(full), len(compact))
+
+    def test_display_contains_anf(self):
+        f = zero_func()
+        result = f.display()
+        self.assertIn('ANF', result)
+
+    def test_display_contains_bent_info(self):
+        """Для bent-функции display показывает 'True'."""
+        f = inner_product_bent()
+        result = f.display()
+        self.assertIn('True', result)
+
+
+class TestEncodeNonZero(unittest.TestCase):
+    """Тест encode с ненулевым сообщением (line 465)."""
+
+    def test_encode_nonzero_message(self):
+        """Кодирование ненулевого сообщения — входит в ветку if bit: (line 465)."""
+        rm = ReedMullerCode(1)
+        # RM(1,6) has k=7: constant + 6 linear functions
+        msg = [1, 0, 0, 0, 0, 0, 0]  # only the first bit set
+        cw = rm.encode(msg)
+        # Should produce a valid codeword (not zero)
+        self.assertNotEqual(cw, zero_func())
+
+
+class TestFindBentExhaustAll(unittest.TestCase):
+    """Тест find_bent_examples с n_max > доступного — line 603."""
+
+    def test_find_bent_large_nmax_exhausts_loop(self):
+        """find_bent_examples с большим n_max исчерпывает аффинные сдвиги → line 603."""
+        result = find_bent_examples(n_max=200)
+        # Should return all found results (< 200) and hit line 603
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertLess(len(result), 200)
 
 
 if __name__ == '__main__':

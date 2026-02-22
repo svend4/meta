@@ -56,6 +56,13 @@ class TestSBoxBasic(unittest.TestCase):
         for x in range(64):
             self.assertEqual(inv_inv(x), sb(x))
 
+    def test_repr_contains_nl(self):
+        """SBox.__repr__ содержит нелинейность и дифф. унифомность."""
+        sb = random_sbox(seed=0)
+        r = repr(sb)
+        self.assertIn('nl=', r)
+        self.assertIn('du=', r)
+
     def test_component_binary(self):
         """Компонентная функция возвращает только 0 и 1."""
         sb = random_sbox()
@@ -416,6 +423,89 @@ class TestFeistel(unittest.TestCase):
         self.assertTrue(fc.is_permutation())
 
 
+class TestCryptCLI(unittest.TestCase):
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexcrypt.hexcrypt import main
+        old_argv = sys.argv
+        sys.argv = ['hexcrypt.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_info_affine(self):
+        out = self._run(['info', 'affine'])
+        self.assertIn('affine', out)
+
+    def test_cmd_info_identity(self):
+        out = self._run(['info', 'identity'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_table(self):
+        out = self._run(['table', 'affine'])
+        self.assertIn('affine', out)
+
+    def test_cmd_stream(self):
+        out = self._run(['stream', '7', '16'])
+        self.assertIn('Ключ', out)
+
+    def test_cmd_feistel_demo(self):
+        out = self._run(['feistel'])
+        self.assertIn('Фейстеля', out)
+
+    def test_cmd_feistel_perm(self):
+        out = self._run(['feistel', 'perm'])
+        self.assertIn('перестановкой', out)
+
+    def test_cmd_search_not_found(self):
+        out = self._run(['search', '100', '5'])
+        self.assertIn('найден', out.lower())
+
+    def test_cmd_sac(self):
+        out = self._run(['sac', 'affine'])
+        self.assertIn('SAC', out)
+
+    def test_cmd_help(self):
+        out = self._run([])
+        self.assertIn('hexcrypt', out)
+
+    def test_cmd_unknown(self):
+        out = self._run(['unknown'])
+        self.assertIn('hexcrypt', out)
+
+    def test_cmd_info_complement(self):
+        out = self._run(['info', 'complement'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_info_random(self):
+        out = self._run(['info', 'random'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_info_yangsort(self):
+        out = self._run(['info', 'yangsort'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_info_feistel_sbox(self):
+        out = self._run(['info', 'feistel'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_search_found(self):
+        out = self._run(['search', '1', '20'])
+        self.assertIn('найден', out.lower())
+
+
+class TestGetSboxUnknown(unittest.TestCase):
+    def test_unknown_sbox_raises(self):
+        from projects.hexcrypt.hexcrypt import _get_sbox
+        with self.assertRaises(ValueError):
+            _get_sbox('unknown_box')
+
+
 class TestJsonAvalanche(unittest.TestCase):
     """Интеграционные тесты для json_avalanche (SC-5 Шаг 2)."""
 
@@ -444,7 +534,6 @@ class TestJsonAvalanche(unittest.TestCase):
             self.assertLessEqual(dev, 0.5)
 
     def test_r_nl_sac_is_negative(self):
-        """Корреляция r(NL, SAC_dev) должна быть отрицательной."""
         r = self.result['r_nl_sac']
         self.assertLess(r, 0.0)
 

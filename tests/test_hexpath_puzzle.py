@@ -2,10 +2,14 @@
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
+import io
 import unittest
+from contextlib import redirect_stdout
+from unittest.mock import patch
 from projects.hexpath.puzzle import (
     Puzzle, PuzzleState, solve, solve_all,
     generate_puzzle, get_builtin, BUILTIN_PUZZLES,
+    _print_puzzle, _interactive,
 )
 from libs.hexcore.hexcore import neighbors, hamming, SIZE
 
@@ -48,6 +52,13 @@ class TestPuzzleBasic(unittest.TestCase):
         s = p.summary()
         self.assertIn('5', s)
         self.assertIn('20', s)
+
+    def test_summary_unsolvable_shows_status(self):
+        """Summary неразрешимой головоломки содержит 'НЕРАЗРЕШИМА'."""
+        blocked = frozenset(neighbors(0))
+        p = Puzzle(start=0, goal=63, blocked=blocked)
+        s = p.summary()
+        self.assertIn('НЕРАЗРЕШИМА', s)
 
 
 class TestSolve(unittest.TestCase):
@@ -261,6 +272,174 @@ class TestBuiltinPuzzles(unittest.TestCase):
         for i, puz in enumerate(BUILTIN_PUZZLES):
             with self.subTest(i=i):
                 self.assertGreater(puz.par, 0)
+
+
+class TestPuzzleStateExtra(unittest.TestCase):
+    """Дополнительные тесты PuzzleState — непокрытые ветки."""
+
+    def test_is_stuck_when_all_blocked(self):
+        """is_stuck = True, когда все соседи текущего узла заблокированы."""
+        p = Puzzle(start=0, goal=63, blocked=frozenset({1, 2, 4, 8, 16, 32}))
+        state = PuzzleState(puzzle=p)
+        self.assertTrue(state.is_stuck)
+
+    def test_rating_not_solved(self):
+        """rating() возвращает '?' пока головоломка не решена."""
+        p = Puzzle(start=0, goal=63)
+        state = PuzzleState(puzzle=p)
+        self.assertEqual(state.rating(), '?')
+
+    def test_rating_perfect(self):
+        """diff=0 → '★★★ (идеально)'."""
+        p = Puzzle(start=0, goal=7)  # par=3
+        state = PuzzleState(puzzle=p, path=[0, 1, 3, 7], moves=3)
+        self.assertIn('★★★', state.rating())
+
+    def test_rating_good(self):
+        """diff=1 ≤ 2 → '★★☆ (хорошо)'."""
+        p = Puzzle(start=0, goal=7)
+        state = PuzzleState(puzzle=p, path=[0, 1, 3, 7], moves=4)
+        self.assertIn('★★☆', state.rating())
+
+    def test_rating_ok(self):
+        """diff=4 ≤ 5 → '★☆☆ (нормально)'."""
+        p = Puzzle(start=0, goal=7)
+        state = PuzzleState(puzzle=p, path=[0, 1, 3, 7], moves=7)
+        self.assertIn('★☆☆', state.rating())
+
+    def test_rating_bad(self):
+        """diff=6 > 5 → '☆☆☆ (можно лучше)'."""
+        p = Puzzle(start=0, goal=7)
+        state = PuzzleState(puzzle=p, path=[0, 1, 3, 7], moves=9)
+        self.assertIn('☆☆☆', state.rating())
+
+
+class TestGeneratePuzzleExtra(unittest.TestCase):
+    """Тесты generate_puzzle с явными start/goal."""
+
+    def test_with_explicit_start(self):
+        """start= задаёт стартовый узел."""
+        p = generate_puzzle('easy', seed=0, start=5)
+        self.assertEqual(p.start, 5)
+
+    def test_with_explicit_goal(self):
+        """goal= задаёт цель."""
+        p = generate_puzzle('easy', seed=0, goal=42)
+        self.assertEqual(p.goal, 42)
+
+    def test_start_equals_goal_raises(self):
+        """start == goal → 1000 попыток без успеха → RuntimeError."""
+        with self.assertRaises(RuntimeError):
+            generate_puzzle('easy', seed=0, start=0, goal=0)
+
+
+class TestPrintPuzzle(unittest.TestCase):
+    """Тесты _print_puzzle."""
+
+    def test_print_solvable_shows_solution(self):
+        """_print_puzzle печатает решение для разрешимой головоломки."""
+        p = Puzzle(start=0, goal=63)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            _print_puzzle(p)
+        self.assertIn('Решение', buf.getvalue())
+
+    def test_print_unsolvable_shows_status(self):
+        """_print_puzzle для неразрешимой головоломки показывает НЕРАЗРЕШИМА."""
+        p = Puzzle(start=0, goal=63, blocked=frozenset({1, 2, 4, 8, 16, 32}))
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            _print_puzzle(p)
+        self.assertIn('НЕРАЗРЕШИМА', buf.getvalue())
+
+    def test_print_shows_hint(self):
+        """_print_puzzle с hint показывает подсказку."""
+        p = Puzzle(start=0, goal=7, hint='Тест-подсказка')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            _print_puzzle(p)
+        self.assertIn('Тест-подсказка', buf.getvalue())
+
+
+class TestInteractive(unittest.TestCase):
+    """Тесты _interactive с mock-вводом."""
+
+    def _run(self, inputs, puzzle=None):
+        if puzzle is None:
+            puzzle = Puzzle(start=0, goal=7)
+        buf = io.StringIO()
+        with patch('builtins.input', side_effect=inputs):
+            with redirect_stdout(buf):
+                _interactive(puzzle)
+        return buf.getvalue()
+
+    def test_quit_immediately(self):
+        """'q' завершает интерактивный режим."""
+        out = self._run(['q'])
+        self.assertIsInstance(out, str)
+
+    def test_hint_with_hint_text(self):
+        """'h' с непустым hint показывает подсказку."""
+        p = Puzzle(start=0, goal=7, hint='Flipper')
+        out = self._run(['h', 'q'], puzzle=p)
+        self.assertIn('Flipper', out)
+
+    def test_hint_without_hint_shows_next(self):
+        """'h' без hint показывает следующий оптимальный ход."""
+        p = Puzzle(start=0, goal=7)
+        out = self._run(['h', 'q'], puzzle=p)
+        self.assertIn('следующий', out)
+
+    def test_show_solution(self):
+        """'s' показывает полное решение."""
+        p = Puzzle(start=0, goal=7)
+        out = self._run(['s', 'q'], puzzle=p)
+        self.assertIn('Решение', out)
+
+    def test_undo(self):
+        """'u' отменяет последний ход."""
+        p = Puzzle(start=0, goal=7)
+        out = self._run(['1', 'u', 'q'], puzzle=p)  # move bit1→2, undo, quit
+        self.assertIsInstance(out, str)
+
+    def test_invalid_command(self):
+        """Неверная команда → сообщение об ошибке."""
+        p = Puzzle(start=0, goal=7)
+        out = self._run(['xyz', 'q'], puzzle=p)
+        self.assertIn('Ошибка', out)
+
+    def test_solve_to_completion(self):
+        """Последовательность ходов решает головоломку."""
+        p = Puzzle(start=0, goal=7)
+        # 0→1→3→7: flip bit0=1, flip bit1=3, flip bit2=7
+        out = self._run(['1', '3', '7'], puzzle=p)
+        self.assertIn('★', out)
+
+    def test_eofError_exits_gracefully(self):
+        """EOFError в input() → выход с сообщением."""
+        p = Puzzle(start=0, goal=7)
+        out = self._run([EOFError()], puzzle=p)
+        self.assertIn('Выход', out)
+
+    def test_stuck_shows_message(self):
+        """Когда все соседи start заблокированы → показывается 'Нет ходов'."""
+        p = Puzzle(start=0, goal=63, blocked=frozenset({1, 2, 4, 8, 16, 32}))
+        # At start=0 all neighbors blocked → is_stuck=True → "Нет ходов!" printed
+        out = self._run(['q'], puzzle=p)
+        self.assertIn('Нет ходов', out)
+
+
+class TestRatingWithNoPar(unittest.TestCase):
+    """Тест для rating() когда par < 0 (line 203)."""
+
+    def test_rating_returns_question_when_par_negative(self):
+        # Puzzle with all neighbors of start blocked → unsolvable → par = -1
+        # Create PuzzleState with path=[goal] directly (is_solved=True)
+        p = Puzzle(start=0, goal=63, blocked=frozenset({1, 2, 4, 8, 16, 32}))
+        # solve(p) is None → par = -1
+        st = PuzzleState(puzzle=p, path=[63], moves=5)
+        self.assertTrue(st.is_solved)
+        self.assertEqual(st.rating(), '?')
 
 
 if __name__ == '__main__':

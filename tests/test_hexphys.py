@@ -7,6 +7,7 @@ from projects.hexphys import (
     quantum_state_uniform, hadamard_on_qubit,
     apply_all_hadamard, measure_probabilities,
     entanglement_entropy,
+    exact_ising_thermodynamics, compare_exact_and_mcmc,
 )
 from projects.hexphys.hexphys import ising_spins
 
@@ -123,10 +124,22 @@ class TestIsingChainThermodynamics(unittest.TestCase):
         """При β→∞ ⟨E⟩ → min E = −6 (фм. основное состояние)."""
         self.assertAlmostEqual(self.chain.mean_energy(20.0), -6.0, places=2)
 
+    def test_free_energy_at_beta_zero(self):
+        """F(0) = 0 (предел β→0: F = −(1/β)ln Z → 0)."""
+        self.assertEqual(self.chain.free_energy(0), 0.0)
+
     def test_heat_capacity_nonneg(self):
         """C_v = β² Var[E] ≥ 0."""
         for beta in [0.1, 0.5, 1.0, 2.0]:
             self.assertGreaterEqual(self.chain.heat_capacity(beta), -1e-10)
+
+    def test_heat_capacity_at_beta_zero(self):
+        """C_v(0) = 0."""
+        self.assertEqual(self.chain.heat_capacity(0), 0.0)
+
+    def test_susceptibility_at_beta_zero(self):
+        """χ(0) = 0."""
+        self.assertEqual(self.chain.susceptibility(0), 0.0)
 
     def test_magnetization_zero_at_B0(self):
         """При B=0 ⟨M⟩=0 по симметрии."""
@@ -210,6 +223,30 @@ class TestIsingChainCorrelators(unittest.TestCase):
         xi2 = self.chain.correlation_length(2.0)
         self.assertGreater(xi2, xi1)
 
+    def test_correlation_length_with_field(self):
+        """correlation_length при B≠0 вычисляется численно."""
+        chain_B = IsingChain(J=1.0, B=1.0)
+        xi = chain_B.correlation_length(1.0)
+        self.assertGreater(xi, 0.0)
+
+    def test_correlation_length_with_field_small_beta_returns_inf(self):
+        """При β→0 и B≠0 коррелятор ≈1, длина = inf."""
+        import math
+        chain_B = IsingChain(J=1.0, B=1.0)
+        xi = chain_B.correlation_length(1e-10)
+        self.assertEqual(xi, math.inf)
+
+    def test_correlation_length_zero_J(self):
+        """При J=0 корреляционная длина = 0."""
+        chain_J0 = IsingChain(J=0.0, B=0.0)
+        xi = chain_J0.correlation_length(1.0)
+        self.assertEqual(xi, 0.0)
+
+    def test_correlation_length_very_small_beta(self):
+        """При β≈0 корреляционная длина = 0 (tanh(β·J)≈0)."""
+        xi = self.chain.correlation_length(1e-10)
+        self.assertEqual(xi, 0.0)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 class TestYangGas(unittest.TestCase):
@@ -281,6 +318,23 @@ class TestYangGas(unittest.TestCase):
         """F < 0 при μ > 0, β > 0 (Z > 1)."""
         gas = YangGas(mu=1.0)
         self.assertLess(gas.free_energy(1.0), 0.0)
+
+    def test_free_energy_at_beta_zero(self):
+        """YangGas.free_energy(0) = 0."""
+        gas = YangGas(mu=1.0)
+        self.assertEqual(gas.free_energy(0), 0.0)
+
+    def test_pressure_at_beta_zero(self):
+        """YangGas.pressure(0) = 0."""
+        gas = YangGas(mu=1.0)
+        self.assertEqual(gas.pressure(0), 0.0)
+
+    def test_compressibility_very_negative_mu(self):
+        """При μ → −∞ фугитивность → 0, ⟨N⟩ = 0, сжимаемость → inf."""
+        gas = YangGas(mu=-1e300)
+        import math
+        result = gas.compressibility(1.0)
+        self.assertEqual(result, math.inf)
 
     def test_chemical_potential_for_mean(self):
         """chemical_potential_for_mean находит μ с нужным ⟨N⟩."""
@@ -481,6 +535,154 @@ class TestIsingYangConnection(unittest.TestCase):
         yang_mean = gas.mean_yang(beta)
 
         self.assertAlmostEqual(ising_mean, yang_mean, places=6)
+
+
+class TestExactIsingThermodynamics(unittest.TestCase):
+    """Тесты exact_ising_thermodynamics — точный расчёт термодинамики Изинга."""
+
+    def test_returns_dict(self):
+        result = exact_ising_thermodynamics(J=1.0, beta_values=[1.0])
+        self.assertIsInstance(result, dict)
+
+    def test_beta_key_in_result(self):
+        beta = 1.0
+        result = exact_ising_thermodynamics(J=1.0, beta_values=[beta])
+        self.assertIn(beta, result)
+
+    def test_expected_keys(self):
+        result = exact_ising_thermodynamics(J=1.0, beta_values=[1.0])
+        thermo = result[1.0]
+        for key in ['Z', 'F', 'E', 'C_v']:
+            self.assertIn(key, thermo)
+
+    def test_partition_function_positive(self):
+        """Статсумма Z > 0."""
+        result = exact_ising_thermodynamics(J=1.0, beta_values=[1.0])
+        self.assertGreater(result[1.0]['Z'], 0)
+
+    def test_multiple_beta_values(self):
+        betas = [0.5, 1.0, 2.0]
+        result = exact_ising_thermodynamics(J=1.0, beta_values=betas)
+        self.assertEqual(len(result), 3)
+
+    def test_default_beta_values(self):
+        """Без beta_values должны использоваться значения по умолчанию."""
+        result = exact_ising_thermodynamics(J=1.0)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(len(result), 0)
+
+
+class TestCompareExactAndMCMC(unittest.TestCase):
+    """Тесты compare_exact_and_mcmc — сравнение точных и MCMC значений."""
+
+    def test_returns_dict(self):
+        result = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=100, seed=42)
+        self.assertIsInstance(result, dict)
+
+    def test_expected_keys(self):
+        result = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=100, seed=42)
+        for key in ['exact_E', 'mcmc_E', 'error_E']:
+            self.assertIn(key, result)
+
+    def test_error_is_nonnegative(self):
+        result = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=100, seed=42)
+        self.assertGreaterEqual(result['error_E'], 0)
+
+    def test_deterministic_with_seed(self):
+        """С одним seed результаты воспроизводимы."""
+        r1 = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=50, seed=7)
+        r2 = compare_exact_and_mcmc(J=1.0, beta=1.0, n_steps=50, seed=7)
+        self.assertEqual(r1['mcmc_E'], r2['mcmc_E'])
+
+
+class TestPhysCLI(unittest.TestCase):
+    def _run(self, args):
+        import io
+        import sys
+        from contextlib import redirect_stdout
+        from projects.hexphys.hexphys import main
+        old_argv = sys.argv
+        sys.argv = ['hexphys.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_ising(self):
+        out = self._run(['ising', '1.0'])
+        self.assertIn('β=', out)
+
+    def test_cmd_yang(self):
+        out = self._run(['yang', '1.0'])
+        self.assertIn('⟨N⟩', out)
+
+    def test_cmd_mcmc(self):
+        out = self._run(['mcmc', '1.0', '1.0'])
+        self.assertIn('МСМС', out)
+
+    def test_cmd_quantum(self):
+        out = self._run(['quantum'])
+        self.assertIn('P(|000000⟩)', out)
+
+    def test_cmd_correlator(self):
+        out = self._run(['correlator', '1.0', '1.0'])
+        self.assertIn('⟨σ₀σ_', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexphys', out)
+
+    def test_cmd_unknown(self):
+        out = self._run(['unknown'])
+        self.assertIn('hexphys', out)
+
+
+class TestPhysUncovered(unittest.TestCase):
+    """Тесты для непокрытых ветвей hexphys.py."""
+
+    def test_comb6(self):
+        """_comb6 возвращает C(6, k) (lines 43-44)."""
+        from projects.hexphys.hexphys import _comb6
+        from math import comb
+        for k in range(7):
+            self.assertEqual(_comb6(k), comb(6, k))
+
+    def test_yang_gas_compressibility_nonzero_n(self):
+        """YangGas.compressibility с β=1 (line 245)."""
+        gas = YangGas(mu=1.0)
+        kappa = gas.compressibility(beta=1.0)
+        self.assertGreater(kappa, 0)
+
+    def test_yang_gas_entropy(self):
+        """YangGas.entropy (lines 270-272)."""
+        gas = YangGas(mu=1.0)
+        s = gas.entropy(beta=1.0)
+        self.assertIsInstance(s, float)
+
+    def test_yang_gas_chemical_potential_bad_target(self):
+        """chemical_potential_for_mean с target вне [0,6] → ValueError (line 280)."""
+        gas = YangGas(mu=1.0)
+        with self.assertRaises(ValueError):
+            gas.chemical_potential_for_mean(1.0, -1)
+        with self.assertRaises(ValueError):
+            gas.chemical_potential_for_mean(1.0, 7)
+
+    def test_metropolis_estimate_energy(self):
+        """MetropolisQ6.estimate_energy (line 344)."""
+        energy_fn = lambda h: -bin(h).count('1')  # minus yang count
+        mcmc = MetropolisQ6(energy_fn, seed=42)
+        e = mcmc.estimate_energy(energy_fn, n_steps=50, beta=1.0, n_burn=10)
+        self.assertIsInstance(e, float)
+
+    def test_entanglement_entropy_zero_state(self):
+        """entanglement_entropy с нулевым вектором состояния → 0 (line 439)."""
+        # State vector of zeros → zero trace → return 0.0
+        zero_state = [0.0] * 64
+        s = entanglement_entropy(zero_state, [0, 1, 2])
+        self.assertEqual(s, 0.0)
 
 
 if __name__ == '__main__':

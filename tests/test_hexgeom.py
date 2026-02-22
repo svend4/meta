@@ -13,7 +13,7 @@ from projects.hexgeom.hexgeom import (
     distance_distribution, dual_distance_distribution,
     minimum_distance, diameter_of_set,
     vertex_boundary, edge_boundary, isoperimetric_ratio,
-    johnson_bound, singleton_bound, plotkin_bound,
+    johnson_bound, singleton_bound, plotkin_bound, clique_number_at_distance,
 )
 from math import comb
 
@@ -295,6 +295,11 @@ class TestPackingCovering(unittest.TestCase):
         """is_perfect_code работает: {весь Q6} с r=0."""
         self.assertTrue(is_perfect_code(list(range(64)), 0))
 
+    def test_perfect_code_overlapping_balls_false(self):
+        """Перекрывающиеся шары → не совершенный код."""
+        # B(0,1) и B(1,1) пересекаются (оба содержат вершину 0 и 1)
+        self.assertFalse(is_perfect_code([0, 1], 1))
+
     def test_packing_r0_is_all(self):
         """Пакинг с r=0: все 64 вершины (шары — точки)."""
         centers = packing_number(0)
@@ -326,6 +331,14 @@ class TestDistanceDistribution(unittest.TestCase):
         # d(0, 7) = popcount(7) = 3
         code = [0, 7, 56]
         self.assertEqual(minimum_distance(code), 3)
+
+    def test_minimum_distance_single_element(self):
+        """minimum_distance с 1 элементом → 0."""
+        self.assertEqual(minimum_distance([42]), 0)
+
+    def test_minimum_distance_empty(self):
+        """minimum_distance с пустым кодом → 0."""
+        self.assertEqual(minimum_distance([]), 0)
 
     def test_diameter_of_set_correct(self):
         """diameter_of_set: max попарное расстояние."""
@@ -371,6 +384,10 @@ class TestIsoperimetric(unittest.TestCase):
         S = {0, 1, 3}
         self.assertGreaterEqual(isoperimetric_ratio(S), 0.0)
 
+    def test_isoperimetric_ratio_empty_returns_zero(self):
+        """Пустое множество → 0.0."""
+        self.assertEqual(isoperimetric_ratio(set()), 0.0)
+
 
 # ── границы кодов ─────────────────────────────────────────────────────────────
 
@@ -392,6 +409,10 @@ class TestBounds(unittest.TestCase):
         """Plotkin не применима при d ≤ 3 (n/2 = 3)."""
         self.assertIsNone(plotkin_bound(3))
 
+    def test_johnson_bound_d0_is_64(self):
+        """Johnson(6, 0) = 2^6 = 64."""
+        self.assertEqual(johnson_bound(0), 64)
+
     def test_johnson_bound_d1_is_64(self):
         """Johnson(6,1) = 64."""
         self.assertEqual(johnson_bound(1), 64)
@@ -410,6 +431,79 @@ class TestBounds(unittest.TestCase):
         """Singleton bound строго убывает с d."""
         for d in range(1, 6):
             self.assertGreater(singleton_bound(d), singleton_bound(d + 1))
+
+
+class TestCliqueAtDistance(unittest.TestCase):
+    """Тесты clique_number_at_distance — максимальное d-равноудалённое множество."""
+
+    def test_returns_positive_int(self):
+        for d in range(1, 7):
+            result = clique_number_at_distance(d)
+            self.assertIsInstance(result, int)
+            self.assertGreater(result, 0)
+
+    def test_d1_has_two(self):
+        """d=1: максимальная пара соседей = 2."""
+        self.assertEqual(clique_number_at_distance(1), 2)
+
+    def test_d2_has_six(self):
+        """d=2: 6 равноудалённых на расстоянии 2 соответствует атомам B₆."""
+        self.assertEqual(clique_number_at_distance(2), 6)
+
+    def test_d6_has_two(self):
+        """d=6: только антиподальная пара (diameter = 6)."""
+        self.assertEqual(clique_number_at_distance(6), 2)
+
+    def test_at_most_64(self):
+        """Размер не превышает 64 (мощность Q6)."""
+        for d in range(1, 7):
+            self.assertLessEqual(clique_number_at_distance(d), 64)
+
+
+class TestGeomCLI(unittest.TestCase):
+    """Тесты main() hexgeom."""
+
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexgeom.hexgeom import main
+        old_argv = sys.argv
+        sys.argv = ['hexgeom.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_ball(self):
+        out = self._run(['ball', '0', '2'])
+        self.assertIn('B(', out)
+
+    def test_cmd_voronoi(self):
+        out = self._run(['voronoi', '[0, 63]'])
+        self.assertIn('Вороного', out)
+
+    def test_cmd_interval(self):
+        out = self._run(['interval', '0', '7'])
+        self.assertIn('I(', out)
+
+    def test_cmd_packing(self):
+        out = self._run(['packing'])
+        self.assertIn('r=', out)
+
+    def test_cmd_dist(self):
+        out = self._run(['dist', '[0, 63]'])
+        self.assertIn('расстояний', out)
+
+    def test_cmd_bounds(self):
+        out = self._run(['bounds'])
+        self.assertIn('Johnson', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexgeom', out)
 
 
 if __name__ == '__main__':

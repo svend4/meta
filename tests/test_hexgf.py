@@ -14,7 +14,10 @@ from projects.hexgf import (
     build_zech_log_table,
     additive_character, additive_character_b,
     frobenius, frobenius_orbit,
+    character_sum,
+    bch_zeros, bch_generator_degree,
 )
+from projects.hexgf.hexgf import all_elements, nonzero_elements, is_subfield, build_zech_log_table
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +120,12 @@ class TestGFMultiplication(unittest.TestCase):
             for b in range(1, 64, 7):
                 self.assertEqual(gf_mul_via_log(a, b), gf_mul(a, b))
 
+    def test_mul_via_log_zero(self):
+        """gf_mul_via_log(0, b) = 0 и gf_mul_via_log(a, 0) = 0."""
+        for a in range(1, 64, 13):
+            self.assertEqual(gf_mul_via_log(0, a), 0)
+            self.assertEqual(gf_mul_via_log(a, 0), 0)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 class TestGFInverse(unittest.TestCase):
@@ -175,6 +184,11 @@ class TestGFTables(unittest.TestCase):
         """gf_exp(gf_log(a)) = a для a ≠ 0."""
         for a in range(1, 64):
             self.assertEqual(gf_exp(gf_log(a)), a)
+
+    def test_log_zero_raises(self):
+        """gf_log(0) → ValueError (log(0) не определён)."""
+        with self.assertRaises(ValueError):
+            gf_log(0)
 
     def test_log_exp_inverse(self):
         """gf_log(gf_exp(k)) = k mod 63."""
@@ -270,6 +284,11 @@ class TestGFPrimitivity(unittest.TestCase):
         for a in range(1, 64):
             self.assertEqual(ORDER % element_order(a), 0)
 
+    def test_element_order_zero_raises(self):
+        """element_order(0) → ValueError."""
+        with self.assertRaises(ValueError):
+            element_order(0)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 class TestCyclotomicCosets(unittest.TestCase):
@@ -285,6 +304,16 @@ class TestCyclotomicCosets(unittest.TestCase):
             coset = cyclotomic_coset_of(a)
             for c in coset:
                 self.assertIn(frobenius(c), coset)
+
+    def test_coset_of_zero(self):
+        """cyclotomic_coset_of(0) = frozenset([0])."""
+        coset = cyclotomic_coset_of(0)
+        self.assertEqual(coset, frozenset([0]))
+
+    def test_frobenius_orbit_nonzero(self):
+        """frobenius_orbit(a) = cyclotomic_coset_of(a) для a ≠ 0."""
+        for a in [1, 7, 11, 42]:
+            self.assertEqual(frobenius_orbit(a), cyclotomic_coset_of(a))
 
     def test_all_cosets_partition(self):
         """Все классы разбивают {0,...,62} (+ дополнительный для показателя 0)."""
@@ -426,6 +455,185 @@ class TestAdditiveCharacters(unittest.TestCase):
         for a in range(1, 64):
             has_one = any(trace_bilinear(a, b) == 1 for b in range(64))
             self.assertTrue(has_one, f"Tr(a·b)=1 не достигается для a={a}")
+
+
+class TestElementSets(unittest.TestCase):
+    """Тесты all_elements, nonzero_elements."""
+
+    def test_all_elements_count(self):
+        self.assertEqual(len(all_elements()), 64)
+
+    def test_all_elements_range(self):
+        self.assertEqual(sorted(all_elements()), list(range(64)))
+
+    def test_nonzero_elements_count(self):
+        self.assertEqual(len(nonzero_elements()), 63)
+
+    def test_nonzero_elements_no_zero(self):
+        self.assertNotIn(0, nonzero_elements())
+
+    def test_all_minus_zero_equals_nonzero(self):
+        self.assertEqual(set(all_elements()) - {0}, set(nonzero_elements()))
+
+
+class TestCharacterSum(unittest.TestCase):
+    """Тесты character_sum — суммы характеров над подмножеством."""
+
+    def test_character_sum_b0_equals_size(self):
+        """character_sum(0, S) = |S| (ψ_0 = 1 везде)."""
+        subset = list(range(10))
+        self.assertEqual(character_sum(0, subset), len(subset))
+
+    def test_character_sum_full_field_b_nonzero(self):
+        """Σ_{a∈GF(2^6)} ψ_b(a) = 0 для b ≠ 0."""
+        for b in [1, 2, 7, 63]:
+            result = character_sum(b, all_elements())
+            self.assertEqual(result, 0)
+
+    def test_character_sum_empty(self):
+        self.assertEqual(character_sum(1, []), 0)
+
+
+class TestBCH(unittest.TestCase):
+    """Тесты bch_zeros, bch_generator_degree."""
+
+    def test_bch_zeros_d1_empty(self):
+        """d=1: нет нулей (BCH с проектным расстоянием 1 = trivial код)."""
+        self.assertEqual(bch_zeros(1), [])
+
+    def test_bch_zeros_d2_one_element(self):
+        """d=2: один нуль {g^1}."""
+        z = bch_zeros(2)
+        self.assertEqual(len(z), 1)
+
+    def test_bch_zeros_d_n_minus_one(self):
+        """bch_zeros(d) содержит d-1 элементов."""
+        for d in range(1, 5):
+            self.assertEqual(len(bch_zeros(d)), d - 1)
+
+    def test_bch_generator_degree_d1_is_0(self):
+        """d=1: нет нулей → степень 0."""
+        self.assertEqual(bch_generator_degree(1), 0)
+
+    def test_bch_generator_degree_positive_for_d2(self):
+        """d=2: есть нули → степень > 0."""
+        self.assertGreater(bch_generator_degree(2), 0)
+
+    def test_bch_generator_degree_nondecreasing(self):
+        """Степень не убывает с ростом d."""
+        degs = [bch_generator_degree(d) for d in range(1, 6)]
+        for i in range(len(degs) - 1):
+            self.assertLessEqual(degs[i], degs[i + 1])
+
+
+class TestIsSubfield(unittest.TestCase):
+    """Тесты is_subfield."""
+
+    def test_gf2_is_subfield(self):
+        """GF(2) ⊂ GF(2^6): {0, 1} — подполе GF(2^1)."""
+        self.assertTrue(is_subfield(subfield_elements(1), 1))
+
+    def test_gf4_is_subfield(self):
+        """GF(4) ⊂ GF(64): подполе GF(2^2)."""
+        self.assertTrue(is_subfield(subfield_elements(2), 2))
+
+    def test_wrong_elements_not_subfield(self):
+        """Произвольное множество {0,1,2} не является подполем GF(2)."""
+        self.assertFalse(is_subfield([0, 1, 2], 1))
+
+    def test_full_field_is_subfield_6(self):
+        """GF(2^6) — подполе само себя."""
+        self.assertTrue(is_subfield(subfield_elements(6), 6))
+
+
+class TestZechLogTable(unittest.TestCase):
+    """Тесты таблицы логарифмов Цеха для GF(2^6)."""
+
+    def setUp(self):
+        self.Z = build_zech_log_table()
+
+    def test_length_is_order_minus_1(self):
+        """Таблица Цеха имеет 63 записи (ORDER = 63)."""
+        self.assertEqual(len(self.Z), 63)
+
+    def test_z0_is_none(self):
+        """Z[0] = None, так как g^0 + 1 = 0 в GF(2)."""
+        self.assertIsNone(self.Z[0])
+
+    def test_nonzero_entries_in_range(self):
+        """Все ненулевые записи Z[k] ∈ [0, 62]."""
+        for k in range(1, 63):
+            if self.Z[k] is not None:
+                self.assertGreaterEqual(self.Z[k], 0)
+                self.assertLess(self.Z[k], 63)
+
+    def test_zech_log_addition(self):
+        """Z используется для: exp[k + Z[k']] = exp[k] XOR exp[k'] при k=1, k'=2."""
+        from projects.hexgf.hexgf import _get_tables
+        exp, log = _get_tables()
+        # test for specific k, k' where we know Z is not None
+        k = 1
+        k_prime = 2
+        z_val = self.Z[(k_prime - k) % 63]
+        if z_val is not None:
+            expected = exp[k] ^ exp[k_prime]
+            actual = exp[(k + z_val) % 63]
+            self.assertEqual(actual, expected)
+
+
+class TestCLI(unittest.TestCase):
+    """Тесты CLI hexgf — команды main()."""
+
+    def _run(self, args):
+        import io, sys
+        from projects.hexgf.hexgf import main
+        old_argv = sys.argv
+        old_stdout = sys.stdout
+        sys.argv = ['hexgf.py'] + args
+        sys.stdout = io.StringIO()
+        try:
+            main()
+            return sys.stdout.getvalue()
+        finally:
+            sys.argv = old_argv
+            sys.stdout = old_stdout
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        self.assertIn('GF(2^6)', out)
+
+    def test_cmd_mul_default(self):
+        out = self._run(['mul'])
+        self.assertIn('*', out)
+
+    def test_cmd_mul_with_args(self):
+        out = self._run(['mul', '7', '3'])
+        self.assertIn('7', out)
+        self.assertIn('3', out)
+
+    def test_cmd_power(self):
+        out = self._run(['power'])
+        self.assertIn('g^', out)
+
+    def test_cmd_cosets(self):
+        out = self._run(['cosets'])
+        self.assertIn('C_', out)
+
+    def test_cmd_minpoly_default(self):
+        out = self._run(['minpoly'])
+        self.assertIn('x^', out)
+
+    def test_cmd_minpoly_with_arg(self):
+        out = self._run(['minpoly', '3'])
+        self.assertIn('3', out)
+
+    def test_cmd_trace(self):
+        out = self._run(['trace'])
+        self.assertIn('Tr=', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexgf', out)
 
 
 if __name__ == '__main__':

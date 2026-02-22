@@ -40,6 +40,11 @@ class TestSubgraphBasic(unittest.TestCase):
         self.assertIn(5, g)
         self.assertNotIn(42, g)
 
+    def test_len_returns_vertex_count(self):
+        """len(g) возвращает число вершин."""
+        g = induced_subgraph({0, 1, 3, 7})
+        self.assertEqual(len(g), 4)
+
     def test_degree_q6(self):
         """Каждая вершина Q6 имеет степень 6."""
         g = q6_full()
@@ -72,6 +77,11 @@ class TestConnectivity(unittest.TestCase):
 
     def test_single_vertex_connected(self):
         self.assertTrue(induced_subgraph({42}).is_connected())
+
+    def test_empty_subgraph_is_connected(self):
+        """Пустой подграф тривиально связен."""
+        g = induced_subgraph(set())
+        self.assertTrue(g.is_connected())
 
     def test_disconnected(self):
         # 0 и 42 не соединены напрямую, но через других вершин
@@ -205,12 +215,32 @@ class TestHamiltonian(unittest.TestCase):
         self.assertEqual(cycle[0], cycle[-1])
         self.assertEqual(len(set(cycle)), 4)
 
+    def test_hamiltonian_cycle_too_small_returns_none(self):
+        """< 3 вершин → гамильтонов цикл невозможен (None)."""
+        g = induced_subgraph({0, 1})
+        cycle = g.find_hamiltonian_cycle()
+        self.assertIsNone(cycle)
+
     def test_no_hamiltonian_path_isolated(self):
         """Изолированная вершина — нет гамильтонова пути через все 3."""
         g = induced_subgraph({0, 42, 63})   # 0-42 и 0-63 не смежны (hamming>1)
         path = g.find_hamiltonian_path(start=0)
         # Ни одна пара из {0,42,63} не является Q6-соседями
         self.assertIsNone(path)
+
+    def test_empty_subgraph_returns_empty(self):
+        """Пустой подграф → пустой путь."""
+        g = induced_subgraph(set())
+        path = g.find_hamiltonian_path()
+        self.assertEqual(path, [])
+
+    def test_hamiltonian_path_no_start(self):
+        """find_hamiltonian_path без указания start (автовыбор первой вершины)."""
+        g = induced_subgraph({0, 1, 3})
+        path = g.find_hamiltonian_path()
+        if path is not None:
+            self.assertEqual(len(path), 3)
+            self.assertEqual(set(path), {0, 1, 3})
 
 
 class TestLayers(unittest.TestCase):
@@ -260,6 +290,12 @@ class TestSpectral(unittest.TestCase):
         g = induced_subgraph({0, 1})
         lam = largest_eigenvalue(g)
         self.assertAlmostEqual(lam, 1.0, places=2)
+
+    def test_largest_eigenvalue_empty(self):
+        """λ_max для пустого графа = 0."""
+        g = induced_subgraph(set())
+        lam = largest_eigenvalue(g)
+        self.assertEqual(lam, 0.0)
 
     def test_spectrum_length(self):
         g = induced_subgraph({0, 1, 2, 3})
@@ -348,6 +384,68 @@ class TestAnalyze(unittest.TestCase):
         self.assertTrue(info['bipartite'])
         self.assertEqual(info['diameter'], 6)
         self.assertEqual(info['girth'], 4)
+
+
+class TestHamiltonianBacktracking(unittest.TestCase):
+    """Тесты для ветвей с откатом в поиске гамильтонова пути/цикла."""
+
+    def test_hamiltonian_path_dead_end_backtracks(self):
+        """DFS делает откат (pop/remove) при тупике в звёздном подграфе."""
+        # Звезда: 0 соединён с 1, 2, 4; с точки зрения 1 → тупик
+        path = induced_subgraph({0, 1, 2, 4}).find_hamiltonian_path(start=1)
+        self.assertIsNone(path)
+
+    def test_hamiltonian_cycle_path_no_cycle_backtracks(self):
+        """Путь 0-1-3 не имеет гамильтонова цикла → None с откатами."""
+        cycle = induced_subgraph({0, 1, 3}).find_hamiltonian_cycle()
+        self.assertIsNone(cycle)
+
+    def test_hamiltonian_cycle_4_vertices(self):
+        """4-цикл {0,1,2,3} имеет гамильтонов цикл."""
+        cycle = induced_subgraph({0, 1, 2, 3}).find_hamiltonian_cycle()
+        self.assertIsNotNone(cycle)
+        self.assertEqual(len(set(cycle)), 4)
+
+
+class TestIsomorphismEdgeCases(unittest.TestCase):
+    """Тесты для непокрытых ветвей is_isomorphic_to."""
+
+    def test_different_edge_count(self):
+        """Разное число рёбер → False (line 385)."""
+        g1 = induced_subgraph({0, 1, 3})   # 2 ребра: 0-1, 1-3
+        g2 = induced_subgraph({0, 1, 42})  # 1 ребро: только 0-1
+        self.assertFalse(g1.is_isomorphic_to(g2))
+
+    def test_different_degree_sequence_same_edges(self):
+        """Одинаковое число рёбер, разные последовательности степеней → False (line 387)."""
+        # {0,1,2,4}: звезда 0→1,2,4 (3 ребра, степени [3,1,1,1])
+        # {0,1,3,7}: путь 0-1-3-7 (3 ребра, степени [1,2,2,1])
+        g1 = induced_subgraph({0, 1, 2, 4})
+        g2 = induced_subgraph({0, 1, 3, 7})
+        self.assertFalse(g1.is_isomorphic_to(g2))
+
+    def test_too_large_raises(self):
+        """Граф с > 12 вершинами → ValueError (line 389)."""
+        g = induced_subgraph(set(range(16)))
+        with self.assertRaises(ValueError):
+            g.is_isomorphic_to(g)
+
+
+class TestAnalyzeDisconnected(unittest.TestCase):
+    """Тесты analyze() для несвязного подграфа (lines 608-609)."""
+
+    def test_analyze_disconnected_has_components(self):
+        """analyze несвязного графа содержит 'components'."""
+        g = induced_subgraph({0, 42})
+        info = analyze(g)
+        self.assertIn('components', info)
+        self.assertGreater(info['components'], 1)
+
+    def test_analyze_disconnected_no_diameter(self):
+        """Несвязный граф не имеет ключа 'diameter' в analyze."""
+        g = induced_subgraph({0, 42})
+        info = analyze(g)
+        self.assertNotIn('diameter', info)
 
 
 if __name__ == '__main__':

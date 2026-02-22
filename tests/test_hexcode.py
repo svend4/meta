@@ -7,7 +7,8 @@ from projects.hexcode.hexcode import (
     BinaryCode, repetition_code, parity_check_code, shortened_hamming_code,
     hexcode_312, full_space_code, even_weight_code,
     singleton_bound, hamming_bound, plotkin_bound, feasible,
-    _gf2_dot, _int_to_bits, _bits_to_int, _row_reduce_gf2,
+    dual_repetition_code, find_codes, min_covering_code,
+    _gf2_dot, _int_to_bits, _bits_to_int, _row_reduce_gf2, _gf2_matmul,
 )
 from libs.hexcore.hexcore import hamming, SIZE
 
@@ -34,11 +35,38 @@ class TestGF2Utils(unittest.TestCase):
         _, pivots = _row_reduce_gf2(M)
         self.assertEqual(len(pivots), 1)
 
+    def test_row_reduce_empty(self):
+        """Пустая матрица → пустые пивоты."""
+        _, pivots = _row_reduce_gf2([])
+        self.assertEqual(pivots, [])
+
+    def test_gf2_matmul_identity(self):
+        """Умножение на единичную матрицу = исходная матрица."""
+        I = [[1, 0], [0, 1]]
+        A = [[1, 1], [0, 1]]
+        result = _gf2_matmul(I, A)
+        self.assertEqual(result, A)
+
+    def test_gf2_matmul_gf2_arithmetic(self):
+        """В GF(2): 1+1=0."""
+        A = [[1, 1], [1, 0]]
+        B = [[1, 1], [1, 1]]
+        result = _gf2_matmul(A, B)
+        self.assertEqual(result[0][0], 0)   # (1*1 + 1*1) mod 2 = 0
+
 
 class TestBinaryCodeBasic(unittest.TestCase):
     def test_creates_code(self):
         code = BinaryCode([[1, 0, 0, 1, 1, 0], [0, 1, 0, 1, 0, 1]])
         self.assertIsInstance(code, BinaryCode)
+
+    def test_repr_contains_params(self):
+        """BinaryCode.__repr__ содержит n, k, d."""
+        code = repetition_code()
+        r = repr(code)
+        self.assertIn('n=', r)
+        self.assertIn('k=', r)
+        self.assertIn('d=', r)
 
     def test_dimension(self):
         code = BinaryCode([[1, 0, 0, 1, 1, 0], [0, 1, 0, 1, 0, 1]])
@@ -321,6 +349,178 @@ class TestWeightDistribution(unittest.TestCase):
         code = hexcode_312()
         d = code.weight_distribution()
         self.assertEqual(sum(d.values()), len(code.codewords()))
+
+
+class TestDualRepetitionCode(unittest.TestCase):
+    """Тесты dual_repetition_code — [6,5,2]-код."""
+
+    def test_returns_binary_code(self):
+        code = dual_repetition_code()
+        self.assertIsInstance(code, BinaryCode)
+
+    def test_n_equals_6(self):
+        code = dual_repetition_code()
+        self.assertEqual(code.n, 6)
+
+    def test_k_equals_5(self):
+        code = dual_repetition_code()
+        self.assertEqual(code.k, 5)
+
+    def test_min_distance_2(self):
+        code = dual_repetition_code()
+        self.assertEqual(code.min_distance(), 2)
+
+    def test_codewords_count(self):
+        """[6,5,2] имеет 2^5 = 32 кодовых слова."""
+        code = dual_repetition_code()
+        self.assertEqual(len(code.codewords()), 32)
+
+
+class TestFindCodes(unittest.TestCase):
+    """Тесты find_codes — поиск линейных кодов."""
+
+    def test_returns_list(self):
+        codes = find_codes(d_min=1, k=1)
+        self.assertIsInstance(codes, list)
+
+    def test_k1_d1_finds_63_codes(self):
+        """При k=1, d_min=1 находит все 63 ненулевых однострочных кода."""
+        codes = find_codes(d_min=1, k=1)
+        self.assertEqual(len(codes), 63)
+
+    def test_k1_d6_finds_one_code(self):
+        """Код d=6 при k=1 — только repetition code ([6,1,6])."""
+        codes = find_codes(d_min=6, k=1)
+        self.assertEqual(len(codes), 1)
+        self.assertEqual(codes[0].min_distance(), 6)
+
+    def test_all_found_meet_d_min(self):
+        """Все найденные коды имеют min_distance ≥ d_min."""
+        codes = find_codes(d_min=3, k=1)
+        for c in codes:
+            self.assertGreaterEqual(c.min_distance(), 3)
+
+
+class TestMinCoveringCode(unittest.TestCase):
+    """Тесты min_covering_code — минимальный линейный код с покрывающим радиусом."""
+
+    def test_returns_binary_code(self):
+        code = min_covering_code(radius=3)
+        self.assertIsInstance(code, BinaryCode)
+
+    def test_n_equals_6(self):
+        code = min_covering_code(radius=3)
+        self.assertEqual(code.n, 6)
+
+    def test_k_is_positive(self):
+        code = min_covering_code(radius=3)
+        self.assertGreater(code.k, 0)
+
+    def test_covering_radius_satisfied(self):
+        """Покрывающий радиус ≤ заданному radius=3."""
+        from projects.hexgeom.hexgeom import hamming_ball
+        code = min_covering_code(radius=3)
+        cws = code.codewords()
+        covered = set()
+        for cw in cws:
+            for h in hamming_ball(cw, 3):
+                covered.add(h)
+        self.assertEqual(len(covered), 64)
+
+
+class TestBinaryCodeDisplay(unittest.TestCase):
+    """Тесты метода display() для BinaryCode."""
+
+    def test_display_returns_string(self):
+        from projects.hexcode.hexcode import even_weight_code
+        code = even_weight_code()
+        result = code.display()
+        self.assertIsInstance(result, str)
+
+    def test_display_contains_rate(self):
+        from projects.hexcode.hexcode import even_weight_code
+        code = even_weight_code()
+        result = code.display()
+        self.assertIn('R =', result)
+
+    def test_display_contains_codewords(self):
+        from projects.hexcode.hexcode import even_weight_code
+        code = even_weight_code()
+        result = code.display()
+        self.assertIn('000000', result)
+
+
+class TestPlotkinBoundHighD(unittest.TestCase):
+    """Тесты plotkin_bound с 2*d > n (фактическое применение границы)."""
+
+    def test_plotkin_bound_high_d_true(self):
+        self.assertTrue(plotkin_bound(1, 6))
+
+    def test_plotkin_bound_high_d_false(self):
+        self.assertFalse(plotkin_bound(3, 4))
+
+
+class TestFullSpaceCodeEdgeCases(unittest.TestCase):
+    """Тесты для full_space_code (k=n=6, r=0)."""
+
+    def test_parity_check_matrix_full_space_empty(self):
+        code = full_space_code()
+        H = code.parity_check_matrix()
+        self.assertEqual(H, [])
+
+    def test_syndrome_table_full_space_empty(self):
+        code = full_space_code()
+        table = code._build_syndrome_table()
+        self.assertEqual(table, {})
+
+    def test_decode_full_space_codeword(self):
+        code = full_space_code()
+        result = code.decode(42)
+        self.assertEqual(result, 42)
+
+    def test_decode_full_space_all_codewords(self):
+        code = full_space_code()
+        for h in [0, 1, 63]:
+            result = code.decode(h)
+            self.assertEqual(result, h)
+
+    def test_dual_full_space_raises(self):
+        code = full_space_code()
+        with self.assertRaises(ValueError):
+            BinaryCode.dual(code)
+
+    def test_decode_uncorrectable_error(self):
+        code = repetition_code()
+        result = code.decode(7)
+        self.assertIsNone(result)
+
+
+class TestFindCodesExtended(unittest.TestCase):
+    """Тесты find_codes с параметром k>1."""
+
+    def test_find_codes_k2_d3(self):
+        codes = find_codes(d_min=3, k=2)
+        self.assertIsInstance(codes, list)
+        for c in codes:
+            self.assertEqual(c.k, 2)
+            self.assertGreaterEqual(c.min_distance(), 3)
+
+    def test_find_codes_k2_d2(self):
+        codes = find_codes(d_min=2, k=2)
+        self.assertIsInstance(codes, list)
+        self.assertGreater(len(codes), 0)
+
+    def test_find_codes_high_d_empty_k1(self):
+        codes = find_codes(d_min=7, k=1)
+        self.assertEqual(codes, [])
+
+    def test_find_codes_k2_deduplication(self):
+        codes = find_codes(d_min=5, k=2)
+        self.assertIsInstance(codes, list)
+
+    def test_find_codes_k3_rank_filter(self):
+        codes = find_codes(d_min=5, k=3)
+        self.assertIsInstance(codes, list)
 
 
 class TestJsonSboxCode(unittest.TestCase):

@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from projects.hexstat.hexstat import (
     Q6Distribution, RandomWalk,
-    chi_square_statistic, chi_square_p_value, test_uniformity,
+    chi_square_statistic, chi_square_p_value, test_uniformity as uniformity_test,
     empirical_entropy, bootstrap_entropy_ci, kolmogorov_smirnov_yang,
     q6_mutual_information, q6_channel_capacity_bsc,
     yang_entropy, max_entropy_with_mean_yang,
@@ -116,6 +116,19 @@ class TestEntropies(unittest.TestCase):
         h1 = Q6Distribution.yang_weighted(2.0).entropy()
         self.assertLess(h1, h0)
 
+    def test_renyi_invalid_alpha_raises(self):
+        """renyi_entropy(α ≤ 0) → ValueError."""
+        d = Q6Distribution.uniform()
+        with self.assertRaises(ValueError):
+            d.renyi_entropy(0)
+        with self.assertRaises(ValueError):
+            d.renyi_entropy(-1)
+
+    def test_bsc_invalid_p_error_raises(self):
+        """binary_symmetric_channel с p_error < 0 → ValueError."""
+        with self.assertRaises(ValueError):
+            Q6Distribution.binary_symmetric_channel(0, -0.1)
+
 
 # ── дивергенции ───────────────────────────────────────────────────────────────
 
@@ -137,6 +150,14 @@ class TestDivergences(unittest.TestCase):
         p = Q6Distribution.uniform()
         q = Q6Distribution.yang_weighted(5.0)
         self.assertGreater(p.kl_divergence(q), 0.0)
+
+    def test_kl_disjoint_support_returns_inf(self):
+        """KL(P ‖ Q) = +∞ когда support(P) ⊄ support(Q)."""
+        counts_p = [100 if h == 0 else 0 for h in range(64)]
+        counts_q = [100 if h == 1 else 0 for h in range(64)]
+        p = Q6Distribution.from_counts(counts_p)
+        q = Q6Distribution.from_counts(counts_q)
+        self.assertEqual(p.kl_divergence(q), math.inf)
 
     def test_tv_self_zero(self):
         """TV(P, P) = 0."""
@@ -383,14 +404,14 @@ class TestChiSquare(unittest.TestCase):
         # Все 500 выборок из yang_weighted(β=5)
         d = Q6Distribution.yang_weighted(5.0)
         samples = d.sample(500, seed=1)
-        chi2, df, p, reject = test_uniformity(samples)
+        chi2, df, p, reject = uniformity_test(samples)
         self.assertTrue(reject)
 
     def test_uniformity_uniform_not_rejected(self):
         """Равномерные данные (n=2000): не отвергаем H₀ (статистически)."""
         d = Q6Distribution.uniform()
         samples = d.sample(2000, seed=42)
-        chi2, df, p, reject = test_uniformity(samples)
+        chi2, df, p, reject = uniformity_test(samples)
         # p-значение должно быть разумным (не близко к 0)
         # Даём небольшой запас — иногда случайная выборка может дать низкий p
         # Проверяем просто что chi2/df близко к 1
@@ -513,6 +534,106 @@ class TestInformationMeasures(unittest.TestCase):
         for target in [1.0, 2.5, 4.0, 5.5]:
             d = max_entropy_with_mean_yang(target)
             self.assertAlmostEqual(d.mean_yang(), target, places=4)
+
+
+class TestStatCLI(unittest.TestCase):
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexstat.hexstat import main
+        old_argv = sys.argv
+        sys.argv = ['hexstat.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        self.assertIn('H =', out)
+
+    def test_cmd_walk(self):
+        out = self._run(['walk', '100'])
+        self.assertIn('блуждание', out)
+
+    def test_cmd_sample(self):
+        out = self._run(['sample', '200'])
+        self.assertIn('χ²', out)
+
+    def test_cmd_entropy(self):
+        out = self._run(['entropy'])
+        self.assertIn('β=', out)
+
+    def test_cmd_correlation_uniform(self):
+        out = self._run(['correlation', 'uniform'])
+        self.assertIn('ковариаций', out)
+
+    def test_cmd_correlation_yang(self):
+        out = self._run(['correlation', 'yang'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_correlation_bsc(self):
+        out = self._run(['correlation', 'bsc'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_test(self):
+        out = self._run(['test'])
+        self.assertIn('CI', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexstat', out)
+
+    def test_cmd_unknown(self):
+        out = self._run(['unknown'])
+        self.assertIn('hexstat', out)
+
+
+class TestHexstatUncovered(unittest.TestCase):
+    """Тесты для непокрытых строк hexstat.py."""
+
+    def test_neighbors_function(self):
+        """_neighbors(h) возвращает 6 соседей (line 28)."""
+        from projects.hexstat.hexstat import _neighbors
+        nbrs = _neighbors(0)
+        self.assertEqual(len(nbrs), 6)
+        self.assertEqual(sorted(nbrs), [1, 2, 4, 8, 16, 32])
+
+    def test_distribution_repr(self):
+        """Q6Distribution.__repr__ (line 240)."""
+        d = Q6Distribution.uniform()
+        r = repr(d)
+        self.assertIn('Q6Distribution', r)
+        self.assertIn('H=', r)
+
+    def test_chi_square_p_value_zero_returns_one(self):
+        """chi_square_p_value(chi2=0, ...) → 1.0 (line 326)."""
+        p = chi_square_p_value(0.0, df=63)
+        self.assertEqual(p, 1.0)
+
+    def test_chi_square_p_value_negative_returns_one(self):
+        """chi_square_p_value(chi2=-1, ...) → 1.0 (line 326)."""
+        p = chi_square_p_value(-1.0, df=63)
+        self.assertEqual(p, 1.0)
+
+    def test_mutual_information_default_dist(self):
+        """q6_mutual_information с dist=None → использует uniform (line 403)."""
+        mi = q6_mutual_information(0, 1)
+        self.assertIsInstance(mi, float)
+        self.assertAlmostEqual(mi, 0.0, places=10)  # uniform → MI=0
+
+    def test_max_entropy_with_mean_yang_out_of_range(self):
+        """max_entropy_with_mean_yang с target_mean вне [0,6] → ValueError (line 435)."""
+        with self.assertRaises(ValueError):
+            max_entropy_with_mean_yang(target_mean=7.0)
+
+    def test_max_entropy_with_mean_yang_negative(self):
+        """max_entropy_with_mean_yang с target_mean < 0 → ValueError."""
+        with self.assertRaises(ValueError):
+            max_entropy_with_mean_yang(target_mean=-1.0)
 
 
 if __name__ == '__main__':

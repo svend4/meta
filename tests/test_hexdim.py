@@ -12,7 +12,7 @@ from projects.hexdim.hexdim import (
     product_decomposition, all_partitions_into_two,
     project_to_qk, project_to_q4,
     q6_to_grid_coords, q6_to_3d_coords, q6_to_r6_coords,
-    gray_code_sequence, gray_code_position, gray_code_step_axis,
+    gray_code_sequence, gray_code_position, gray_code_step, gray_code_step_axis,
     hexagram_as_barcode, q6_as_8x8_grid, grid_to_string,
     q12_hexagram, q12_to_hexagram, q12_transformed, q12_changing_lines,
     dimension_info,
@@ -85,6 +85,12 @@ class TestSubcube(unittest.TestCase):
         axes, base, k = find_subcube_of(verts)
         self.assertEqual(k, 3)
 
+    def test_find_subcube_of_empty(self):
+        """find_subcube_of([]) возвращает ([], 0, 0)."""
+        axes, base, k = find_subcube_of([])
+        self.assertEqual(axes, [])
+        self.assertEqual(k, 0)
+
 
 # ── тессеракт Q4 ─────────────────────────────────────────────────────────────
 
@@ -125,6 +131,10 @@ class TestTesseract(unittest.TestCase):
         axes, base, k = find_subcube_of(bad2)
         self.assertEqual(is_tesseract(bad2), (k == 4 and
                          subcube(axes[:4] if len(axes) >= 4 else axes, base) == bad2))
+
+    def test_is_tesseract_wrong_size(self):
+        """is_tesseract возвращает False при размере != 16."""
+        self.assertFalse(is_tesseract({0, 1, 2}))
 
     def test_all_cubes_count(self):
         """Число Q3-подграфов = C(6,3)×2^3 = 20×8 = 160."""
@@ -276,6 +286,18 @@ class TestProjections(unittest.TestCase):
             self.assertIn(r, range(8))
             self.assertIn(c, range(8))
 
+    def test_grid_coords_yang_method(self):
+        """q6_to_grid_coords('yang') → (yang_count, pos_in_level)."""
+        row, col = q6_to_grid_coords(0, 'yang')
+        self.assertEqual(row, 0)   # weight of 0 = 0
+        row6, col6 = q6_to_grid_coords(63, 'yang')
+        self.assertEqual(row6, 6)  # weight of 63 = 6
+
+    def test_grid_coords_unknown_raises(self):
+        """q6_to_grid_coords с неизвестным методом → ValueError."""
+        with self.assertRaises(ValueError):
+            q6_to_grid_coords(0, 'unknown_method')
+
 
 # ── код Грея ─────────────────────────────────────────────────────────────────
 
@@ -318,6 +340,12 @@ class TestGrayCode(unittest.TestCase):
             axis = gray_code_step_axis(i)
             flip_bit = seq[i] ^ seq[i + 1]
             self.assertEqual(flip_bit, 1 << axis)
+
+    def test_gray_code_step_returns_int(self):
+        """gray_code_step(i) возвращает целое число."""
+        for i in range(10):
+            result = gray_code_step(i)
+            self.assertIsInstance(result, int)
 
 
 # ── псевдо-QR и сетка 8×8 ────────────────────────────────────────────────────
@@ -372,6 +400,48 @@ class TestPseudoQR(unittest.TestCase):
             for lower in range(8):
                 expected = from_trigrams(lower, upper)
                 self.assertEqual(grid[upper][lower], expected)
+
+    def test_hexagram_barcode_grid_style(self):
+        """hexagram_as_barcode с style='grid' возвращает список списков."""
+        barcode = hexagram_as_barcode(42, style='grid')
+        self.assertEqual(len(barcode), 6)
+        for line in barcode:
+            self.assertIsInstance(line, list)
+            self.assertIn(line[0], [0, 1])
+
+    def test_grid_to_string_show_bits(self):
+        """grid_to_string с show_bits=True показывает битовые строки."""
+        grid = q6_as_8x8_grid('trigram')
+        s = grid_to_string(grid, show_bits=True)
+        self.assertIn('000000', s)   # бит-строка гексаграммы 0
+
+    def test_grid_to_string_default(self):
+        """grid_to_string без show_bits возвращает строку с разделителями."""
+        grid = q6_as_8x8_grid('trigram')
+        s = grid_to_string(grid)  # show_bits=False по умолчанию
+        self.assertIsInstance(s, str)
+        self.assertIn('│', s)  # разделители строки
+
+    def test_grid_to_string_with_none(self):
+        """grid_to_string с None-элементами показывает '?'."""
+        grid_with_none = [[0, None, 1], [2, 3, None]]
+        s = grid_to_string(grid_with_none)
+        self.assertIn('?', s)
+
+    def test_q12_transformed_output(self):
+        """q12_transformed возвращает гексаграмму ∈ [0, 63]."""
+        code = q12_hexagram([0, 1, 2, 3, 0, 3])
+        result = q12_transformed(code)
+        self.assertIn(result, range(64))
+
+    def test_q12_transformed_old_yang_becomes_yin(self):
+        """state=3 (старый ян) → ян=0 (инь)."""
+        # Кодон с state=3 для бита 0: код = 3 (0b11)
+        code = 3   # только бит 0 = state 3, остальные = state 0
+        result = q12_transformed(code)
+        # bit0: state=3 → yang=0; bit1-5: state=0 → yang=1
+        expected = 0b111110   # биты 1-5 = 1, бит 0 = 0
+        self.assertEqual(result, expected)
 
 
 # ── Q12: четырёхуровневые линии ───────────────────────────────────────────────
@@ -459,6 +529,60 @@ class TestDimensionInfo(unittest.TestCase):
         info = dimension_info()
         self.assertEqual(info[3]['vertices'], 8)
         self.assertEqual(info[3]['count_in_q6'], 160)
+
+
+class TestDimCLI(unittest.TestCase):
+    """Тесты main() hexdim."""
+
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexdim.hexdim import main
+        old_argv = sys.argv
+        sys.argv = ['hexdim.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        self.assertIn('Q6', out)
+
+    def test_cmd_hexagram_default(self):
+        out = self._run(['hexagram'])
+        self.assertIn('Гексаграмма', out)
+
+    def test_cmd_hexagram_with_arg(self):
+        out = self._run(['hexagram', '7'])
+        self.assertIn('7', out)
+
+    def test_cmd_tesseracts(self):
+        out = self._run(['tesseracts'])
+        self.assertIn('тессерактов', out)
+
+    def test_cmd_grid_default(self):
+        out = self._run(['grid'])
+        self.assertIn('8×8', out)
+
+    def test_cmd_gray(self):
+        out = self._run(['gray'])
+        self.assertIn('Грея', out)
+
+    def test_cmd_q12_default(self):
+        out = self._run(['q12'])
+        self.assertIn('Q12', out)
+
+    def test_cmd_projection(self):
+        out = self._run(['projection'])
+        self.assertIn('3D', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexdim', out)
 
 
 if __name__ == '__main__':

@@ -1,7 +1,9 @@
 """Тесты для hexlat — булева решётка B₆ на Q6."""
 import sys
 import os
+import io
 import unittest
+from contextlib import redirect_stdout
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from math import comb
@@ -17,6 +19,7 @@ from projects.hexlat.hexlat import (
     lattice_diameter, comparable_pairs_count, incomparable_pairs_count,
     sublattice_boolean,
     mirsky_decomposition, chain_partition_count,
+    _cmd_info, _cmd_interval, _cmd_mobius, _cmd_chains, _cmd_antichain,
 )
 
 
@@ -202,6 +205,11 @@ class TestPolynomials(unittest.TestCase):
     def test_zeta_polynomial_positive(self):
         for n in range(1, 5): self.assertGreater(zeta_polynomial(n), 0)
 
+    def test_zeta_polynomial_n0(self):
+        """Z(0) = 0 для n ≤ 0."""
+        assert zeta_polynomial(0) == 0
+        assert zeta_polynomial(-1) == 0
+
 
 class TestLatticeStructure(unittest.TestCase):
     def test_lattice_diameter(self):
@@ -229,6 +237,93 @@ class TestLatticeStructure(unittest.TestCase):
         self.assertEqual(chain_partition_count(), comb(6, 3))
     def test_total_elements(self):
         self.assertEqual(sum(len(rank_elements(k)) for k in range(7)), 64)
+
+
+# ============================================================
+# CLI-функции
+# ============================================================
+
+class TestCLI:
+    def _capture(self, fn, args=None):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(args or [])
+        return buf.getvalue()
+
+    def test_cmd_info_produces_output(self):
+        out = self._capture(_cmd_info)
+        assert 'Уитни' in out or 'B' in out
+
+    def test_cmd_interval_valid(self):
+        out = self._capture(_cmd_interval, ['0', '7'])
+        assert 'нтервал' in out or '0' in out
+
+    def test_cmd_interval_no_args(self):
+        out = self._capture(_cmd_interval, [])
+        assert 'Использование' in out
+
+    def test_cmd_mobius_valid(self):
+        out = self._capture(_cmd_mobius, ['0', '7'])
+        assert 'μ' in out or '0' in out
+
+    def test_cmd_mobius_no_args(self):
+        out = self._capture(_cmd_mobius, [])
+        assert 'Использование' in out
+
+    def test_cmd_chains_produces_output(self):
+        out = self._capture(_cmd_chains)
+        assert '720' in out
+
+    def test_cmd_antichain_produces_output(self):
+        out = self._capture(_cmd_antichain)
+        assert '20' in out
+
+
+# ============================================================
+# CLI main()
+# ============================================================
+
+class TestMainCLI:
+    def _run(self, args):
+        import sys
+        from projects.hexlat.hexlat import main
+        old_argv = sys.argv
+        sys.argv = ['hexlat.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_no_args_shows_usage(self):
+        out = self._run([])
+        assert 'Использование' in out
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        assert len(out) > 0
+
+    def test_cmd_interval(self):
+        out = self._run(['interval', '0', '7'])
+        assert len(out) > 0
+
+    def test_cmd_mobius(self):
+        out = self._run(['mobius', '0', '63'])
+        assert len(out) > 0
+
+    def test_cmd_chains(self):
+        out = self._run(['chains'])
+        assert '720' in out
+
+    def test_cmd_antichain(self):
+        out = self._run(['antichain'])
+        assert '20' in out
+
+    def test_unknown_cmd(self):
+        out = self._run(['xyz'])
+        assert 'Неизвестная' in out
 
 
 if __name__ == '__main__':

@@ -13,6 +13,7 @@ from projects.hexmat import (
     orthogonal_complement,
     linear_code_from_generator, parity_check_matrix, minimum_distance,
 )
+from projects.hexmat.hexmat import mat_projection
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -409,6 +410,14 @@ class TestLinearCodes(unittest.TestCase):
         d = minimum_distance(words)
         self.assertGreater(d, 0)
 
+    def test_minimum_distance_only_zeros(self):
+        """minimum_distance([0]) = 0 (нет ненулевых слов)."""
+        self.assertEqual(minimum_distance([0]), 0)
+
+    def test_minimum_distance_empty(self):
+        """minimum_distance([]) = 0."""
+        self.assertEqual(minimum_distance([]), 0)
+
     def test_repetition_code_distance(self):
         """Repetition code [6,1]: генератор = [0b111111], min distance = 6."""
         G = [0b111111]  # все 6 битов = 1
@@ -431,6 +440,123 @@ class TestOrthogonalComplement(unittest.TestCase):
         """Ортогональное дополнение {0} = весь Q6."""
         comp = orthogonal_complement([])
         self.assertEqual(len(comp), 6)
+
+
+class TestMatProjection(unittest.TestCase):
+    """Тесты mat_projection — ортогональный проектор (над GF(2))."""
+
+    def test_empty_basis_is_zero(self):
+        """Проекция на {0} = нулевая матрица."""
+        self.assertEqual(mat_projection([]), mat_zero())
+
+    def test_full_basis_is_identity(self):
+        """Проекция на весь GF(2)^6 = единичная матрица."""
+        full_basis = [1 << i for i in range(6)]
+        self.assertEqual(mat_projection(full_basis), mat_identity())
+
+    def test_single_basis_vector(self):
+        """Проекция на ⟨e0⟩ = матрица с единственной ненулевой строкой."""
+        p = mat_projection([1])  # e0 = 000001
+        self.assertIsNotNone(p)
+        self.assertIsInstance(p, list)
+        self.assertEqual(len(p), 6)
+
+    def test_single_basis_first_row(self):
+        """Проекция на ⟨e0⟩: нулевая строка 0 = 1 (P[0]=1 → бит 0)."""
+        p = mat_projection([1])
+        self.assertEqual(p[0], 1)  # строка 0: только бит 0
+
+    def test_two_independent_basis(self):
+        """Проекция на ⟨e0, e1⟩: ненулевая матрица."""
+        p = mat_projection([1, 2])  # e0=000001, e1=000010
+        self.assertIsNotNone(p)
+        # Первые две строки ненулевые
+        self.assertNotEqual(p[0], 0)
+        self.assertNotEqual(p[1], 0)
+
+    def test_linearly_dependent_returns_none(self):
+        """Линейно зависимый базис → None (необратимая матрица)."""
+        result = mat_projection([1, 1])  # оба вектора одинаковы
+        self.assertIsNone(result)
+
+
+class TestMatImage(unittest.TestCase):
+    def test_image_identity_is_all_basis(self):
+        """Образ единичной матрицы = базис всего (GF(2))^6."""
+        I = mat_identity()
+        img = mat_image(I)
+        self.assertEqual(len(img), 6)
+
+    def test_image_zero_is_empty(self):
+        """Образ нулевой матрицы = пустой список."""
+        Z = mat_zero()
+        img = mat_image(Z)
+        self.assertEqual(img, [])
+
+    def test_image_rank_1(self):
+        """Матрица ранга 1 имеет образ размерности 1."""
+        # Матрица с одной ненулевой строкой
+        M = [1, 0, 0, 0, 0, 0]   # Строки: первая = 1, остальные = 0
+        img = mat_image(M)
+        self.assertEqual(len(img), 1)
+
+
+class TestMatFromRows(unittest.TestCase):
+    def test_mat_from_rows_identity(self):
+        """mat_from_rows возвращает список строк."""
+        rows = [1, 2, 4, 8, 16, 32]
+        result = mat_from_rows(rows)
+        self.assertEqual(result, rows)
+
+
+class TestCountInvertible(unittest.TestCase):
+    def test_count_invertible_equals_gl6_order(self):
+        """count_invertible_6x6() = gl6_order()."""
+        self.assertEqual(count_invertible_6x6(), gl6_order())
+
+    def test_count_invertible_positive(self):
+        """|GL(6,2)| > 0."""
+        self.assertGreater(count_invertible_6x6(), 0)
+
+
+class TestMatCLI(unittest.TestCase):
+    def _run(self, args):
+        import io, sys
+        from contextlib import redirect_stdout
+        from projects.hexmat.hexmat import main
+        old_argv = sys.argv
+        sys.argv = ['hexmat.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        self.assertIn('GL(6,2)', out)
+
+    def test_cmd_mul_no_args(self):
+        out = self._run(['mul'])
+        self.assertIn('A·B', out)
+
+    def test_cmd_rank_no_args(self):
+        out = self._run(['rank'])
+        self.assertIn('Ранг', out)
+
+    def test_cmd_code(self):
+        out = self._run(['code'])
+        self.assertIn('код', out)
+
+    def test_cmd_help(self):
+        out = self._run([])
+        self.assertIn('hexmat', out)
+
+    def test_cmd_unknown(self):
+        out = self._run(['unknown'])
+        self.assertIn('hexmat', out)
 
 
 if __name__ == '__main__':

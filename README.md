@@ -39,8 +39,18 @@ meta/
 │   ├── hexmat/        — линейная алгебра над GF(2): матрицы, GL(6,2), линейные коды
 │   ├── hexbio/        — биоинформатика: генетический код как граф мутаций на Q6
 │   └── hexlat/        — булева решётка B₆: Мёбиус, цепи, антицепи, многочлены
+├── tests/             — тест-сьют (27 файлов, 1707 тестов)
 ├── docs/
-│   └── q6-math.md     — математические основы графа Q6
+│   ├── architecture.md     — архитектура монорепо, hexcore API, карта проектов
+│   ├── q6-math.md          — математические основы графа Q6
+│   ├── projects-overview.md — подробный обзор всех 24 проектов
+│   └── papers-index.md     — индекс 33 PDF-статей Franz German
+├── tools/
+│   ├── extract_papers.py  — извлечение текста из PDF-статей
+│   └── smoke_test.py      — smoke-тест: запуск всех 24 CLI
+├── pytest.ini         — конфигурация pytest
+├── Makefile           — make test / make smoke / make lint / make clean
+├── CONTRIBUTING.md    — как добавить новый проект
 ├── flower_shop.py     — пример CLI-приложения (не hex-проект)
 └── README.md
 ```
@@ -229,6 +239,26 @@ python3 projects/hexlat/hexlat.py antichain
 
 ---
 
+## Тесты
+
+```bash
+# Запустить все тесты
+python3 -m pytest          # или: make test
+
+# Только конкретный проект
+python3 -m pytest tests/test_hexgraph.py -v
+
+# Краткий итог
+python3 -m pytest -q
+
+# Smoke-тест: проверить что все 24 CLI запускаются
+make smoke                 # или: python3 tools/smoke_test.py
+```
+
+**Статус**: 1707 тестов, 27 файлов — все проходят. Smoke-тест: 24/24 OK.
+
+---
+
 ## Общая библиотека: hexcore
 
 Все проекты используют `libs/hexcore` как общее ядро.
@@ -282,6 +312,7 @@ python3 libs/hexcore/hexcore.py
 2. Запустить `python3 libs/hexcore/hexcore.py` — увидеть граф в действии
 3. Запустить `python3 projects/hexnav/hexnav.py` — интерактивно исследовать Q6
 4. Выбрать проект из таблицы выше и изучить его README
+5. Добавить новый проект: читать `CONTRIBUTING.md`
 
 ---
 

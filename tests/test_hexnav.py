@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
 from projects.hexnav.hexnav import fmt_hex, print_current, print_path, TRIGRAM_NAMES, run
 
 
@@ -172,8 +171,46 @@ class TestRun(unittest.TestCase):
     def test_run_eofstop_graceful(self):
         with patch('builtins.input', side_effect=EOFError):
             captured = io.StringIO()
-            with patch('sys.stdout', captured): run(0)
+            with patch('sys.stdout', captured):
+                run(0)
             self.assertGreater(len(captured.getvalue()), 0)
+
+
+class TestNavMain(unittest.TestCase):
+    """Тесты для hexnav.main() (lines 202-214)."""
+
+    def _run_main(self, argv_args):
+        from projects.hexnav.hexnav import main
+        captured = io.StringIO()
+        with patch('sys.argv', ['hexnav.py'] + argv_args):
+            with patch('projects.hexnav.hexnav.run') as mock_run:
+                with patch('sys.stdout', captured):
+                    main()
+        return captured.getvalue(), mock_run
+
+    def test_main_default_start(self):
+        """main() без аргументов → run(0)."""
+        _, mock_run = self._run_main([])
+        mock_run.assert_called_once_with(0)
+
+    def test_main_with_start_arg(self):
+        """main() с аргументом 42 → run(42)."""
+        _, mock_run = self._run_main(['42'])
+        mock_run.assert_called_once_with(42)
+
+    def test_main_out_of_range_exits(self):
+        """main() с аргументом 100 (out of range) → parser.error."""
+        from projects.hexnav.hexnav import main
+        with patch('sys.argv', ['hexnav.py', '100']):
+            with self.assertRaises(SystemExit):
+                main()
+
+    def test_main_out_of_range_high(self):
+        """main() с аргументом 64 (=SIZE, out of range) → parser.error."""
+        from projects.hexnav.hexnav import main
+        with patch('sys.argv', ['hexnav.py', '64']):
+            with self.assertRaises(SystemExit):
+                main()
 
 
 if __name__ == '__main__':

@@ -65,6 +65,16 @@ class TestRenderGrid(unittest.TestCase):
         grid = render_grid(color=False)
         self.assertNotIn('*', grid)
 
+    def test_color_mode_produces_output(self):
+        """color=True не ломает вывод."""
+        grid = render_grid(color=True)
+        self.assertGreater(len(grid), 0)
+
+    def test_color_highlight_produces_output(self):
+        """color=True + highlights работает без ошибок."""
+        grid = render_grid(color=True, highlights={0, 42})
+        self.assertGreater(len(grid), 0)
+
 
 class TestRenderPath(unittest.TestCase):
     def test_empty_path(self):
@@ -97,6 +107,11 @@ class TestRenderPath(unittest.TestCase):
         # [0→1→...→63] — показывает hamming distance
         # Но path=[0,63] сам по себе — 2 узла, расстояние 6
         self.assertIn('6', result)
+
+    def test_color_path_no_crash(self):
+        """render_path с color=True работает без ошибок."""
+        result = render_path([0, 1, 3, 7], color=True)
+        self.assertGreater(len(result), 0)
 
 
 class TestRenderHexagram(unittest.TestCase):
@@ -138,6 +153,16 @@ class TestRenderTransition(unittest.TestCase):
         """1→0: бит 0 переходит 1→0 (↓)."""
         result = render_transition(1, 0, color=False)
         self.assertIn('↓', result)
+
+    def test_color_transition_no_crash(self):
+        """render_transition с color=True работает без ошибок."""
+        result = render_transition(0, 1, color=True)
+        self.assertGreater(len(result), 0)
+
+    def test_color_transition_down_no_crash(self):
+        """render_transition color=True, направление ↓."""
+        result = render_transition(1, 0, color=True)
+        self.assertGreater(len(result), 0)
 
 
 class TestToDot(unittest.TestCase):
@@ -213,6 +238,25 @@ class TestToSvg(unittest.TestCase):
     def test_svg_empty_vertices(self):
         """Пустой набор вершин — валидный SVG."""
         svg = to_svg(set())
+        self.assertIn('<svg', svg)
+
+    def test_svg_with_highlights(self):
+        """to_svg с highlights рисует выделенную вершину."""
+        svg = to_svg({0, 1, 3}, highlights={0})
+        self.assertIn('<svg', svg)
+        # Выделенная вершина имеет белый stroke
+        self.assertIn('#ffffff', svg)
+
+    def test_svg_edge_with_missing_vertex(self):
+        """Рёбра с вершинами вне vertices пропускаются (continue)."""
+        # Edge (0, 42) but 42 not in vertices → should be skipped gracefully
+        svg = to_svg({0, 1}, edges={(0, 1), (0, 42)})
+        self.assertIn('<svg', svg)
+
+    def test_svg_path_with_vertex_outside_set(self):
+        """Вершина пути вне vertices пропускается (continue)."""
+        # Path includes vertex 42 which is not in vertices {0, 1}
+        svg = to_svg({0, 1}, path=[0, 1, 42])
         self.assertIn('<svg', svg)
 
 

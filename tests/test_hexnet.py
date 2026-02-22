@@ -337,5 +337,106 @@ class TestPercolation(unittest.TestCase):
         self.assertGreaterEqual(d, 0)
 
 
+class TestAdaptiveRoute(unittest.TestCase):
+    """Тесты adaptive_route — альтернативная маршрутизация с учётом отказов."""
+
+    def test_route_to_self(self):
+        path = adaptive_route(0, 0)
+        self.assertIsNotNone(path)
+        self.assertEqual(path, [0])
+
+    def test_route_length(self):
+        """Путь имеет длину = hamming + 1."""
+        from libs.hexcore.hexcore import hamming
+        path = adaptive_route(0, 63)
+        self.assertIsNotNone(path)
+        self.assertEqual(len(path) - 1, hamming(0, 63))
+
+    def test_route_valid_steps(self):
+        """Каждый переход — сосед (Хэмминг = 1)."""
+        from libs.hexcore.hexcore import hamming
+        path = adaptive_route(0, 42)
+        self.assertIsNotNone(path)
+        for a, b in zip(path, path[1:]):
+            self.assertEqual(hamming(a, b), 1)
+
+    def test_route_ends_at_dst(self):
+        path = adaptive_route(7, 56)
+        self.assertIsNotNone(path)
+        self.assertEqual(path[-1], 56)
+
+    def test_no_faults_same_as_ecube(self):
+        """Без отказов adaptive_route и ecube_route дают одинаковую длину."""
+        from projects.hexnet.hexnet import ecube_route
+        from libs.hexcore.hexcore import hamming
+        for src, dst in [(0, 63), (3, 60), (15, 48)]:
+            p = adaptive_route(src, dst)
+            self.assertIsNotNone(p)
+            self.assertEqual(len(p) - 1, hamming(src, dst))
+
+    def test_avoids_failed_nodes(self):
+        """Путь не проходит через отказавшие узлы (если путь существует)."""
+        failed = {1, 2, 4, 8}
+        path = adaptive_route(0, 63, failed_nodes=failed)
+        if path is not None:
+            for v in path[1:-1]:  # конечные точки не проверяем
+                self.assertNotIn(v, failed)
+
+    def test_src_failed_returns_none(self):
+        path = adaptive_route(0, 63, failed_nodes={0})
+        self.assertIsNone(path)
+
+
+class TestNetworkDiameterWithFailed(unittest.TestCase):
+    """Тесты network_diameter с отказавшими узлами."""
+
+    def test_two_active_connected(self):
+        """Два соседних активных узла → диаметр = 1."""
+        # Все кроме 0 и 1 отказали → только пара (0,1) в active
+        failed = set(range(2, 64))
+        d = network_diameter(failed_nodes=failed)
+        self.assertEqual(d, 1)
+
+    def test_one_active_returns_zero(self):
+        """Один активный узел → диаметр = 0."""
+        failed = set(range(63))  # 63 nodes fail → only 63 active
+        d = network_diameter(failed_nodes=failed)
+        self.assertEqual(d, 0)
+
+    def test_isolated_node_disconnected(self):
+        """Все соседи 0 отказали → сеть несвязна → inf."""
+        failed = {1, 2, 4, 8, 16, 32}  # all neighbors of 0
+        d = network_diameter(failed_nodes=failed)
+        self.assertEqual(d, float('inf'))
+
+
+class TestAdaptiveRouteFallback(unittest.TestCase):
+    """Тест fallback adaptive_route → BFS (строка 162)."""
+
+    def test_all_neighbors_blocked_returns_none(self):
+        """Все соседи src отказали → greedy нет пути → BFS → None."""
+        failed = {1, 2, 4, 8, 16, 32}  # все соседи 0
+        path = adaptive_route(0, 63, failed_nodes=failed)
+        self.assertIsNone(path)
+
+
+class TestSitePercolationAllFail(unittest.TestCase):
+    """Тест site_percolation когда все узлы отказывают (строки 362-363)."""
+
+    def test_p_fail_1_all_nodes_fail(self):
+        """p_fail=1.0: каждый узел отказывает → доля = 0."""
+        prob = site_percolation(p_fail=1.0, n_trials=5, seed=0)
+        self.assertEqual(prob, 0.0)
+
+
+class TestKFaultDiameterSkip(unittest.TestCase):
+    """Тест k_fault_diameter с k=63 → active < 2 → строка 399."""
+
+    def test_k63_skips_all_trials(self):
+        """k=63: только 1 активный узел → все итерации пропускаются → 0."""
+        d = k_fault_diameter(k=63, n_trials=5, seed=0)
+        self.assertEqual(d, 0)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

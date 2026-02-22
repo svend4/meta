@@ -150,6 +150,15 @@ class TestConvolution(unittest.TestCase):
         g = [float(_popcount(h) % 2) for h in range(64)]
         self.assertTrue(convolution_theorem_check(f, g))
 
+    def test_convolution_theorem_fails_tol_zero(self):
+        """convolution_theorem_check с tol=0 и случайными сигналами → False."""
+        import random
+        rng = random.Random(42)
+        f = [rng.gauss(0, 1) for _ in range(64)]
+        g = [rng.gauss(0, 1) for _ in range(64)]
+        result = convolution_theorem_check(f, g, tol=0)
+        self.assertFalse(result)
+
     def test_convolve_via_fft_matches(self):
         """convolve_via_fft == convolve (прямое вычисление)."""
         f = [float(h % 5) for h in range(64)]
@@ -158,6 +167,15 @@ class TestConvolution(unittest.TestCase):
         fg_fft = convolve_via_fft(f, g)
         for h in range(64):
             self.assertAlmostEqual(fg_direct[h], fg_fft[h], places=9)
+
+    def test_correlate_equals_convolve_in_z2n(self):
+        """В (Z₂)^n инверсия = тождественная: correlate(f,g) = convolve(f,g)."""
+        f = [float(h % 3) for h in range(64)]
+        g = [1.0 if _popcount(h) == 2 else 0.0 for h in range(64)]
+        corr = correlate(f, g)
+        conv = convolve(f, g)
+        for h in range(64):
+            self.assertAlmostEqual(corr[h], conv[h], places=9)
 
     def test_autocorrelation_at_0(self):
         """AC_f(0) = Σ_h f(h)² = ‖f‖²."""
@@ -283,6 +301,18 @@ class TestSubgroups(unittest.TestCase):
             for h in H:
                 self.assertEqual(_inner_product(u, h), 0)
 
+    def test_index_of_subgroup_trivial(self):
+        """Индекс тривиальной подгруппы = 64."""
+        H = subgroup_generated([0])  # {0}
+        idx = index_of_subgroup(H)
+        self.assertEqual(idx, 64 // len(H))
+
+    def test_index_of_subgroup_full(self):
+        """Индекс всей группы Q6 = 1."""
+        H = subgroup_generated([1, 2, 4, 8, 16, 32])  # all Q6
+        idx = index_of_subgroup(H)
+        self.assertEqual(idx, 64 // len(H))
+
     def test_pontryagin_dual_length(self):
         """Двойственный характер — список длины 64."""
         for h in [0, 7, 42]:
@@ -401,6 +431,57 @@ class TestGroupRing(unittest.TestCase):
         f = indicator([0, 3])
         g = indicator([1, 5])
         self.assertEqual(group_ring_mul_f2(f, g), group_ring_mul_f2(g, f))
+
+
+# ── CLI main() ───────────────────────────────────────────────────────────────
+
+class TestCLI(unittest.TestCase):
+
+    def _run(self, args):
+        import io
+        from projects.hexalg.hexalg import main
+        old_argv = sys.argv
+        old_stdout = sys.stdout
+        sys.argv = ['hexalg.py'] + args
+        sys.stdout = io.StringIO()
+        try:
+            main()
+            return sys.stdout.getvalue()
+        finally:
+            sys.argv = old_argv
+            sys.stdout = old_stdout
+
+    def test_cmd_characters(self):
+        out = self._run(['characters'])
+        self.assertIn('χ_', out)
+
+    def test_cmd_spectrum(self):
+        out = self._run(['spectrum'])
+        self.assertIn('λ', out)
+
+    def test_cmd_convolution(self):
+        out = self._run(['convolution'])
+        self.assertIn('Свёртка', out)
+
+    def test_cmd_cayley_default(self):
+        out = self._run(['cayley'])
+        self.assertIn('Cay', out)
+
+    def test_cmd_cayley_with_args(self):
+        out = self._run(['cayley', '1', '2'])
+        self.assertIn('Cay', out)
+
+    def test_cmd_subgroup_default(self):
+        out = self._run(['subgroup'])
+        self.assertIn('порядок', out)
+
+    def test_cmd_bent(self):
+        out = self._run(['bent'])
+        self.assertIn('bent', out.lower())
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexalg', out)
 
 
 if __name__ == '__main__':
