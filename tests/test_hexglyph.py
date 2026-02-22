@@ -23334,5 +23334,84 @@ class TestRegressionValues(unittest.TestCase):
         self.assertEqual(fourier_summary('ГОРА', 'xor3')['dominant_k'], 1)
 
 
+class TestRegressionValues2(unittest.TestCase):
+    """More regression tests for specific known output values."""
+
+    # ── encode_word exact hex values ──────────────────────────────────────────
+
+    def test_encode_gora(self):
+        from projects.hexglyph.solan_word import encode_word
+        self.assertEqual(encode_word('ГОРА'), [49, 47, 15, 63])
+
+    def test_encode_voda(self):
+        from projects.hexglyph.solan_word import encode_word
+        self.assertEqual(encode_word('ВОДА'), [20, 47, 50, 63])
+
+    # ── transient_classes structure ───────────────────────────────────────────
+
+    def test_transient_class_count_is_13(self):
+        from projects.hexglyph.solan_transient import transient_classes
+        self.assertEqual(len(transient_classes()), 13)
+
+    def test_transient_class0_key(self):
+        from projects.hexglyph.solan_transient import transient_classes
+        cls0 = transient_classes()[0]
+        self.assertEqual(tuple(cls0['key']), (2, 1, 2, 1, 2))
+
+    def test_transient_class0_word_count(self):
+        from projects.hexglyph.solan_transient import transient_classes
+        # Class 0 is the largest (20 words)
+        self.assertEqual(len(transient_classes()[0]['words']), 20)
+
+    def test_gora_class_words(self):
+        from projects.hexglyph.solan_transient import transient_classes, full_key
+        gora_key = full_key('ГОРА')
+        classes = transient_classes()
+        gora_cls = next(c for c in classes if tuple(c['key']) == gora_key)
+        self.assertEqual(sorted(gora_cls['words']), ['ГОРА', 'РОТА', 'УДАР', 'УТРО'])
+
+    # ── moran_summary regression values ──────────────────────────────────────
+
+    def test_moran_gora_xor3_period(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        self.assertEqual(moran_summary('ГОРА', 'xor3')['period'], 2)
+
+    def test_moran_tuman_xor3_period(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        self.assertEqual(moran_summary('ТУМАН', 'xor3')['period'], 8)
+
+    def test_moran_gora_xor3_mean_i(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        self.assertAlmostEqual(
+            moran_summary('ГОРА', 'xor3')['mean_i'], -0.615536, places=4)
+
+    def test_moran_tuman_xor3_mean_i(self):
+        from projects.hexglyph.solan_moran import moran_summary
+        self.assertAlmostEqual(
+            moran_summary('ТУМАН', 'xor3')['mean_i'], -0.12167, places=4)
+
+    # ── fourier_summary regression for ТУМАН/xor3 ────────────────────────────
+
+    def test_fourier_tuman_xor3_period(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        self.assertEqual(fourier_summary('ТУМАН', 'xor3')['period'], 8)
+
+    def test_fourier_tuman_xor3_dominant_k(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        self.assertEqual(fourier_summary('ТУМАН', 'xor3')['dominant_k'], 3)
+
+    def test_fourier_tuman_xor3_mean_spec_entropy_positive(self):
+        from projects.hexglyph.solan_fourier import fourier_summary
+        # Period-8 has distributed harmonics → positive entropy
+        s = fourier_summary('ТУМАН', 'xor3')
+        self.assertGreater(s['mean_spec_entropy'], 0.5)
+
+    # ── te_summary regression ─────────────────────────────────────────────────
+
+    def test_te_gora_xor3_period(self):
+        from projects.hexglyph.solan_transfer import te_summary
+        self.assertEqual(te_summary('ГОРА', 'xor3')['period'], 2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
