@@ -25994,5 +25994,132 @@ class TestAttractorSigProps(unittest.TestCase):
             self.assertGreater(len(r), 0, f'rule={rule}')
 
 
+class TestBinarizeProps(unittest.TestCase):
+    """Properties of binarize() from solan_symbolic."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import binarize
+        cls.binarize = staticmethod(binarize)
+
+    def test_returns_int(self):
+        self.assertIsInstance(self.binarize(63), int)
+
+    def test_max_value_is_one(self):
+        self.assertEqual(self.binarize(63), 1)
+
+    def test_zero_is_zero(self):
+        self.assertEqual(self.binarize(0), 0)
+
+    def test_at_threshold_is_one(self):
+        # Default threshold=32: values >= 32 → 1
+        self.assertEqual(self.binarize(32), 1)
+
+    def test_below_threshold_is_zero(self):
+        self.assertEqual(self.binarize(31), 0)
+
+    def test_result_is_0_or_1(self):
+        for v in range(0, 64, 8):
+            r = self.binarize(v)
+            self.assertIn(r, (0, 1), f'binarize({v})={r}')
+
+
+class TestBlockProfileShape(unittest.TestCase):
+    """Structure of block_profile() from solan_block."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_block import block_profile
+        cls.block_profile = staticmethod(block_profile)
+        cls._r = block_profile('ГОРА', 'xor')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_default_length_8(self):
+        self.assertEqual(len(self._r), 8)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_all_four_rules_return_list(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.block_profile('ВОДА', rule)
+            self.assertIsInstance(r, list)
+            self.assertEqual(len(r), 8)
+
+
+class TestMeanDamageShape(unittest.TestCase):
+    """Structure of mean_damage() from solan_damage."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import mean_damage
+        cls.mean_damage = staticmethod(mean_damage)
+        cls._r = mean_damage('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_steps_int(self):
+        self.assertIsInstance(self._r['n_steps'], int)
+
+    def test_mean_damage_grid_list(self):
+        self.assertIsInstance(self._r['mean_damage_grid'], list)
+
+    def test_final_mean_damage_float(self):
+        self.assertIsInstance(self._r['final_mean_damage'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.mean_damage('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestAttractorBinaryShape(unittest.TestCase):
+    """Structure of attractor_binary() from solan_symbolic."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import attractor_binary
+        cls.attractor_binary = staticmethod(attractor_binary)
+        cls._r = attractor_binary('ГОРА', 'xor')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_first_item_is_list(self):
+        self.assertIsInstance(self._r[0], list)
+
+    def test_first_item_length_16(self):
+        self.assertEqual(len(self._r[0]), 16)
+
+    def test_values_are_0_or_1(self):
+        for state in self._r:
+            for v in state:
+                self.assertIn(v, (0, 1))
+
+    def test_all_four_rules_return_nonempty_list(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.attractor_binary('ВОДА', rule)
+            self.assertIsInstance(r, list)
+            self.assertGreater(len(r), 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
