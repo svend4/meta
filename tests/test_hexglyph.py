@@ -26242,5 +26242,291 @@ class TestMSEProfileShape(unittest.TestCase):
             self.assertEqual(len(r), 8)
 
 
+# ---------------------------------------------------------------------------
+# TestGetOrbitShape
+# ---------------------------------------------------------------------------
+class TestGetOrbitShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import get_orbit
+        cls.get_orbit = staticmethod(get_orbit)
+        cls._xor3 = get_orbit('ГОРА', 'xor3', 16)
+        cls._xor  = get_orbit('ГОРА', 'xor',  16)
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._xor3, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._xor3), 0)
+
+    def test_items_are_tuples(self):
+        for item in self._xor3:
+            self.assertIsInstance(item, tuple)
+
+    def test_item_length_equals_width(self):
+        for item in self._xor3:
+            self.assertEqual(len(item), 16)
+
+    def test_xor_period1_orbit_len1(self):
+        # ГОРА xor has period=1 → orbit contains 1 state
+        self.assertEqual(len(self._xor), 1)
+
+
+# ---------------------------------------------------------------------------
+# TestAllPatternsProps
+# ---------------------------------------------------------------------------
+class TestAllPatternsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import all_patterns
+        cls.all_patterns = staticmethod(all_patterns)
+        cls._r3 = all_patterns(3)
+        cls._r2 = all_patterns(2)
+
+    def test_returns_frozenset(self):
+        self.assertIsInstance(self._r3, frozenset)
+
+    def test_m3_has_six_patterns(self):
+        self.assertEqual(len(self._r3), 6)
+
+    def test_items_are_tuples(self):
+        for item in self._r3:
+            self.assertIsInstance(item, tuple)
+
+    def test_item_length_equals_m(self):
+        for item in self._r3:
+            self.assertEqual(len(item), 3)
+
+    def test_m2_has_two_patterns(self):
+        self.assertEqual(len(self._r2), 2)
+
+
+# ---------------------------------------------------------------------------
+# TestForbiddenCellProfileShape
+# ---------------------------------------------------------------------------
+class TestForbiddenCellProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_forbidden import forbidden_cell_profile
+        cls.forbidden_cell_profile = staticmethod(forbidden_cell_profile)
+        cls._r = forbidden_cell_profile('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_items_are_dicts(self):
+        for item in self._r:
+            self.assertIsInstance(item, dict)
+
+    def test_required_keys(self):
+        for item in self._r:
+            for k in ('cell', 'n_observed', 'n_forbidden', 'f_m', 'o_m', 'patterns'):
+                self.assertIn(k, item)
+
+    def test_fm_in_unit_interval(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['f_m'], 0.0)
+            self.assertLessEqual(item['f_m'], 1.0)
+
+    def test_cell_index_in_range(self):
+        cells = [item['cell'] for item in self._r]
+        self.assertEqual(sorted(cells), list(range(16)))
+
+    def test_n_observed_nonneg(self):
+        for item in self._r:
+            self.assertGreaterEqual(item['n_observed'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestAttractorAutocorrShape
+# ---------------------------------------------------------------------------
+class TestAttractorAutocorrShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import attractor_autocorr
+        cls.attractor_autocorr = staticmethod(attractor_autocorr)
+        cls._r = attractor_autocorr('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_first_element_is_one(self):
+        self.assertAlmostEqual(self._r[0], 1.0, places=5)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_values_in_minus1_to_1(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, -1.0 - 1e-9)
+            self.assertLessEqual(v, 1.0 + 1e-9)
+
+
+# ---------------------------------------------------------------------------
+# TestTEMatrixShape
+# ---------------------------------------------------------------------------
+class TestTEMatrixShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import te_matrix
+        cls.te_matrix = staticmethod(te_matrix)
+        cls._r = te_matrix('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_16_rows(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_each_row_has_16_elements(self):
+        for row in self._r:
+            self.assertEqual(len(row), 16)
+
+    def test_all_nonneg(self):
+        for row in self._r:
+            for v in row:
+                self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r2 = self.te_matrix('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestBasinProfileShape
+# ---------------------------------------------------------------------------
+class TestBasinProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_basin import basin_profile
+        cls.basin_profile = staticmethod(basin_profile)
+        cls._r = basin_profile('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_25(self):
+        self.assertEqual(len(self._r), 25)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_first_element_is_one(self):
+        # k=0: same IC → always in basin
+        self.assertAlmostEqual(self._r[0], 1.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestTrajectoryComplexityShape
+# ---------------------------------------------------------------------------
+class TestTrajectoryComplexityShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import trajectory_complexity
+        cls.trajectory_complexity = staticmethod(trajectory_complexity)
+        cls._r = trajectory_complexity('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'transient', 'period',
+                  'traj_bits', 'attr_bits', 'traj_norm', 'attr_norm'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_transient_nonneg(self):
+        self.assertGreaterEqual(self._r['transient'], 0)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_traj_norm_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['traj_norm'], 0.0)
+        self.assertLessEqual(self._r['traj_norm'], 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestPortraitCompareShape
+# ---------------------------------------------------------------------------
+class TestPortraitCompareShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import portrait_compare
+        cls.portrait_compare = staticmethod(portrait_compare)
+        cls._r = portrait_compare('ГОРА', 'ВОДА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word1', 'word2', 'rule', 'l2_distance', 'cosine_sim'):
+            self.assertIn(k, self._r)
+
+    def test_words_preserved(self):
+        self.assertEqual(self._r['word1'], 'ГОРА')
+        self.assertEqual(self._r['word2'], 'ВОДА')
+
+    def test_l2_distance_nonneg(self):
+        self.assertGreaterEqual(self._r['l2_distance'], 0.0)
+
+    def test_cosine_sim_in_range(self):
+        self.assertGreaterEqual(self._r['cosine_sim'], -1.0 - 1e-9)
+        self.assertLessEqual(self._r['cosine_sim'], 1.0 + 1e-9)
+
+    def test_self_compare_distance_zero(self):
+        r = self.portrait_compare('ГОРА', 'ГОРА', 'xor3')
+        self.assertAlmostEqual(r['l2_distance'], 0.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestLyapunovProfileShape
+# ---------------------------------------------------------------------------
+class TestLyapunovProfileShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import lyapunov_profile
+        cls.lyapunov_profile = staticmethod(lyapunov_profile)
+        cls._r = lyapunov_profile('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'n_perturb',
+                  'mean_dist', 'peak_mean', 'peak_step', 'final_mean', 'converges'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_n_perturb_positive(self):
+        self.assertGreater(self._r['n_perturb'], 0)
+
+    def test_peak_mean_nonneg(self):
+        self.assertGreaterEqual(self._r['peak_mean'], 0.0)
+
+    def test_final_mean_nonneg(self):
+        self.assertGreaterEqual(self._r['final_mean'], 0.0)
+
+    def test_converges_bool(self):
+        self.assertIsInstance(self._r['converges'], bool)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
