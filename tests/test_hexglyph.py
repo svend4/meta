@@ -805,6 +805,21 @@ class TestSolanPhonetic(unittest.TestCase):
         self.assertGreaterEqual(len(pairs), 15)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_phonetic'] + ['--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_phonetic(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_phonetic', content)
 class TestSolanCA(unittest.TestCase):
     """Тесты клеточного автомата Q6/Solan."""
 
@@ -1081,6 +1096,21 @@ class TestSolanCA(unittest.TestCase):
         self.assertEqual(len(lines), 4 * 3)
 
 
+
+    def test_cli_json_flag(self):
+        import subprocess, json, sys
+        r = subprocess.run(
+            [sys.executable, '-m', 'projects.hexglyph.solan_ca'] + ['--word', 'ГОРА', '--rule', 'xor3', '--ic', 'phonetic', '--json'],
+            capture_output=True, text=True,
+            cwd='/home/user/meta'
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_viewer_has_solan_ca(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_ca', content)
 class TestSolanEntropy(unittest.TestCase):
     """Тесты модуля solan_entropy."""
 

@@ -258,10 +258,18 @@ if __name__ == '__main__':
                         help='режим отображения глифов: ascii (4×4 █/·), '
                              'quad (quadrant-block ▀▄, TVCP), '
                              'braille (2×4 Braille ⠿)')
+    parser.add_argument('--json',     action='store_true',
+                        help='JSON output')
     args = parser.parse_args()
 
     color = not args.no_color
 
+    if args.json:
+        import json as _json, sys
+        _text = args.encode if args.encode else 'ГОРА'
+        enc = encode_phonetic(_text)
+        print(_json.dumps({'text': _text, 'encoded': [[a, b, c] for a, b, c in enc]}, ensure_ascii=False, indent=2))
+        sys.exit(0)
     if args.encode:
         encoded = encode_phonetic(args.encode)
         solan_str = ''.join(sc for _, _, sc in encoded)

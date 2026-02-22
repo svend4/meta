@@ -470,6 +470,8 @@ if __name__ == '__main__':
                         help='режим рендеринга (default: char)')
     parser.add_argument('--no-color', action='store_true',
                         help='без ANSI-цветов')
+    parser.add_argument('--json',   action='store_true',
+                        help='JSON output: orbit stats for --word and --rule')
     parser.add_argument('--orbit', action='store_true',
                         help='найти транзиент и период орбиты, показать цикл')
     parser.add_argument('--compare', action='store_true',
@@ -485,6 +487,12 @@ if __name__ == '__main__':
     _color = not args.no_color
     _cells = make_initial(args.width, args.ic, word=args.word, seed=args.seed)
 
+    if args.json:
+        import json as _json, sys
+        _t, _p = find_orbit(_cells[:], args.rule)
+        print(_json.dumps({'word': args.word, 'rule': args.rule, 'ic': args.ic,
+                           'width': args.width, 'transient': _t, 'period': _p}, ensure_ascii=False, indent=2))
+        sys.exit(0)
     if args.orbit:
         print_orbit(_cells, rule=args.rule, color=_color)
     elif args.compare:
