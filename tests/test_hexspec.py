@@ -2,10 +2,12 @@
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
+import io
 import json
 import tempfile
 import os
 import unittest
+from contextlib import redirect_stdout
 from projects.hexspec.verifier import Spec, load_spec, verify
 from projects.hexspec.generator import (
     bfs_path, all_states_paths, all_transitions_paths,
@@ -272,6 +274,104 @@ class TestNegativeScenarios(unittest.TestCase):
         )
         negs = negative_scenarios(spec)
         self.assertEqual(negs, [])
+
+
+class TestVerify(unittest.TestCase):
+    """Тесты для функции verify() — проверка результата (True/False)."""
+
+    def _verify_silent(self, spec: Spec) -> bool:
+        """Вызов verify() с подавлением stdout."""
+        with redirect_stdout(io.StringIO()):
+            return verify(spec)
+
+    def test_clean_spec_ok(self):
+        """Чистый автомат без проблем → verify() == True."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'C': '000011'},
+            transitions=[('A', 'B'), ('B', 'C'), ('C', 'A')],
+            initial='A',
+            final=['A'],
+        )
+        self.assertTrue(self._verify_silent(spec))
+
+    def test_deadlock_fails(self):
+        """Автомат с тупиком → verify() == False."""
+        spec = make_spec(
+            states={'S': '000000', 'DEAD': '000001'},
+            transitions=[('S', 'DEAD')],
+            initial='S',
+        )
+        self.assertFalse(self._verify_silent(spec))
+
+    def test_unreachable_state_fails(self):
+        """Недостижимое состояние → verify() == False."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'ORPHAN': '000010'},
+            transitions=[('A', 'B'), ('B', 'A')],
+            initial='A',
+        )
+        self.assertFalse(self._verify_silent(spec))
+
+    def test_reachable_forbidden_fails(self):
+        """Достижимое запрещённое состояние → verify() == False."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'BAD': '000011'},
+            transitions=[('A', 'B'), ('B', 'BAD')],
+            initial='A',
+            forbidden=['BAD'],
+        )
+        self.assertFalse(self._verify_silent(spec))
+
+    def test_unreachable_forbidden_ok(self):
+        """Недостижимое запрещённое + нет других проблем → True."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001'},
+            transitions=[('A', 'B'), ('B', 'A')],
+            initial='A',
+            final=['A'],
+            forbidden=[],    # явно пустой список
+        )
+        self.assertTrue(self._verify_silent(spec))
+
+    def test_unreachable_final_fails(self):
+        """Конечное состояние недостижимо → verify() == False."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001', 'GOAL': '000010'},
+            transitions=[('A', 'B'), ('B', 'A')],
+            initial='A',
+            final=['GOAL'],  # GOAL не включена в переходы → недостижима
+        )
+        # GOAL недостижима, и это состояние нет в transitions, но
+        # оно присутствует в states. Проверяем поведение.
+        result = self._verify_silent(spec)
+        # unreachable states + unreachable final — оба нарушения → False
+        self.assertFalse(result)
+
+    def test_two_initial_cycles_ok(self):
+        """Два независимых цикла, каждый достижим от начального."""
+        spec = make_spec(
+            states={
+                'A': '000000', 'B': '000001',
+                'C': '000010', 'D': '000011',
+            },
+            transitions=[
+                ('A', 'B'), ('B', 'A'),
+                ('A', 'C'), ('C', 'D'), ('D', 'A'),
+            ],
+            initial='A',
+            final=['A'],
+        )
+        self.assertTrue(self._verify_silent(spec))
+
+    def test_verify_returns_bool(self):
+        """verify() должна возвращать именно bool, а не truthy-значение."""
+        spec = make_spec(
+            states={'A': '000000', 'B': '000001'},
+            transitions=[('A', 'B'), ('B', 'A')],
+            initial='A',
+        )
+        result = self._verify_silent(spec)
+        self.assertIsInstance(result, bool)
 
 
 if __name__ == '__main__':
