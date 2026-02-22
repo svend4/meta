@@ -29605,5 +29605,98 @@ class TestFlipCooccurrenceProps(unittest.TestCase):
         self.assertEqual(self._af['xor3']['word'], 'ГОРА')
 
 
+# ---------------------------------------------------------------------------
+# TestAggregateMapProps
+# ---------------------------------------------------------------------------
+class TestAggregateMapProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_return import aggregate_map
+        cls._am = aggregate_map('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._am, dict)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._am), 0)
+
+    def test_keys_are_tuples(self):
+        for k in self._am.keys():
+            self.assertIsInstance(k, tuple)
+            self.assertEqual(len(k), 2)
+
+    def test_values_are_ints(self):
+        for v in self._am.values():
+            self.assertIsInstance(v, int)
+
+    def test_values_positive(self):
+        for v in self._am.values():
+            self.assertGreater(v, 0)
+
+
+# ---------------------------------------------------------------------------
+# TestDerridaDictProps
+# ---------------------------------------------------------------------------
+class TestDerridaDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import derrida_dict, random_points, state_dist_norm
+        cls.state_dist_norm = staticmethod(state_dist_norm)
+        cls._dd = derrida_dict(n_random=100)
+        cls._rp = random_points('xor3', n=10, seed=42)
+        cls._s1 = [49, 47, 15, 63]
+        cls._s2 = [49, 47, 15, 62]
+
+    def test_derrida_dict_dict(self):
+        self.assertIsInstance(self._dd, dict)
+
+    def test_derrida_dict_has_rules(self):
+        self.assertIn('rules', self._dd)
+
+    def test_random_points_list(self):
+        self.assertIsInstance(self._rp, list)
+
+    def test_random_points_length(self):
+        self.assertEqual(len(self._rp), 10)
+
+    def test_random_points_tuples(self):
+        for pt in self._rp:
+            self.assertIsInstance(pt, tuple)
+            self.assertEqual(len(pt), 2)
+
+    def test_state_dist_norm_same_is_zero(self):
+        d = self.state_dist_norm(self._s1, self._s1)
+        self.assertEqual(d, 0.0)
+
+    def test_state_dist_norm_nonneg(self):
+        d = self.state_dist_norm(self._s1, self._s2)
+        self.assertGreaterEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestAllAISProps
+# ---------------------------------------------------------------------------
+class TestAllAISProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import all_ais
+        cls._aa = all_ais('ГОРА', max_k=3)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._aa, dict)
+
+    def test_four_rules(self):
+        self.assertEqual(len(self._aa), 4)
+
+    def test_has_xor3(self):
+        self.assertIn('xor3', self._aa)
+
+    def test_rule_has_ais_profile(self):
+        self.assertIn('ais_profile', self._aa['xor3'])
+
+    def test_ais_profile_length(self):
+        self.assertEqual(len(self._aa['xor3']['ais_profile']), 3)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
