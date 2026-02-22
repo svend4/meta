@@ -2,8 +2,10 @@
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
+import io
 import unittest
-from projects.hexca.hexca import CA1D, CA2D, cell_char
+from contextlib import redirect_stdout
+from projects.hexca.hexca import CA1D, CA2D, cell_char, demo_1d, demo_2d
 from projects.hexca.rules import (
     majority_vote, xor_rule, identity, conway_like, RULES, get_rule,
     smooth_rule, cyclic_rule, outer_totalistic, random_walk,
@@ -394,6 +396,49 @@ class TestOuterTotalistic(unittest.TestCase):
         ca = CA1D(width=8, rule=rule, init=[0] * 8)
         ca.step()
         self.assertEqual(ca.grid, [0] * 8)
+
+
+class TestDemoFunctions(unittest.TestCase):
+    """Тесты demo_1d и demo_2d — демонстрационные функции вывода."""
+
+    def _capture(self, fn, *args):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            fn(*args)
+        return buf.getvalue()
+
+    # demo_1d ---------------------------------------------------------------
+
+    def test_demo_1d_produces_output(self):
+        out = self._capture(demo_1d, 'xor_rule', 8, 3)
+        self.assertGreater(len(out), 0)
+
+    def test_demo_1d_contains_rule_name(self):
+        out = self._capture(demo_1d, 'identity', 8, 2)
+        self.assertIn('identity', out)
+
+    def test_demo_1d_contains_generation(self):
+        out = self._capture(demo_1d, 'xor_rule', 8, 3)
+        self.assertIn('3', out)  # steps shown
+
+    def test_demo_1d_all_rules_no_crash(self):
+        """Все встроенные правила запускаются без ошибок."""
+        for rule_name in ['xor_rule', 'identity', 'majority_vote']:
+            self._capture(demo_1d, rule_name, 8, 2)
+
+    # demo_2d ---------------------------------------------------------------
+
+    def test_demo_2d_produces_output(self):
+        out = self._capture(demo_2d, 'xor_rule', 4, 4, 2)
+        self.assertGreater(len(out), 0)
+
+    def test_demo_2d_contains_rule_name(self):
+        out = self._capture(demo_2d, 'majority_vote', 4, 4, 2)
+        self.assertIn('majority_vote', out)
+
+    def test_demo_2d_contains_size(self):
+        out = self._capture(demo_2d, 'identity', 4, 4, 2)
+        self.assertIn('4', out)
 
 
 if __name__ == '__main__':

@@ -139,7 +139,7 @@ tests/
 ├── test_hexcore.py      — 88 тестов: инварианты и функции hexcore
 ├── test_integration.py  — 40 тестов: импорт всех 24 + инварианты Q6
 ├── test_hexnav.py       — 46 тестов
-├── test_hexca.py        — 56 тестов
+├── test_hexca.py        — 63 тестов
 ├── test_hexpath.py      — 31 тест
 ├── test_hexpath_puzzle.py — 41 тест
 ├── test_hexforth.py     — 65 тестов
@@ -148,7 +148,7 @@ tests/
 ... и ещё 18 файлов
 ```
 
-Полный прогон: `make test` (1607 теста).
+Полный прогон: `make test` (1614 теста).
 Smoke-тест CLI: `make smoke` (24/24 OK).
 
 ---
