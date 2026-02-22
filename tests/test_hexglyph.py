@@ -22743,5 +22743,149 @@ class TestViewerSectionHeadings(unittest.TestCase):
         self.assertIn('Period vs Width', self._content)
 
 
+class TestViewerWindowExports(unittest.TestCase):
+    """Verify that viewer.html exposes key functions via window.* for inter-section use."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._content = viewer_path().read_text(encoding='utf-8')
+
+    # ── key non-Run exports ───────────────────────────────────────────────────
+
+    def test_window_CLASS_PALETTE(self):
+        self.assertIn('window.CLASS_PALETTE', self._content)
+
+    def test_window_LEXSTEPS(self):
+        self.assertIn('window.LEXSTEPS', self._content)
+
+    def test_window_LEXW(self):
+        self.assertIn('window.LEXW', self._content)
+
+    def test_window_caCol(self):
+        self.assertIn('window.caCol', self._content)
+
+    def test_window_caH2C(self):
+        self.assertIn('window.caH2C', self._content)
+
+    def test_window_caIC(self):
+        self.assertIn('window.caIC', self._content)
+
+    def test_window_caReset(self):
+        self.assertIn('window.caReset', self._content)
+
+    def test_window_caSetRule(self):
+        self.assertIn('window.caSetRule', self._content)
+
+    def test_window_caStep(self):
+        self.assertIn('window.caStep', self._content)
+
+    def test_window_caToggleAuto(self):
+        self.assertIn('window.caToggleAuto', self._content)
+
+    def test_window_kruskalStress(self):
+        self.assertIn('window.kruskalStress', self._content)
+
+    def test_window_q6GetH(self):
+        self.assertIn('window.q6GetH', self._content)
+
+    def test_window_q6reset(self):
+        self.assertIn('window.q6reset', self._content)
+
+    def test_window_q6setH(self):
+        self.assertIn('window.q6setH', self._content)
+
+    def test_window_q6toggle(self):
+        self.assertIn('window.q6toggle', self._content)
+
+    def test_window_wordSetRule(self):
+        self.assertIn('window.wordSetRule', self._content)
+
+    def test_window_wordUpdate(self):
+        self.assertIn('window.wordUpdate', self._content)
+
+    # ── Run function window exports ───────────────────────────────────────────
+
+    def test_window_acfRun(self):
+        self.assertIn('window.acfRun', self._content)
+
+    def test_window_bfRun(self):
+        self.assertIn('window.bfRun', self._content)
+
+    def test_window_bitRun(self):
+        self.assertIn('window.bitRun', self._content)
+
+    def test_window_blRun(self):
+        self.assertIn('window.blRun', self._content)
+
+    def test_window_bloRun(self):
+        self.assertIn('window.bloRun', self._content)
+
+    def test_window_chpRun(self):
+        self.assertIn('window.chpRun', self._content)
+
+    def test_window_coactRun(self):
+        self.assertIn('window.coactRun', self._content)
+
+    def test_window_corRun(self):
+        self.assertIn('window.corRun', self._content)
+
+    def test_window_derRun(self):
+        self.assertIn('window.derRun', self._content)
+
+    def test_window_forRun(self):
+        self.assertIn('window.forRun', self._content)
+
+    def test_window_fouRun(self):
+        self.assertIn('window.fouRun', self._content)
+
+    def test_window_hwRun(self):
+        self.assertIn('window.hwRun', self._content)
+
+    def test_window_lyaRun(self):
+        self.assertIn('window.lyaRun', self._content)
+
+    def test_window_lzAllRun(self):
+        self.assertIn('window.lzAllRun', self._content)
+
+    def test_window_lzRun(self):
+        self.assertIn('window.lzRun', self._content)
+
+    def test_window_momRun(self):
+        self.assertIn('window.momRun', self._content)
+
+    def test_window_moranRun(self):
+        self.assertIn('window.moranRun', self._content)
+
+    def test_window_mseRun(self):
+        self.assertIn('window.mseRun', self._content)
+
+    def test_window_phRun(self):
+        self.assertIn('window.phRun', self._content)
+
+    def test_window_phonRun(self):
+        self.assertIn('window.phonRun', self._content)
+
+    def test_window_predRun(self):
+        self.assertIn('window.predRun', self._content)
+
+    def test_window_prsRun(self):
+        self.assertIn('window.prsRun', self._content)
+
+    def test_window_retRun(self):
+        self.assertIn('window.retRun', self._content)
+
+    def test_window_rleRun(self):
+        self.assertIn('window.rleRun', self._content)
+
+    def test_window_specRun(self):
+        self.assertIn('window.specRun', self._content)
+
+    def test_window_trajRun(self):
+        self.assertIn('window.trajRun', self._content)
+
+    def test_window_wpeRun(self):
+        self.assertIn('window.wpeRun', self._content)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
