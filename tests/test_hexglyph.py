@@ -7419,216 +7419,6 @@ class TestSolanForbidden(unittest.TestCase):
         self.assertIn('Запрещённые паттерны Q6', content)
 
 
-class TestSolanAutocorr(unittest.TestCase):
-    """Tests for solan_autocorr.py and the viewer ACF section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_autocorr import (
-            acf, decorrelation_lag, mean_acf_power,
-            cell_acf_profile, acf_dict, all_acf, build_acf_data,
-        )
-        cls.acf                = staticmethod(acf)
-        cls.decorrelation_lag  = staticmethod(decorrelation_lag)
-        cls.mean_acf_power     = staticmethod(mean_acf_power)
-        cls.cell_acf_profile   = staticmethod(cell_acf_profile)
-        cls.acf_dict           = staticmethod(acf_dict)
-        cls.all_acf            = staticmethod(all_acf)
-        cls.build_acf_data     = staticmethod(build_acf_data)
-
-    # ── acf() ──────────────────────────────────────────────────────────
-
-    def test_acf_lag0_always_one(self):
-        self.assertAlmostEqual(self.acf([1, 2, 3, 4, 5])[0], 1.0, places=8)
-
-    def test_acf_constant_returns_one_then_nan(self):
-        import math
-        vals = self.acf([7, 7, 7, 7], 3)
-        self.assertAlmostEqual(vals[0], 1.0)
-        self.assertTrue(all(math.isnan(v) for v in vals[1:]))
-
-    def test_acf_alternating_lag1_is_minus_one(self):
-        # [a, b, a, b, ...] → ACF(1) = -1
-        vals = self.acf([47, 1, 47, 1, 47, 1, 47, 1], 1)
-        self.assertAlmostEqual(vals[1], -1.0, places=6)
-
-    def test_acf_empty_series(self):
-        self.assertEqual(self.acf([]), [])
-
-    def test_acf_single_element(self):
-        vals = self.acf([5], 0)
-        self.assertAlmostEqual(vals[0], 1.0)
-
-    def test_acf_length(self):
-        vals = self.acf([1, 2, 3, 4, 5, 6], 4)
-        self.assertEqual(len(vals), 5)
-
-    def test_acf_max_lag_capped_at_n_minus_1(self):
-        vals = self.acf([1, 2, 3], 100)
-        self.assertEqual(len(vals), 3)   # max_lag capped at 2
-
-    # ── decorrelation_lag ──────────────────────────────────────────────
-
-    def test_decorrelation_lag_alternating(self):
-        # ACF = [1, -1] → τ₀ = 1
-        acf_vals = [1.0, -1.0]
-        self.assertEqual(self.decorrelation_lag(acf_vals), 1)
-
-    def test_decorrelation_lag_all_positive_is_none(self):
-        self.assertIsNone(self.decorrelation_lag([1.0, 0.8, 0.5, 0.2]))
-
-    def test_decorrelation_lag_zero_at_lag2(self):
-        self.assertEqual(self.decorrelation_lag([1.0, 0.3, -0.1, -0.4]), 2)
-
-    def test_decorrelation_lag_ignores_nan(self):
-        import math
-        self.assertIsNone(self.decorrelation_lag([1.0, float('nan'), float('nan')]))
-
-    # ── mean_acf_power ─────────────────────────────────────────────────
-
-    def test_mean_acf_power_alternating(self):
-        # ACF = [1, -1] → power over lags 1..1 = (-1)² = 1
-        self.assertAlmostEqual(self.mean_acf_power([1.0, -1.0]), 1.0, places=8)
-
-    def test_mean_acf_power_zero_lags(self):
-        self.assertAlmostEqual(self.mean_acf_power([1.0]), 0.0, places=8)
-
-    def test_mean_acf_power_nonneg(self):
-        self.assertGreaterEqual(self.mean_acf_power([1.0, 0.5, -0.3]), 0.0)
-
-    # ── Fixed-point attractors → max_lag=0 ────────────────────────────
-
-    def test_tuman_xor_max_lag_zero(self):
-        profile = self.cell_acf_profile('ТУМАН', 'xor', 16, 8)
-        for c in profile:
-            self.assertEqual(c['max_lag'], 0)
-            self.assertAlmostEqual(c['acf'][0], 1.0)
-
-    def test_gora_or_tau0_is_none(self):
-        profile = self.cell_acf_profile('ГОРА', 'or', 16, 8)
-        for c in profile:
-            self.assertIsNone(c['tau0'])
-
-    # ── ГОРА AND (P=2) → ACF = [1, -1] ───────────────────────────────
-
-    def test_gora_and_acf_lag1_minus_one(self):
-        profile = self.cell_acf_profile('ГОРА', 'and', 16, 8)
-        for c in profile:
-            self.assertAlmostEqual(c['acf'][0], 1.0, places=6)
-            self.assertAlmostEqual(c['acf'][1], -1.0, places=6)
-
-    def test_gora_and_tau0_is_one(self):
-        profile = self.cell_acf_profile('ГОРА', 'and', 16, 8)
-        for c in profile:
-            self.assertEqual(c['tau0'], 1)
-
-    def test_gora_and_mean_power_is_one(self):
-        d = self.acf_dict('ГОРА', 'and', 16, 8)
-        self.assertAlmostEqual(d['mean_mpower'], 1.0, places=6)
-
-    # ── ТУМАН XOR3 (P=8) → rich ACF ───────────────────────────────────
-
-    def test_tuman_xor3_max_lag_is_7(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        self.assertEqual(d['max_lag'], 7)
-
-    def test_tuman_xor3_mean_acf_lag0_is_one(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        self.assertAlmostEqual(d['mean_acf'][0], 1.0, places=6)
-
-    def test_tuman_xor3_tau0_small(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        # Most cells decorrelate at lag 1 or 2
-        self.assertIsNotNone(d['mean_tau0'])
-        self.assertLessEqual(d['mean_tau0'], 3.0)
-
-    def test_tuman_xor3_acf_symmetric(self):
-        # For circular ACF of period P: ACF(k) = ACF(P-k)
-        profile = self.cell_acf_profile('ТУМАН', 'xor3', 16, 8)
-        for c in profile:
-            a = c['acf']
-            P = 8
-            if len(a) >= P:
-                self.assertAlmostEqual(a[1], a[P - 1], places=6)
-                self.assertAlmostEqual(a[2], a[P - 2], places=6)
-
-    # ── acf_dict structure ─────────────────────────────────────────────
-
-    def test_acf_dict_keys(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        for k in ('word', 'rule', 'period', 'max_lag', 'cell_profile',
-                  'mean_acf', 'mean_tau0', 'mean_mpower'):
-            self.assertIn(k, d)
-
-    def test_acf_dict_cell_profile_length(self):
-        d = self.acf_dict('ГОРА', 'xor3', 16, 8)
-        self.assertEqual(len(d['cell_profile']), 16)
-
-    def test_acf_dict_word_uppercase(self):
-        d = self.acf_dict('туман', 'xor3', 16, 8)
-        self.assertEqual(d['word'], 'ТУМАН')
-
-    def test_acf_dict_mean_acf_lag0(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        self.assertAlmostEqual(d['mean_acf'][0], 1.0, places=6)
-
-    def test_acf_dict_mean_mpower_nonneg(self):
-        d = self.acf_dict('ТУМАН', 'xor3', 16, 8)
-        self.assertGreaterEqual(d['mean_mpower'], 0.0)
-
-    # ── all_acf ────────────────────────────────────────────────────────
-
-    def test_all_acf_has_four_rules(self):
-        result = self.all_acf('ТУМАН', 16, 8)
-        self.assertEqual(set(result.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_all_acf_values_are_dicts(self):
-        result = self.all_acf('ГОРА', 16, 8)
-        for rule, d in result.items():
-            self.assertIsInstance(d, dict)
-            self.assertIn('mean_acf', d)
-
-    # ── build_acf_data ─────────────────────────────────────────────────
-
-    def test_build_acf_data_structure(self):
-        data = self.build_acf_data(['ТУМАН', 'ГОРА'], 16, 8)
-        self.assertIn('words', data)
-        self.assertIn('per_rule', data)
-        self.assertEqual(set(data['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_acf_data_entry_keys(self):
-        data = self.build_acf_data(['ТУМАН'], 16, 8)
-        entry = data['per_rule']['xor3']['ТУМАН']
-        for k in ('period', 'max_lag', 'mean_acf', 'mean_tau0', 'mean_mpower'):
-            self.assertIn(k, entry)
-
-    def test_build_acf_data_words_uppercase(self):
-        data = self.build_acf_data(['туман'], 16, 8)
-        self.assertIn('ТУМАН', data['words'])
-
-    # ── viewer ─────────────────────────────────────────────────────────
-
-    def test_viewer_has_acf_heat(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acf-heat', content)
-
-    def test_viewer_has_acf_mean(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acf-mean', content)
-
-    def test_viewer_has_acf_stats(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acf-stats', content)
-
-    def test_viewer_has_acf_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acfRun', content)
-
-    def test_viewer_has_acf_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Автокорреляция Q6', content)
-
-
 class TestSolanBitflip(unittest.TestCase):
     """Tests for solan_bitflip.py and the viewer Bit-Flip section."""
 
@@ -14114,425 +13904,6 @@ class TestSolanHamming(unittest.TestCase):
         self.assertIn('hmMobility', content)
 
 
-class TestSolanAutocorr(unittest.TestCase):
-    """Tests for solan_autocorr.py — Temporal & Spatial Autocorrelation."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_autocorr import (
-            cell_series, temporal_ac, temporal_ac_profile,
-            mean_temporal_ac, cell_ac_all,
-            cell_crosscorr, crosscorr_matrix,
-            spatial_ac, spatial_ac_profile,
-            autocorr_summary, all_autocorr, build_autocorr_data,
-        )
-        cls.cell_series          = staticmethod(cell_series)
-        cls.temporal_ac          = staticmethod(temporal_ac)
-        cls.temporal_ac_profile  = staticmethod(temporal_ac_profile)
-        cls.mean_temporal_ac     = staticmethod(mean_temporal_ac)
-        cls.cell_ac_all          = staticmethod(cell_ac_all)
-        cls.cell_crosscorr       = staticmethod(cell_crosscorr)
-        cls.crosscorr_matrix     = staticmethod(crosscorr_matrix)
-        cls.spatial_ac           = staticmethod(spatial_ac)
-        cls.spatial_ac_profile   = staticmethod(spatial_ac_profile)
-        cls.autocorr_summary     = staticmethod(autocorr_summary)
-        cls.all_autocorr         = staticmethod(all_autocorr)
-        cls.build_autocorr_data  = staticmethod(build_autocorr_data)
-
-    # ── cell_series ───────────────────────────────────────────────────────────
-
-    def test_cell_series_returns_list(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ГОРА', 'and', 16)
-        self.assertIsInstance(self.cell_series(orbit, 0), list)
-
-    def test_cell_series_length_equals_period(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(self.cell_series(orbit, 0)), 8)
-
-    def test_cell_series_values_from_orbit(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ГОРА', 'and', 16)
-        s = self.cell_series(orbit, 5)
-        self.assertEqual(s[0], orbit[0][5])
-        self.assertEqual(s[1], orbit[1][5])
-
-    # ── temporal_ac ───────────────────────────────────────────────────────────
-
-    def test_temporal_ac_lag0_is_1(self):
-        self.assertAlmostEqual(self.temporal_ac([1, 3, 5, 7], 0), 1.0)
-
-    def test_temporal_ac_constant_series_returns_1(self):
-        self.assertAlmostEqual(self.temporal_ac([5, 5, 5, 5], 1), 1.0)
-
-    def test_temporal_ac_range(self):
-        s = [1, 2, 3, 4, 5, 6, 7, 8]
-        for lag in range(8):
-            v = self.temporal_ac(s, lag)
-            self.assertGreaterEqual(v, -1.0 - 1e-9)
-            self.assertLessEqual(v,    1.0 + 1e-9)
-
-    def test_temporal_ac_p2_lag1_is_minus1(self):
-        # For any 2-element series, lag-1 AC is exactly -1
-        for s in [[1, 2], [47, 1], [63, 0], [33, 49]]:
-            self.assertAlmostEqual(self.temporal_ac(s, 1), -1.0, places=5)
-
-    def test_temporal_ac_palindrome_symmetry(self):
-        # ρ(τ) = ρ(P-τ) for any series
-        s = [3, 7, 2, 9, 1, 5, 8, 4]
-        P = len(s)
-        for tau in range(1, P):
-            self.assertAlmostEqual(
-                self.temporal_ac(s, tau),
-                self.temporal_ac(s, P - tau), places=6)
-
-    def test_temporal_ac_tuman_xor3_cell8(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        s = self.cell_series(orbit, 8)
-        # cell 8 has near-period-3: ρ(3) should be positive
-        self.assertGreater(self.temporal_ac(s, 3), 0.3)
-        # lag-1 should be strongly negative
-        self.assertLess(self.temporal_ac(s, 1), -0.5)
-
-    def test_temporal_ac_tuman_xor3_cell0_lag1_positive(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        s = self.cell_series(orbit, 0)
-        # Edge cell has positive lag-1 AC (anomaly)
-        self.assertGreater(self.temporal_ac(s, 1), 0.0)
-
-    # ── temporal_ac_profile ───────────────────────────────────────────────────
-
-    def test_temporal_ac_profile_starts_at_1(self):
-        self.assertAlmostEqual(self.temporal_ac_profile([3, 1, 4, 1, 5])[0], 1.0)
-
-    def test_temporal_ac_profile_length(self):
-        s = [1, 2, 3, 4, 5, 6, 7, 8]
-        self.assertEqual(len(self.temporal_ac_profile(s)), 8)
-
-    def test_temporal_ac_profile_palindromic(self):
-        s = [3, 7, 2, 9, 1, 5, 8, 4]
-        P = len(s)
-        prof = self.temporal_ac_profile(s)
-        for tau in range(1, P):
-            self.assertAlmostEqual(prof[tau], prof[P - tau], places=6)
-
-    def test_temporal_ac_profile_p2_anti(self):
-        prof = self.temporal_ac_profile([47, 1])
-        self.assertAlmostEqual(prof[0],  1.0, places=5)
-        self.assertAlmostEqual(prof[1], -1.0, places=5)
-
-    # ── mean_temporal_ac ──────────────────────────────────────────────────────
-
-    def test_mean_temporal_ac_length(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(self.mean_temporal_ac(orbit)), 8)
-
-    def test_mean_temporal_ac_starts_at_1(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        self.assertAlmostEqual(self.mean_temporal_ac(orbit)[0], 1.0)
-
-    def test_mean_temporal_ac_gora_and_lag1_minus1(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ГОРА', 'and', 16)
-        m = self.mean_temporal_ac(orbit)
-        self.assertAlmostEqual(m[1], -1.0, places=5)
-
-    def test_mean_temporal_ac_tuman_xor3_palindromic(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        m = self.mean_temporal_ac(orbit)
-        P = 8
-        for tau in range(1, P):
-            self.assertAlmostEqual(m[tau], m[P - tau], places=5,
-                msg=f'palindrome check failed at tau={tau}')
-
-    def test_mean_temporal_ac_tuman_xor3_known_values(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        m = self.mean_temporal_ac(orbit)
-        self.assertAlmostEqual(m[1], -0.2555, places=3)
-        self.assertAlmostEqual(m[3],  0.141,  places=2)
-
-    def test_mean_temporal_ac_p1_all_ones(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor', 16)
-        m = self.mean_temporal_ac(orbit)
-        self.assertAlmostEqual(m[0], 1.0)
-
-    # ── cell_ac_all ───────────────────────────────────────────────────────────
-
-    def test_cell_ac_all_shape(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        ac = self.cell_ac_all(orbit)
-        self.assertEqual(len(ac), 16)
-        self.assertEqual(len(ac[0]), 8)
-
-    def test_cell_ac_all_lag0_always_1(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        ac = self.cell_ac_all(orbit)
-        for ci in range(16):
-            self.assertAlmostEqual(ac[ci][0], 1.0)
-
-    def test_cell_ac_all_p2_lag1_all_minus1(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ГОРА', 'and', 16)
-        ac = self.cell_ac_all(orbit)
-        for ci in range(16):
-            self.assertAlmostEqual(ac[ci][1], -1.0, places=5)
-
-    # ── cell_crosscorr ────────────────────────────────────────────────────────
-
-    def test_cell_crosscorr_self_is_1(self):
-        s = [3, 1, 4, 1, 5, 9, 2, 6]
-        self.assertAlmostEqual(self.cell_crosscorr(s, s), 1.0)
-
-    def test_cell_crosscorr_constant_is_0(self):
-        s1 = [5, 5, 5, 5]
-        s2 = [1, 2, 3, 4]
-        self.assertAlmostEqual(self.cell_crosscorr(s1, s2), 0.0)
-
-    def test_cell_crosscorr_symmetric(self):
-        s1 = [3, 1, 4, 1, 5]
-        s2 = [2, 7, 1, 8, 2]
-        self.assertAlmostEqual(
-            self.cell_crosscorr(s1, s2),
-            self.cell_crosscorr(s2, s1), places=6)
-
-    def test_cell_crosscorr_range(self):
-        s1 = [3, 7, 2, 9, 1, 5]
-        s2 = [5, 1, 8, 2, 8, 4]
-        v = self.cell_crosscorr(s1, s2)
-        self.assertGreaterEqual(v, -1.0 - 1e-9)
-        self.assertLessEqual(v,    1.0 + 1e-9)
-
-    # ── crosscorr_matrix ──────────────────────────────────────────────────────
-
-    def test_crosscorr_matrix_shape(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ГОРА', 'and', 16)
-        m = self.crosscorr_matrix(orbit)
-        self.assertEqual(len(m), 16)
-        self.assertEqual(len(m[0]), 16)
-
-    def test_crosscorr_matrix_diagonal_ones(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        m = self.crosscorr_matrix(orbit)
-        for i in range(16):
-            self.assertAlmostEqual(m[i][i], 1.0, places=5)
-
-    def test_crosscorr_matrix_symmetric(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        m = self.crosscorr_matrix(orbit)
-        for i in range(16):
-            for j in range(16):
-                self.assertAlmostEqual(m[i][j], m[j][i], places=6)
-
-    # ── spatial_ac ────────────────────────────────────────────────────────────
-
-    def test_spatial_ac_lag0_is_1(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        self.assertAlmostEqual(self.spatial_ac(orbit, 0), 1.0)
-
-    def test_spatial_ac_returns_float(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        self.assertIsInstance(self.spatial_ac(orbit, 3), float)
-
-    def test_spatial_ac_range(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        for d in range(1, 9):
-            v = self.spatial_ac(orbit, d)
-            self.assertGreaterEqual(v, -1.0 - 1e-6)
-            self.assertLessEqual(v,    1.0 + 1e-6)
-
-    def test_spatial_ac_p1_fixed_point_is_1(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor', 16)  # all-zeros
-        # Constant spatial pattern: spatial_ac = 1.0 by convention
-        self.assertAlmostEqual(self.spatial_ac(orbit, 1), 1.0)
-
-    # ── spatial_ac_profile ────────────────────────────────────────────────────
-
-    def test_spatial_ac_profile_starts_at_1(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        self.assertAlmostEqual(self.spatial_ac_profile(orbit)[0], 1.0)
-
-    def test_spatial_ac_profile_length(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        # default max_d = N//2 = 8 → length = 9 (0..8)
-        self.assertEqual(len(self.spatial_ac_profile(orbit)), 9)
-
-    def test_spatial_ac_profile_custom_max_d(self):
-        from projects.hexglyph.solan_perm import get_orbit
-        orbit = get_orbit('ТУМАН', 'xor3', 16)
-        self.assertEqual(len(self.spatial_ac_profile(orbit, max_d=4)), 5)
-
-    # ── autocorr_summary ──────────────────────────────────────────────────────
-
-    def test_autocorr_summary_returns_dict(self):
-        self.assertIsInstance(self.autocorr_summary('ГОРА', 'and'), dict)
-
-    def test_autocorr_summary_required_keys(self):
-        d = self.autocorr_summary('ГОРА', 'and')
-        for key in ('word', 'rule', 'period', 'n_cells',
-                    'mean_ac', 'cell_ac', 'mean_ac_lag1',
-                    'max_ac_lag1', 'min_ac_lag1', 'dominant_lag',
-                    'is_palindrome', 'all_p2_anti',
-                    'crosscorr_matrix', 'mean_crosscorr',
-                    'spatial_ac', 'max_spatial_ac', 'min_spatial_ac'):
-            self.assertIn(key, d, f"Missing key: {key}")
-
-    def test_autocorr_summary_word_upper(self):
-        d = self.autocorr_summary('гора', 'and')
-        self.assertEqual(d['word'], 'ГОРА')
-
-    def test_autocorr_summary_gora_and_all_p2_anti(self):
-        d = self.autocorr_summary('ГОРА', 'and')
-        self.assertTrue(d['all_p2_anti'])
-        self.assertAlmostEqual(d['mean_ac_lag1'], -1.0, places=5)
-        self.assertAlmostEqual(d['min_ac_lag1'],  -1.0, places=5)
-        self.assertAlmostEqual(d['max_ac_lag1'],  -1.0, places=5)
-
-    def test_autocorr_summary_gora_xor3_all_p2_anti(self):
-        d = self.autocorr_summary('ГОРА', 'xor3')
-        self.assertTrue(d['all_p2_anti'])
-
-    def test_autocorr_summary_p1_no_p2_anti(self):
-        d = self.autocorr_summary('ТУМАН', 'xor')
-        self.assertFalse(d['all_p2_anti'])
-
-    def test_autocorr_summary_tuman_xor3_palindrome(self):
-        d = self.autocorr_summary('ТУМАН', 'xor3')
-        self.assertTrue(d['is_palindrome'])
-
-    def test_autocorr_summary_tuman_xor3_mean_lag1(self):
-        d = self.autocorr_summary('ТУМАН', 'xor3')
-        self.assertAlmostEqual(d['mean_ac_lag1'], -0.2555, places=3)
-
-    def test_autocorr_summary_tuman_xor3_edge_cell_positive_lag1(self):
-        d = self.autocorr_summary('ТУМАН', 'xor3')
-        # Edge cell 0 has positive lag-1 AC
-        self.assertGreater(d['cell_ac'][0][1], 0.0)
-
-    def test_autocorr_summary_tuman_xor3_inner_cell_neg_lag1(self):
-        d = self.autocorr_summary('ТУМАН', 'xor3')
-        # Inner cell 8 has strongly negative lag-1 AC
-        self.assertLess(d['cell_ac'][8][1], -0.5)
-
-    def test_autocorr_summary_tuman_xor3_inner_cell_period3(self):
-        d = self.autocorr_summary('ТУМАН', 'xor3')
-        # Inner cell 8 has near-period-3: ρ(3) > 0.3
-        self.assertGreater(d['cell_ac'][8][3], 0.3)
-
-    def test_autocorr_summary_n_cells(self):
-        d = self.autocorr_summary('ГОРА', 'and')
-        self.assertEqual(d['n_cells'], 16)
-
-    def test_autocorr_summary_cell_ac_shape(self):
-        d = self.autocorr_summary('ТУМАН', 'xor3')
-        self.assertEqual(len(d['cell_ac']), 16)
-        self.assertEqual(len(d['cell_ac'][0]), 8)
-
-    def test_autocorr_summary_crosscorr_diagonal_ones(self):
-        d = self.autocorr_summary('ТУМАН', 'xor3')
-        for i in range(16):
-            self.assertAlmostEqual(d['crosscorr_matrix'][i][i], 1.0, places=5)
-
-    def test_autocorr_summary_spatial_ac_first_is_1(self):
-        d = self.autocorr_summary('ТУМАН', 'xor3')
-        self.assertAlmostEqual(d['spatial_ac'][0], 1.0)
-
-    # ── all_autocorr ──────────────────────────────────────────────────────────
-
-    def test_all_autocorr_returns_dict(self):
-        self.assertIsInstance(self.all_autocorr('ГОРА'), dict)
-
-    def test_all_autocorr_four_rules(self):
-        d = self.all_autocorr('ГОРА')
-        self.assertEqual(set(d.keys()), {'xor', 'xor3', 'and', 'or'})
-
-    # ── build_autocorr_data ───────────────────────────────────────────────────
-
-    def test_build_autocorr_data_returns_dict(self):
-        self.assertIsInstance(self.build_autocorr_data(['ГОРА']), dict)
-
-    def test_build_autocorr_data_top_keys(self):
-        d = self.build_autocorr_data(['ГОРА'])
-        for key in ('words', 'width', 'per_rule'):
-            self.assertIn(key, d)
-
-    def test_build_autocorr_data_four_rules(self):
-        d = self.build_autocorr_data(['ГОРА'])
-        self.assertEqual(set(d['per_rule'].keys()), {'xor', 'xor3', 'and', 'or'})
-
-    def test_build_autocorr_data_word_uppercase(self):
-        d = self.build_autocorr_data(['гора'])
-        self.assertIn('ГОРА', d['per_rule']['and'])
-
-    def test_build_autocorr_data_known_fields(self):
-        d   = self.build_autocorr_data(['ГОРА'])
-        rec = d['per_rule']['and']['ГОРА']
-        for key in ('period', 'mean_ac', 'mean_ac_lag1', 'max_ac_lag1',
-                    'min_ac_lag1', 'dominant_lag', 'is_palindrome',
-                    'all_p2_anti', 'mean_crosscorr',
-                    'spatial_ac', 'max_spatial_ac', 'min_spatial_ac'):
-            self.assertIn(key, rec)
-
-    def test_build_autocorr_data_p2_anti(self):
-        d = self.build_autocorr_data(['ГОРА'])
-        self.assertTrue(d['per_rule']['and']['ГОРА']['all_p2_anti'])
-
-    # ── Viewer HTML markers ───────────────────────────────────────────────────
-
-    def test_viewer_has_ac_heat(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('ac-heat', content)
-
-    def test_viewer_has_ac_curves(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('ac-curves', content)
-
-    def test_viewer_has_ac_info(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('ac-info', content)
-
-    def test_viewer_has_ac_word(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('ac-word', content)
-
-    def test_viewer_has_ac_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('ac-btn', content)
-
-    def test_viewer_has_ac_run_js(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acRun', content)
-
-    def test_viewer_has_ac_temporal_profile_js(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acTemporalProfile', content)
-
-    def test_viewer_has_ac_spatial_profile_js(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acSpatialProfile', content)
-
-    def test_viewer_has_ac_color_js(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('acColor', content)
-
 
 class TestSolanBoundary(unittest.TestCase):
     """Tests for solan_boundary.py — Spatial XOR-Boundary Analysis."""
@@ -20706,6 +20077,293 @@ class TestSolanLyapunov3(unittest.TestCase):
     def test_viewer_has_solan_lyapunov(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_lyapunov', content)
+
+
+class TestSolanAutocorr2(unittest.TestCase):
+    """Merged replacement tests for solan_autocorr.py."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_autocorr import (
+            cell_series, temporal_ac, temporal_ac_profile,
+            mean_temporal_ac, cell_ac_all,
+            cell_crosscorr, crosscorr_matrix,
+            spatial_ac, spatial_ac_profile,
+            autocorr_summary, all_autocorr, build_autocorr_data,
+        )
+        from projects.hexglyph.solan_perm import get_orbit
+        cls.cell_series         = staticmethod(cell_series)
+        cls.temporal_ac         = staticmethod(temporal_ac)
+        cls.temporal_ac_profile = staticmethod(temporal_ac_profile)
+        cls.mean_temporal_ac    = staticmethod(mean_temporal_ac)
+        cls.cell_ac_all         = staticmethod(cell_ac_all)
+        cls.cell_crosscorr      = staticmethod(cell_crosscorr)
+        cls.crosscorr_matrix    = staticmethod(crosscorr_matrix)
+        cls.spatial_ac          = staticmethod(spatial_ac)
+        cls.spatial_ac_profile  = staticmethod(spatial_ac_profile)
+        cls.autocorr_summary    = staticmethod(autocorr_summary)
+        cls.all_autocorr        = staticmethod(all_autocorr)
+        cls.build_autocorr_data = staticmethod(build_autocorr_data)
+        cls.orbit_tuman_xor3    = get_orbit('ТУМАН', 'xor3', 16)
+        cls.orbit_gora_and      = get_orbit('ГОРА',  'and',  16)
+        cls.orbit_tuman_xor     = get_orbit('ТУМАН', 'xor',  16)
+
+    # ── cell_series() ─────────────────────────────────────────────────────────
+
+    def test_cs_length_equals_period(self):
+        self.assertEqual(len(self.cell_series(self.orbit_tuman_xor3, 0)), 8)
+
+    def test_cs_values_match_orbit(self):
+        s = self.cell_series(self.orbit_gora_and, 5)
+        self.assertEqual(s[0], self.orbit_gora_and[0][5])
+
+    # ── temporal_ac() ─────────────────────────────────────────────────────────
+
+    def test_tac_lag0_is_one(self):
+        self.assertAlmostEqual(self.temporal_ac([1, 3, 5, 7], 0), 1.0)
+
+    def test_tac_constant_returns_one(self):
+        self.assertAlmostEqual(self.temporal_ac([5, 5, 5, 5], 1), 1.0)
+
+    def test_tac_in_range(self):
+        for lag in range(8):
+            v = self.temporal_ac(list(range(1, 9)), lag)
+            self.assertGreaterEqual(v, -1.0 - 1e-9)
+            self.assertLessEqual(v,    1.0 + 1e-9)
+
+    def test_tac_p2_lag1_minus_one(self):
+        for s in ([1, 2], [47, 1], [63, 0]):
+            self.assertAlmostEqual(self.temporal_ac(s, 1), -1.0, places=5)
+
+    def test_tac_palindrome_symmetry(self):
+        s = [3, 7, 2, 9, 1, 5, 8, 4]
+        P = len(s)
+        for tau in range(1, P):
+            self.assertAlmostEqual(
+                self.temporal_ac(s, tau), self.temporal_ac(s, P - tau), places=6)
+
+    def test_tac_tuman_xor3_cell8_lag3(self):
+        s = self.cell_series(self.orbit_tuman_xor3, 8)
+        self.assertGreater(self.temporal_ac(s, 3), 0.3)
+
+    def test_tac_tuman_xor3_cell0_lag1_positive(self):
+        s = self.cell_series(self.orbit_tuman_xor3, 0)
+        self.assertGreater(self.temporal_ac(s, 1), 0.0)
+
+    # ── temporal_ac_profile() ─────────────────────────────────────────────────
+
+    def test_tap_starts_at_one(self):
+        self.assertAlmostEqual(self.temporal_ac_profile([3, 1, 4, 1, 5])[0], 1.0)
+
+    def test_tap_length(self):
+        self.assertEqual(len(self.temporal_ac_profile(list(range(8)))), 8)
+
+    def test_tap_palindromic(self):
+        s = [3, 7, 2, 9, 1, 5, 8, 4]
+        P = len(s)
+        prof = self.temporal_ac_profile(s)
+        for tau in range(1, P):
+            self.assertAlmostEqual(prof[tau], prof[P - tau], places=6)
+
+    def test_tap_p2_anti(self):
+        prof = self.temporal_ac_profile([47, 1])
+        self.assertAlmostEqual(prof[1], -1.0, places=5)
+
+    # ── mean_temporal_ac() ────────────────────────────────────────────────────
+
+    def test_mta_length(self):
+        self.assertEqual(len(self.mean_temporal_ac(self.orbit_tuman_xor3)), 8)
+
+    def test_mta_starts_at_one(self):
+        self.assertAlmostEqual(self.mean_temporal_ac(self.orbit_tuman_xor3)[0], 1.0)
+
+    def test_mta_gora_and_lag1_minus_one(self):
+        self.assertAlmostEqual(
+            self.mean_temporal_ac(self.orbit_gora_and)[1], -1.0, places=5)
+
+    def test_mta_tuman_xor3_palindromic(self):
+        m = self.mean_temporal_ac(self.orbit_tuman_xor3)
+        for tau in range(1, 8):
+            self.assertAlmostEqual(m[tau], m[8 - tau], places=5)
+
+    def test_mta_tuman_xor3_known_values(self):
+        m = self.mean_temporal_ac(self.orbit_tuman_xor3)
+        self.assertAlmostEqual(m[1], -0.2555, places=3)
+        self.assertAlmostEqual(m[3],  0.141,  places=2)
+
+    # ── cell_ac_all() ─────────────────────────────────────────────────────────
+
+    def test_caa_shape(self):
+        ac = self.cell_ac_all(self.orbit_tuman_xor3)
+        self.assertEqual(len(ac), 16)
+        self.assertEqual(len(ac[0]), 8)
+
+    def test_caa_all_lag0_one(self):
+        ac = self.cell_ac_all(self.orbit_tuman_xor3)
+        for ci in range(16):
+            self.assertAlmostEqual(ac[ci][0], 1.0)
+
+    def test_caa_gora_and_all_lag1_minus_one(self):
+        ac = self.cell_ac_all(self.orbit_gora_and)
+        for ci in range(16):
+            self.assertAlmostEqual(ac[ci][1], -1.0, places=5)
+
+    # ── cell_crosscorr() ──────────────────────────────────────────────────────
+
+    def test_cc_self_is_one(self):
+        s = [3, 1, 4, 1, 5, 9, 2, 6]
+        self.assertAlmostEqual(self.cell_crosscorr(s, s), 1.0)
+
+    def test_cc_constant_is_zero(self):
+        self.assertAlmostEqual(self.cell_crosscorr([5]*4, [1, 2, 3, 4]), 0.0)
+
+    def test_cc_symmetric(self):
+        s1 = [3, 1, 4, 1, 5]
+        s2 = [2, 7, 1, 8, 2]
+        self.assertAlmostEqual(
+            self.cell_crosscorr(s1, s2), self.cell_crosscorr(s2, s1), places=6)
+
+    # ── crosscorr_matrix() ────────────────────────────────────────────────────
+
+    def test_ccm_shape(self):
+        m = self.crosscorr_matrix(self.orbit_gora_and)
+        self.assertEqual(len(m), 16)
+        self.assertEqual(len(m[0]), 16)
+
+    def test_ccm_diagonal_ones(self):
+        m = self.crosscorr_matrix(self.orbit_tuman_xor3)
+        for i in range(16):
+            self.assertAlmostEqual(m[i][i], 1.0, places=5)
+
+    def test_ccm_symmetric(self):
+        m = self.crosscorr_matrix(self.orbit_tuman_xor3)
+        for i in range(4):
+            for j in range(4):
+                self.assertAlmostEqual(m[i][j], m[j][i], places=6)
+
+    # ── spatial_ac() ──────────────────────────────────────────────────────────
+
+    def test_sac_lag0_is_one(self):
+        self.assertAlmostEqual(self.spatial_ac(self.orbit_tuman_xor3, 0), 1.0)
+
+    def test_sac_in_range(self):
+        for d in range(1, 9):
+            v = self.spatial_ac(self.orbit_tuman_xor3, d)
+            self.assertGreaterEqual(v, -1.0 - 1e-6)
+            self.assertLessEqual(v,    1.0 + 1e-6)
+
+    def test_sac_p1_constant_one(self):
+        self.assertAlmostEqual(self.spatial_ac(self.orbit_tuman_xor, 1), 1.0)
+
+    # ── spatial_ac_profile() ──────────────────────────────────────────────────
+
+    def test_sap_length_default(self):
+        self.assertEqual(len(self.spatial_ac_profile(self.orbit_tuman_xor3)), 9)
+
+    def test_sap_starts_at_one(self):
+        self.assertAlmostEqual(self.spatial_ac_profile(self.orbit_tuman_xor3)[0], 1.0)
+
+    def test_sap_custom_max_d(self):
+        self.assertEqual(
+            len(self.spatial_ac_profile(self.orbit_tuman_xor3, max_d=4)), 5)
+
+    # ── autocorr_summary() ────────────────────────────────────────────────────
+
+    def test_as_required_keys(self):
+        d = self.autocorr_summary('ГОРА', 'and')
+        for k in ('word', 'rule', 'period', 'n_cells',
+                  'mean_ac', 'cell_ac', 'mean_ac_lag1',
+                  'max_ac_lag1', 'min_ac_lag1', 'dominant_lag',
+                  'is_palindrome', 'all_p2_anti',
+                  'crosscorr_matrix', 'mean_crosscorr',
+                  'spatial_ac', 'max_spatial_ac', 'min_spatial_ac'):
+            self.assertIn(k, d)
+
+    def test_as_word_upper(self):
+        self.assertEqual(self.autocorr_summary('гора', 'and')['word'], 'ГОРА')
+
+    def test_as_gora_and_p2_anti(self):
+        d = self.autocorr_summary('ГОРА', 'and')
+        self.assertTrue(d['all_p2_anti'])
+        self.assertAlmostEqual(d['mean_ac_lag1'], -1.0, places=5)
+
+    def test_as_gora_xor3_p2_anti(self):
+        self.assertTrue(self.autocorr_summary('ГОРА', 'xor3')['all_p2_anti'])
+
+    def test_as_tuman_xor_not_p2_anti(self):
+        self.assertFalse(self.autocorr_summary('ТУМАН', 'xor')['all_p2_anti'])
+
+    def test_as_tuman_xor3_palindrome(self):
+        self.assertTrue(self.autocorr_summary('ТУМАН', 'xor3')['is_palindrome'])
+
+    def test_as_tuman_xor3_mean_lag1(self):
+        d = self.autocorr_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['mean_ac_lag1'], -0.2555, places=3)
+
+    def test_as_tuman_xor3_edge_cell_positive(self):
+        self.assertGreater(
+            self.autocorr_summary('ТУМАН', 'xor3')['cell_ac'][0][1], 0.0)
+
+    def test_as_tuman_xor3_inner_cell_neg(self):
+        self.assertLess(
+            self.autocorr_summary('ТУМАН', 'xor3')['cell_ac'][8][1], -0.5)
+
+    def test_as_tuman_xor3_inner_period3(self):
+        self.assertGreater(
+            self.autocorr_summary('ТУМАН', 'xor3')['cell_ac'][8][3], 0.3)
+
+    def test_as_spatial_ac_first_one(self):
+        d = self.autocorr_summary('ТУМАН', 'xor3')
+        self.assertAlmostEqual(d['spatial_ac'][0], 1.0)
+
+    # ── all_autocorr() ────────────────────────────────────────────────────────
+
+    def test_aa_four_rules(self):
+        self.assertEqual(set(self.all_autocorr('ГОРА').keys()),
+                         {'xor', 'xor3', 'and', 'or'})
+
+    # ── build_autocorr_data() ─────────────────────────────────────────────────
+
+    def test_bad_top_keys(self):
+        d = self.build_autocorr_data(['ГОРА'])
+        for k in ('words', 'width', 'per_rule'):
+            self.assertIn(k, d)
+
+    def test_bad_word_uppercase(self):
+        d = self.build_autocorr_data(['гора'])
+        self.assertIn('ГОРА', d['per_rule']['and'])
+
+    def test_bad_p2_anti_gora_and(self):
+        d = self.build_autocorr_data(['ГОРА'])
+        self.assertTrue(d['per_rule']['and']['ГОРА']['all_p2_anti'])
+
+    def test_bad_known_fields(self):
+        rec = self.build_autocorr_data(['ГОРА'])['per_rule']['and']['ГОРА']
+        for k in ('period', 'mean_ac', 'mean_ac_lag1', 'all_p2_anti',
+                  'spatial_ac', 'max_spatial_ac', 'min_spatial_ac'):
+            self.assertIn(k, rec)
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_ac_heat(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ac-heat', content)
+
+    def test_viewer_has_ac_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('ac-btn', content)
+
+    def test_viewer_has_ac_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('acRun', content)
+
+    def test_viewer_has_ac_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Автокорреляция Q6', content)
+
+    def test_viewer_has_solan_autocorr(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_autocorr', content)
 
 
 if __name__ == "__main__":
