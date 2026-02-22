@@ -23972,5 +23972,201 @@ class TestEncodeWordProps(unittest.TestCase):
         self.assertTrue(all(0 <= v <= 63 for v in e))
 
 
+class TestFindOrbitProps(unittest.TestCase):
+    """Properties of find_orbit() in solan_ca."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import find_orbit
+        from projects.hexglyph.solan_word import encode_word
+        cls.find_orbit = staticmethod(find_orbit)
+        cls.encode_word = staticmethod(encode_word)
+
+    def test_returns_tuple(self):
+        enc = self.encode_word('ГОРА')
+        result = self.find_orbit(enc, 'xor')
+        self.assertIsInstance(result, tuple)
+
+    def test_returns_two_elements(self):
+        enc = self.encode_word('ГОРА')
+        result = self.find_orbit(enc, 'xor')
+        self.assertEqual(len(result), 2)
+
+    def test_transient_nonneg(self):
+        enc = self.encode_word('ГОРА')
+        t, p = self.find_orbit(enc, 'xor')
+        self.assertGreaterEqual(t, 0)
+
+    def test_period_positive(self):
+        enc = self.encode_word('ГОРА')
+        t, p = self.find_orbit(enc, 'xor')
+        self.assertGreaterEqual(p, 1)
+
+    def test_gora_xor_orbit(self):
+        enc = self.encode_word('ГОРА')
+        self.assertEqual(self.find_orbit(enc, 'xor'), (2, 1))
+
+    def test_voda_xor_orbit(self):
+        enc = self.encode_word('ВОДА')
+        self.assertEqual(self.find_orbit(enc, 'xor'), (2, 1))
+
+    def test_deterministic(self):
+        enc = self.encode_word('ТУМАН')
+        r1 = self.find_orbit(enc, 'xor')
+        r2 = self.find_orbit(enc, 'xor')
+        self.assertEqual(r1, r2)
+
+    def test_all_four_rules_return_tuple(self):
+        enc = self.encode_word('ГОРА')
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            result = self.find_orbit(enc, rule)
+            self.assertIsInstance(result, tuple, f'rule={rule}')
+            self.assertEqual(len(result), 2, f'rule={rule}')
+
+
+class TestCASummaryShape(unittest.TestCase):
+    """Structure of ca_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import ca_summary
+        cls.ca_summary = staticmethod(ca_summary)
+        cls._r = ca_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_transient_nonneg(self):
+        self.assertGreaterEqual(self._r['transient'], 0)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_has_ic(self):
+        self.assertIn('ic', self._r)
+
+    def test_has_width(self):
+        self.assertIn('width', self._r)
+
+    def test_all_four_rules_valid(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.ca_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertGreaterEqual(r['period'], 1, f'rule={rule}')
+
+
+class TestLZSummaryShape(unittest.TestCase):
+    """Structure of lz_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import lz_summary
+        cls.lz_summary = staticmethod(lz_summary)
+        cls._r = lz_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_cell_lz_is_list(self):
+        self.assertIsInstance(self._r['cell_lz'], list)
+
+    def test_cell_lz_length_16(self):
+        self.assertEqual(len(self._r['cell_lz']), 16)
+
+    def test_cell_lz_items_have_bits(self):
+        for item in self._r['cell_lz']:
+            self.assertIn('bits', item)
+
+    def test_cell_lz_items_have_lz(self):
+        for item in self._r['cell_lz']:
+            self.assertIn('lz', item)
+
+    def test_cell_lz_items_have_norm(self):
+        for item in self._r['cell_lz']:
+            self.assertIn('norm', item)
+
+    def test_full_lz_is_dict(self):
+        self.assertIsInstance(self._r['full_lz'], dict)
+
+    def test_mean_cell_norm_float(self):
+        self.assertIsInstance(self._r['mean_cell_norm'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.lz_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestLZOfSeriesProps(unittest.TestCase):
+    """Properties of lz_of_series() and lz76()."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import lz_of_series, lz76, to_binary
+        cls.lz_of_series = staticmethod(lz_of_series)
+        cls.lz76 = staticmethod(lz76)
+        cls.to_binary = staticmethod(to_binary)
+
+    def test_lz_of_series_returns_dict(self):
+        r = self.lz_of_series([49, 47, 15, 63])
+        self.assertIsInstance(r, dict)
+
+    def test_lz_of_series_has_bits(self):
+        r = self.lz_of_series([49, 47, 15, 63])
+        self.assertIn('bits', r)
+
+    def test_lz_of_series_has_lz(self):
+        r = self.lz_of_series([49, 47, 15, 63])
+        self.assertIn('lz', r)
+
+    def test_lz_of_series_has_norm(self):
+        r = self.lz_of_series([49, 47, 15, 63])
+        self.assertIn('norm', r)
+
+    def test_lz76_returns_int(self):
+        self.assertIsInstance(self.lz76('010101'), int)
+
+    def test_lz76_positive(self):
+        self.assertGreater(self.lz76('01'), 0)
+
+    def test_lz76_constant_low(self):
+        # Constant string has low complexity
+        self.assertLessEqual(self.lz76('000000000000'), self.lz76('010101010101'))
+
+    def test_to_binary_returns_str(self):
+        self.assertIsInstance(self.to_binary(63, 6), str)
+
+    def test_to_binary_length(self):
+        self.assertEqual(len(self.to_binary(63, 6)), 6)
+
+    def test_to_binary_all_ones(self):
+        self.assertEqual(self.to_binary(63, 6), '111111')
+
+    def test_to_binary_all_zeros(self):
+        self.assertEqual(self.to_binary(0, 6), '000000')
+
+    def test_to_binary_mixed(self):
+        self.assertEqual(self.to_binary(42, 6), '101010')
+
+    def test_lz76_empty_zero(self):
+        self.assertEqual(self.lz76(''), 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
