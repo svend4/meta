@@ -25706,5 +25706,121 @@ class TestRunSolanRunShape(unittest.TestCase):
             self.assertEqual(r['rule'], rule)
 
 
+class TestLyapunovModeSummaryShape(unittest.TestCase):
+    """Structure of lyapunov_mode_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lyapunov import lyapunov_mode_summary
+        cls.lyapunov_mode_summary = staticmethod(lyapunov_mode_summary)
+        cls._r = lyapunov_mode_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_is_periodic_bool(self):
+        self.assertIsInstance(self._r['is_periodic'], bool)
+
+    def test_is_plateau_bool(self):
+        self.assertIsInstance(self._r['is_plateau'], bool)
+
+    def test_T_int(self):
+        self.assertIsInstance(self._r['T'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.lyapunov_mode_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict)
+            self.assertEqual(r['rule'], rule)
+
+
+class TestMatrixSummaryShape(unittest.TestCase):
+    """Structure of matrix_summary() from solan_matrix."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_matrix import matrix_summary
+        cls._r = matrix_summary()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_words_list(self):
+        self.assertIsInstance(self._r['words'], list)
+
+    def test_n_int(self):
+        self.assertIsInstance(self._r['n'], int)
+
+    def test_width_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_nearest_pairs_list(self):
+        self.assertIsInstance(self._r['nearest_pairs'], list)
+
+    def test_nearest_pairs_length_n(self):
+        self.assertEqual(len(self._r['nearest_pairs']), self._r['n'])
+
+
+class TestPredictSummaryShape(unittest.TestCase):
+    """Structure of predict_summary() from solan_predict."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_predict import predict_summary
+        cls._r = predict_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_full_key_length_5(self):
+        self.assertEqual(len(self._r['full_key']), 5)
+
+    def test_neighbors_list(self):
+        self.assertIsInstance(self._r['neighbors'], list)
+
+    def test_class_id_in_range(self):
+        self.assertIn(self._r['class_id'], range(13))
+
+    def test_is_new_class_bool(self):
+        self.assertIsInstance(self._r['is_new_class'], bool)
+
+
+class TestWordSummaryShape(unittest.TestCase):
+    """Structure of word_summary() from solan_word."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import word_summary
+        cls._r = word_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_width_int(self):
+        self.assertIsInstance(self._r['width'], int)
+
+    def test_signature_dict(self):
+        self.assertIsInstance(self._r['signature'], dict)
+
+    def test_signature_has_four_rules(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            self.assertIn(rule, self._r['signature'])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
