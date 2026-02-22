@@ -402,5 +402,40 @@ class TestMinCoveringCode(unittest.TestCase):
         self.assertEqual(len(covered), 64)
 
 
+class TestBinaryCodeDisplay(unittest.TestCase):
+    """Тесты метода display() для BinaryCode."""
+
+    def test_display_returns_string(self):
+        from projects.hexcode.hexcode import even_weight_code
+        code = even_weight_code()
+        result = code.display()
+        self.assertIsInstance(result, str)
+
+    def test_display_contains_rate(self):
+        from projects.hexcode.hexcode import even_weight_code
+        code = even_weight_code()
+        result = code.display()
+        self.assertIn('R =', result)
+
+    def test_display_contains_codewords(self):
+        from projects.hexcode.hexcode import even_weight_code
+        code = even_weight_code()
+        result = code.display()
+        # should contain bit strings of codewords
+        self.assertIn('000000', result)
+
+
+class TestPlotkinBoundHighD(unittest.TestCase):
+    """Тесты plotkin_bound с 2*d > n (фактическое применение границы)."""
+
+    def test_plotkin_bound_high_d_true(self):
+        """[6,1,6] repetition code: 2*6=12>6, 2^1=2 ≤ 12/(12-6)=2 → True."""
+        self.assertTrue(plotkin_bound(1, 6))
+
+    def test_plotkin_bound_high_d_false(self):
+        """[6,3,4] — если бы k=3, d=4: 2^3=8 > 2*4/(2*4-6) = 8/2 = 4 → False."""
+        self.assertFalse(plotkin_bound(3, 4))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

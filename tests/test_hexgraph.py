@@ -212,6 +212,20 @@ class TestHamiltonian(unittest.TestCase):
         # Ни одна пара из {0,42,63} не является Q6-соседями
         self.assertIsNone(path)
 
+    def test_empty_subgraph_returns_empty(self):
+        """Пустой подграф → пустой путь."""
+        g = induced_subgraph(set())
+        path = g.find_hamiltonian_path()
+        self.assertEqual(path, [])
+
+    def test_hamiltonian_path_no_start(self):
+        """find_hamiltonian_path без указания start (автовыбор первой вершины)."""
+        g = induced_subgraph({0, 1, 3})
+        path = g.find_hamiltonian_path()
+        if path is not None:
+            self.assertEqual(len(path), 3)
+            self.assertEqual(set(path), {0, 1, 3})
+
 
 class TestLayers(unittest.TestCase):
     def test_layer_sizes(self):

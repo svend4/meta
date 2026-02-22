@@ -17,7 +17,7 @@ from projects.hexgf import (
     character_sum,
     bch_zeros, bch_generator_degree,
 )
-from projects.hexgf.hexgf import all_elements, nonzero_elements, is_subfield
+from projects.hexgf.hexgf import all_elements, nonzero_elements, is_subfield, build_zech_log_table
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -518,6 +518,41 @@ class TestIsSubfield(unittest.TestCase):
     def test_full_field_is_subfield_6(self):
         """GF(2^6) — подполе само себя."""
         self.assertTrue(is_subfield(subfield_elements(6), 6))
+
+
+class TestZechLogTable(unittest.TestCase):
+    """Тесты таблицы логарифмов Цеха для GF(2^6)."""
+
+    def setUp(self):
+        self.Z = build_zech_log_table()
+
+    def test_length_is_order_minus_1(self):
+        """Таблица Цеха имеет 63 записи (ORDER = 63)."""
+        self.assertEqual(len(self.Z), 63)
+
+    def test_z0_is_none(self):
+        """Z[0] = None, так как g^0 + 1 = 0 в GF(2)."""
+        self.assertIsNone(self.Z[0])
+
+    def test_nonzero_entries_in_range(self):
+        """Все ненулевые записи Z[k] ∈ [0, 62]."""
+        for k in range(1, 63):
+            if self.Z[k] is not None:
+                self.assertGreaterEqual(self.Z[k], 0)
+                self.assertLess(self.Z[k], 63)
+
+    def test_zech_log_addition(self):
+        """Z используется для: exp[k + Z[k']] = exp[k] XOR exp[k'] при k=1, k'=2."""
+        from projects.hexgf.hexgf import _get_tables
+        exp, log = _get_tables()
+        # test for specific k, k' where we know Z is not None
+        k = 1
+        k_prime = 2
+        z_val = self.Z[(k_prime - k) % 63]
+        if z_val is not None:
+            expected = exp[k] ^ exp[k_prime]
+            actual = exp[(k + z_val) % 63]
+            self.assertEqual(actual, expected)
 
 
 if __name__ == '__main__':
