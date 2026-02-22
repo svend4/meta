@@ -1144,6 +1144,18 @@ class TestSolanCA(unittest.TestCase):
         d = ca_summary('ГОРА', 'xor3', 'phonetic')
         for k in ['word', 'rule', 'ic', 'width', 'transient', 'period']:
             self.assertIn(k, d)
+
+    def test_all_ca_returns_4_rules(self):
+        from projects.hexglyph.solan_ca import all_ca
+        d = all_ca('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_ca_values_are_dicts(self):
+        from projects.hexglyph.solan_ca import all_ca
+        d = all_ca('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanEntropy(unittest.TestCase):
     """Тесты модуля solan_entropy."""
 
@@ -5543,6 +5555,18 @@ class TestSolanPortrait(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_all_portrait_returns_4_rules(self):
+        from projects.hexglyph.solan_portrait import all_portrait
+        d = all_portrait('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_portrait_values_are_dicts(self):
+        from projects.hexglyph.solan_portrait import all_portrait
+        d = all_portrait('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanCoarse(unittest.TestCase):
     """Tests for solan_coarse.py and the viewer Coarse-Graining section."""
 
@@ -15267,6 +15291,18 @@ class TestSolanWidth(unittest.TestCase):
         self.assertIn('solan_width', content)
 
 
+
+    def test_all_width_returns_4_rules(self):
+        from projects.hexglyph.solan_width import all_width
+        d = all_width('ГОРА')
+        self.assertIsInstance(d, dict)
+        self.assertEqual(set(d.keys()), set(['xor', 'xor3', 'and', 'or']))
+
+    def test_all_width_values_are_dicts(self):
+        from projects.hexglyph.solan_width import all_width
+        d = all_width('ГОРА')
+        for v in d.values():
+            self.assertIsInstance(v, dict)
 class TestSolanMultistep(unittest.TestCase):
     """Tests for solan_multistep.py — multi-step Hamming distance matrix."""
 

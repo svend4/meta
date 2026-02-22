@@ -468,6 +468,18 @@ def ca_summary(
     }
 
 
+
+# ── Все правила ─────────────────────────────────────────────────────────────
+
+def all_ca(
+    word:  str,
+    ic:    str = 'phonetic',
+    width: int = 40,
+) -> dict[str, dict]:
+    """ca_summary for all 4 rules."""
+    return {rule: ca_summary(word, rule, ic, width) for rule in _ALL_RULES}
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':

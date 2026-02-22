@@ -280,6 +280,17 @@ def print_portrait_ranking(
               '  '.join(f"{col}{v:>8.3f}{rst}" for v in d['metrics']))
 
 
+
+# ── Все правила ────────────────────────────────────────────────────────────────
+
+def all_portrait(
+    word:  str,
+    width: int = _DEFAULT_W,
+) -> dict[str, dict]:
+    """portrait_dict for all 4 rules."""
+    return {rule: portrait_dict(word, rule, width) for rule in _ALL_RULES}
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 def _main() -> None:

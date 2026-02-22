@@ -212,6 +212,17 @@ def print_width_table(words: list[str] | None = None,
     print()
 
 
+
+# ── Все правила ────────────────────────────────────────────────────────────────
+
+def all_width(
+    word:   str,
+    widths: list[int] = _DEFAULT_WIDTHS,
+) -> dict[str, dict]:
+    """width_summary for all 4 rules."""
+    return {rule: width_summary(word, rule, widths) for rule in _RULES}
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 def _cli() -> None:
