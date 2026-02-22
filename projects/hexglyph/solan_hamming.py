@@ -335,10 +335,15 @@ def _cli() -> None:
     p.add_argument('--rule',      default='xor3', choices=_RULES)
     p.add_argument('--all-rules', action='store_true')
     p.add_argument('--table',     action='store_true')
+    p.add_argument('--json',      action='store_true', help='JSON output')
     p.add_argument('--no-color',  action='store_true')
     args  = p.parse_args()
     color = not args.no_color and sys.stdout.isatty()
-    if args.table:
+    if args.json:
+        import json as _json
+        d = hamming_summary(args.word, args.rule)
+        print(_json.dumps(d, ensure_ascii=False, indent=2))
+    elif args.table:
         print_hamming_table(color=color)
     elif args.all_rules:
         for rule in _RULES:
