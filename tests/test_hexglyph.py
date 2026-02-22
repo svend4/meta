@@ -27158,5 +27158,180 @@ class TestNeutralPositionsShape(unittest.TestCase):
         self.assertEqual(self._r, [1])
 
 
+# ---------------------------------------------------------------------------
+# TestPerRuleDistProps
+# ---------------------------------------------------------------------------
+class TestPerRuleDistProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import per_rule_dist
+        from projects.hexglyph.solan_word import word_signature
+        cls.per_rule_dist = staticmethod(per_rule_dist)
+        cls._sig_gora = word_signature('ГОРА')
+        cls._sig_voda = word_signature('ВОДА')
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.per_rule_dist(self._sig_gora, self._sig_voda, 'xor'), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.per_rule_dist(self._sig_gora, self._sig_voda, 'xor'), 0.0)
+
+    def test_same_word_distance_zero(self):
+        self.assertAlmostEqual(self.per_rule_dist(self._sig_gora, self._sig_gora, 'xor'), 0.0, places=5)
+
+    def test_symmetric(self):
+        d12 = self.per_rule_dist(self._sig_gora, self._sig_voda, 'xor3')
+        d21 = self.per_rule_dist(self._sig_voda, self._sig_gora, 'xor3')
+        self.assertAlmostEqual(d12, d21, places=8)
+
+
+# ---------------------------------------------------------------------------
+# TestSignatureClassesShape
+# ---------------------------------------------------------------------------
+class TestSignatureClassesShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import signature_classes
+        cls.signature_classes = staticmethod(signature_classes)
+        cls._r = signature_classes()
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_items_are_dicts(self):
+        for item in self._r:
+            self.assertIsInstance(item, dict)
+
+    def test_required_keys(self):
+        for item in self._r:
+            for k in ('key', 'words', 'count'):
+                self.assertIn(k, item)
+
+    def test_count_matches_words_length(self):
+        for item in self._r:
+            self.assertEqual(item['count'], len(item['words']))
+
+
+# ---------------------------------------------------------------------------
+# TestPhonemeTableShape
+# ---------------------------------------------------------------------------
+class TestPhonemeTableShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import phoneme_table
+        cls._r = phoneme_table()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_has_16_entries(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_keys_are_single_chars(self):
+        for k in self._r.keys():
+            self.assertIsInstance(k, str)
+            self.assertEqual(len(k), 1)
+
+    def test_values_are_dicts(self):
+        for v in self._r.values():
+            self.assertIsInstance(v, dict)
+
+    def test_values_have_q6_key(self):
+        for v in self._r.values():
+            self.assertIn('q6', v)
+
+
+# ---------------------------------------------------------------------------
+# TestPhoneticHProps
+# ---------------------------------------------------------------------------
+class TestPhoneticHProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import phonetic_h
+        cls.phonetic_h = staticmethod(phonetic_h)
+
+    def test_g_returns_49(self):
+        self.assertEqual(self.phonetic_h('Г'), 49)
+
+    def test_a_returns_63(self):
+        self.assertEqual(self.phonetic_h('А'), 63)
+
+    def test_returns_int(self):
+        self.assertIsInstance(self.phonetic_h('Г'), int)
+
+    def test_unknown_returns_none(self):
+        self.assertIsNone(self.phonetic_h('Q'))
+
+
+# ---------------------------------------------------------------------------
+# TestSingleDamageShape
+# ---------------------------------------------------------------------------
+class TestSingleDamageShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import single_damage
+        cls.single_damage = staticmethod(single_damage)
+        cls._r = single_damage('ГОРА', 'xor3', 0, 0)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'cell', 'bit', 'n_steps',
+                  'orig_grid', 'pert_grid', 'damage_grid',
+                  'total_damage', 'max_damage', 'final_damage'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_total_damage_is_list(self):
+        self.assertIsInstance(self._r['total_damage'], list)
+
+    def test_max_damage_nonneg(self):
+        self.assertGreaterEqual(self._r['max_damage'], 0.0)
+
+    def test_damage_grid_is_list(self):
+        self.assertIsInstance(self._r['damage_grid'], list)
+
+    def test_orig_grid_rows(self):
+        self.assertIsInstance(self._r['orig_grid'], list)
+        self.assertGreater(len(self._r['orig_grid']), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestPairStatsShape
+# ---------------------------------------------------------------------------
+class TestPairStatsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_phoneme import pair_stats
+        cls._r = pair_stats()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_nonempty(self):
+        self.assertGreater(len(self._r), 0)
+
+    def test_keys_are_tuples(self):
+        for k in self._r.keys():
+            self.assertIsInstance(k, tuple)
+            self.assertEqual(len(k), 2)
+
+    def test_values_have_required_keys(self):
+        for v in self._r.values():
+            if isinstance(v, list):
+                for item in v:
+                    for k in ('count', 'changed', 'rate'):
+                        self.assertIn(k, item)
+            else:
+                for k in ('count', 'changed', 'rate'):
+                    self.assertIn(k, v)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
