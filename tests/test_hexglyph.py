@@ -26781,5 +26781,185 @@ class TestBlockEntropyProfileShape(unittest.TestCase):
             self.assertGreaterEqual(v, 0.0)
 
 
+# ---------------------------------------------------------------------------
+# TestBitPlaneTrajectoryShape
+# ---------------------------------------------------------------------------
+class TestBitPlaneTrajectoryShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import bit_plane_trajectory
+        cls.bit_plane_trajectory = staticmethod(bit_plane_trajectory)
+        cls._r = bit_plane_trajectory('ГОРА', 0, 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('bit', 'segment', 'rule', 'word', 'rows', 'transient', 'period', 'active'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_bit_preserved(self):
+        self.assertEqual(self._r['bit'], 0)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_rows_is_list(self):
+        self.assertIsInstance(self._r['rows'], list)
+
+    def test_active_is_bool(self):
+        self.assertIsInstance(self._r['active'], bool)
+
+
+# ---------------------------------------------------------------------------
+# TestAttractorActivityShape
+# ---------------------------------------------------------------------------
+class TestAttractorActivityShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bit import attractor_activity
+        cls.attractor_activity = staticmethod(attractor_activity)
+        cls._r = attractor_activity('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_has_6_bit_entries(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_items_are_dicts(self):
+        for v in self._r.values():
+            self.assertIsInstance(v, dict)
+
+    def test_item_keys(self):
+        for v in self._r.values():
+            for k in ('active', 'period', 'mean_attr', 'segment'):
+                self.assertIn(k, v)
+
+    def test_period_positive(self):
+        for v in self._r.values():
+            self.assertGreaterEqual(v['period'], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestCellFlipStatsShape
+# ---------------------------------------------------------------------------
+class TestCellFlipStatsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import cell_flip_stats
+        cls.cell_flip_stats = staticmethod(cell_flip_stats)
+        cls._r = cell_flip_stats([0, 1, 0, 1, 0, 1, 0, 1])
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('freqs', 'entropy', 'dominant_mask', 'n_distinct_masks', 'cooccurrence'):
+            self.assertIn(k, self._r)
+
+    def test_freqs_length_6(self):
+        self.assertEqual(len(self._r['freqs']), 6)
+
+    def test_freqs_in_unit_interval(self):
+        for v in self._r['freqs']:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_entropy_nonneg(self):
+        self.assertGreaterEqual(self._r['entropy'], 0.0)
+
+    def test_n_distinct_masks_positive(self):
+        self.assertGreater(self._r['n_distinct_masks'], 0)
+
+
+# ---------------------------------------------------------------------------
+# TestAggregateFlipFreqsShape
+# ---------------------------------------------------------------------------
+class TestAggregateFlipFreqsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import aggregate_flip_freqs
+        cls.aggregate_flip_freqs = staticmethod(aggregate_flip_freqs)
+        cls._r = aggregate_flip_freqs('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_6(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_deterministic(self):
+        r2 = self.aggregate_flip_freqs('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestCellAISKShape
+# ---------------------------------------------------------------------------
+class TestCellAISKShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import cell_ais_k
+        cls.cell_ais_k = staticmethod(cell_ais_k)
+        cls._r = cell_ais_k('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+    def test_all_nonneg(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r2 = self.cell_ais_k('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestBitFlipFreqsShape
+# ---------------------------------------------------------------------------
+class TestBitFlipFreqsShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import bit_flip_freqs
+        cls.bit_flip_freqs = staticmethod(bit_flip_freqs)
+        cls._r = bit_flip_freqs([0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1])
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_6(self):
+        self.assertEqual(len(self._r), 6)
+
+    def test_all_in_unit_interval(self):
+        for v in self._r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_all_floats(self):
+        for v in self._r:
+            self.assertIsInstance(v, float)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
