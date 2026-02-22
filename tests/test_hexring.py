@@ -521,5 +521,32 @@ class TestFindResilient(unittest.TestCase):
             self.assertLessEqual(len(result), n)
 
 
+class TestBoolFuncDisplay(unittest.TestCase):
+    """Тесты метода display() для BoolFunc."""
+
+    def test_display_returns_string(self):
+        f = inner_product_bent()
+        result = f.display()
+        self.assertIsInstance(result, str)
+
+    def test_display_compact_shorter(self):
+        """Компактный режим короче полного."""
+        f = inner_product_bent()
+        full = f.display(compact=False)
+        compact = f.display(compact=True)
+        self.assertGreater(len(full), len(compact))
+
+    def test_display_contains_anf(self):
+        f = zero_func()
+        result = f.display()
+        self.assertIn('ANF', result)
+
+    def test_display_contains_bent_info(self):
+        """Для bent-функции display показывает 'True'."""
+        f = inner_product_bent()
+        result = f.display()
+        self.assertIn('True', result)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -119,6 +119,19 @@ class TestAutomorphism(unittest.TestCase):
                 for v in neighbors(u):
                     self.assertEqual(hamming(g(u), g(v)), 1)
 
+    def test_repr_contains_perm(self):
+        """__repr__ содержит перестановку."""
+        ident = identity_aut()
+        r = repr(ident)
+        self.assertIn('Aut', r)
+        self.assertIn('0', r)
+
+    def test_eq_with_non_automorphism(self):
+        """Сравнение с не-автоморфизмом возвращает NotImplemented (т.е. False)."""
+        ident = identity_aut()
+        self.assertNotEqual(ident, 42)
+        self.assertNotEqual(ident, 'not an automorphism')
+
 
 # ---------------------------------------------------------------------------
 # Тест орбит

@@ -212,6 +212,41 @@ class TestVerifierGraph(unittest.TestCase):
         path = shortest_path_in_graph(0, 42, graph)  # 42 требует биты 1,3,5
         self.assertIsNone(path)
 
+    def test_set_word_sets_bit(self):
+        """SET-0 переводит 0→1, но не меняет состояния где бит уже установлен."""
+        graph = build_transition_graph(['SET-0'])
+        # 0 (000000) → SET-0 → 1 (000001)
+        self.assertIn(1, graph[0])
+        # 1 (000001) → SET-0 → остаётся 1 (бит уже установлен)
+        self.assertIn(1, graph[1])
+
+    def test_clr_word_clears_bit(self):
+        """CLR-0 переводит 1→0, но не меняет состояния где бит уже сброшен."""
+        graph = build_transition_graph(['CLR-0'])
+        # 1 (000001) → CLR-0 → 0 (000000)
+        self.assertIn(0, graph[1])
+        # 0 (000000) → CLR-0 → остаётся 0
+        self.assertIn(0, graph[0])
+
+    def test_nop_word_self_loop(self):
+        """NOP создаёт самопетли во всех состояниях."""
+        graph = build_transition_graph(['NOP'])
+        for state in range(64):
+            self.assertIn(state, graph[state])
+
+    def test_antipode_word_reachability(self):
+        """ANTIPODE позволяет достичь антипода из любой вершины."""
+        from libs.hexcore.hexcore import antipode
+        graph = build_transition_graph(['ANTIPODE'])
+        reach = reachable_from(0, graph)
+        self.assertIn(antipode(0), reach)  # 63
+
+    def test_goto_word_jump(self):
+        """GOTO 42 позволяет достичь вершины 42 из любой вершины."""
+        graph = build_transition_graph(['GOTO 42'])
+        reach = reachable_from(0, graph)
+        self.assertIn(42, reach)
+
 
 class TestStaticAnalysis(unittest.TestCase):
     def test_clean_program(self):
