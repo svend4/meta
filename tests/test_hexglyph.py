@@ -27491,5 +27491,178 @@ class TestMDSStressProps(unittest.TestCase):
         self.assertEqual(r1, r2)
 
 
+# ---------------------------------------------------------------------------
+# TestBitTEProps
+# ---------------------------------------------------------------------------
+class TestBitTEProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import bit_te
+        cls.bit_te = staticmethod(bit_te)
+        cls._y = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+        cls._x = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.bit_te(self._y, self._x), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.bit_te(self._y, self._x), 0.0)
+
+    def test_deterministic(self):
+        r1 = self.bit_te(self._y, self._x)
+        r2 = self.bit_te(self._y, self._x)
+        self.assertEqual(r1, r2)
+
+    def test_same_series_low_te(self):
+        # Identical series → TE = 0
+        r = self.bit_te(self._y, self._y)
+        self.assertAlmostEqual(r, 0.0, places=5)
+
+
+# ---------------------------------------------------------------------------
+# TestCellTEProps
+# ---------------------------------------------------------------------------
+class TestCellTEProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import cell_te
+        from projects.hexglyph.solan_network import get_orbit
+        cls.cell_te = staticmethod(cell_te)
+        cls._orbit = get_orbit('ГОРА', 'xor3', 16)
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.cell_te(self._orbit, 0, 1), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.cell_te(self._orbit, 0, 1), 0.0)
+
+    def test_deterministic(self):
+        r1 = self.cell_te(self._orbit, 0, 1)
+        r2 = self.cell_te(self._orbit, 0, 1)
+        self.assertEqual(r1, r2)
+
+    def test_all_pairs_nonneg(self):
+        for i in range(4):
+            for j in range(4):
+                r = self.cell_te(self._orbit, i, j)
+                self.assertGreaterEqual(r, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestBlockEntropyNProps
+# ---------------------------------------------------------------------------
+class TestBlockEntropyNProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import block_entropy_n
+        cls.block_entropy_n = staticmethod(block_entropy_n)
+        cls._seqs = [[0, 1, 0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0]]
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.block_entropy_n(self._seqs, 2), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.block_entropy_n(self._seqs, 1), 0.0)
+
+    def test_n1_returns_1_for_uniform(self):
+        self.assertAlmostEqual(self.block_entropy_n(self._seqs, 1), 1.0, places=5)
+
+    def test_deterministic(self):
+        r1 = self.block_entropy_n(self._seqs, 2)
+        r2 = self.block_entropy_n(self._seqs, 2)
+        self.assertEqual(r1, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestHNGramsProps
+# ---------------------------------------------------------------------------
+class TestHNGramsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_active import h_ngrams
+        cls.h_ngrams = staticmethod(h_ngrams)
+        cls._seqs = [[0, 1, 0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0]]
+
+    def test_returns_float(self):
+        self.assertIsInstance(self.h_ngrams(self._seqs, 2), float)
+
+    def test_nonneg(self):
+        self.assertGreaterEqual(self.h_ngrams(self._seqs, 1), 0.0)
+
+    def test_constant_seqs_zero_entropy(self):
+        const_seqs = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
+        r = self.h_ngrams(const_seqs, 1)
+        self.assertAlmostEqual(r, 0.0, places=5)
+
+    def test_deterministic(self):
+        r1 = self.h_ngrams(self._seqs, 2)
+        r2 = self.h_ngrams(self._seqs, 2)
+        self.assertEqual(r1, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestMSEProfileGridShape
+# ---------------------------------------------------------------------------
+class TestMSEProfileGridShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_multiscale import mse_profile
+        cls.mse_profile = staticmethod(mse_profile)
+        cls._r = mse_profile('ГОРА', 'xor3')
+
+    def test_returns_list(self):
+        self.assertIsInstance(self._r, list)
+
+    def test_length_16_cells(self):
+        self.assertEqual(len(self._r), 16)
+
+    def test_each_cell_has_8_taus(self):
+        for cell in self._r:
+            self.assertEqual(len(cell), 8)
+
+    def test_all_nonneg(self):
+        for cell in self._r:
+            for v in cell:
+                self.assertGreaterEqual(v, 0.0)
+
+    def test_deterministic(self):
+        r2 = self.mse_profile('ГОРА', 'xor3')
+        self.assertEqual(self._r, r2)
+
+
+# ---------------------------------------------------------------------------
+# TestDerridaPointProps
+# ---------------------------------------------------------------------------
+class TestDerridaPointProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_derrida import derrida_point
+        cls.derrida_point = staticmethod(derrida_point)
+        cls._s1 = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+        cls._s2 = [1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+
+    def test_returns_tuple(self):
+        self.assertIsInstance(self.derrida_point(self._s1, self._s2, 'xor3'), tuple)
+
+    def test_length_2(self):
+        self.assertEqual(len(self.derrida_point(self._s1, self._s2, 'xor3')), 2)
+
+    def test_values_in_unit_interval(self):
+        r = self.derrida_point(self._s1, self._s2, 'xor3')
+        for v in r:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_identical_inputs_zero_point(self):
+        r = self.derrida_point(self._s1, self._s1, 'xor3')
+        self.assertAlmostEqual(r[0], 0.0, places=5)
+        self.assertAlmostEqual(r[1], 0.0, places=5)
+
+    def test_deterministic(self):
+        r1 = self.derrida_point(self._s1, self._s2, 'xor3')
+        r2 = self.derrida_point(self._s1, self._s2, 'xor3')
+        self.assertEqual(r1, r2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
