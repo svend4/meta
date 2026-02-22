@@ -85,6 +85,12 @@ class TestSubcube(unittest.TestCase):
         axes, base, k = find_subcube_of(verts)
         self.assertEqual(k, 3)
 
+    def test_find_subcube_of_empty(self):
+        """find_subcube_of([]) возвращает ([], 0, 0)."""
+        axes, base, k = find_subcube_of([])
+        self.assertEqual(axes, [])
+        self.assertEqual(k, 0)
+
 
 # ── тессеракт Q4 ─────────────────────────────────────────────────────────────
 

@@ -49,6 +49,13 @@ class TestPuzzleBasic(unittest.TestCase):
         self.assertIn('5', s)
         self.assertIn('20', s)
 
+    def test_summary_unsolvable_shows_status(self):
+        """Summary неразрешимой головоломки содержит 'НЕРАЗРЕШИМА'."""
+        blocked = frozenset(neighbors(0))
+        p = Puzzle(start=0, goal=63, blocked=blocked)
+        s = p.summary()
+        self.assertIn('НЕРАЗРЕШИМА', s)
+
 
 class TestSolve(unittest.TestCase):
     def test_solve_trivial(self):

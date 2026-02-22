@@ -521,6 +521,27 @@ class TestFindResilient(unittest.TestCase):
             self.assertLessEqual(len(result), n)
 
 
+class TestBoolFuncDunders(unittest.TestCase):
+    """Тесты __repr__ и __eq__ для BoolFunc."""
+
+    def test_repr_returns_string(self):
+        f = inner_product_bent()
+        r = repr(f)
+        self.assertIsInstance(r, str)
+        self.assertIn('BoolFunc', r)
+
+    def test_repr_shows_degree(self):
+        f = zero_func()
+        r = repr(f)
+        self.assertIn('degree', r)
+
+    def test_eq_with_non_boolfunc_returns_false(self):
+        """Сравнение с не-BoolFunc возвращает NotImplemented (т.е. False)."""
+        f = zero_func()
+        self.assertNotEqual(f, 0)
+        self.assertNotEqual(f, 'not a BoolFunc')
+
+
 class TestBoolFuncDisplay(unittest.TestCase):
     """Тесты метода display() для BoolFunc."""
 

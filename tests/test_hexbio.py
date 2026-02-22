@@ -61,6 +61,13 @@ class TestCodonEncoding:
     def test_int_to_codon_aug(self):
         assert int_to_codon(codon_to_int('AUG')) == 'AUG'
 
+    def test_int_to_codon_out_of_range(self):
+        """int_to_codon вне диапазона 0-63 вызывает ValueError."""
+        with pytest.raises(ValueError):
+            int_to_codon(-1)
+        with pytest.raises(ValueError):
+            int_to_codon(64)
+
     def test_codon_nucleotides(self):
         n = codon_to_int('AUG')
         x, y, z = codon_nucleotides(n)
