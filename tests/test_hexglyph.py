@@ -28461,5 +28461,495 @@ class TestTEDictShape(unittest.TestCase):
             self.assertEqual(len(row), 16)
 
 
+# ---------------------------------------------------------------------------
+# TestWordSignatureProps
+# ---------------------------------------------------------------------------
+class TestWordSignatureProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import word_signature, sig_distance, word_distance
+        cls.word_signature = staticmethod(word_signature)
+        cls.sig_distance   = staticmethod(sig_distance)
+        cls.word_distance  = staticmethod(word_distance)
+        cls._sig1 = word_signature('ГОРА')
+        cls._sig2 = word_signature('ВОДА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._sig1, dict)
+
+    def test_four_rules(self):
+        self.assertEqual(set(self._sig1.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_values_are_tuples(self):
+        for v in self._sig1.values():
+            self.assertIsInstance(v, tuple)
+            self.assertEqual(len(v), 2)
+
+    def test_sig_distance_same_is_zero(self):
+        self.assertEqual(self.sig_distance(self._sig1, self._sig1), 0.0)
+
+    def test_sig_distance_nonneg(self):
+        self.assertGreaterEqual(self.sig_distance(self._sig1, self._sig2), 0.0)
+
+    def test_word_distance_nonneg(self):
+        d = self.word_distance('ГОРА', 'ВОДА')
+        self.assertGreaterEqual(d, 0.0)
+
+    def test_word_distance_same_is_zero(self):
+        d = self.word_distance('ГОРА', 'ГОРА')
+        self.assertEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestTransientClassesProps
+# ---------------------------------------------------------------------------
+class TestTransientClassesProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import transient_classes, all_full_signatures, transient_dist
+        from projects.hexglyph.solan_word import word_signature
+        cls.transient_classes    = staticmethod(transient_classes)
+        cls.all_full_signatures  = staticmethod(all_full_signatures)
+        cls.transient_dist       = staticmethod(transient_dist)
+        cls._classes             = transient_classes()
+        cls._afs                 = all_full_signatures()
+        cls._sig1                = word_signature('ГОРА')
+        cls._sig2                = word_signature('ВОДА')
+
+    def test_transient_classes_list(self):
+        self.assertIsInstance(self._classes, list)
+
+    def test_transient_classes_count_13(self):
+        self.assertEqual(len(self._classes), 13)
+
+    def test_classes_have_required_keys(self):
+        for c in self._classes:
+            self.assertIn('key', c)
+            self.assertIn('words', c)
+            self.assertIn('count', c)
+
+    def test_all_full_signatures_dict(self):
+        self.assertIsInstance(self._afs, dict)
+
+    def test_all_full_signatures_49_words(self):
+        self.assertEqual(len(self._afs), 49)
+
+    def test_transient_dist_same_is_zero(self):
+        d = self.transient_dist(self._sig1, self._sig1)
+        self.assertEqual(d, 0.0)
+
+    def test_transient_dist_nonneg(self):
+        d = self.transient_dist(self._sig1, self._sig2)
+        self.assertGreaterEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestTransientDictProps
+# ---------------------------------------------------------------------------
+class TestTransientDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transient import build_transient_data, transient_dict
+        data = build_transient_data()
+        cls._data = data
+        cls._td   = transient_dict(data)
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._td, dict)
+
+    def test_n_classes_13(self):
+        self.assertEqual(self._td['n_classes'], 13)
+
+    def test_has_classes_key(self):
+        self.assertIn('classes', self._td)
+
+    def test_classes_length_13(self):
+        self.assertEqual(len(self._td['classes']), 13)
+
+    def test_has_by_rule_key(self):
+        self.assertIn('by_rule', self._td)
+
+
+# ---------------------------------------------------------------------------
+# TestLexiconProps
+# ---------------------------------------------------------------------------
+class TestLexiconProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lexicon import all_words, all_signatures, neighbors, orbital_clusters
+        cls.all_words        = staticmethod(all_words)
+        cls.all_signatures   = staticmethod(all_signatures)
+        cls.neighbors        = staticmethod(neighbors)
+        cls.orbital_clusters = staticmethod(orbital_clusters)
+        cls._words = all_words()
+        cls._sigs  = all_signatures()
+        cls._nb    = neighbors('ГОРА', n=3)
+        cls._oc    = orbital_clusters()
+
+    def test_all_words_list(self):
+        self.assertIsInstance(self._words, list)
+
+    def test_all_words_49(self):
+        self.assertEqual(len(self._words), 49)
+
+    def test_all_signatures_dict(self):
+        self.assertIsInstance(self._sigs, dict)
+
+    def test_all_signatures_49(self):
+        self.assertEqual(len(self._sigs), 49)
+
+    def test_neighbors_list(self):
+        self.assertIsInstance(self._nb, list)
+
+    def test_neighbors_length(self):
+        self.assertEqual(len(self._nb), 3)
+
+    def test_orbital_clusters_list_of_lists(self):
+        self.assertIsInstance(self._oc, list)
+        for cl in self._oc:
+            self.assertIsInstance(cl, list)
+
+
+# ---------------------------------------------------------------------------
+# TestLexiconSummaryProps
+# ---------------------------------------------------------------------------
+class TestLexiconSummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lexicon import lexicon_summary
+        cls.lexicon_summary = staticmethod(lexicon_summary)
+        cls._r = lexicon_summary('ГОРА')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_n_positive(self):
+        self.assertGreater(self._r['n'], 0)
+
+    def test_has_neighbors(self):
+        self.assertIn('neighbors', self._r)
+
+    def test_neighbors_list(self):
+        self.assertIsInstance(self._r['neighbors'], list)
+
+
+# ---------------------------------------------------------------------------
+# TestGraphProps
+# ---------------------------------------------------------------------------
+class TestGraphProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_graph import (
+            build_graph, graph_stats, graph_summary,
+            connected_components, degree, hub_words,
+        )
+        cls.build_graph         = staticmethod(build_graph)
+        cls.graph_stats         = staticmethod(graph_stats)
+        cls.graph_summary       = staticmethod(graph_summary)
+        cls.connected_components= staticmethod(connected_components)
+        cls.degree              = staticmethod(degree)
+        cls.hub_words           = staticmethod(hub_words)
+        cls._g  = build_graph()
+        cls._gs = graph_stats(cls._g)
+        cls._cc = connected_components(cls._g)
+        cls._deg= degree(cls._g)
+        cls._hw = hub_words(cls._g, n=3)
+
+    def test_build_graph_dict(self):
+        self.assertIsInstance(self._g, dict)
+
+    def test_graph_stats_dict(self):
+        self.assertIsInstance(self._gs, dict)
+
+    def test_graph_stats_nodes_49(self):
+        self.assertEqual(self._gs['nodes'], 49)
+
+    def test_connected_components_list(self):
+        self.assertIsInstance(self._cc, list)
+
+    def test_degree_dict(self):
+        self.assertIsInstance(self._deg, dict)
+
+    def test_degree_49_words(self):
+        self.assertEqual(len(self._deg), 49)
+
+    def test_hub_words_list(self):
+        self.assertIsInstance(self._hw, list)
+
+    def test_hub_words_length(self):
+        self.assertEqual(len(self._hw), 3)
+
+
+# ---------------------------------------------------------------------------
+# TestMDSProps
+# ---------------------------------------------------------------------------
+class TestMDSProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_mds import build_mds, distance_matrix, mds_dict
+        cls.distance_matrix = staticmethod(distance_matrix)
+        cls.mds_dict        = staticmethod(mds_dict)
+        cls._dm = distance_matrix()
+        words, coords, stress = build_mds()
+        cls._words  = words
+        cls._coords = coords
+        cls._stress = stress
+        cls._md = mds_dict(words, coords, stress)
+
+    def test_distance_matrix_dict(self):
+        self.assertIsInstance(self._dm, dict)
+
+    def test_distance_matrix_size(self):
+        self.assertEqual(len(self._dm), 49 * 49)
+
+    def test_build_mds_words_49(self):
+        self.assertEqual(len(self._words), 49)
+
+    def test_stress_float(self):
+        self.assertIsInstance(self._stress, float)
+
+    def test_stress_nonneg(self):
+        self.assertGreaterEqual(self._stress, 0.0)
+
+    def test_mds_dict_keys(self):
+        self.assertIn('words', self._md)
+        self.assertIn('coords', self._md)
+        self.assertIn('stress', self._md)
+
+
+# ---------------------------------------------------------------------------
+# TestDendrogramProps
+# ---------------------------------------------------------------------------
+class TestDendrogramProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_dendrogram import (
+            build_dendrogram, leaf_order, flat_clusters, dendrogram_dict,
+        )
+        cls.leaf_order      = staticmethod(leaf_order)
+        cls.flat_clusters   = staticmethod(flat_clusters)
+        cls.dendrogram_dict = staticmethod(dendrogram_dict)
+        nodes, root_id = build_dendrogram()
+        cls._nodes   = nodes
+        cls._root_id = root_id
+        cls._lo  = leaf_order(nodes, root_id)
+        cls._fc  = flat_clusters(nodes, root_id, 0.1)
+        cls._dd  = dendrogram_dict(nodes, root_id)
+
+    def test_nodes_dict(self):
+        self.assertIsInstance(self._nodes, dict)
+
+    def test_leaf_order_list(self):
+        self.assertIsInstance(self._lo, list)
+
+    def test_leaf_order_49_words(self):
+        self.assertEqual(len(self._lo), 49)
+
+    def test_flat_clusters_list(self):
+        self.assertIsInstance(self._fc, list)
+
+    def test_flat_clusters_nonempty(self):
+        self.assertGreater(len(self._fc), 0)
+
+    def test_dendrogram_dict_keys(self):
+        self.assertIn('nodes', self._dd)
+        self.assertIn('root', self._dd)
+
+    def test_dendrogram_dict_max_height_positive(self):
+        self.assertGreater(self._dd['max_height'], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestSpectralProps
+# ---------------------------------------------------------------------------
+class TestSpectralProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_spectral import (
+            spectral_dict, spectral_fingerprint, attractor_spectrum, spectral_distance,
+        )
+        cls.spectral_distance   = staticmethod(spectral_distance)
+        cls._sd  = spectral_dict('ГОРА')
+        cls._sf  = spectral_fingerprint('ГОРА')
+        cls._as1 = attractor_spectrum('ГОРА',  'xor3')
+        cls._as2 = attractor_spectrum('ВОДА',  'xor3')
+
+    def test_spectral_dict_dict(self):
+        self.assertIsInstance(self._sd, dict)
+
+    def test_spectral_dict_has_rules(self):
+        self.assertIn('rules', self._sd)
+
+    def test_spectral_dict_four_rules(self):
+        self.assertEqual(len(self._sd['rules']), 4)
+
+    def test_spectral_fingerprint_list(self):
+        self.assertIsInstance(self._sf, list)
+
+    def test_attractor_spectrum_dict(self):
+        self.assertIsInstance(self._as1, dict)
+
+    def test_spectral_distance_same_is_zero(self):
+        d = self.spectral_distance(self._as1, self._as1)
+        self.assertEqual(d, 0.0)
+
+    def test_spectral_distance_nonneg(self):
+        d = self.spectral_distance(self._as1, self._as2)
+        self.assertGreaterEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestTrajectoryDictProps
+# ---------------------------------------------------------------------------
+class TestTrajectoryDictProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_traj import (
+            trajectory_dict, traj_stats, word_trajectory, trajectory_similarity,
+        )
+        cls.trajectory_similarity = staticmethod(trajectory_similarity)
+        cls._td  = trajectory_dict('ГОРА')
+        cls._ts  = traj_stats('ГОРА', 'xor3')
+        cls._wt1 = word_trajectory('ГОРА', 'xor3')
+        cls._wt2 = word_trajectory('ВОДА', 'xor3')
+
+    def test_trajectory_dict_dict(self):
+        self.assertIsInstance(self._td, dict)
+
+    def test_trajectory_dict_has_rules(self):
+        self.assertIn('rules', self._td)
+
+    def test_traj_stats_dict(self):
+        self.assertIsInstance(self._ts, dict)
+
+    def test_traj_stats_has_transient(self):
+        self.assertIn('transient', self._ts)
+
+    def test_word_trajectory_dict(self):
+        self.assertIsInstance(self._wt1, dict)
+
+    def test_trajectory_similarity_same_zero(self):
+        d = self.trajectory_similarity(self._wt1, self._wt1)
+        self.assertEqual(d, 0.0)
+
+    def test_trajectory_similarity_nonneg(self):
+        d = self.trajectory_similarity(self._wt1, self._wt2)
+        self.assertGreaterEqual(d, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestNetworkMatrixProps
+# ---------------------------------------------------------------------------
+class TestNetworkMatrixProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import (
+            te_matrix, pagerank, hits, tarjan_scc, in_weights, out_weights, net_flow,
+        )
+        cls.pagerank    = staticmethod(pagerank)
+        cls.hits        = staticmethod(hits)
+        cls.tarjan_scc  = staticmethod(tarjan_scc)
+        cls.in_weights  = staticmethod(in_weights)
+        cls.out_weights = staticmethod(out_weights)
+        cls.net_flow    = staticmethod(net_flow)
+        cls._mat = te_matrix('ВОЛНА', 'xor3')
+        cls._pr  = pagerank(cls._mat)
+        cls._hi  = hits(cls._mat)
+        cls._scc = tarjan_scc(cls._mat)
+        cls._iw  = in_weights(cls._mat)
+        cls._ow  = out_weights(cls._mat)
+        cls._nf  = net_flow(cls._mat)
+
+    def test_pagerank_list(self):
+        self.assertIsInstance(self._pr, list)
+
+    def test_pagerank_length_16(self):
+        self.assertEqual(len(self._pr), 16)
+
+    def test_hits_tuple(self):
+        self.assertIsInstance(self._hi, tuple)
+        self.assertEqual(len(self._hi), 2)
+
+    def test_tarjan_scc_list(self):
+        self.assertIsInstance(self._scc, list)
+
+    def test_in_weights_list(self):
+        self.assertIsInstance(self._iw, list)
+
+    def test_out_weights_list(self):
+        self.assertIsInstance(self._ow, list)
+
+    def test_net_flow_length(self):
+        self.assertEqual(len(self._nf), 16)
+
+    def test_in_out_same_length(self):
+        self.assertEqual(len(self._iw), len(self._ow))
+
+
+# ---------------------------------------------------------------------------
+# TestMeanDamageProps
+# ---------------------------------------------------------------------------
+class TestMeanDamageProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import mean_damage, perturb
+        cls.perturb     = staticmethod(perturb)
+        cls._md = mean_damage('ГОРА', 'xor3')
+        cls._p  = perturb([49, 47, 15, 63], 0, 5)
+
+    def test_mean_damage_dict(self):
+        self.assertIsInstance(self._md, dict)
+
+    def test_mean_damage_word_preserved(self):
+        self.assertEqual(self._md['word'], 'ГОРА')
+
+    def test_mean_damage_has_kernel(self):
+        self.assertIn('kernel', self._md)
+
+    def test_max_mean_damage_nonneg(self):
+        self.assertGreaterEqual(self._md['max_mean_damage'], 0.0)
+
+    def test_perturb_list(self):
+        self.assertIsInstance(self._p, list)
+
+    def test_perturb_same_length(self):
+        self.assertEqual(len(self._p), 4)
+
+
+# ---------------------------------------------------------------------------
+# TestTESummaryProps
+# ---------------------------------------------------------------------------
+class TestTESummaryProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_transfer import te_summary
+        cls.te_summary = staticmethod(te_summary)
+        cls._r = te_summary('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_preserved(self):
+        self.assertEqual(self._r['rule'], 'xor3')
+
+    def test_max_te_nonneg(self):
+        self.assertGreaterEqual(self._r['max_te'], 0.0)
+
+    def test_matrix_16x16(self):
+        mat = self._r['matrix']
+        self.assertEqual(len(mat), 16)
+        for row in mat:
+            self.assertEqual(len(row), 16)
+
+    def test_lr_asymmetry_float(self):
+        self.assertIsInstance(self._r['lr_asymmetry'], float)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
