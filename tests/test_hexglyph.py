@@ -29509,5 +29509,101 @@ class TestForbiddenNgramsProps(unittest.TestCase):
         self.assertIsInstance(self._fn3, list)
 
 
+# ---------------------------------------------------------------------------
+# TestEncodeWordProps
+# ---------------------------------------------------------------------------
+class TestEncodeWordProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_word import encode_word, step, word_summary
+        cls.encode_word = staticmethod(encode_word)
+        cls.step        = staticmethod(step)
+        cls.word_summary= staticmethod(word_summary)
+        cls._enc = encode_word('ГОРА')
+        cls._stepped = step(cls._enc, 'xor3')
+        cls._ws  = word_summary('ГОРА')
+
+    def test_encode_word_list(self):
+        self.assertIsInstance(self._enc, list)
+
+    def test_encode_word_nonempty(self):
+        self.assertGreater(len(self._enc), 0)
+
+    def test_step_list(self):
+        self.assertIsInstance(self._stepped, list)
+
+    def test_step_same_length(self):
+        self.assertEqual(len(self._stepped), len(self._enc))
+
+    def test_word_summary_dict(self):
+        self.assertIsInstance(self._ws, dict)
+
+    def test_word_summary_has_signature(self):
+        self.assertIn('signature', self._ws)
+
+
+# ---------------------------------------------------------------------------
+# TestBuildAllRulesProps
+# ---------------------------------------------------------------------------
+class TestBuildAllRulesProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_rules import build_all_rules
+        cls._bar = build_all_rules()
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._bar, dict)
+
+    def test_four_rules(self):
+        self.assertEqual(len(self._bar), 4)
+
+    def test_has_xor3(self):
+        self.assertIn('xor3', self._bar)
+
+    def test_rule_has_words(self):
+        self.assertIn('words', self._bar['xor3'])
+
+    def test_rule_words_49(self):
+        self.assertEqual(len(self._bar['xor3']['words']), 49)
+
+
+# ---------------------------------------------------------------------------
+# TestFlipCooccurrenceProps
+# ---------------------------------------------------------------------------
+class TestFlipCooccurrenceProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitflip import (
+            flip_cooccurrence, all_cell_flip_stats, all_flips,
+        )
+        cls._series = [49, 47, 15, 63] * 10
+        cls._fc   = flip_cooccurrence(cls._series)
+        cls._acfs = all_cell_flip_stats('ГОРА', 'xor3')
+        cls._af   = all_flips('ГОРА')
+
+    def test_flip_cooccurrence_list(self):
+        self.assertIsInstance(self._fc, list)
+
+    def test_flip_cooccurrence_6x6(self):
+        self.assertEqual(len(self._fc), 6)
+        for row in self._fc:
+            self.assertEqual(len(row), 6)
+
+    def test_all_cell_flip_stats_list(self):
+        self.assertIsInstance(self._acfs, list)
+
+    def test_all_cell_flip_stats_16_cells(self):
+        self.assertEqual(len(self._acfs), 16)
+
+    def test_all_flips_dict(self):
+        self.assertIsInstance(self._af, dict)
+
+    def test_all_flips_four_rules(self):
+        self.assertEqual(len(self._af), 4)
+
+    def test_all_flips_xor3_has_word(self):
+        self.assertEqual(self._af['xor3']['word'], 'ГОРА')
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
