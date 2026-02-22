@@ -29698,5 +29698,265 @@ class TestAllAISProps(unittest.TestCase):
         self.assertEqual(len(self._aa['xor3']['ais_profile']), 3)
 
 
+# ---------------------------------------------------------------------------
+# TestCAMakeInitialProps
+# ---------------------------------------------------------------------------
+class TestCAMakeInitialProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ca import make_initial, h_to_char
+        cls.make_initial = staticmethod(make_initial)
+        cls.h_to_char    = staticmethod(h_to_char)
+        cls._mi = make_initial(16, ic='center', word='ГОРА')
+
+    def test_make_initial_list(self):
+        self.assertIsInstance(self._mi, list)
+
+    def test_make_initial_length_16(self):
+        self.assertEqual(len(self._mi), 16)
+
+    def test_h_to_char_returns_str(self):
+        result = self.h_to_char(49)
+        self.assertIsInstance(result, str)
+
+    def test_h_to_char_length_1(self):
+        result = self.h_to_char(49)
+        self.assertEqual(len(result), 1)
+
+    def test_make_initial_random(self):
+        mi_r = self.make_initial(16, ic='random', seed=42)
+        self.assertEqual(len(mi_r), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestCellAggProps
+# ---------------------------------------------------------------------------
+class TestCellAggProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cell import cell_mean, cell_hist, cell_agg, cell_is_frozen, cell_series
+        cls.cell_mean     = staticmethod(cell_mean)
+        cls.cell_hist     = staticmethod(cell_hist)
+        cls.cell_is_frozen= staticmethod(cell_is_frozen)
+        cls.cell_series   = staticmethod(cell_series)
+        cls._ca  = cell_agg('ГОРА', 'xor3')
+        cls._cm  = cell_mean('ГОРА', 'xor3', 0)
+        cls._ch  = cell_hist('ГОРА', 'xor3', 0)
+        cls._cif = cell_is_frozen('ГОРА', 'xor3', 0)
+        cls._cs  = cell_series('ГОРА', 'xor3', 0)
+
+    def test_cell_agg_dict(self):
+        self.assertIsInstance(self._ca, dict)
+
+    def test_cell_agg_has_n_cells(self):
+        self.assertEqual(self._ca['n_cells'], 16)
+
+    def test_cell_mean_float(self):
+        self.assertIsInstance(self._cm, float)
+
+    def test_cell_hist_dict(self):
+        self.assertIsInstance(self._ch, dict)
+
+    def test_cell_is_frozen_bool(self):
+        self.assertIsInstance(self._cif, bool)
+
+    def test_cell_series_list(self):
+        self.assertIsInstance(self._cs, list)
+
+    def test_cell_series_nonempty(self):
+        self.assertGreater(len(self._cs), 0)
+
+
+# ---------------------------------------------------------------------------
+# TestEntropyProfileProps
+# ---------------------------------------------------------------------------
+class TestEntropyProfileProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_entropy import entropy, entropy_profile, max_spatial_entropy
+        cls.entropy = staticmethod(entropy)
+        cls._cells  = [49, 47, 15, 63, 49, 47, 15, 63]
+        cls._const  = [42] * 8
+        cls._ep  = entropy_profile(cls._cells, 'xor3', 4)
+        cls._mse = max_spatial_entropy('ГОРА', 'xor3')
+
+    def test_entropy_float(self):
+        self.assertIsInstance(self.entropy(self._cells), float)
+
+    def test_entropy_nonneg(self):
+        self.assertGreaterEqual(self.entropy(self._cells), 0.0)
+
+    def test_entropy_constant_zero(self):
+        self.assertEqual(self.entropy(self._const), 0.0)
+
+    def test_entropy_profile_list(self):
+        self.assertIsInstance(self._ep, list)
+
+    def test_max_spatial_entropy_nonneg(self):
+        self.assertGreaterEqual(self._mse, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestHammingProps
+# ---------------------------------------------------------------------------
+class TestHammingProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_hamming import consecutive_hamming, flip_mask, cell_mobility
+        from projects.hexglyph.solan_network import get_orbit
+        cls.consecutive_hamming = staticmethod(consecutive_hamming)
+        cls.flip_mask            = staticmethod(flip_mask)
+        cls.cell_mobility        = staticmethod(cell_mobility)
+        cls._orbit = get_orbit('ВОЛНА', 'xor3')
+        cls._ch  = consecutive_hamming(cls._orbit)
+        cls._fm  = flip_mask(cls._orbit)
+        cls._mob = cell_mobility(cls._orbit)
+
+    def test_consecutive_hamming_list(self):
+        self.assertIsInstance(self._ch, list)
+
+    def test_flip_mask_list(self):
+        self.assertIsInstance(self._fm, list)
+
+    def test_cell_mobility_list(self):
+        self.assertIsInstance(self._mob, list)
+
+    def test_cell_mobility_length_16(self):
+        self.assertEqual(len(self._mob), 16)
+
+    def test_cell_mobility_in_01(self):
+        for v in self._mob:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestFourierProps
+# ---------------------------------------------------------------------------
+class TestFourierProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_fourier import (
+            dft1, cell_spectrum, dominant_harmonic, normalised_spectral_entropy, fourier_dict,
+        )
+        cls.dominant_harmonic        = staticmethod(dominant_harmonic)
+        cls.normalised_spectral_entropy = staticmethod(normalised_spectral_entropy)
+        cls._series = [49, 47, 15, 63] * 3
+        cls._dft = dft1(cls._series)
+        cls._cs  = cell_spectrum(cls._series)
+        cls._fd  = fourier_dict(cls._cs)
+
+    def test_dft1_list(self):
+        self.assertIsInstance(self._dft, list)
+
+    def test_dft1_complex_elements(self):
+        self.assertIsInstance(self._dft[0], complex)
+
+    def test_cell_spectrum_dict(self):
+        self.assertIsInstance(self._cs, dict)
+
+    def test_cell_spectrum_has_power(self):
+        self.assertIn('power', self._cs)
+
+    def test_dominant_harmonic_int(self):
+        dh = self.dominant_harmonic(self._cs['power'])
+        self.assertIsInstance(dh, int)
+
+    def test_normalised_spectral_entropy_in_01(self):
+        nse = self.normalised_spectral_entropy(self._cs['power'])
+        self.assertGreaterEqual(nse, 0.0)
+        self.assertLessEqual(nse, 1.0)
+
+    def test_fourier_dict_dict(self):
+        self.assertIsInstance(self._fd, dict)
+
+    def test_fourier_dict_has_power(self):
+        self.assertIn('power', self._fd)
+
+
+# ---------------------------------------------------------------------------
+# TestLZProps
+# ---------------------------------------------------------------------------
+class TestLZProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_lz import lz76, lz_of_series, lz_dict
+        cls.lz76 = staticmethod(lz76)
+        cls._los = lz_of_series([49, 47, 15, 63] * 4)
+        cls._ld  = lz_dict('ГОРА', 'xor3')
+
+    def test_lz76_int(self):
+        v = self.lz76('0101010101010101')
+        self.assertIsInstance(v, int)
+
+    def test_lz76_positive(self):
+        v = self.lz76('0101010101010101')
+        self.assertGreater(v, 0)
+
+    def test_lz_of_series_dict(self):
+        self.assertIsInstance(self._los, dict)
+
+    def test_lz_of_series_has_lz(self):
+        self.assertIn('lz', self._los)
+
+    def test_lz_dict_dict(self):
+        self.assertIsInstance(self._ld, dict)
+
+    def test_lz_dict_word_preserved(self):
+        self.assertEqual(self._ld['word'], 'ГОРА')
+
+
+# ---------------------------------------------------------------------------
+# TestMomentsProps
+# ---------------------------------------------------------------------------
+class TestMomentsProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moments import temporal_moments, cell_moments_list
+        cls._tm  = temporal_moments([49, 47, 15, 63] * 4)
+        cls._cml = cell_moments_list('ГОРА', 'xor3')
+
+    def test_temporal_moments_dict(self):
+        self.assertIsInstance(self._tm, dict)
+
+    def test_temporal_moments_has_mean(self):
+        self.assertIn('mean', self._tm)
+
+    def test_temporal_moments_has_std(self):
+        self.assertIn('std', self._tm)
+
+    def test_cell_moments_list_list(self):
+        self.assertIsInstance(self._cml, list)
+
+    def test_cell_moments_list_16_cells(self):
+        self.assertEqual(len(self._cml), 16)
+
+
+# ---------------------------------------------------------------------------
+# TestMoranProps
+# ---------------------------------------------------------------------------
+class TestMoranProps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_moran import morans_i, morans_i_series
+        cls.morans_i = staticmethod(morans_i)
+        cls._mis = morans_i_series('ГОРА', 'xor3')
+
+    def test_morans_i_float(self):
+        v = self.morans_i([1, 0, 1, 0, 1, 0, 1, 0])
+        self.assertIsInstance(v, float)
+
+    def test_morans_i_range(self):
+        v = self.morans_i([1, 0, 1, 0, 1, 0, 1, 0])
+        self.assertGreaterEqual(v, -1.0)
+        self.assertLessEqual(v, 1.0)
+
+    def test_morans_i_series_list(self):
+        self.assertIsInstance(self._mis, list)
+
+    def test_morans_i_series_nonempty(self):
+        self.assertGreater(len(self._mis), 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
