@@ -24760,5 +24760,162 @@ class TestPCASummaryShape(unittest.TestCase):
             self.assertEqual(r['rule'], rule)
 
 
+class TestCrossSummaryShape(unittest.TestCase):
+    """Structure of cross_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_cross import cross_summary
+        cls.cross_summary = staticmethod(cross_summary)
+        cls._r = cross_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_matrix_is_list(self):
+        self.assertIsInstance(self._r['matrix'], list)
+
+    def test_frozen_cells_is_list(self):
+        self.assertIsInstance(self._r['frozen_cells'], list)
+
+    def test_sync_pairs_is_list(self):
+        self.assertIsInstance(self._r['sync_pairs'], list)
+
+    def test_mean_abs_r_float(self):
+        self.assertIsInstance(self._r['mean_abs_r'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.cross_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestBitplaneSummaryShape(unittest.TestCase):
+    """Structure of bitplane_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_bitplane import bitplane_summary
+        cls.bitplane_summary = staticmethod(bitplane_summary)
+        cls._r = bitplane_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_bit_periods_is_list(self):
+        self.assertIsInstance(self._r['bit_periods'], list)
+
+    def test_cell_activity_is_list(self):
+        self.assertIsInstance(self._r['cell_activity'], list)
+
+    def test_n_active_int(self):
+        self.assertIsInstance(self._r['n_active'], int)
+
+    def test_plane_hamming_is_list(self):
+        self.assertIsInstance(self._r['plane_hamming'], list)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.bitplane_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestSegmentSummaryShape(unittest.TestCase):
+    """Structure of segment_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_segment import segment_summary
+        cls.segment_summary = staticmethod(segment_summary)
+        cls._r = segment_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_n_cells_16(self):
+        self.assertEqual(self._r['n_cells'], 16)
+
+    def test_n_segments_is_list(self):
+        self.assertIsInstance(self._r['n_segments'], list)
+
+    def test_seg_lengths_is_list(self):
+        self.assertIsInstance(self._r['seg_lengths'], list)
+
+    def test_mean_n_segments_float(self):
+        self.assertIsInstance(self._r['mean_n_segments'], float)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.segment_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
+class TestLayerSummaryShape(unittest.TestCase):
+    """Structure of layer_summary() output."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_layer import layer_summary
+        cls.layer_summary = staticmethod(layer_summary)
+        cls._r = layer_summary('ГОРА', 'xor')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_word_field(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_rule_field(self):
+        self.assertEqual(self._r['rule'], 'xor')
+
+    def test_plane_density_is_list(self):
+        self.assertIsInstance(self._r['plane_density'], list)
+
+    def test_plane_periods_is_list(self):
+        self.assertIsInstance(self._r['plane_periods'], list)
+
+    def test_mean_density_list(self):
+        self.assertIsInstance(self._r['mean_density'], list)
+
+    def test_n_frozen_int(self):
+        self.assertIsInstance(self._r['n_frozen'], int)
+
+    def test_lcm_period_int(self):
+        self.assertIsInstance(self._r['lcm_period'], int)
+
+    def test_all_four_rules_return_dict(self):
+        for rule in ('xor', 'xor3', 'and', 'or'):
+            r = self.layer_summary('ВОДА', rule)
+            self.assertIsInstance(r, dict, f'rule={rule}')
+            self.assertEqual(r['rule'], rule)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
