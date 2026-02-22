@@ -1887,6 +1887,11 @@ class TestSolanDendrogram(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_build_dendrogram_returns_tuple(self):
+        from projects.hexglyph.solan_dendrogram import build_dendrogram
+        d = build_dendrogram(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, tuple)
 class TestSolanPredict(unittest.TestCase):
     """Tests for solan_predict.py and the viewer Prediction section."""
 
@@ -2386,6 +2391,11 @@ class TestSolanTransient(unittest.TestCase):
         d = all_full_signatures(['ГОРА', 'ВОДА'])
         self.assertIn('ГОРА', d)
         self.assertIn('ВОДА', d)
+
+    def test_build_transient_data_returns_dict(self):
+        from projects.hexglyph.solan_transient import build_transient_data
+        d = build_transient_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanRules(unittest.TestCase):
     """Tests for solan_rules.py and the viewer Rules section."""
 
@@ -2652,6 +2662,11 @@ class TestSolanRules(unittest.TestCase):
         self.assertIn('solan_rules', content)
 
 
+
+    def test_build_all_rules_returns_dict(self):
+        from projects.hexglyph.solan_rules import build_all_rules
+        d = build_all_rules(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanMds(unittest.TestCase):
     """Tests for solan_mds.py and the viewer MDS section."""
 
@@ -2880,6 +2895,11 @@ class TestSolanMds(unittest.TestCase):
         self.assertIn('solan_mds', content)
 
 
+
+    def test_build_mds_returns_tuple(self):
+        from projects.hexglyph.solan_mds import build_mds
+        d = build_mds(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, tuple)
 class TestSolanGraph(unittest.TestCase):
     """Tests for solan_graph.py and the viewer Graph section."""
 
@@ -3092,6 +3112,11 @@ class TestSolanGraph(unittest.TestCase):
         d = graph_summary(['ГОРА', 'ВОДА', 'ЛУНА'])
         for k in ['nodes', 'edges', 'components', 'threshold', 'width']:
             self.assertIn(k, d)
+
+    def test_build_graph_returns_dict(self):
+        from projects.hexglyph.solan_graph import build_graph
+        d = build_graph(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanMatrix(unittest.TestCase):
     """Tests for solan_matrix.py and the viewer Matrix section."""
 
@@ -3548,6 +3573,11 @@ class TestSolanSpectral(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_build_spectral_data_returns_dict(self):
+        from projects.hexglyph.solan_spectral import build_spectral_data
+        d = build_spectral_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanPhonemeAnalysis(unittest.TestCase):
     """Tests for solan_phoneme.py and the viewer Phoneme Analysis section."""
 
@@ -3833,6 +3863,11 @@ class TestSolanPhonemeAnalysis(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_build_phoneme_data_returns_dict(self):
+        from projects.hexglyph.solan_phoneme import build_phoneme_data
+        d = build_phoneme_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanComplexity(unittest.TestCase):
     """Tests for solan_complexity.py and the viewer LZ76 section."""
 
@@ -4089,6 +4124,11 @@ class TestSolanComplexity(unittest.TestCase):
         d = all_complexities('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_complexity_data_returns_dict(self):
+        from projects.hexglyph.solan_complexity import build_complexity_data
+        d = build_complexity_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanSpacetime(unittest.TestCase):
     """Tests for solan_spacetime.py and the viewer Space-time section."""
 
@@ -4357,6 +4397,11 @@ class TestSolanSpacetime(unittest.TestCase):
         d = all_st('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_st_data_returns_dict(self):
+        from projects.hexglyph.solan_spacetime import build_st_data
+        d = build_st_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanDamage(unittest.TestCase):
     """Tests for solan_damage.py and the viewer Damage Spreading section."""
 
@@ -4660,6 +4705,11 @@ class TestSolanDamage(unittest.TestCase):
         d = all_damage('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_damage_data_returns_dict(self):
+        from projects.hexglyph.solan_damage import build_damage_data
+        d = build_damage_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanSymbolic(unittest.TestCase):
     """Tests for solan_symbolic.py and the viewer Symbolic Dynamics section."""
 
@@ -5053,6 +5103,11 @@ class TestSolanSymbolic(unittest.TestCase):
         d = all_symbolic('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_symbolic_data_returns_dict(self):
+        from projects.hexglyph.solan_symbolic import build_symbolic_data
+        d = build_symbolic_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanNetwork(unittest.TestCase):
     """Tests for solan_network.py and the viewer Network section."""
 
@@ -5391,6 +5446,11 @@ class TestSolanNetwork(unittest.TestCase):
         d = all_network('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_network_data_returns_dict(self):
+        from projects.hexglyph.solan_network import build_network_data
+        d = build_network_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanPortrait(unittest.TestCase):
     """Tests for solan_portrait.py and the viewer Portrait section."""
 
@@ -5638,6 +5698,11 @@ class TestSolanPortrait(unittest.TestCase):
         d = all_portrait('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_portrait_data_returns_dict(self):
+        from projects.hexglyph.solan_portrait import build_portrait_data
+        d = build_portrait_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanCoarse(unittest.TestCase):
     """Tests for solan_coarse.py and the viewer Coarse-Graining section."""
 
@@ -5929,6 +5994,11 @@ class TestSolanCoarse(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_build_coarse_data_returns_dict(self):
+        from projects.hexglyph.solan_coarse import build_coarse_data
+        d = build_coarse_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanActive(unittest.TestCase):
     """Tests for solan_active.py and the viewer AIS section."""
 
@@ -6212,6 +6282,11 @@ class TestSolanActive(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_build_ais_data_returns_dict(self):
+        from projects.hexglyph.solan_active import build_ais_data
+        d = build_ais_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
         self.assertIsInstance(d, dict)
 class TestSolanTemporal(unittest.TestCase):
     """Tests for solan_temporal.py and the viewer Temporal DFT section."""
@@ -6512,6 +6587,11 @@ class TestSolanTemporal(unittest.TestCase):
         d = all_temporal('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_temporal_data_returns_dict(self):
+        from projects.hexglyph.solan_temporal import build_temporal_data
+        d = build_temporal_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanPersistence(unittest.TestCase):
     """Tests for solan_persistence.py and the viewer Persistence section."""
 
@@ -6809,6 +6889,11 @@ class TestSolanPersistence(unittest.TestCase):
         d = all_persistence('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_persistence_data_returns_dict(self):
+        from projects.hexglyph.solan_persistence import build_persistence_data
+        d = build_persistence_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanBlock(unittest.TestCase):
     """Tests for solan_block.py and the viewer Block Entropy section."""
 
@@ -7109,6 +7194,11 @@ class TestSolanBlock(unittest.TestCase):
         d = all_block('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_block_data_returns_dict(self):
+        from projects.hexglyph.solan_block import build_block_data
+        d = build_block_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanMultiscale(unittest.TestCase):
     """Tests for solan_multiscale.py and the viewer MSE section."""
 
@@ -7371,6 +7461,11 @@ class TestSolanMultiscale(unittest.TestCase):
         d = all_mse('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_mse_data_returns_dict(self):
+        from projects.hexglyph.solan_multiscale import build_mse_data
+        d = build_mse_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanChPlane(unittest.TestCase):
     """Tests for solan_ch_plane.py and the viewer C-H plane section."""
 
@@ -7672,6 +7767,11 @@ class TestSolanChPlane(unittest.TestCase):
         d = all_ch('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_ch_data_returns_dict(self):
+        from projects.hexglyph.solan_ch_plane import build_ch_data
+        d = build_ch_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanWperm(unittest.TestCase):
     """Tests for solan_wperm.py and the viewer WPE section."""
 
@@ -10296,6 +10396,11 @@ class TestSolanPerm(unittest.TestCase):
         d = all_pe('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_pe_data_returns_dict(self):
+        from projects.hexglyph.solan_perm import build_pe_data
+        d = build_pe_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanBasin(unittest.TestCase):
     """Tests for solan_basin.py and the viewer Basin section."""
 
@@ -10597,6 +10702,11 @@ class TestSolanBasin(unittest.TestCase):
         d = all_basins('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_basin_data_returns_dict(self):
+        from projects.hexglyph.solan_basin import build_basin_data
+        d = build_basin_data(words=['ГОРА', 'ВОДА'])
+        self.assertIsInstance(d, dict)
 class TestSolanBit(unittest.TestCase):
     """Tests for solan_bit.py and the viewer Bit-Plane section."""
 
@@ -10888,6 +10998,11 @@ class TestSolanBit(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_build_bit_plane_data_returns_dict(self):
+        from projects.hexglyph.solan_bit import build_bit_plane_data
+        d = build_bit_plane_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanTraj(unittest.TestCase):
     """Tests for solan_traj.py and the viewer Trajectory section."""
 
@@ -11166,6 +11281,11 @@ class TestSolanTraj(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
+        self.assertIsInstance(d, dict)
+
+    def test_build_trajectory_data_returns_dict(self):
+        from projects.hexglyph.solan_traj import build_trajectory_data
+        d = build_trajectory_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
         self.assertIsInstance(d, dict)
 class TestSolanSpatent(unittest.TestCase):
     """Tests for solan_spatent.py and the viewer Spatial Entropy section."""
@@ -11468,6 +11588,11 @@ class TestSolanSpatent(unittest.TestCase):
         self.assertIn('solan_spatent', content)
 
 
+
+    def test_build_spatent_data_returns_dict(self):
+        from projects.hexglyph.solan_spatent import build_spatent_data
+        d = build_spatent_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanEdge(unittest.TestCase):
     """Tests for solan_edge.py and the viewer Spatial Edge section."""
 
@@ -11813,6 +11938,11 @@ class TestSolanEdge(unittest.TestCase):
         self.assertIn('solan_edge', content)
 
 
+
+    def test_build_edge_data_returns_dict(self):
+        from projects.hexglyph.solan_edge import build_edge_data
+        d = build_edge_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanSymm(unittest.TestCase):
     """Tests for solan_symm.py and the viewer Rotational Symmetry section."""
 
@@ -16531,6 +16661,11 @@ class TestSolanBitplane(unittest.TestCase):
         self.assertIn('solan_bitplane', content)
 
 
+
+    def test_build_bitplane_data_returns_dict(self):
+        from projects.hexglyph.solan_bitplane import build_bitplane_data
+        d = build_bitplane_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanProfile(unittest.TestCase):
     """Tests for solan_profile.py — statistical moment profile."""
 
@@ -16830,6 +16965,11 @@ class TestSolanProfile(unittest.TestCase):
         self.assertIn('solan_profile', content)
 
 
+
+    def test_build_profile_data_returns_dict(self):
+        from projects.hexglyph.solan_profile import build_profile_data
+        d = build_profile_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanCoverage(unittest.TestCase):
     """Tests for solan_coverage.py — Q6 value coverage of CA orbits."""
 
@@ -17116,6 +17256,11 @@ class TestSolanCoverage(unittest.TestCase):
         self.assertIn('solan_coverage', content)
 
 
+
+    def test_build_coverage_data_returns_dict(self):
+        from projects.hexglyph.solan_coverage import build_coverage_data
+        d = build_coverage_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanRun(unittest.TestCase):
     """Tests for solan_run.py — cell temporal run analysis of Q6 CA orbits."""
 
@@ -17759,6 +17904,11 @@ class TestSolanCross(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_build_cross_data_returns_dict(self):
+        from projects.hexglyph.solan_cross import build_cross_data
+        d = build_cross_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanPCA(unittest.TestCase):
     """Tests for solan_pca.py — PCA of Q6 CA orbit trajectories."""
 
@@ -18099,6 +18249,11 @@ class TestSolanPCA(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_build_pca_data_returns_dict(self):
+        from projects.hexglyph.solan_pca import build_pca_data
+        d = build_pca_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanFourier(unittest.TestCase):
     """Tests for solan_fourier.py — DFT spectral analysis of Q6 CA orbits."""
 
@@ -18463,6 +18618,11 @@ class TestSolanFourier(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_build_fourier_data_returns_dict(self):
+        from projects.hexglyph.solan_fourier import build_fourier_data
+        d = build_fourier_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanMutual(unittest.TestCase):
     """Tests for solan_mutual.py — Mutual Information Analysis of Q6 CA orbits."""
 
@@ -19839,6 +19999,11 @@ class TestSolanDerrida2(unittest.TestCase):
         self.assertIsInstance(d, dict)
 
 
+
+    def test_build_derrida_data_returns_dict(self):
+        from projects.hexglyph.solan_derrida import build_derrida_data
+        d = build_derrida_data(n_random=10)
+        self.assertIsInstance(d, dict)
 class TestSolanRecurrence2(unittest.TestCase):
     """Replacement tests for solan_recurrence.py (standard *_summary convention)."""
 
@@ -20172,6 +20337,11 @@ class TestSolanRecurrence2(unittest.TestCase):
         d = all_recurrences('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_recurrence_data_returns_dict(self):
+        from projects.hexglyph.solan_recurrence import build_recurrence_data
+        d = build_recurrence_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanCorrelation2(unittest.TestCase):
     """Replacement tests for solan_correlation.py (standard *_summary convention)."""
 
@@ -20412,6 +20582,11 @@ class TestSolanCorrelation2(unittest.TestCase):
         d = all_autocorrs('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, list)
+
+    def test_build_correlation_data_returns_dict(self):
+        from projects.hexglyph.solan_correlation import build_correlation_data
+        d = build_correlation_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanLyapunov3(unittest.TestCase):
     """Merged replacement tests for solan_lyapunov.py — both A & B interfaces."""
 
@@ -20782,6 +20957,16 @@ class TestSolanLyapunov3(unittest.TestCase):
         d = all_lyapunov('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_lyapunov_data_returns_dict(self):
+        from projects.hexglyph.solan_lyapunov import build_lyapunov_data
+        d = build_lyapunov_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+
+    def test_build_mode_data_returns_dict(self):
+        from projects.hexglyph.solan_lyapunov import build_mode_data
+        d = build_mode_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanAutocorr2(unittest.TestCase):
     """Merged replacement tests for solan_autocorr.py."""
 
@@ -21093,6 +21278,11 @@ class TestSolanAutocorr2(unittest.TestCase):
         d = all_autocorr('ГОРА')
         for v in d.values():
             self.assertIsInstance(v, dict)
+
+    def test_build_autocorr_data_returns_dict(self):
+        from projects.hexglyph.solan_autocorr import build_autocorr_data
+        d = build_autocorr_data(words=['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
 class TestSolanHamming3(unittest.TestCase):
     """Tests for solan_hamming.py — Consecutive-step Hamming Distances & Cell Mobility."""
 
