@@ -2,13 +2,17 @@
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 
+import io
 import unittest
-from projects.hexforth.interpreter import HexForth, HexForthError
+from contextlib import redirect_stdout
+from unittest.mock import patch
+from projects.hexforth.interpreter import HexForth, HexForthError, repl
 import json as _json
 from projects.hexforth.compiler import compile_to_ir, to_python, to_json_bytecode, to_dot, path_stats
 from projects.hexforth.verifier import (
     build_transition_graph, reachable_from, shortest_path_in_graph,
     analyze_source, all_paths_bounded, fmt_path, ProgramAnalysis,
+    _parse_allowed_word,
 )
 from libs.hexcore.hexcore import flip, antipode, hamming
 
@@ -516,6 +520,10 @@ class TestVerifierExtended(unittest.TestCase):
         pa = analyze_source('ASSERT-EQ bar')
         self.assertFalse(pa.is_ok())
 
+    def test_parse_allowed_word_unknown_returns_none(self):
+        """_parse_allowed_word с неизвестным словом → None."""
+        self.assertIsNone(_parse_allowed_word('UNKNOWN_WORD', 0))
+
 
 class TestInterpreterExtended(unittest.TestCase):
     """Тесты для покрытия непокрытых ветвей interpreter.py."""
@@ -709,6 +717,232 @@ class TestCompilerCLI(unittest.TestCase):
             self.assertIn('def hexforth_program', content)
         finally:
             os.unlink(outfile)
+
+
+# ── дополнительные тесты interpreter.py ─────────────────────────────────────
+
+class TestInterpreterExtra(unittest.TestCase):
+    """Тесты непокрытых веток interpreter.py."""
+
+    def test_transition_non_neighbor_raises(self):
+        """_transition к не-соседу → HexForthError."""
+        h = HexForth(start=0)
+        with self.assertRaises(HexForthError):
+            h._transition(63)  # 63 не сосед 0 (расстояние = 6)
+
+    def test_parse_comment_stripping(self):
+        """Комментарий после # удаляется перед разбором."""
+        h = HexForth(start=0)
+        h.run('FLIP-0 # это комментарий')
+        self.assertEqual(h.state, 1)
+
+    def test_parse_empty_line_skipped(self):
+        """Пустые строки пропускаются при разборе."""
+        h = HexForth(start=0)
+        h.run('\n\n# комментарий\n\nFLIP-0')
+        self.assertEqual(h.state, 1)
+
+    def test_define_semicolon_before_colon_raises(self):
+        """DEFINE с ';' перед ':' → HexForthError."""
+        h = HexForth(start=0)
+        with self.assertRaises(HexForthError):
+            h.run('DEFINE FOO ; : FLIP-0')
+
+    def test_run_file(self):
+        """run_file читает программу из файла и выполняет её."""
+        import tempfile, os
+        src = 'FLIP-0\nFLIP-1\n'
+        with tempfile.NamedTemporaryFile('w', suffix='.hf', delete=False) as f:
+            f.write(src)
+            fname = f.name
+        try:
+            h = HexForth(start=0)
+            h.run_file(fname)
+            self.assertEqual(h.state, 3)  # bits 0 and 1 flipped
+        finally:
+            os.unlink(fname)
+
+    def test_summary_returns_string(self):
+        """summary() возвращает строку с информацией о пути."""
+        h = HexForth(start=0)
+        h.run('FLIP-0 FLIP-1')
+        s = h.summary()
+        self.assertIn('Конечная гексаграмма', s)
+        self.assertIn('Путь', s)
+
+
+class TestRepl(unittest.TestCase):
+    """Тесты repl() с мок-вводом."""
+
+    def _run_repl(self, inputs, start=0):
+        buf = io.StringIO()
+        with patch('builtins.input', side_effect=inputs):
+            with redirect_stdout(buf):
+                repl(start=start)
+        return buf.getvalue()
+
+    def test_quit_with_q(self):
+        """'q' завершает REPL."""
+        out = self._run_repl(['q'])
+        self.assertIn('HexForth', out)
+
+    def test_quit_with_quit(self):
+        """'quit' завершает REPL."""
+        out = self._run_repl(['quit'])
+        self.assertIn('HexForth', out)
+
+    def test_empty_line_continues(self):
+        """Пустая строка → продолжить (не завершить)."""
+        out = self._run_repl(['', 'q'])
+        self.assertIn('HexForth', out)
+
+    def test_valid_command_executes(self):
+        """Корректная команда выполняется и показывает output."""
+        out = self._run_repl(['FLIP-0', 'q'])
+        self.assertIsInstance(out, str)
+
+    def test_error_in_command(self):
+        """Ошибка в команде → печатает сообщение, не падает."""
+        out = self._run_repl(['NONEXISTENT_WORD', 'q'])
+        self.assertIn('Ошибка', out)
+
+    def test_eof_exits_gracefully(self):
+        """EOFError → graceful exit."""
+        buf = io.StringIO()
+        with patch('builtins.input', side_effect=EOFError()):
+            with redirect_stdout(buf):
+                repl(start=0)
+        self.assertIn('HexForth', buf.getvalue())
+
+
+class TestInterpreterMainCLI(unittest.TestCase):
+    """Тесты main() интерпретатора."""
+
+    def _run_main(self, args):
+        from projects.hexforth.interpreter import main
+        old_argv = sys.argv
+        sys.argv = ['hexforth.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_repl_flag(self):
+        """--repl запускает REPL (сразу q)."""
+        with patch('builtins.input', return_value='q'):
+            out = self._run_main(['--repl'])
+        self.assertIn('HexForth', out)
+
+    def test_no_file_starts_repl(self):
+        """Без файла запускается REPL."""
+        with patch('builtins.input', return_value='q'):
+            out = self._run_main([])
+        self.assertIn('HexForth', out)
+
+    def test_run_file_verbose(self):
+        """С файлом и --verbose выполняет программу."""
+        import tempfile, os
+        src = 'DEBUG\n'
+        with tempfile.NamedTemporaryFile('w', suffix='.hf', delete=False) as f:
+            f.write(src)
+            fname = f.name
+        try:
+            out = self._run_main([fname, '--verbose'])
+            self.assertIsInstance(out, str)
+        finally:
+            os.unlink(fname)
+
+    def test_run_file_error_exits(self):
+        """Файл с ошибкой → stderr + sys.exit(1)."""
+        import tempfile, os
+        src = 'NONEXISTENT_WORD\n'
+        with tempfile.NamedTemporaryFile('w', suffix='.hf', delete=False) as f:
+            f.write(src)
+            fname = f.name
+        try:
+            from projects.hexforth.interpreter import main
+            old_argv = sys.argv
+            sys.argv = ['hexforth.py', fname]
+            try:
+                with self.assertRaises(SystemExit) as cm:
+                    main()
+                self.assertEqual(cm.exception.code, 1)
+            finally:
+                sys.argv = old_argv
+        finally:
+            os.unlink(fname)
+
+
+class TestVerifierCLI(unittest.TestCase):
+    """CLI-тесты для hexforth/verifier.py main()."""
+
+    def _run(self, args, expect_exit=None):
+        from projects.hexforth.verifier import main as verifier_main
+        old_argv = sys.argv
+        sys.argv = ['verifier.py'] + args
+        buf = io.StringIO()
+        try:
+            if expect_exit is not None:
+                with self.assertRaises(SystemExit) as cm:
+                    with redirect_stdout(buf):
+                        verifier_main()
+                self.assertEqual(cm.exception.code, expect_exit)
+            else:
+                with redirect_stdout(buf):
+                    verifier_main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_no_args_shows_reachable(self):
+        out = self._run([])
+        self.assertIn('Достижимо', out)
+
+    def test_target_reachable(self):
+        out = self._run(['--target', '1'])
+        self.assertIn('OK', out)
+
+    def test_target_unreachable(self):
+        # FLIP-1 flips bit 1 (gives 2), so target 1 unreachable with only FLIP-1
+        out = self._run(['--target', '1', '--allowed', 'FLIP-1'], expect_exit=1)
+        self.assertIn('FAIL', out)
+
+    def test_target_with_all_paths(self):
+        out = self._run(['--target', '1', '--all-paths', '--max-path', '3'])
+        self.assertIn('пути', out)
+
+    def test_reachable_flag(self):
+        out = self._run(['--reachable'], expect_exit=0)
+        self.assertIn('Достижимо', out)
+
+    def test_file_check_syntax_ok(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile('w', suffix='.hf', delete=False) as f:
+            f.write('FLIP-0 FLIP-1\n')
+            fname = f.name
+        try:
+            out = self._run([fname, '--check-syntax'], expect_exit=0)
+            self.assertIn('OK', out)
+        finally:
+            os.unlink(fname)
+
+    def test_file_check_syntax_error(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile('w', suffix='.hf', delete=False) as f:
+            f.write('GOTO\n')  # GOTO without arg → error
+            fname = f.name
+        try:
+            out = self._run([fname, '--check-syntax'], expect_exit=1)
+            self.assertIn('FAIL', out)
+        finally:
+            os.unlink(fname)
+
+    def test_target_out_of_range(self):
+        out = self._run(['--target', '100'], expect_exit=1)
+        self.assertIn('Ошибка', out)
 
 
 if __name__ == '__main__':

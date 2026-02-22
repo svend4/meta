@@ -423,5 +423,62 @@ class TestFeistel(unittest.TestCase):
         self.assertTrue(fc.is_permutation())
 
 
+class TestCryptCLI(unittest.TestCase):
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexcrypt.hexcrypt import main
+        old_argv = sys.argv
+        sys.argv = ['hexcrypt.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_info_affine(self):
+        out = self._run(['info', 'affine'])
+        self.assertIn('affine', out)
+
+    def test_cmd_info_identity(self):
+        out = self._run(['info', 'identity'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_table(self):
+        out = self._run(['table', 'affine'])
+        self.assertIn('affine', out)
+
+    def test_cmd_stream(self):
+        out = self._run(['stream', '7', '16'])
+        self.assertIn('Ключ', out)
+
+    def test_cmd_feistel_demo(self):
+        out = self._run(['feistel'])
+        self.assertIn('Фейстеля', out)
+
+    def test_cmd_feistel_perm(self):
+        out = self._run(['feistel', 'perm'])
+        self.assertIn('перестановкой', out)
+
+    def test_cmd_search_not_found(self):
+        # high min_nl → no result found quickly
+        out = self._run(['search', '100', '5'])
+        self.assertIn('найден', out.lower())
+
+    def test_cmd_sac(self):
+        out = self._run(['sac', 'affine'])
+        self.assertIn('SAC', out)
+
+    def test_cmd_help(self):
+        out = self._run([])
+        self.assertIn('hexcrypt', out)
+
+    def test_cmd_unknown(self):
+        out = self._run(['unknown'])
+        self.assertIn('hexcrypt', out)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

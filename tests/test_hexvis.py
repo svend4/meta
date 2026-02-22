@@ -238,6 +238,25 @@ class TestToSvg(unittest.TestCase):
         svg = to_svg(set())
         self.assertIn('<svg', svg)
 
+    def test_svg_with_highlights(self):
+        """to_svg с highlights рисует выделенную вершину."""
+        svg = to_svg({0, 1, 3}, highlights={0})
+        self.assertIn('<svg', svg)
+        # Выделенная вершина имеет белый stroke
+        self.assertIn('#ffffff', svg)
+
+    def test_svg_edge_with_missing_vertex(self):
+        """Рёбра с вершинами вне vertices пропускаются (continue)."""
+        # Edge (0, 42) but 42 not in vertices → should be skipped gracefully
+        svg = to_svg({0, 1}, edges={(0, 1), (0, 42)})
+        self.assertIn('<svg', svg)
+
+    def test_svg_path_with_vertex_outside_set(self):
+        """Вершина пути вне vertices пропускается (continue)."""
+        # Path includes vertex 42 which is not in vertices {0, 1}
+        svg = to_svg({0, 1}, path=[0, 1, 42])
+        self.assertIn('<svg', svg)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

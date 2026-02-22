@@ -536,5 +536,57 @@ class TestInformationMeasures(unittest.TestCase):
             self.assertAlmostEqual(d.mean_yang(), target, places=4)
 
 
+class TestStatCLI(unittest.TestCase):
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexstat.hexstat import main
+        old_argv = sys.argv
+        sys.argv = ['hexstat.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        self.assertIn('H =', out)
+
+    def test_cmd_sample(self):
+        out = self._run(['sample', '200'])
+        self.assertIn('χ²', out)
+
+    def test_cmd_entropy(self):
+        out = self._run(['entropy'])
+        self.assertIn('β=', out)
+
+    def test_cmd_correlation_uniform(self):
+        out = self._run(['correlation', 'uniform'])
+        self.assertIn('ковариаций', out)
+
+    def test_cmd_correlation_yang(self):
+        out = self._run(['correlation', 'yang'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_correlation_bsc(self):
+        out = self._run(['correlation', 'bsc'])
+        self.assertGreater(len(out), 0)
+
+    def test_cmd_test(self):
+        out = self._run(['test'])
+        self.assertIn('CI', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexstat', out)
+
+    def test_cmd_unknown(self):
+        out = self._run(['unknown'])
+        self.assertIn('hexstat', out)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

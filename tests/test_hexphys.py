@@ -595,5 +595,50 @@ class TestCompareExactAndMCMC(unittest.TestCase):
         self.assertEqual(r1['mcmc_E'], r2['mcmc_E'])
 
 
+class TestPhysCLI(unittest.TestCase):
+    def _run(self, args):
+        import io
+        import sys
+        from contextlib import redirect_stdout
+        from projects.hexphys.hexphys import main
+        old_argv = sys.argv
+        sys.argv = ['hexphys.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_ising(self):
+        out = self._run(['ising', '1.0'])
+        self.assertIn('β=', out)
+
+    def test_cmd_yang(self):
+        out = self._run(['yang', '1.0'])
+        self.assertIn('⟨N⟩', out)
+
+    def test_cmd_mcmc(self):
+        out = self._run(['mcmc', '1.0', '1.0'])
+        self.assertIn('МСМС', out)
+
+    def test_cmd_quantum(self):
+        out = self._run(['quantum'])
+        self.assertIn('P(|000000⟩)', out)
+
+    def test_cmd_correlator(self):
+        out = self._run(['correlator', '1.0', '1.0'])
+        self.assertIn('⟨σ₀σ_', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexphys', out)
+
+    def test_cmd_unknown(self):
+        out = self._run(['unknown'])
+        self.assertIn('hexphys', out)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

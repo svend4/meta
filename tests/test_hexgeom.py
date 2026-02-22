@@ -460,5 +460,51 @@ class TestCliqueAtDistance(unittest.TestCase):
             self.assertLessEqual(clique_number_at_distance(d), 64)
 
 
+class TestGeomCLI(unittest.TestCase):
+    """Тесты main() hexgeom."""
+
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexgeom.hexgeom import main
+        old_argv = sys.argv
+        sys.argv = ['hexgeom.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_ball(self):
+        out = self._run(['ball', '0', '2'])
+        self.assertIn('B(', out)
+
+    def test_cmd_voronoi(self):
+        out = self._run(['voronoi', '[0, 63]'])
+        self.assertIn('Вороного', out)
+
+    def test_cmd_interval(self):
+        out = self._run(['interval', '0', '7'])
+        self.assertIn('I(', out)
+
+    def test_cmd_packing(self):
+        out = self._run(['packing'])
+        self.assertIn('r=', out)
+
+    def test_cmd_dist(self):
+        out = self._run(['dist', '[0, 63]'])
+        self.assertIn('расстояний', out)
+
+    def test_cmd_bounds(self):
+        out = self._run(['bounds'])
+        self.assertIn('Johnson', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexgeom', out)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -415,6 +415,19 @@ class TestPseudoQR(unittest.TestCase):
         s = grid_to_string(grid, show_bits=True)
         self.assertIn('000000', s)   # бит-строка гексаграммы 0
 
+    def test_grid_to_string_default(self):
+        """grid_to_string без show_bits возвращает строку с разделителями."""
+        grid = q6_as_8x8_grid('trigram')
+        s = grid_to_string(grid)  # show_bits=False по умолчанию
+        self.assertIsInstance(s, str)
+        self.assertIn('│', s)  # разделители строки
+
+    def test_grid_to_string_with_none(self):
+        """grid_to_string с None-элементами показывает '?'."""
+        grid_with_none = [[0, None, 1], [2, 3, None]]
+        s = grid_to_string(grid_with_none)
+        self.assertIn('?', s)
+
     def test_q12_transformed_output(self):
         """q12_transformed возвращает гексаграмму ∈ [0, 63]."""
         code = q12_hexagram([0, 1, 2, 3, 0, 3])
@@ -516,6 +529,60 @@ class TestDimensionInfo(unittest.TestCase):
         info = dimension_info()
         self.assertEqual(info[3]['vertices'], 8)
         self.assertEqual(info[3]['count_in_q6'], 160)
+
+
+class TestDimCLI(unittest.TestCase):
+    """Тесты main() hexdim."""
+
+    def _run(self, args):
+        import io
+        from contextlib import redirect_stdout
+        from projects.hexdim.hexdim import main
+        old_argv = sys.argv
+        sys.argv = ['hexdim.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        self.assertIn('Q6', out)
+
+    def test_cmd_hexagram_default(self):
+        out = self._run(['hexagram'])
+        self.assertIn('Гексаграмма', out)
+
+    def test_cmd_hexagram_with_arg(self):
+        out = self._run(['hexagram', '7'])
+        self.assertIn('7', out)
+
+    def test_cmd_tesseracts(self):
+        out = self._run(['tesseracts'])
+        self.assertIn('тессерактов', out)
+
+    def test_cmd_grid_default(self):
+        out = self._run(['grid'])
+        self.assertIn('8×8', out)
+
+    def test_cmd_gray(self):
+        out = self._run(['gray'])
+        self.assertIn('Грея', out)
+
+    def test_cmd_q12_default(self):
+        out = self._run(['q12'])
+        self.assertIn('Q12', out)
+
+    def test_cmd_projection(self):
+        out = self._run(['projection'])
+        self.assertIn('3D', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexdim', out)
 
 
 if __name__ == '__main__':

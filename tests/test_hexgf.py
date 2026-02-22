@@ -120,6 +120,12 @@ class TestGFMultiplication(unittest.TestCase):
             for b in range(1, 64, 7):
                 self.assertEqual(gf_mul_via_log(a, b), gf_mul(a, b))
 
+    def test_mul_via_log_zero(self):
+        """gf_mul_via_log(0, b) = 0 и gf_mul_via_log(a, 0) = 0."""
+        for a in range(1, 64, 13):
+            self.assertEqual(gf_mul_via_log(0, a), 0)
+            self.assertEqual(gf_mul_via_log(a, 0), 0)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 class TestGFInverse(unittest.TestCase):
@@ -178,6 +184,11 @@ class TestGFTables(unittest.TestCase):
         """gf_exp(gf_log(a)) = a для a ≠ 0."""
         for a in range(1, 64):
             self.assertEqual(gf_exp(gf_log(a)), a)
+
+    def test_log_zero_raises(self):
+        """gf_log(0) → ValueError (log(0) не определён)."""
+        with self.assertRaises(ValueError):
+            gf_log(0)
 
     def test_log_exp_inverse(self):
         """gf_log(gf_exp(k)) = k mod 63."""
@@ -273,6 +284,11 @@ class TestGFPrimitivity(unittest.TestCase):
         for a in range(1, 64):
             self.assertEqual(ORDER % element_order(a), 0)
 
+    def test_element_order_zero_raises(self):
+        """element_order(0) → ValueError."""
+        with self.assertRaises(ValueError):
+            element_order(0)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 class TestCyclotomicCosets(unittest.TestCase):
@@ -288,6 +304,16 @@ class TestCyclotomicCosets(unittest.TestCase):
             coset = cyclotomic_coset_of(a)
             for c in coset:
                 self.assertIn(frobenius(c), coset)
+
+    def test_coset_of_zero(self):
+        """cyclotomic_coset_of(0) = frozenset([0])."""
+        coset = cyclotomic_coset_of(0)
+        self.assertEqual(coset, frozenset([0]))
+
+    def test_frobenius_orbit_nonzero(self):
+        """frobenius_orbit(a) = cyclotomic_coset_of(a) для a ≠ 0."""
+        for a in [1, 7, 11, 42]:
+            self.assertEqual(frobenius_orbit(a), cyclotomic_coset_of(a))
 
     def test_all_cosets_partition(self):
         """Все классы разбивают {0,...,62} (+ дополнительный для показателя 0)."""
@@ -553,6 +579,61 @@ class TestZechLogTable(unittest.TestCase):
             expected = exp[k] ^ exp[k_prime]
             actual = exp[(k + z_val) % 63]
             self.assertEqual(actual, expected)
+
+
+class TestCLI(unittest.TestCase):
+    """Тесты CLI hexgf — команды main()."""
+
+    def _run(self, args):
+        import io, sys
+        from projects.hexgf.hexgf import main
+        old_argv = sys.argv
+        old_stdout = sys.stdout
+        sys.argv = ['hexgf.py'] + args
+        sys.stdout = io.StringIO()
+        try:
+            main()
+            return sys.stdout.getvalue()
+        finally:
+            sys.argv = old_argv
+            sys.stdout = old_stdout
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        self.assertIn('GF(2^6)', out)
+
+    def test_cmd_mul_default(self):
+        out = self._run(['mul'])
+        self.assertIn('*', out)
+
+    def test_cmd_mul_with_args(self):
+        out = self._run(['mul', '7', '3'])
+        self.assertIn('7', out)
+        self.assertIn('3', out)
+
+    def test_cmd_power(self):
+        out = self._run(['power'])
+        self.assertIn('g^', out)
+
+    def test_cmd_cosets(self):
+        out = self._run(['cosets'])
+        self.assertIn('C_', out)
+
+    def test_cmd_minpoly_default(self):
+        out = self._run(['minpoly'])
+        self.assertIn('x^', out)
+
+    def test_cmd_minpoly_with_arg(self):
+        out = self._run(['minpoly', '3'])
+        self.assertIn('3', out)
+
+    def test_cmd_trace(self):
+        out = self._run(['trace'])
+        self.assertIn('Tr=', out)
+
+    def test_cmd_help(self):
+        out = self._run(['help'])
+        self.assertIn('hexgf', out)
 
 
 if __name__ == '__main__':

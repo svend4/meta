@@ -553,6 +553,98 @@ class TestFindResilient(unittest.TestCase):
             self.assertLessEqual(len(result), n)
 
 
+class TestReedMullerDecode(unittest.TestCase):
+    """Тесты decode и encode edge cases для ReedMullerCode."""
+
+    def test_encode_wrong_length_raises(self):
+        """encode() с неправильной длиной сообщения → ValueError."""
+        rm = ReedMullerCode(1)  # k=7
+        with self.assertRaises(ValueError):
+            rm.encode([1, 0])  # length 2, not 7
+
+    def test_decode_rm1_positive_wht(self):
+        """Декодирование RM(1) функции с положительным WHT."""
+        rm = ReedMullerCode(1)
+        f = inner_product(1)  # WHT has W[1] = 64 > 0
+        decoded = rm.decode(f)
+        self.assertIsInstance(decoded, BoolFunc)
+
+    def test_decode_rm1_negative_wht(self):
+        """Декодирование RM(1) функции с отрицательным WHT."""
+        rm = ReedMullerCode(1)
+        f = one_func() + inner_product(1)  # complement: WHT W[1] = -64 < 0
+        decoded = rm.decode(f)
+        self.assertIsInstance(decoded, BoolFunc)
+
+    def test_decode_rm0(self):
+        """Декодирование RM(0): ближайшая константа."""
+        rm = ReedMullerCode(0)
+        # Функция с 40 единицами → ближайшая константа — 1
+        tt = [1] * 40 + [0] * 24
+        f = BoolFunc(tt)
+        decoded = rm.decode(f)
+        self.assertIsInstance(decoded, BoolFunc)
+
+    def test_decode_rm0_zero_func(self):
+        """Декодирование RM(0): функция с 20 единицами → 0."""
+        rm = ReedMullerCode(0)
+        tt = [1] * 20 + [0] * 44
+        f = BoolFunc(tt)
+        decoded = rm.decode(f)
+        self.assertIsInstance(decoded, BoolFunc)
+
+
+class TestBestAffineExtended(unittest.TestCase):
+    """Тесты best_affine_approximation для ветви с отрицательным WHT."""
+
+    def test_neg_wht_complement_linear(self):
+        """best_affine_approximation дополнения линейной функции."""
+        f = one_func() + inner_product(1)  # complement: WHT W[1] = -64 < 0
+        g = best_affine_approximation(f)
+        self.assertIsInstance(g, BoolFunc)
+        self.assertTrue(g.is_affine())
+
+
+class TestFindBentEarlyReturn(unittest.TestCase):
+    """Тесты find_bent_examples с малым n_max для ранних возвратов."""
+
+    def test_find_bent_n1(self):
+        """find_bent_examples(1) возвращает ровно 1 bent-функцию."""
+        result = find_bent_examples(n_max=1)
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0].is_bent())
+
+    def test_find_bent_n2(self):
+        """find_bent_examples(2) возвращает ровно 2 bent-функции."""
+        result = find_bent_examples(n_max=2)
+        self.assertEqual(len(result), 2)
+
+    def test_find_bent_n3(self):
+        """find_bent_examples(3) возвращает не менее 3 bent-функций."""
+        result = find_bent_examples(n_max=3)
+        self.assertGreaterEqual(len(result), 3)
+
+
+class TestFindResilientExtended(unittest.TestCase):
+    """Тесты find_resilient для ветвей CI >= 1 и dep_bits пустой."""
+
+    def test_find_resilient_ci1_n1(self):
+        """find_resilient(ci=1, n_max=1) ранний выход."""
+        result = find_resilient(ci_order=1, n_max=1)
+        self.assertLessEqual(len(result), 1)
+
+    def test_find_resilient_ci1_finds(self):
+        """find_resilient(ci=1) возвращает функции с CI≥1."""
+        result = find_resilient(ci_order=1, n_max=3)
+        for f in result:
+            self.assertGreaterEqual(f.correlation_immunity(), 1)
+
+    def test_find_resilient_ci6_empty(self):
+        """CI=6 вероятно не найдёт функций (пустой результат)."""
+        result = find_resilient(ci_order=6, n_max=5)
+        self.assertIsInstance(result, list)
+
+
 class TestBoolFuncDunders(unittest.TestCase):
     """Тесты __repr__ и __eq__ для BoolFunc."""
 

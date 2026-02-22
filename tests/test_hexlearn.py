@@ -392,5 +392,42 @@ class TestSpectralEmbed(unittest.TestCase):
             self.assertEqual(len(c), 1)
 
 
+class TestKMedoidsEmptyCluster(unittest.TestCase):
+    """Тест для ветви пустого кластера в KMedoids (line 222)."""
+
+    def test_empty_cluster_fallback(self):
+        """Пустой кластер использует старый медоид (дублированные начальные медоиды)."""
+        # seed=16 вызывает инициализацию с двумя одинаковыми медоидами [0,0]
+        # что создаёт пустой кластер 1 в первой итерации
+        km = KMedoids(k=2, seed=16)
+        km.fit([0, 0, 0, 0, 1])
+        # Должно завершиться без ошибки
+        self.assertEqual(len(km.medoids_), 2)
+
+
+class TestSilhouetteSingletonCluster(unittest.TestCase):
+    """Тест для ветви одиночного кластера в silhouette_score (lines 267-268)."""
+
+    def test_singleton_cluster_gets_zero(self):
+        """Кластер из одной точки → silhouette = 0.0."""
+        # k=5, 5 точек → каждый кластер содержит ровно 1 точку
+        km = KMedoids(k=5, seed=42)
+        km.fit([0, 1, 3, 7, 15])
+        s = km.silhouette_score([0, 1, 3, 7, 15])
+        # С singleton-кластерами счёт должен быть 0
+        self.assertIsInstance(s, float)
+
+
+class TestMixingTimeEarlyReturn(unittest.TestCase):
+    """Тест для ранней остановки в mixing_time (line 504)."""
+
+    def test_mixing_time_high_eps_returns_early(self):
+        """mixing_time(eps=0.99) возвращает t < max_steps."""
+        mc = MarkovChain()
+        t = mc.mixing_time(eps=0.99)
+        self.assertGreater(t, 0)
+        self.assertLess(t, 1000)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

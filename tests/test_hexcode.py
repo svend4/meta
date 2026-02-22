@@ -464,5 +464,72 @@ class TestPlotkinBoundHighD(unittest.TestCase):
         self.assertFalse(plotkin_bound(3, 4))
 
 
+class TestFullSpaceCodeEdgeCases(unittest.TestCase):
+    """Тесты для full_space_code (k=n=6, r=0) — непокрытые ветви."""
+
+    def test_parity_check_matrix_full_space_empty(self):
+        """full_space_code имеет пустую проверочную матрицу (r=0)."""
+        code = full_space_code()
+        H = code.parity_check_matrix()
+        self.assertEqual(H, [])
+
+    def test_syndrome_table_full_space_empty(self):
+        """Синдромная таблица для full_space_code пустая (нет проверочной матрицы)."""
+        code = full_space_code()
+        table = code._build_syndrome_table()
+        self.assertEqual(table, {})
+
+    def test_decode_full_space_codeword(self):
+        """decode для full_space_code (без H): валидное слово возвращается."""
+        code = full_space_code()
+        # Все 64 слова — кодовые
+        result = code.decode(42)
+        self.assertEqual(result, 42)
+
+    def test_decode_full_space_all_codewords(self):
+        """decode для full_space_code: любое слово является кодовым."""
+        code = full_space_code()
+        for h in [0, 1, 63]:
+            result = code.decode(h)
+            self.assertEqual(result, h)
+
+    def test_dual_full_space_raises(self):
+        """dual(full_space_code) → ValueError (нет нетривиального двойственного)."""
+        code = full_space_code()
+        with self.assertRaises(ValueError):
+            BinaryCode.dual(code)
+
+    def test_decode_uncorrectable_error(self):
+        """decode с синдромом вне таблицы → None."""
+        code = repetition_code()  # [6,1,6], t=2
+        # Слова с весом 3 (на равном расстоянии от 0 и 63): синдром не в таблице
+        # Проверено: decode(7) = None
+        result = code.decode(7)
+        self.assertIsNone(result)
+
+
+class TestFindCodesExtended(unittest.TestCase):
+    """Тесты find_codes с параметром k>1 для покрытия ветвей поиска."""
+
+    def test_find_codes_k2_d3(self):
+        """find_codes(d_min=3, k=2) находит [6,2,≥3] коды."""
+        codes = find_codes(d_min=3, k=2)
+        self.assertIsInstance(codes, list)
+        for c in codes:
+            self.assertEqual(c.k, 2)
+            self.assertGreaterEqual(c.min_distance(), 3)
+
+    def test_find_codes_k2_d2(self):
+        """find_codes(d_min=2, k=2) находит некоторые коды."""
+        codes = find_codes(d_min=2, k=2)
+        self.assertIsInstance(codes, list)
+        self.assertGreater(len(codes), 0)
+
+    def test_find_codes_high_d_empty_k1(self):
+        """find_codes(d_min=7, k=1) → пусто (нет кодов с d≥7 на 6 битах)."""
+        codes = find_codes(d_min=7, k=1)
+        self.assertEqual(codes, [])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

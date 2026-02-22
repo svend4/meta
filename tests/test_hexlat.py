@@ -453,3 +453,50 @@ class TestCLI:
     def test_cmd_antichain_produces_output(self):
         out = self._capture(_cmd_antichain)
         assert '20' in out
+
+
+# ============================================================
+# CLI main()
+# ============================================================
+
+class TestMainCLI:
+    def _run(self, args):
+        import sys
+        from projects.hexlat.hexlat import main
+        old_argv = sys.argv
+        sys.argv = ['hexlat.py'] + args
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_no_args_shows_usage(self):
+        out = self._run([])
+        assert 'Использование' in out
+
+    def test_cmd_info(self):
+        out = self._run(['info'])
+        assert len(out) > 0
+
+    def test_cmd_interval(self):
+        out = self._run(['interval', '0', '7'])
+        assert len(out) > 0
+
+    def test_cmd_mobius(self):
+        out = self._run(['mobius', '0', '63'])
+        assert len(out) > 0
+
+    def test_cmd_chains(self):
+        out = self._run(['chains'])
+        assert '720' in out
+
+    def test_cmd_antichain(self):
+        out = self._run(['antichain'])
+        assert '20' in out
+
+    def test_unknown_cmd(self):
+        out = self._run(['xyz'])
+        assert 'Неизвестная' in out

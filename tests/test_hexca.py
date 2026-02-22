@@ -523,6 +523,34 @@ class TestAnimate(unittest.TestCase):
                 animate_2d('xor_rule', 4, 4, 1, 0, False, 'single')
 
 
+class TestHexcaCLI(unittest.TestCase):
+    """Тесты main() из hexca.py."""
+
+    def _run(self, args):
+        from projects.hexca.hexca import main as hexca_main
+        buf = io.StringIO()
+        old_argv = sys.argv
+        sys.argv = ['hexca.py'] + args
+        try:
+            with redirect_stdout(buf):
+                hexca_main()
+        finally:
+            sys.argv = old_argv
+        return buf.getvalue()
+
+    def test_list_rules(self):
+        out = self._run(['--list-rules'])
+        self.assertIn('xor_rule', out)
+
+    def test_mode_1d(self):
+        out = self._run(['--mode', '1d', '--steps', '2', '--width', '4', '--rule', 'xor_rule'])
+        self.assertIn('hexca', out.lower())
+
+    def test_mode_2d(self):
+        out = self._run(['--mode', '2d', '--steps', '1', '--width', '4', '--height', '4'])
+        self.assertGreater(len(out), 0)
+
+
 class TestAnimateCLI(unittest.TestCase):
     """Тесты main() из animate.py."""
 

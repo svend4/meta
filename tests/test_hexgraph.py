@@ -386,5 +386,67 @@ class TestAnalyze(unittest.TestCase):
         self.assertEqual(info['girth'], 4)
 
 
+class TestHamiltonianBacktracking(unittest.TestCase):
+    """Тесты для ветвей с откатом в поиске гамильтонова пути/цикла."""
+
+    def test_hamiltonian_path_dead_end_backtracks(self):
+        """DFS делает откат (pop/remove) при тупике в звёздном подграфе."""
+        # Звезда: 0 соединён с 1, 2, 4; с точки зрения 1 → тупик
+        path = induced_subgraph({0, 1, 2, 4}).find_hamiltonian_path(start=1)
+        self.assertIsNone(path)
+
+    def test_hamiltonian_cycle_path_no_cycle_backtracks(self):
+        """Путь 0-1-3 не имеет гамильтонова цикла → None с откатами."""
+        cycle = induced_subgraph({0, 1, 3}).find_hamiltonian_cycle()
+        self.assertIsNone(cycle)
+
+    def test_hamiltonian_cycle_4_vertices(self):
+        """4-цикл {0,1,2,3} имеет гамильтонов цикл."""
+        cycle = induced_subgraph({0, 1, 2, 3}).find_hamiltonian_cycle()
+        self.assertIsNotNone(cycle)
+        self.assertEqual(len(set(cycle)), 4)
+
+
+class TestIsomorphismEdgeCases(unittest.TestCase):
+    """Тесты для непокрытых ветвей is_isomorphic_to."""
+
+    def test_different_edge_count(self):
+        """Разное число рёбер → False (line 385)."""
+        g1 = induced_subgraph({0, 1, 3})   # 2 ребра: 0-1, 1-3
+        g2 = induced_subgraph({0, 1, 42})  # 1 ребро: только 0-1
+        self.assertFalse(g1.is_isomorphic_to(g2))
+
+    def test_different_degree_sequence_same_edges(self):
+        """Одинаковое число рёбер, разные последовательности степеней → False (line 387)."""
+        # {0,1,2,4}: звезда 0→1,2,4 (3 ребра, степени [3,1,1,1])
+        # {0,1,3,7}: путь 0-1-3-7 (3 ребра, степени [1,2,2,1])
+        g1 = induced_subgraph({0, 1, 2, 4})
+        g2 = induced_subgraph({0, 1, 3, 7})
+        self.assertFalse(g1.is_isomorphic_to(g2))
+
+    def test_too_large_raises(self):
+        """Граф с > 12 вершинами → ValueError (line 389)."""
+        g = induced_subgraph(set(range(16)))
+        with self.assertRaises(ValueError):
+            g.is_isomorphic_to(g)
+
+
+class TestAnalyzeDisconnected(unittest.TestCase):
+    """Тесты analyze() для несвязного подграфа (lines 608-609)."""
+
+    def test_analyze_disconnected_has_components(self):
+        """analyze несвязного графа содержит 'components'."""
+        g = induced_subgraph({0, 42})
+        info = analyze(g)
+        self.assertIn('components', info)
+        self.assertGreater(info['components'], 1)
+
+    def test_analyze_disconnected_no_diameter(self):
+        """Несвязный граф не имеет ключа 'diameter' в analyze."""
+        g = induced_subgraph({0, 42})
+        info = analyze(g)
+        self.assertNotIn('diameter', info)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
