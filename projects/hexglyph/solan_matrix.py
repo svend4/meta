@@ -257,6 +257,26 @@ def export_csv(
     return '\n'.join(rows)
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def matrix_summary(
+    words: list[str] | None = None,
+    n:     int = 10,
+    width: int = 16,
+) -> dict:
+    """JSON-friendly summary: nearest pairs in the orbital distance matrix."""
+    _words = list(words) if words else list(LEXICON)
+    mat    = distance_matrix(words=_words, width=width)
+    pairs  = nearest_pairs(mat, n=n)
+    return {
+        'words':         _words,
+        'n':             n,
+        'width':         width,
+        'nearest_pairs': [[w1, w2, round(d, 6)] for w1, w2, d in pairs],
+    }
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -283,10 +303,7 @@ if __name__ == '__main__':
 
     if args.json:
         import json as _json
-        _wlist = list(_words) if _words else list(LEXICON)
-        _mat = distance_matrix(words=_wlist, width=args.width)
-        _pairs = nearest_pairs(_mat, n=args.n)
-        print(_json.dumps({'words': _wlist, 'nearest_pairs': [[w1, w2, d] for w1, w2, d in _pairs]}, ensure_ascii=False, indent=2))
+        print(_json.dumps(matrix_summary(_words, n=args.n, width=args.width), ensure_ascii=False, indent=2))
         import sys; sys.exit(0)
     if args.csv:
         print(export_csv(words=_words, width=args.width))

@@ -446,6 +446,28 @@ def run_animate(
         print()
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def ca_summary(
+    word:  str,
+    rule:  str = 'xor3',
+    ic:    str = 'phonetic',
+    width: int = 40,
+) -> dict:
+    """JSON-friendly orbit summary for one word × rule pair."""
+    cells = make_initial(width, ic, word=word.upper())
+    t, p  = find_orbit(cells, rule)
+    return {
+        'word':     word.upper(),
+        'rule':     rule,
+        'ic':       ic,
+        'width':    width,
+        'transient': t,
+        'period':    p,
+    }
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -489,9 +511,7 @@ if __name__ == '__main__':
 
     if args.json:
         import json as _json, sys
-        _t, _p = find_orbit(_cells[:], args.rule)
-        print(_json.dumps({'word': args.word, 'rule': args.rule, 'ic': args.ic,
-                           'width': args.width, 'transient': _t, 'period': _p}, ensure_ascii=False, indent=2))
+        print(_json.dumps(ca_summary(args.word, args.rule, args.ic, args.width), ensure_ascii=False, indent=2))
         sys.exit(0)
     if args.orbit:
         print_orbit(_cells, rule=args.rule, color=_color)

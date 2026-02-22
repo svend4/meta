@@ -244,6 +244,18 @@ def encode_phonetic(text: str) -> list[tuple[str, int | None, str]]:
     return result
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def phonetic_summary(text: str = 'ГОРА') -> dict:
+    """JSON-friendly phonetic encoding summary for *text*."""
+    enc = encode_phonetic(text)
+    return {
+        'text':    text,
+        'encoded': [[ch, h, sc] for ch, h, sc in enc],
+    }
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -267,8 +279,7 @@ if __name__ == '__main__':
     if args.json:
         import json as _json, sys
         _text = args.encode if args.encode else 'ГОРА'
-        enc = encode_phonetic(_text)
-        print(_json.dumps({'text': _text, 'encoded': [[a, b, c] for a, b, c in enc]}, ensure_ascii=False, indent=2))
+        print(_json.dumps(phonetic_summary(_text), ensure_ascii=False, indent=2))
         sys.exit(0)
     if args.encode:
         encoded = encode_phonetic(args.encode)

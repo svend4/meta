@@ -616,6 +616,17 @@ class TestSolanTriangle(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_triangle_summary_is_dict(self):
+        from projects.hexglyph.solan_triangle import triangle_summary
+        d = triangle_summary()
+        self.assertIsInstance(d, dict)
+
+    def test_triangle_summary_keys(self):
+        from projects.hexglyph.solan_triangle import triangle_summary
+        d = triangle_summary()
+        for k in ['total', 'detected', 'assigned', 'missing', 'detected_list', 'by_rank']:
+            self.assertIn(k, d)
 class TestSolanPhonetic(unittest.TestCase):
 
     @classmethod
@@ -820,6 +831,17 @@ class TestSolanPhonetic(unittest.TestCase):
     def test_viewer_has_solan_phonetic(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_phonetic', content)
+
+    def test_phonetic_summary_is_dict(self):
+        from projects.hexglyph.solan_phonetic import phonetic_summary
+        d = phonetic_summary('ГОРА')
+        self.assertIsInstance(d, dict)
+
+    def test_phonetic_summary_keys(self):
+        from projects.hexglyph.solan_phonetic import phonetic_summary
+        d = phonetic_summary('ГОРА')
+        for k in ['text', 'encoded']:
+            self.assertIn(k, d)
 class TestSolanCA(unittest.TestCase):
     """Тесты клеточного автомата Q6/Solan."""
 
@@ -1111,6 +1133,17 @@ class TestSolanCA(unittest.TestCase):
     def test_viewer_has_solan_ca(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_ca', content)
+
+    def test_ca_summary_is_dict(self):
+        from projects.hexglyph.solan_ca import ca_summary
+        d = ca_summary('ГОРА', 'xor3', 'phonetic')
+        self.assertIsInstance(d, dict)
+
+    def test_ca_summary_keys(self):
+        from projects.hexglyph.solan_ca import ca_summary
+        d = ca_summary('ГОРА', 'xor3', 'phonetic')
+        for k in ['word', 'rule', 'ic', 'width', 'transient', 'period']:
+            self.assertIn(k, d)
 class TestSolanEntropy(unittest.TestCase):
     """Тесты модуля solan_entropy."""
 
@@ -1456,6 +1489,17 @@ class TestSolanWord(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_word_summary_is_dict(self):
+        from projects.hexglyph.solan_word import word_summary
+        d = word_summary('ГОРА')
+        self.assertIsInstance(d, dict)
+
+    def test_word_summary_keys(self):
+        from projects.hexglyph.solan_word import word_summary
+        d = word_summary('ГОРА')
+        for k in ['word', 'width', 'signature']:
+            self.assertIn(k, d)
 class TestSolanLexicon(unittest.TestCase):
     """Tests for solan_lexicon.py and the viewer Lexicon section."""
 
@@ -1619,6 +1663,17 @@ class TestSolanLexicon(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_lexicon_summary_is_dict(self):
+        from projects.hexglyph.solan_lexicon import lexicon_summary
+        d = lexicon_summary('ГОРА', n=3)
+        self.assertIsInstance(d, dict)
+
+    def test_lexicon_summary_keys(self):
+        from projects.hexglyph.solan_lexicon import lexicon_summary
+        d = lexicon_summary('ГОРА', n=3)
+        for k in ['word', 'n', 'width', 'neighbors']:
+            self.assertIn(k, d)
 class TestSolanDendrogram(unittest.TestCase):
     """Tests for solan_dendrogram.py and the viewer Dendrogram section."""
 
@@ -3003,6 +3058,17 @@ class TestSolanGraph(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_graph_summary_is_dict(self):
+        from projects.hexglyph.solan_graph import graph_summary
+        d = graph_summary(['ГОРА', 'ВОДА', 'ЛУНА'])
+        self.assertIsInstance(d, dict)
+
+    def test_graph_summary_keys(self):
+        from projects.hexglyph.solan_graph import graph_summary
+        d = graph_summary(['ГОРА', 'ВОДА', 'ЛУНА'])
+        for k in ['nodes', 'edges', 'components', 'threshold', 'width']:
+            self.assertIn(k, d)
 class TestSolanMatrix(unittest.TestCase):
     """Tests for solan_matrix.py and the viewer Matrix section."""
 
@@ -3178,6 +3244,17 @@ class TestSolanMatrix(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         self.assertIsInstance(d, dict)
+
+    def test_matrix_summary_is_dict(self):
+        from projects.hexglyph.solan_matrix import matrix_summary
+        d = matrix_summary(['ГОРА', 'ВОДА', 'ЛУНА'], n=2)
+        self.assertIsInstance(d, dict)
+
+    def test_matrix_summary_keys(self):
+        from projects.hexglyph.solan_matrix import matrix_summary
+        d = matrix_summary(['ГОРА', 'ВОДА', 'ЛУНА'], n=2)
+        for k in ['words', 'n', 'width', 'nearest_pairs']:
+            self.assertIn(k, d)
 class TestSolanSpectral(unittest.TestCase):
     """Tests for solan_spectral.py and the viewer Spectral section."""
 

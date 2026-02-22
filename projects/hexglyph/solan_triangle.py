@@ -237,6 +237,14 @@ def detection_stats() -> dict:
     return stats
 
 
+
+# ── Сводка ──────────────────────────────────────────────────────────────────
+
+def triangle_summary() -> dict:
+    """Alias for detection_stats(); for API consistency."""
+    return detection_stats()
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -258,7 +266,7 @@ if __name__ == '__main__':
 
     if args.json:
         import json as _json
-        print(_json.dumps(detection_stats(), ensure_ascii=False, indent=2))
+        print(_json.dumps(triangle_summary(), ensure_ascii=False, indent=2))
         import sys; sys.exit(0)
     if args.stats:
         st = detection_stats()
