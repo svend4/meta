@@ -21693,5 +21693,303 @@ class TestSolanHamming3(unittest.TestCase):
         self.assertIn('solan_hamming', content)
 
 
+class TestPrintSmoke(unittest.TestCase):
+    """Smoke tests for all print_* / render_* display functions.
+
+    Each test captures stdout and asserts non-empty output.
+    Uses word='ГОРА', rule='xor3', color=False for speed and reproducibility.
+    """
+
+    def _capture(self, fn, *args, **kwargs) -> str:
+        import io
+        f = io.StringIO()
+        old, sys.stdout = sys.stdout, f
+        try:
+            fn(*args, **kwargs)
+        finally:
+            sys.stdout = old
+        return f.getvalue()
+
+    def test_print_active_runs(self):
+        from projects.hexglyph.solan_active import print_ais
+        self.assertNotEqual(self._capture(print_ais, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_autocorr_runs(self):
+        from projects.hexglyph.solan_autocorr import print_autocorr
+        self.assertNotEqual(self._capture(print_autocorr, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_balance_runs(self):
+        from projects.hexglyph.solan_balance import print_balance
+        self.assertNotEqual(self._capture(print_balance, word='ГОРА', rule='and', color=False), '')
+
+    def test_print_basin_runs(self):
+        from projects.hexglyph.solan_basin import print_basin
+        self.assertNotEqual(self._capture(print_basin, 'ГОРА', color=False), '')
+
+    def test_print_bit_runs(self):
+        from projects.hexglyph.solan_bit import print_bit_planes
+        self.assertNotEqual(self._capture(print_bit_planes, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_bitflip_runs(self):
+        from projects.hexglyph.solan_bitflip import print_bitflip
+        self.assertNotEqual(self._capture(print_bitflip, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_bitplane_runs(self):
+        from projects.hexglyph.solan_bitplane import print_bitplane
+        self.assertNotEqual(self._capture(print_bitplane, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_block_runs(self):
+        from projects.hexglyph.solan_block import print_block
+        self.assertNotEqual(self._capture(print_block, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_boundary_runs(self):
+        from projects.hexglyph.solan_boundary import print_boundary
+        self.assertNotEqual(self._capture(print_boundary, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_cell_runs(self):
+        from projects.hexglyph.solan_cell import print_cell
+        self.assertNotEqual(self._capture(print_cell, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_ch_plane_runs(self):
+        from projects.hexglyph.solan_ch_plane import print_ch
+        self.assertNotEqual(self._capture(print_ch, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_coact_runs(self):
+        from projects.hexglyph.solan_coact import print_coact
+        self.assertNotEqual(self._capture(print_coact, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_coarse_runs(self):
+        from projects.hexglyph.solan_coarse import print_coarse
+        self.assertNotEqual(self._capture(print_coarse, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_complexity_runs(self):
+        from projects.hexglyph.solan_complexity import print_complexity
+        self.assertNotEqual(self._capture(print_complexity, word='ГОРА', color=False), '')
+
+    def test_print_config_runs(self):
+        from projects.hexglyph.solan_config import print_config
+        self.assertNotEqual(self._capture(print_config, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_correlation_runs(self):
+        from projects.hexglyph.solan_correlation import print_correlation
+        self.assertNotEqual(self._capture(print_correlation, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_coverage_runs(self):
+        from projects.hexglyph.solan_coverage import print_coverage
+        self.assertNotEqual(self._capture(print_coverage, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_cross_runs(self):
+        from projects.hexglyph.solan_cross import print_cross
+        self.assertNotEqual(self._capture(print_cross, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_damage_runs(self):
+        from projects.hexglyph.solan_damage import print_damage
+        self.assertNotEqual(self._capture(print_damage, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_dendrogram_runs(self):
+        from projects.hexglyph.solan_dendrogram import print_dendrogram
+        self.assertNotEqual(self._capture(print_dendrogram, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_derrida_runs(self):
+        from projects.hexglyph.solan_derrida import print_derrida
+        self.assertNotEqual(self._capture(print_derrida, rule='xor3', color=False), '')
+
+    def test_print_dist_runs(self):
+        from projects.hexglyph.solan_dist import print_dist
+        self.assertNotEqual(self._capture(print_dist, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_edge_runs(self):
+        from projects.hexglyph.solan_edge import print_edge
+        self.assertNotEqual(self._capture(print_edge, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_entropy_runs(self):
+        from projects.hexglyph.solan_entropy import print_entropy
+        self.assertNotEqual(self._capture(print_entropy, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_forbidden_runs(self):
+        from projects.hexglyph.solan_forbidden import print_forbidden
+        self.assertNotEqual(self._capture(print_forbidden, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_fourier_runs(self):
+        from projects.hexglyph.solan_fourier import print_fourier
+        self.assertNotEqual(self._capture(print_fourier, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_graph_runs(self):
+        from projects.hexglyph.solan_graph import print_graph
+        self.assertNotEqual(self._capture(print_graph, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_hamming_runs(self):
+        from projects.hexglyph.solan_hamming import print_hamming
+        self.assertNotEqual(self._capture(print_hamming, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_layer_runs(self):
+        from projects.hexglyph.solan_layer import print_layer
+        self.assertNotEqual(self._capture(print_layer, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_lexicon_runs(self):
+        from projects.hexglyph.solan_lexicon import print_neighbors
+        self.assertNotEqual(self._capture(print_neighbors, word='ГОРА', color=False), '')
+
+    def test_print_lyapunov_runs(self):
+        from projects.hexglyph.solan_lyapunov import print_lyapunov
+        self.assertNotEqual(self._capture(print_lyapunov, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_lz_runs(self):
+        from projects.hexglyph.solan_lz import print_lz
+        self.assertNotEqual(self._capture(print_lz, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_matrix_runs(self):
+        from projects.hexglyph.solan_matrix import print_nearest_pairs
+        self.assertNotEqual(self._capture(print_nearest_pairs, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_mds_runs(self):
+        from projects.hexglyph.solan_mds import print_mds
+        self.assertNotEqual(self._capture(print_mds, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_moments_runs(self):
+        from projects.hexglyph.solan_moments import print_moments
+        self.assertNotEqual(self._capture(print_moments, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_moran_runs(self):
+        from projects.hexglyph.solan_moran import print_moran
+        self.assertNotEqual(self._capture(print_moran, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_multiscale_runs(self):
+        from projects.hexglyph.solan_multiscale import print_mse
+        self.assertNotEqual(self._capture(print_mse, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_multistep_runs(self):
+        from projects.hexglyph.solan_multistep import print_multistep
+        self.assertNotEqual(self._capture(print_multistep, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_mutual_runs(self):
+        from projects.hexglyph.solan_mutual import print_mutual
+        self.assertNotEqual(self._capture(print_mutual, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_network_runs(self):
+        from projects.hexglyph.solan_network import print_network
+        self.assertNotEqual(self._capture(print_network, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_pca_runs(self):
+        from projects.hexglyph.solan_pca import print_pca
+        self.assertNotEqual(self._capture(print_pca, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_perm_runs(self):
+        from projects.hexglyph.solan_perm import print_pe
+        self.assertNotEqual(self._capture(print_pe, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_persistence_runs(self):
+        from projects.hexglyph.solan_persistence import print_persistence
+        self.assertNotEqual(self._capture(print_persistence, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_phase_runs(self):
+        from projects.hexglyph.solan_phase import print_phase
+        self.assertNotEqual(self._capture(print_phase, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_phoneme_runs(self):
+        from projects.hexglyph.solan_phoneme import print_phoneme_table
+        self.assertNotEqual(self._capture(print_phoneme_table, color=False), '')
+
+    def test_print_phonetic_table_runs(self):
+        from projects.hexglyph.solan_phonetic import print_phonetic_table
+        self.assertNotEqual(self._capture(print_phonetic_table, color=False), '')
+
+    def test_print_portrait_runs(self):
+        from projects.hexglyph.solan_portrait import print_portrait
+        self.assertNotEqual(self._capture(print_portrait, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_prediction_runs(self):
+        from projects.hexglyph.solan_predict import print_prediction
+        self.assertNotEqual(self._capture(print_prediction, word='ГОРА', color=False), '')
+
+    def test_print_profile_runs(self):
+        from projects.hexglyph.solan_profile import print_profile
+        self.assertNotEqual(self._capture(print_profile, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_recurrence_runs(self):
+        from projects.hexglyph.solan_recurrence import print_recurrence
+        self.assertNotEqual(self._capture(print_recurrence, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_return_runs(self):
+        from projects.hexglyph.solan_return import print_return
+        self.assertNotEqual(self._capture(print_return, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_rules_runs(self):
+        from projects.hexglyph.solan_rules import print_rule_comparison
+        self.assertNotEqual(self._capture(print_rule_comparison, words=['ГОРА', 'ВОДА', 'ЛУНА'], color=False), '')
+
+    def test_print_run_runs(self):
+        from projects.hexglyph.solan_run import print_run
+        self.assertNotEqual(self._capture(print_run, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_runs_runs(self):
+        from projects.hexglyph.solan_runs import print_runs
+        self.assertNotEqual(self._capture(print_runs, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_segment_runs(self):
+        from projects.hexglyph.solan_segment import print_segment
+        self.assertNotEqual(self._capture(print_segment, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_semantic_runs(self):
+        from projects.hexglyph.solan_semantic import print_semantic
+        self.assertNotEqual(self._capture(print_semantic, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_spacetime_runs(self):
+        from projects.hexglyph.solan_spacetime import print_spacetime
+        self.assertNotEqual(self._capture(print_spacetime, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_spatent_runs(self):
+        from projects.hexglyph.solan_spatent import print_spatent
+        self.assertNotEqual(self._capture(print_spatent, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_spectral_runs(self):
+        from projects.hexglyph.solan_spectral import print_spectrum
+        self.assertNotEqual(self._capture(print_spectrum, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_symbolic_runs(self):
+        from projects.hexglyph.solan_symbolic import print_symbolic
+        self.assertNotEqual(self._capture(print_symbolic, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_symm_runs(self):
+        from projects.hexglyph.solan_symm import print_symm
+        self.assertNotEqual(self._capture(print_symm, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_temporal_runs(self):
+        from projects.hexglyph.solan_temporal import print_temporal
+        self.assertNotEqual(self._capture(print_temporal, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_traj_runs(self):
+        from projects.hexglyph.solan_traj import print_trajectory
+        self.assertNotEqual(self._capture(print_trajectory, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_transfer_runs(self):
+        from projects.hexglyph.solan_transfer import print_te
+        self.assertNotEqual(self._capture(print_te, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_transient_runs(self):
+        from projects.hexglyph.solan_transient import print_transient_analysis
+        self.assertNotEqual(self._capture(print_transient_analysis, words=['ГОРА', 'ВОДА'], color=False), '')
+
+    def test_print_triangle_runs(self):
+        from projects.hexglyph.solan_triangle import print_triangle
+        self.assertNotEqual(self._capture(print_triangle, color=False), '')
+
+    def test_print_vocab_runs(self):
+        from projects.hexglyph.solan_vocab import print_vocab
+        self.assertNotEqual(self._capture(print_vocab, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_width_runs(self):
+        from projects.hexglyph.solan_width import print_width
+        self.assertNotEqual(self._capture(print_width, word='ГОРА', rule='xor3', color=False), '')
+
+    def test_print_word_analysis_runs(self):
+        from projects.hexglyph.solan_word import print_word_analysis
+        self.assertNotEqual(self._capture(print_word_analysis, word='ГОРА', color=False), '')
+
+    def test_print_wperm_runs(self):
+        from projects.hexglyph.solan_wperm import print_wpe
+        self.assertNotEqual(self._capture(print_wpe, word='ГОРА', rule='xor3', color=False), '')
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

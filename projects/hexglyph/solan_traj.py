@@ -260,7 +260,7 @@ def print_trajectory(
     print()
     # Stats
     st = traj_stats(word, rule, width)
-    print(f"  {dim}  H_attr={st['athr_entropy']:.3f}  H_total={st['total_entropy']:.3f}"
+    print(f"  {dim}  H_attr={st['attr_entropy']:.3f}  H_total={st['total_entropy']:.3f}"
           f"  ⟨Q6⟩={st['mean_q6']:.1f}  unique_cells={st['unique_cells']}{rst}")
 
 
