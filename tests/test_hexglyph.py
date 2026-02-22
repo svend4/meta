@@ -28041,5 +28041,208 @@ class TestPhonemeDictShape(unittest.TestCase):
         self.assertEqual(len(self._r['positions']), 4)
 
 
+# ---------------------------------------------------------------------------
+# TestCoarseDictShape
+# ---------------------------------------------------------------------------
+class TestCoarseDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_coarse import coarse_dict
+        cls.coarse_dict = staticmethod(coarse_dict)
+        cls._r = coarse_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'levels', 'n_steps', 'q6_period',
+                  'q6_transient', 'by_level', 'max_inconsistency'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_q6_period_positive(self):
+        self.assertGreaterEqual(self._r['q6_period'], 1)
+
+    def test_levels_list(self):
+        self.assertIsInstance(self._r['levels'], list)
+
+    def test_by_level_dict(self):
+        self.assertIsInstance(self._r['by_level'], dict)
+
+    def test_max_inconsistency_dict(self):
+        self.assertIsInstance(self._r['max_inconsistency'], dict)
+
+
+# ---------------------------------------------------------------------------
+# TestCHDictShape
+# ---------------------------------------------------------------------------
+class TestCHDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_ch_plane import ch_dict
+        cls.ch_dict = staticmethod(ch_dict)
+        cls._r = ch_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'period', 'm', 'h_s', 'c', 'cell_ch',
+                  'mean_h_s', 'mean_c'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_h_s_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['h_s'], 0.0)
+        self.assertLessEqual(self._r['h_s'], 1.0)
+
+    def test_c_in_unit_interval(self):
+        self.assertGreaterEqual(self._r['c'], 0.0)
+        self.assertLessEqual(self._r['c'], 1.0)
+
+    def test_cell_ch_list(self):
+        self.assertIsInstance(self._r['cell_ch'], list)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestNetworkDictShape
+# ---------------------------------------------------------------------------
+class TestNetworkDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_network import network_dict
+        cls.network_dict = staticmethod(network_dict)
+        cls._r = network_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'period', 'transient',
+                  'te_mat', 'pagerank', 'total_te'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_te_mat_is_16x16(self):
+        te = self._r['te_mat']
+        self.assertEqual(len(te), 16)
+        for row in te:
+            self.assertEqual(len(row), 16)
+
+    def test_pagerank_list(self):
+        self.assertIsInstance(self._r['pagerank'], list)
+
+    def test_total_te_nonneg(self):
+        self.assertGreaterEqual(self._r['total_te'], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# TestPortraitDictShape
+# ---------------------------------------------------------------------------
+class TestPortraitDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_portrait import portrait_dict
+        cls.portrait_dict = staticmethod(portrait_dict)
+        cls._r = portrait_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'period', 'transient',
+                  'complexity', 'sensitivity'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+    def test_complexity_float(self):
+        self.assertIsInstance(self._r['complexity'], float)
+
+    def test_sensitivity_float(self):
+        self.assertIsInstance(self._r['sensitivity'], float)
+
+
+# ---------------------------------------------------------------------------
+# TestSymbolicDictShape
+# ---------------------------------------------------------------------------
+class TestSymbolicDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_symbolic import symbolic_dict
+        cls.symbolic_dict = staticmethod(symbolic_dict)
+        cls._r = symbolic_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'width', 'threshold', 'period', 'transient',
+                  'binary_grid', 'temporal_seqs', 'temporal_entropy'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_binary_grid_list(self):
+        self.assertIsInstance(self._r['binary_grid'], list)
+
+    def test_temporal_entropy_float(self):
+        self.assertIsInstance(self._r['temporal_entropy'], float)
+
+    def test_temporal_seqs_list(self):
+        self.assertIsInstance(self._r['temporal_seqs'], list)
+
+    def test_period_positive(self):
+        self.assertGreaterEqual(self._r['period'], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestDamageDictShape
+# ---------------------------------------------------------------------------
+class TestDamageDictShape(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_damage import damage_dict
+        cls.damage_dict = staticmethod(damage_dict)
+        cls._r = damage_dict('ГОРА', 'xor3')
+
+    def test_returns_dict(self):
+        self.assertIsInstance(self._r, dict)
+
+    def test_required_keys(self):
+        for k in ('word', 'rule', 'cell', 'bit', 'n_steps', 'width',
+                  'max_damage', 'final_mean_damage', 'kernel'):
+            self.assertIn(k, self._r)
+
+    def test_word_preserved(self):
+        self.assertEqual(self._r['word'], 'ГОРА')
+
+    def test_max_damage_float(self):
+        self.assertIsInstance(self._r['max_damage'], float)
+
+    def test_max_damage_nonneg(self):
+        self.assertGreaterEqual(self._r['max_damage'], 0.0)
+
+    def test_kernel_list(self):
+        self.assertIsInstance(self._r['kernel'], list)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
