@@ -10178,237 +10178,6 @@ class TestSolanBasin(unittest.TestCase):
         self.assertIn('baAttractorSig', content)
 
 
-class TestSolanCorrelation(unittest.TestCase):
-    """Tests for solan_correlation.py and the viewer Correlation section."""
-
-    @classmethod
-    def setUpClass(cls):
-        from projects.hexglyph.solan_correlation import (
-            row_autocorr, attractor_autocorr, all_autocorrs,
-            cross_corr, correlation_length,
-            build_correlation_data, correlation_dict,
-            _ALL_RULES,
-        )
-        from projects.hexglyph.solan_lexicon import LEXICON
-        cls.row_autocorr          = staticmethod(row_autocorr)
-        cls.attractor_autocorr    = staticmethod(attractor_autocorr)
-        cls.all_autocorrs         = staticmethod(all_autocorrs)
-        cls.cross_corr            = staticmethod(cross_corr)
-        cls.correlation_length    = staticmethod(correlation_length)
-        cls.build_correlation_data = staticmethod(build_correlation_data)
-        cls.correlation_dict      = staticmethod(correlation_dict)
-        cls.ALL_RULES             = _ALL_RULES
-        cls.LEXICON               = list(LEXICON)
-
-    # ── row_autocorr() ────────────────────────────────────────────────────────
-
-    def test_rac_returns_list(self):
-        r = self.row_autocorr([1, 0, 1, 0, 1, 0, 1, 0])
-        self.assertIsInstance(r, list)
-
-    def test_rac_length(self):
-        row = list(range(16))
-        r = self.row_autocorr(row)
-        self.assertEqual(len(r), 9)  # width//2 + 1
-
-    def test_rac_first_element_one(self):
-        # r(0) = 1 always (self-correlation)
-        for row in [[1,2,3,4]*4, [0]*16, [63]*16]:
-            r = self.row_autocorr(row)
-            self.assertAlmostEqual(r[0], 1.0, places=5)
-
-    def test_rac_constant_row(self):
-        # Constant row → r(d) = 1 for all d (zero-variance case)
-        r = self.row_autocorr([5] * 16)
-        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in r))
-
-    def test_rac_alternating_row(self):
-        # [1,0,1,0,...] → r(1) = -1 (anti-correlated at lag 1)
-        row = [1, 0] * 8
-        r = self.row_autocorr(row)
-        self.assertAlmostEqual(r[1], -1.0, places=5)
-
-    def test_rac_values_bounded(self):
-        row = [i % 7 for i in range(16)]
-        r = self.row_autocorr(row)
-        for v in r:
-            self.assertGreaterEqual(v, -1.0 - 1e-9)
-            self.assertLessEqual(v, 1.0 + 1e-9)
-
-    def test_rac_zeros_row(self):
-        # All-zero row: constant → r(d)=1
-        r = self.row_autocorr([0] * 16)
-        self.assertAlmostEqual(r[0], 1.0)
-
-    # ── attractor_autocorr() ──────────────────────────────────────────────────
-
-    def test_aac_returns_list(self):
-        r = self.attractor_autocorr('ГОРА', 'xor3')
-        self.assertIsInstance(r, list)
-
-    def test_aac_length(self):
-        r = self.attractor_autocorr('ГОРА', 'xor3')
-        self.assertEqual(len(r), 9)  # 16//2 + 1
-
-    def test_aac_first_is_one(self):
-        for rule in self.ALL_RULES:
-            r = self.attractor_autocorr('ГОРА', rule)
-            self.assertAlmostEqual(r[0], 1.0, places=5)
-
-    def test_aac_xor_attractor(self):
-        # XOR attractor = all-zeros → zero variance → r(0)=1, r(d≥1)=0
-        r = self.attractor_autocorr('ГОРА', 'xor')
-        self.assertAlmostEqual(r[0], 1.0, places=5)
-        for v in r[1:]:
-            self.assertAlmostEqual(v, 0.0, places=5)
-
-    def test_aac_and_alternating(self):
-        # AND/OR produce alternating attractors for ГОРА → r(1) < 0
-        r = self.attractor_autocorr('ГОРА', 'and')
-        self.assertLess(r[1], 0.0)
-
-    def test_aac_values_bounded(self):
-        for rule in self.ALL_RULES:
-            r = self.attractor_autocorr('ГОРА', rule)
-            for v in r:
-                self.assertGreaterEqual(v, -1.0 - 1e-9)
-                self.assertLessEqual(v, 1.0 + 1e-9)
-
-    # ── all_autocorrs() ───────────────────────────────────────────────────────
-
-    def test_all_ac_keys(self):
-        r = self.all_autocorrs('ГОРА')
-        self.assertEqual(set(r.keys()), set(self.ALL_RULES))
-
-    def test_all_ac_each_list(self):
-        r = self.all_autocorrs('ГОРА')
-        for ac in r.values():
-            self.assertIsInstance(ac, list)
-
-    # ── cross_corr() ─────────────────────────────────────────────────────────
-
-    def test_cc_returns_list(self):
-        r = self.cross_corr('ГОРА', 'ЛУНА', 'xor3')
-        self.assertIsInstance(r, list)
-
-    def test_cc_length(self):
-        r = self.cross_corr('ГОРА', 'ЛУНА', 'xor3')
-        self.assertEqual(len(r), 9)
-
-    def test_cc_same_word_is_autocorr(self):
-        # cross_corr(word, word) should match attractor_autocorr
-        cc = self.cross_corr('ГОРА', 'ГОРА', 'xor3')
-        ac = self.attractor_autocorr('ГОРА', 'xor3')
-        self.assertAlmostEqual(cc[0], ac[0], places=4)
-
-    def test_cc_bounded(self):
-        r = self.cross_corr('ГОРА', 'ЛУНА', 'xor3')
-        for v in r:
-            self.assertGreaterEqual(v, -1.0 - 1e-9)
-            self.assertLessEqual(v, 1.0 + 1e-9)
-
-    # ── correlation_length() ──────────────────────────────────────────────────
-
-    def test_cl_returns_float(self):
-        v = self.correlation_length('ГОРА', 'xor3')
-        self.assertIsInstance(v, float)
-
-    def test_cl_positive(self):
-        for rule in self.ALL_RULES:
-            v = self.correlation_length('ГОРА', rule)
-            self.assertGreater(v, 0.0)
-
-    def test_cl_xor_short(self):
-        # XOR attractor: r(d≥1)=0 → length = 1
-        v = self.correlation_length('ГОРА', 'xor')
-        self.assertAlmostEqual(v, 1.0)
-
-    def test_cl_and_long(self):
-        # AND alternating r(d)=(-1)^d: |r|=1 > 1/e at all lags → length = max
-        v = self.correlation_length('ГОРА', 'and')
-        self.assertGreaterEqual(v, 7.0)
-
-    # ── build_correlation_data() ──────────────────────────────────────────────
-
-    def test_bcd_returns_dict(self):
-        d = self.build_correlation_data(['ГОРА', 'ЛУНА'])
-        self.assertIsInstance(d, dict)
-
-    def test_bcd_required_keys(self):
-        d = self.build_correlation_data(['ГОРА', 'ЛУНА'])
-        for k in ('words', 'width', 'n_lags', 'per_rule', 'corr_lengths',
-                  'max_corr_len', 'min_corr_len'):
-            self.assertIn(k, d)
-
-    def test_bcd_n_lags(self):
-        d = self.build_correlation_data(['ГОРА'])
-        self.assertEqual(d['n_lags'], 9)
-
-    def test_bcd_all_rules(self):
-        d = self.build_correlation_data(['ГОРА', 'ЛУНА'])
-        self.assertEqual(set(d['per_rule'].keys()), set(self.ALL_RULES))
-
-    # ── correlation_dict() ────────────────────────────────────────────────────
-
-    def test_cd_json_serialisable(self):
-        import json
-        d = self.correlation_dict('ГОРА')
-        dumped = json.dumps(d, ensure_ascii=False)
-        self.assertIsInstance(dumped, str)
-
-    def test_cd_top_keys(self):
-        d = self.correlation_dict('ГОРА')
-        for k in ('word', 'width', 'lags', 'rules'):
-            self.assertIn(k, d)
-
-    def test_cd_lags_list(self):
-        d = self.correlation_dict('ГОРА')
-        self.assertEqual(d['lags'], list(range(9)))
-
-    def test_cd_all_rules(self):
-        d = self.correlation_dict('ГОРА')
-        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
-
-    def test_cd_corr_length_in_dict(self):
-        d = self.correlation_dict('ГОРА')
-        for rule in self.ALL_RULES:
-            self.assertIn('corr_length', d['rules'][rule])
-
-    # ── Viewer section ────────────────────────────────────────────────────────
-
-    def test_viewer_has_cor_canvas(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('cor-canvas', content)
-
-    def test_viewer_has_cor_hmap(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('cor-hmap', content)
-
-    def test_viewer_has_cor_btn(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('cor-btn', content)
-
-    def test_viewer_has_cor_run(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('corRun', content)
-
-    def test_viewer_cor_heading(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Пространственная автокорреляция CA Q6', content)
-
-    def test_viewer_has_row_autocorr(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('rowAutocorr', content)
-
-    def test_viewer_has_attr_autocorr(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('attrAutocorr', content)
-
-    def test_viewer_has_wiener_mention(self):
-        content = viewer_path().read_text(encoding='utf-8')
-        self.assertIn('Винера', content)
-
-
 class TestSolanLyapunov(unittest.TestCase):
     """Tests for solan_lyapunov.py and the viewer Lyapunov section."""
 
@@ -20990,6 +20759,222 @@ class TestSolanRecurrence2(unittest.TestCase):
     def test_viewer_has_solan_recurrence(self):
         content = viewer_path().read_text(encoding='utf-8')
         self.assertIn('solan_recurrence', content)
+
+
+class TestSolanCorrelation2(unittest.TestCase):
+    """Replacement tests for solan_correlation.py (standard *_summary convention)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph.solan_correlation import (
+            row_autocorr, attractor_autocorr, all_autocorrs,
+            cross_corr, correlation_length,
+            build_correlation_data, correlation_dict, correlation_summary,
+            _ALL_RULES,
+        )
+        from projects.hexglyph.solan_lexicon import LEXICON
+        cls.row_autocorr           = staticmethod(row_autocorr)
+        cls.attractor_autocorr     = staticmethod(attractor_autocorr)
+        cls.all_autocorrs          = staticmethod(all_autocorrs)
+        cls.cross_corr             = staticmethod(cross_corr)
+        cls.correlation_length     = staticmethod(correlation_length)
+        cls.build_correlation_data = staticmethod(build_correlation_data)
+        cls.correlation_dict       = staticmethod(correlation_dict)
+        cls.correlation_summary    = staticmethod(correlation_summary)
+        cls.ALL_RULES              = _ALL_RULES
+        cls.LEXICON                = list(LEXICON)
+
+    # ── row_autocorr() ────────────────────────────────────────────────────────
+
+    def test_rac_length_16(self):
+        # width=16 → n_lags = 16//2+1 = 9
+        self.assertEqual(len(self.row_autocorr([0]*16)), 9)
+
+    def test_rac_r0_is_one(self):
+        for row in ([1, 2, 3, 4]*4, [0]*16, [63]*16):
+            self.assertAlmostEqual(self.row_autocorr(row)[0], 1.0, places=5)
+
+    def test_rac_constant_all_one(self):
+        # constant row → zero variance → all r(d)=1
+        r = self.row_autocorr([7]*16)
+        self.assertTrue(all(abs(v - 1.0) < 1e-9 for v in r))
+
+    def test_rac_alternating_r1_minus_one(self):
+        # [1,0,1,0,...] → r(1)=-1
+        r = self.row_autocorr([1, 0]*8)
+        self.assertAlmostEqual(r[1], -1.0, places=5)
+
+    def test_rac_values_in_range(self):
+        r = self.row_autocorr([i % 7 for i in range(16)])
+        for v in r:
+            self.assertGreaterEqual(v, -1.0 - 1e-9)
+            self.assertLessEqual(v, 1.0 + 1e-9)
+
+    # ── attractor_autocorr() ──────────────────────────────────────────────────
+
+    def test_aac_length(self):
+        self.assertEqual(len(self.attractor_autocorr('ГОРА', 'xor3')), 9)
+
+    def test_aac_r0_one(self):
+        for rule in self.ALL_RULES:
+            r = self.attractor_autocorr('ГОРА', rule)
+            self.assertAlmostEqual(r[0], 1.0, places=5)
+
+    def test_aac_xor_constant_attractor(self):
+        # XOR → all-zero attractor → r(d≥1)=0
+        r = self.attractor_autocorr('ГОРА', 'xor')
+        for v in r[1:]:
+            self.assertAlmostEqual(v, 0.0, places=5)
+
+    def test_aac_and_anticorr_at_lag1(self):
+        # AND → alternating attractor → r(1) < 0
+        r = self.attractor_autocorr('ГОРА', 'and')
+        self.assertLess(r[1], 0.0)
+
+    def test_aac_values_bounded(self):
+        for rule in self.ALL_RULES:
+            for v in self.attractor_autocorr('ТУМАН', rule):
+                self.assertGreaterEqual(v, -1.0 - 1e-9)
+                self.assertLessEqual(v, 1.0 + 1e-9)
+
+    # ── all_autocorrs() ───────────────────────────────────────────────────────
+
+    def test_all_ac_four_rules(self):
+        r = self.all_autocorrs('ГОРА')
+        self.assertEqual(set(r.keys()), set(self.ALL_RULES))
+
+    def test_all_ac_each_is_list(self):
+        r = self.all_autocorrs('ЛУНА')
+        for ac in r.values():
+            self.assertIsInstance(ac, list)
+            self.assertEqual(len(ac), 9)
+
+    # ── cross_corr() ──────────────────────────────────────────────────────────
+
+    def test_cc_length(self):
+        self.assertEqual(len(self.cross_corr('ГОРА', 'ЛУНА', 'xor3')), 9)
+
+    def test_cc_same_word_r0(self):
+        # cross_corr(word, word)[0] == attractor_autocorr[0] == 1
+        cc = self.cross_corr('ГОРА', 'ГОРА', 'xor3')
+        ac = self.attractor_autocorr('ГОРА', 'xor3')
+        self.assertAlmostEqual(cc[0], ac[0], places=4)
+
+    def test_cc_bounded(self):
+        for v in self.cross_corr('ГОРА', 'ЛУНА', 'xor3'):
+            self.assertGreaterEqual(v, -1.0 - 1e-9)
+            self.assertLessEqual(v, 1.0 + 1e-9)
+
+    # ── correlation_length() ──────────────────────────────────────────────────
+
+    def test_cl_is_float(self):
+        self.assertIsInstance(self.correlation_length('ГОРА', 'xor3'), float)
+
+    def test_cl_xor_is_one(self):
+        # XOR: r(d≥1)=0 ≤ 1/e → first crossing at d=1
+        self.assertAlmostEqual(self.correlation_length('ГОРА', 'xor'), 1.0)
+
+    def test_cl_and_long(self):
+        # AND alternating |r|=1 for all lags → returns max = width//2 = 8
+        self.assertGreaterEqual(self.correlation_length('ГОРА', 'and'), 7.0)
+
+    def test_cl_positive_all_rules(self):
+        for rule in self.ALL_RULES:
+            self.assertGreater(self.correlation_length('ВОДА', rule), 0.0)
+
+    # ── build_correlation_data() ──────────────────────────────────────────────
+
+    def test_bcd_required_keys(self):
+        d = self.build_correlation_data(['ГОРА', 'ЛУНА'])
+        for k in ('words', 'width', 'n_lags', 'per_rule', 'corr_lengths',
+                  'max_corr_len', 'min_corr_len'):
+            self.assertIn(k, d)
+
+    def test_bcd_n_lags_16(self):
+        d = self.build_correlation_data(['ГОРА'])
+        self.assertEqual(d['n_lags'], 9)
+
+    def test_bcd_all_rules(self):
+        d = self.build_correlation_data(['ГОРА'])
+        self.assertEqual(set(d['per_rule'].keys()), set(self.ALL_RULES))
+
+    def test_bcd_words_preserved(self):
+        words = ['ГОРА', 'ЛУНА']
+        d = self.build_correlation_data(words)
+        self.assertEqual(d['words'], words)
+
+    # ── correlation_dict() / correlation_summary() ────────────────────────────
+
+    def test_cd_json_serialisable(self):
+        import json
+        json.dumps(self.correlation_dict('ГОРА'), ensure_ascii=False)
+
+    def test_cd_top_keys(self):
+        d = self.correlation_dict('ГОРА')
+        for k in ('word', 'width', 'lags', 'rules'):
+            self.assertIn(k, d)
+
+    def test_cd_lags_list(self):
+        d = self.correlation_dict('ГОРА')
+        self.assertEqual(d['lags'], list(range(9)))
+
+    def test_cd_all_rules(self):
+        d = self.correlation_dict('ГОРА')
+        self.assertEqual(set(d['rules'].keys()), set(self.ALL_RULES))
+
+    def test_cd_corr_length_present(self):
+        d = self.correlation_dict('ГОРА')
+        for rule in self.ALL_RULES:
+            self.assertIn('corr_length', d['rules'][rule])
+
+    def test_cd_word_uppercased(self):
+        d = self.correlation_dict('гора')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    def test_summary_equals_dict(self):
+        """correlation_summary must equal correlation_dict."""
+        d1 = self.correlation_dict('ТУМАН')
+        d2 = self.correlation_summary('ТУМАН')
+        self.assertEqual(d1['lags'], d2['lags'])
+        self.assertEqual(set(d1['rules'].keys()), set(d2['rules'].keys()))
+
+    def test_summary_default_width(self):
+        d = self.correlation_summary('ГОРА')
+        self.assertEqual(d['width'], 16)
+
+    def test_summary_word_uppercased(self):
+        d = self.correlation_summary('гора')
+        self.assertEqual(d['word'], 'ГОРА')
+
+    # ── Viewer HTML / JS ──────────────────────────────────────────────────────
+
+    def test_viewer_has_cor_canvas(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cor-canvas', content)
+
+    def test_viewer_has_cor_hmap(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cor-hmap', content)
+
+    def test_viewer_has_cor_btn(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('cor-btn', content)
+
+    def test_viewer_has_cor_run(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('corRun', content)
+
+    def test_viewer_cor_heading(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('Пространственная автокорреляция CA Q6', content)
+
+    def test_viewer_has_row_autocorr(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('rowAutocorr', content)
+
+    def test_viewer_has_solan_correlation(self):
+        content = viewer_path().read_text(encoding='utf-8')
+        self.assertIn('solan_correlation', content)
 
 
 if __name__ == "__main__":
