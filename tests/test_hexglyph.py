@@ -31121,5 +31121,357 @@ class TestDistMetricsProps(unittest.TestCase):
         self.assertIsInstance(self._nr, list)
 
 
+class TestConfigFunctionsProps(unittest.TestCase):
+    """Tests for solan_config: active_configs, n_active_configs, coverage_fraction,
+    config_transition_table, coverage_vector, mean_coverage, full_coverage_bits,
+    minimal_coverage_bits, all_config, build_config_data."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_config
+        cls._ac   = solan_config.active_configs('ГОРА', 'xor3', 0)
+        cls._nac  = solan_config.n_active_configs('ГОРА', 'xor3', 0)
+        cls._cf   = solan_config.coverage_fraction('ГОРА', 'xor3', 0)
+        cls._ctt  = solan_config.config_transition_table('ГОРА', 'xor3', 0)
+        cls._cv   = solan_config.coverage_vector('ГОРА', 'xor3')
+        cls._mc   = solan_config.mean_coverage('ГОРА', 'xor3')
+        cls._fcb  = solan_config.full_coverage_bits('ГОРА', 'xor3')
+        cls._mcb  = solan_config.minimal_coverage_bits('ГОРА', 'xor3')
+        cls._ac_all = solan_config.all_config('ГОРА')
+        cls._bcd  = solan_config.build_config_data(['ГОРА', 'ВОДА'])
+
+    def test_active_configs_dict(self):
+        self.assertIsInstance(self._ac, dict)
+
+    def test_n_active_configs_int(self):
+        self.assertIsInstance(self._nac, int)
+
+    def test_n_active_configs_nonneg(self):
+        self.assertGreaterEqual(self._nac, 0)
+
+    def test_coverage_fraction_float(self):
+        self.assertIsInstance(self._cf, float)
+
+    def test_coverage_fraction_range(self):
+        self.assertGreaterEqual(self._cf, 0.0)
+        self.assertLessEqual(self._cf, 1.0)
+
+    def test_config_transition_table_dict(self):
+        self.assertIsInstance(self._ctt, dict)
+
+    def test_config_transition_table_nonempty(self):
+        self.assertGreater(len(self._ctt), 0)
+
+    def test_coverage_vector_list(self):
+        self.assertIsInstance(self._cv, list)
+
+    def test_coverage_vector_nonempty(self):
+        self.assertGreater(len(self._cv), 0)
+
+    def test_mean_coverage_float(self):
+        self.assertIsInstance(self._mc, float)
+
+    def test_mean_coverage_nonneg(self):
+        self.assertGreaterEqual(self._mc, 0.0)
+
+    def test_full_coverage_bits_list(self):
+        self.assertIsInstance(self._fcb, list)
+
+    def test_minimal_coverage_bits_list(self):
+        self.assertIsInstance(self._mcb, list)
+
+    def test_minimal_coverage_bits_nonempty(self):
+        self.assertGreater(len(self._mcb), 0)
+
+    def test_all_config_four_rules(self):
+        self.assertEqual(set(self._ac_all.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_config_data_dict(self):
+        self.assertIsInstance(self._bcd, dict)
+
+    def test_build_config_data_has_words(self):
+        self.assertIn('words', self._bcd)
+
+
+class TestBoundaryFunctionsProps(unittest.TestCase):
+    """Tests for solan_boundary: boundary_step, period_compressed, n_active_boundaries,
+    n_zero_boundaries, boundary_vocab_nz, boundary_vocab_all, boundary_uniform,
+    boundary_bit_constraints, all_boundary, build_boundary_data."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_boundary
+        cls._bo   = solan_boundary.boundary_orbit('ГОРА', 'xor3')
+        cls._bs   = solan_boundary.boundary_step(cls._bo[0])
+        cls._pc   = solan_boundary.period_compressed('ГОРА', 'xor3')
+        cls._nab  = solan_boundary.n_active_boundaries('ГОРА', 'xor3')
+        cls._nzb  = solan_boundary.n_zero_boundaries('ГОРА', 'xor3')
+        cls._bvn  = solan_boundary.boundary_vocab_nz('ГОРА', 'xor3')
+        cls._bva  = solan_boundary.boundary_vocab_all('ГОРА', 'xor3')
+        cls._bu   = solan_boundary.boundary_uniform('ГОРА', 'xor3')
+        cls._bbc  = solan_boundary.boundary_bit_constraints('ГОРА', 'xor3')
+        cls._ab   = solan_boundary.all_boundary('ГОРА')
+        cls._bbd  = solan_boundary.build_boundary_data(['ГОРА', 'ВОДА'])
+
+    def test_boundary_step_tuple(self):
+        self.assertIsInstance(self._bs, tuple)
+
+    def test_boundary_step_length(self):
+        self.assertEqual(len(self._bs), 16)
+
+    def test_period_compressed_bool(self):
+        self.assertIsInstance(self._pc, bool)
+
+    def test_n_active_boundaries_list(self):
+        self.assertIsInstance(self._nab, list)
+
+    def test_n_active_boundaries_nonempty(self):
+        self.assertGreater(len(self._nab), 0)
+
+    def test_n_zero_boundaries_list(self):
+        self.assertIsInstance(self._nzb, list)
+
+    def test_boundary_vocab_nz_list(self):
+        self.assertIsInstance(self._bvn, list)
+
+    def test_boundary_vocab_all_list(self):
+        self.assertIsInstance(self._bva, list)
+
+    def test_boundary_uniform_bool(self):
+        self.assertIsInstance(self._bu, bool)
+
+    def test_boundary_bit_constraints_list(self):
+        self.assertIsInstance(self._bbc, list)
+
+    def test_boundary_bit_constraints_tuples(self):
+        for item in self._bbc:
+            self.assertIsInstance(item, tuple)
+
+    def test_all_boundary_four_rules(self):
+        self.assertEqual(set(self._ab.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_boundary_data_dict(self):
+        self.assertIsInstance(self._bbd, dict)
+
+    def test_build_boundary_data_has_words(self):
+        self.assertIn('words', self._bbd)
+
+
+class TestSegmentFunctionsProps(unittest.TestCase):
+    """Tests for solan_segment: spatial_segments, seg_lengths_per_cell, n_segments_step,
+    n_segments, seg_lengths, global_max_seg_length, all_segment, build_segment_data."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_segment, solan_boundary
+        state = solan_boundary.boundary_orbit('ГОРА', 'xor3')[0]
+        cls._ss   = solan_segment.spatial_segments(state)
+        cls._slpc = solan_segment.seg_lengths_per_cell(state)
+        cls._nss  = solan_segment.n_segments_step('ГОРА', 'xor3', 0)
+        cls._ns   = solan_segment.n_segments('ГОРА', 'xor3')
+        cls._sl   = solan_segment.seg_lengths('ГОРА', 'xor3')
+        cls._gml  = solan_segment.global_max_seg_length('ГОРА', 'xor3')
+        cls._aseq = solan_segment.all_segment('ГОРА')
+        cls._bsd  = solan_segment.build_segment_data(['ГОРА', 'ВОДА'])
+
+    def test_spatial_segments_list(self):
+        self.assertIsInstance(self._ss, list)
+
+    def test_spatial_segments_tuples(self):
+        for item in self._ss:
+            self.assertIsInstance(item, tuple)
+
+    def test_seg_lengths_per_cell_list(self):
+        self.assertIsInstance(self._slpc, list)
+
+    def test_seg_lengths_per_cell_length(self):
+        self.assertEqual(len(self._slpc), 16)
+
+    def test_n_segments_step_int(self):
+        self.assertIsInstance(self._nss, int)
+
+    def test_n_segments_step_nonneg(self):
+        self.assertGreaterEqual(self._nss, 0)
+
+    def test_n_segments_list(self):
+        self.assertIsInstance(self._ns, list)
+
+    def test_n_segments_positive(self):
+        for n in self._ns:
+            self.assertGreater(n, 0)
+
+    def test_seg_lengths_list_of_lists(self):
+        self.assertIsInstance(self._sl, list)
+        if self._sl:
+            self.assertIsInstance(self._sl[0], list)
+
+    def test_global_max_seg_length_int(self):
+        self.assertIsInstance(self._gml, int)
+
+    def test_global_max_seg_length_positive(self):
+        self.assertGreater(self._gml, 0)
+
+    def test_all_segment_four_rules(self):
+        self.assertEqual(set(self._aseq.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_segment_data_dict(self):
+        self.assertIsInstance(self._bsd, dict)
+
+    def test_build_segment_data_has_words(self):
+        self.assertIn('words', self._bsd)
+
+
+class TestVocabFunctionsProps(unittest.TestCase):
+    """Tests for solan_vocab: vocab_size, vocab_coverage, value_hist, uniform_distribution,
+    vocab_bit_profile, vocab_hamming_hist, all_vocab, build_vocab_data."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_vocab
+        cls._vs   = solan_vocab.vocab_size('ГОРА', 'xor3')
+        cls._vc   = solan_vocab.vocab_coverage('ГОРА', 'xor3')
+        cls._vh   = solan_vocab.value_hist('ГОРА', 'xor3')
+        cls._ud   = solan_vocab.uniform_distribution('ГОРА', 'xor3')
+        cls._vbp  = solan_vocab.vocab_bit_profile('ГОРА', 'xor3')
+        cls._vhh  = solan_vocab.vocab_hamming_hist('ГОРА', 'xor3')
+        cls._av   = solan_vocab.all_vocab('ГОРА')
+        cls._bvd  = solan_vocab.build_vocab_data(['ГОРА', 'ВОДА'])
+
+    def test_vocab_size_int(self):
+        self.assertIsInstance(self._vs, int)
+
+    def test_vocab_size_positive(self):
+        self.assertGreater(self._vs, 0)
+
+    def test_vocab_coverage_float(self):
+        self.assertIsInstance(self._vc, float)
+
+    def test_vocab_coverage_range(self):
+        self.assertGreaterEqual(self._vc, 0.0)
+        self.assertLessEqual(self._vc, 1.0)
+
+    def test_value_hist_dict(self):
+        self.assertIsInstance(self._vh, dict)
+
+    def test_value_hist_nonempty(self):
+        self.assertGreater(len(self._vh), 0)
+
+    def test_uniform_distribution_bool(self):
+        self.assertIsInstance(self._ud, bool)
+
+    def test_vocab_bit_profile_list(self):
+        self.assertIsInstance(self._vbp, list)
+
+    def test_vocab_bit_profile_length(self):
+        self.assertEqual(len(self._vbp), 6)
+
+    def test_vocab_hamming_hist_dict(self):
+        self.assertIsInstance(self._vhh, dict)
+
+    def test_all_vocab_four_rules(self):
+        self.assertEqual(set(self._av.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_vocab_data_dict(self):
+        self.assertIsInstance(self._bvd, dict)
+
+    def test_build_vocab_data_has_words(self):
+        self.assertIn('words', self._bvd)
+
+
+class TestEdgeFunctionsProps(unittest.TestCase):
+    """Tests for solan_edge: orbit_edge_profile, orbit_bit_edge_profile, edge_stats,
+    mean_bit_edge, all_edges."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_edge
+        cls._es   = solan_edge.edge_stats('ГОРА', 'xor3')
+        cls._mbe  = solan_edge.mean_bit_edge('ГОРА', 'xor3')
+        cls._oep  = solan_edge.orbit_edge_profile('ГОРА', 'xor3')
+        cls._obep = solan_edge.orbit_bit_edge_profile('ГОРА', 'xor3')
+        cls._ae   = solan_edge.all_edges('ГОРА')
+
+    def test_edge_stats_dict(self):
+        self.assertIsInstance(self._es, dict)
+
+    def test_edge_stats_has_mean(self):
+        self.assertIn('mean', self._es)
+
+    def test_edge_stats_mean_nonneg(self):
+        self.assertGreaterEqual(self._es['mean'], 0.0)
+
+    def test_mean_bit_edge_list(self):
+        self.assertIsInstance(self._mbe, list)
+
+    def test_mean_bit_edge_length(self):
+        self.assertEqual(len(self._mbe), 6)
+
+    def test_orbit_edge_profile_list(self):
+        self.assertIsInstance(self._oep, list)
+
+    def test_orbit_edge_profile_nonempty(self):
+        self.assertGreater(len(self._oep), 0)
+
+    def test_orbit_bit_edge_profile_list(self):
+        self.assertIsInstance(self._obep, list)
+
+    def test_orbit_bit_edge_profile_inner_length(self):
+        if self._obep:
+            self.assertEqual(len(self._obep[0]), 6)
+
+    def test_all_edges_four_rules(self):
+        self.assertEqual(set(self._ae.keys()), {'xor', 'xor3', 'and', 'or'})
+
+
+class TestPhaseFunctionsProps(unittest.TestCase):
+    """Tests for solan_phase: series_match, sync_matrix, sync_clusters,
+    inter_cluster_offsets, sync_fraction, all_phase, build_phase_data."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_phase, solan_cell
+        cls._si   = solan_cell.cell_series('ГОРА', 'xor3', 0)
+        cls._sj   = solan_cell.cell_series('ГОРА', 'xor3', 1)
+        cls._sm   = solan_phase.series_match(cls._si, cls._sj, 0)
+        cls._smm  = solan_phase.sync_matrix('ГОРА', 'xor3')
+        cls._sc   = solan_phase.sync_clusters('ГОРА', 'xor3')
+        cls._ico  = solan_phase.inter_cluster_offsets('ГОРА', 'xor3')
+        cls._sf   = solan_phase.sync_fraction('ГОРА', 'xor3')
+        cls._ap   = solan_phase.all_phase('ГОРА')
+        cls._bpd  = solan_phase.build_phase_data(['ГОРА', 'ВОДА'])
+
+    def test_series_match_bool(self):
+        self.assertIsInstance(self._sm, bool)
+
+    def test_sync_matrix_list(self):
+        self.assertIsInstance(self._smm, list)
+
+    def test_sync_matrix_length(self):
+        self.assertEqual(len(self._smm), 16)
+
+    def test_sync_clusters_list(self):
+        self.assertIsInstance(self._sc, list)
+
+    def test_sync_clusters_nonempty(self):
+        self.assertGreater(len(self._sc), 0)
+
+    def test_sync_clusters_inner_lists(self):
+        for cluster in self._sc:
+            self.assertIsInstance(cluster, list)
+
+    def test_inter_cluster_offsets_dict(self):
+        self.assertIsInstance(self._ico, dict)
+
+    def test_sync_fraction_float(self):
+        self.assertIsInstance(self._sf, float)
+
+    def test_sync_fraction_range(self):
+        self.assertGreaterEqual(self._sf, 0.0)
+        self.assertLessEqual(self._sf, 1.0)
+
+    def test_all_phase_four_rules(self):
+        self.assertEqual(set(self._ap.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_phase_data_dict(self):
+        self.assertIsInstance(self._bpd, dict)
+
+    def test_build_phase_data_has_words(self):
+        self.assertIn('words', self._bpd)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
