@@ -31473,5 +31473,337 @@ class TestPhaseFunctionsProps(unittest.TestCase):
         self.assertIn('words', self._bpd)
 
 
+class TestBitplaneFunctionsProps(unittest.TestCase):
+    """Tests for solan_bitplane: get_bit_plane, plane_period, frozen_type,
+    plane_hamming, all_bitplane, bitplane_dict."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_bitplane
+        from projects.hexglyph.solan_word import encode_word, step
+        cells = encode_word('ГОРА')
+        orbit = [cells]
+        state = cells
+        for _ in range(19):
+            state = step(state, 'xor3')
+            orbit.append(state)
+        cls._bp   = solan_bitplane.get_bit_plane(orbit, 0)
+        cls._pp   = solan_bitplane.plane_period(cls._bp)
+        cls._ft   = solan_bitplane.frozen_type(cls._bp)
+        cls._ph   = solan_bitplane.plane_hamming(cls._bp)
+        cls._ab   = solan_bitplane.all_bitplane('ГОРА')
+        cls._bd   = solan_bitplane.bitplane_dict(solan_bitplane.bitplane_summary('ГОРА', 'xor3'))
+
+    def test_get_bit_plane_list(self):
+        self.assertIsInstance(self._bp, list)
+
+    def test_get_bit_plane_tuples(self):
+        for row in self._bp:
+            self.assertIsInstance(row, tuple)
+
+    def test_plane_period_int(self):
+        self.assertIsInstance(self._pp, int)
+
+    def test_plane_period_positive(self):
+        self.assertGreater(self._pp, 0)
+
+    def test_frozen_type_str(self):
+        self.assertIsInstance(self._ft, str)
+
+    def test_plane_hamming_list(self):
+        self.assertIsInstance(self._ph, list)
+
+    def test_all_bitplane_four_rules(self):
+        self.assertEqual(set(self._ab.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_bitplane_dict_is_dict(self):
+        self.assertIsInstance(self._bd, dict)
+
+
+class TestLayerFunctionsProps(unittest.TestCase):
+    """Tests for solan_layer: plane_period, plane_type, plane_density,
+    lcm_equals_period, all_layers, build_layer_data."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_layer
+        cls._pp  = solan_layer.plane_period('ГОРА', 'xor3', 0)
+        cls._pt  = solan_layer.plane_type('ГОРА', 'xor3', 0)
+        cls._pd  = solan_layer.plane_density('ГОРА', 'xor3', 0)
+        cls._lep = solan_layer.lcm_equals_period('ГОРА', 'xor3')
+        cls._al  = solan_layer.all_layers('ГОРА')
+        cls._bld = solan_layer.build_layer_data(['ГОРА', 'ВОДА'])
+
+    def test_plane_period_int(self):
+        self.assertIsInstance(self._pp, int)
+
+    def test_plane_period_positive(self):
+        self.assertGreater(self._pp, 0)
+
+    def test_plane_type_str(self):
+        self.assertIsInstance(self._pt, str)
+
+    def test_plane_density_list(self):
+        self.assertIsInstance(self._pd, list)
+
+    def test_plane_density_nonempty(self):
+        self.assertGreater(len(self._pd), 0)
+
+    def test_lcm_equals_period_bool(self):
+        self.assertIsInstance(self._lep, bool)
+
+    def test_all_layers_four_rules(self):
+        self.assertEqual(set(self._al.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_build_layer_data_dict(self):
+        self.assertIsInstance(self._bld, dict)
+
+    def test_build_layer_data_has_words(self):
+        self.assertIn('words', self._bld)
+
+
+class TestRecurrenceFunctionsProps(unittest.TestCase):
+    """Tests for solan_recurrence: state_hamming, recurrence_matrix, rqa_metrics,
+    recurrence_dict, all_recurrences."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_recurrence
+        rows = [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+        cls._sh  = solan_recurrence.state_hamming([0, 1, 2], [0, 1, 3])
+        cls._rm  = solan_recurrence.recurrence_matrix(rows, 0)
+        cls._rqa = solan_recurrence.rqa_metrics(cls._rm)
+        cls._rd  = solan_recurrence.recurrence_dict('ГОРА')
+        cls._ar  = solan_recurrence.all_recurrences('ГОРА')
+
+    def test_state_hamming_int(self):
+        self.assertIsInstance(self._sh, int)
+
+    def test_state_hamming_nonneg(self):
+        self.assertGreaterEqual(self._sh, 0)
+
+    def test_recurrence_matrix_list(self):
+        self.assertIsInstance(self._rm, list)
+
+    def test_recurrence_matrix_square(self):
+        self.assertEqual(len(self._rm), 3)
+        for row in self._rm:
+            self.assertEqual(len(row), 3)
+
+    def test_rqa_metrics_dict(self):
+        self.assertIsInstance(self._rqa, dict)
+
+    def test_rqa_metrics_has_rr(self):
+        self.assertIn('RR', self._rqa)
+
+    def test_recurrence_dict_has_rules(self):
+        self.assertIn('rules', self._rd)
+
+    def test_all_recurrences_four_rules(self):
+        self.assertEqual(set(self._ar.keys()), {'xor', 'xor3', 'and', 'or'})
+
+
+class TestRunsFunctionsProps(unittest.TestCase):
+    """Tests for solan_runs: run_lengths, run_entropy, all_cell_stats,
+    change_matrix, all_run_summaries."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_runs, solan_cell
+        series = solan_cell.cell_series('ГОРА', 'xor3', 0)
+        cls._rl  = solan_runs.run_lengths(series)
+        cls._re  = solan_runs.run_entropy(cls._rl) if cls._rl else 0.0
+        cls._acs = solan_runs.all_cell_stats('ГОРА', 'xor3')
+        cls._cm  = solan_runs.change_matrix('ГОРА', 'xor3')
+        cls._ars = solan_runs.all_run_summaries('ГОРА')
+
+    def test_run_lengths_list(self):
+        self.assertIsInstance(self._rl, list)
+
+    def test_run_entropy_float(self):
+        self.assertIsInstance(self._re, float)
+
+    def test_run_entropy_nonneg(self):
+        self.assertGreaterEqual(self._re, 0.0)
+
+    def test_all_cell_stats_list(self):
+        self.assertIsInstance(self._acs, list)
+
+    def test_all_cell_stats_length(self):
+        self.assertEqual(len(self._acs), 16)
+
+    def test_all_cell_stats_has_n_runs(self):
+        for cell in self._acs:
+            self.assertIn('n_runs', cell)
+
+    def test_change_matrix_list(self):
+        self.assertIsInstance(self._cm, list)
+
+    def test_change_matrix_length(self):
+        self.assertEqual(len(self._cm), 16)
+
+    def test_all_run_summaries_four_rules(self):
+        self.assertEqual(set(self._ars.keys()), {'xor', 'xor3', 'and', 'or'})
+
+
+class TestBlockFunctionsProps(unittest.TestCase):
+    """Tests for solan_block: cell_seqs, h_block, h_rate_profile, saturation_index."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_block
+        cls._cs  = solan_block.cell_seqs('ГОРА', 'xor3')
+        cls._hb  = solan_block.h_block(cls._cs, 2)
+        cls._bp  = solan_block.block_profile('ГОРА', 'xor3')
+        cls._hrp = solan_block.h_rate_profile(cls._bp)
+        cls._si  = solan_block.saturation_index(cls._bp)
+
+    def test_cell_seqs_list(self):
+        self.assertIsInstance(self._cs, list)
+
+    def test_cell_seqs_length(self):
+        self.assertEqual(len(self._cs), 16)
+
+    def test_h_block_float(self):
+        self.assertIsInstance(self._hb, float)
+
+    def test_h_block_nonneg(self):
+        self.assertGreaterEqual(self._hb, 0.0)
+
+    def test_h_rate_profile_list(self):
+        self.assertIsInstance(self._hrp, list)
+
+    def test_saturation_index_int(self):
+        self.assertIsInstance(self._si, int)
+
+    def test_saturation_index_nonneg(self):
+        self.assertGreaterEqual(self._si, 0)
+
+
+class TestWidthFunctionsProps(unittest.TestCase):
+    """Tests for solan_width: width_series, constant_period_value, max_width_period,
+    build_width_data."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_width
+        cls._widths = [4, 8, 12, 16]
+        cls._ws  = solan_width.width_series('ГОРА', 'xor3', cls._widths)
+        cls._cpv = solan_width.constant_period_value('ГОРА', 'xor3', cls._widths)
+        cls._mwp = solan_width.max_width_period('ГОРА', 'xor3', cls._widths)
+        cls._bwd = solan_width.build_width_data(['ГОРА', 'ВОДА'], cls._widths)
+
+    def test_width_series_list(self):
+        self.assertIsInstance(self._ws, list)
+
+    def test_width_series_length(self):
+        self.assertEqual(len(self._ws), len(self._widths))
+
+    def test_constant_period_value_int_or_none(self):
+        self.assertIsInstance(self._cpv, (int, type(None)))
+
+    def test_max_width_period_tuple(self):
+        self.assertIsInstance(self._mwp, tuple)
+
+    def test_max_width_period_length(self):
+        self.assertEqual(len(self._mwp), 2)
+
+    def test_max_width_period_positive(self):
+        self.assertGreater(self._mwp[1], 0)
+
+    def test_build_width_data_dict(self):
+        self.assertIsInstance(self._bwd, dict)
+
+    def test_build_width_data_has_words(self):
+        self.assertIn('words', self._bwd)
+
+
+class TestMatrixFunctionsProps(unittest.TestCase):
+    """Tests for solan_matrix: distance_matrix, farthest_pairs, export_csv."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_matrix
+        words = ['ГОРА', 'ВОДА', 'ЛУНА']
+        cls._dm  = solan_matrix.distance_matrix(words)
+        cls._fp  = solan_matrix.farthest_pairs(cls._dm, n=3)
+        cls._ec  = solan_matrix.export_csv(words)
+
+    def test_distance_matrix_dict(self):
+        self.assertIsInstance(self._dm, dict)
+
+    def test_distance_matrix_diagonal_zero(self):
+        for k, v in self._dm.items():
+            if k[0] == k[1]:
+                self.assertAlmostEqual(v, 0.0)
+
+    def test_farthest_pairs_list(self):
+        self.assertIsInstance(self._fp, list)
+
+    def test_farthest_pairs_tuples(self):
+        for item in self._fp:
+            self.assertIsInstance(item, tuple)
+
+    def test_export_csv_str(self):
+        self.assertIsInstance(self._ec, str)
+
+    def test_export_csv_nonempty(self):
+        self.assertGreater(len(self._ec), 0)
+
+
+class TestPhoneticFunctionsProps(unittest.TestCase):
+    """Tests for solan_phonetic: transliterate, render_phonetic_table, encode_phonetic."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_phonetic
+        cls._tl  = solan_phonetic.transliterate('ГОРА')
+        cls._rpt = solan_phonetic.render_phonetic_table(color=False)
+        cls._ep  = solan_phonetic.encode_phonetic('ГОРА')
+
+    def test_transliterate_str(self):
+        self.assertIsInstance(self._tl, str)
+
+    def test_transliterate_nonempty(self):
+        self.assertGreater(len(self._tl), 0)
+
+    def test_render_phonetic_table_str(self):
+        self.assertIsInstance(self._rpt, str)
+
+    def test_render_phonetic_table_nonempty(self):
+        self.assertGreater(len(self._rpt), 0)
+
+    def test_encode_phonetic_list(self):
+        self.assertIsInstance(self._ep, list)
+
+    def test_encode_phonetic_length(self):
+        self.assertEqual(len(self._ep), 4)
+
+    def test_encode_phonetic_tuples(self):
+        for item in self._ep:
+            self.assertIsInstance(item, tuple)
+
+
+class TestSymmFunctionsProps(unittest.TestCase):
+    """Tests for solan_symm: rot_period, rot_order, min_rot_period."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_symm
+        state = [30, 32, 48, 14, 30, 32, 48, 14, 30, 32, 48, 14, 30, 32, 48, 14]
+        cls._rp  = solan_symm.rot_period(state)
+        cls._ro  = solan_symm.rot_order(state)
+        cls._mrp = solan_symm.min_rot_period('ГОРА', 'xor3')
+
+    def test_rot_period_int(self):
+        self.assertIsInstance(self._rp, int)
+
+    def test_rot_period_positive(self):
+        self.assertGreater(self._rp, 0)
+
+    def test_rot_order_int(self):
+        self.assertIsInstance(self._ro, int)
+
+    def test_rot_order_positive(self):
+        self.assertGreater(self._ro, 0)
+
+    def test_min_rot_period_int(self):
+        self.assertIsInstance(self._mrp, int)
+
+    def test_min_rot_period_positive(self):
+        self.assertGreater(self._mrp, 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
