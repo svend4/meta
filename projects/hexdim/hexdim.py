@@ -325,9 +325,7 @@ def gray_code_position(h):
 
 
 def gray_code_step(i):
-    """Какой бит меняется на шаге i → i+1 кода Грея."""
-    return (i + 1) ^ i ^ ((i + 1) ^ ((i + 1) >> 1)) ^ (i ^ (i >> 1))
-    # Проще: flip bit = trailing zeros of (i+1)
+    """Какой бит меняется на шаге i → i+1 кода Грея (trailing zeros of i+1)."""
     v = i + 1
     bit = 0
     while v & 1 == 0:

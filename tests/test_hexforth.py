@@ -4,7 +4,7 @@ sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]
 
 import unittest
 from projects.hexforth.interpreter import HexForth, HexForthError
-from projects.hexforth.compiler import compile_to_ir, to_python, to_json_bytecode, path_stats
+from projects.hexforth.compiler import compile_to_ir, to_python, to_json_bytecode, to_dot, path_stats
 from projects.hexforth.verifier import (
     build_transition_graph, reachable_from, shortest_path_in_graph,
     analyze_source,
@@ -231,6 +231,38 @@ class TestStaticAnalysis(unittest.TestCase):
     def test_define_tracked(self):
         a = analyze_source('DEFINE MOVE : FLIP-0 FLIP-1 ;')
         self.assertIn('MOVE', a.defines)
+
+
+class TestToDot(unittest.TestCase):
+
+    def test_to_dot_returns_digraph(self):
+        """to_dot должен возвращать корректный DOT-граф."""
+        ir = compile_to_ir('FLIP-0 FLIP-1')
+        dot = to_dot(ir)
+        self.assertIn('digraph hexforth', dot)
+        self.assertIn('rankdir=LR', dot)
+        self.assertIn('}', dot)
+
+    def test_to_dot_contains_edges(self):
+        """DOT содержит рёбра для каждого FLIP."""
+        ir = compile_to_ir('FLIP-0 FLIP-2')
+        dot = to_dot(ir)
+        self.assertIn('->', dot)
+        self.assertIn('bit0', dot)
+        self.assertIn('bit2', dot)
+
+    def test_to_dot_custom_title(self):
+        """Пользовательский title отображается в DOT."""
+        ir = compile_to_ir('FLIP-3')
+        dot = to_dot(ir, title='Custom')
+        self.assertIn('Custom', dot)
+
+    def test_to_dot_empty_program(self):
+        """Пустая программа — валидный DOT без рёбер."""
+        ir = compile_to_ir('')
+        dot = to_dot(ir)
+        self.assertIn('digraph hexforth', dot)
+        self.assertNotIn('->', dot)
 
 
 if __name__ == '__main__':

@@ -9,7 +9,7 @@ from projects.hexring.hexring import (
     yang_parity, threshold_func, maiorana_mcfarland,
     all_linear_functions, all_affine_functions,
     best_affine_approximation, auto_correlation, auto_correlation_table,
-    power_moment, find_bent_examples, hamming_distance_func,
+    power_moment, find_bent_examples, count_bent_in_rm2, find_resilient, hamming_distance_func,
     nonlinearity_profile, _wht_inplace, _mobius_inplace,
 )
 from libs.hexcore.hexcore import SIZE
@@ -485,6 +485,36 @@ class TestUtils(unittest.TestCase):
         profile = nonlinearity_profile(f)
         self.assertEqual(profile[1], 0)
         self.assertEqual(profile[2], 0)
+
+
+class TestCountBentInRM2(unittest.TestCase):
+
+    def test_count_bent_raises(self):
+        """count_bent_in_rm2 пока не реализована (слишком медленно)."""
+        with self.assertRaises(NotImplementedError):
+            count_bent_in_rm2()
+
+
+class TestFindResilient(unittest.TestCase):
+
+    def test_find_resilient_returns_list(self):
+        """find_resilient возвращает список BoolFunc."""
+        result = find_resilient(ci_order=1, n_max=3)
+        self.assertIsInstance(result, list)
+        for f in result:
+            self.assertIsInstance(f, BoolFunc)
+
+    def test_find_resilient_balanced(self):
+        """Все найденные функции сбалансированы."""
+        result = find_resilient(ci_order=1, n_max=3)
+        for f in result:
+            self.assertTrue(f.is_balanced())
+
+    def test_find_resilient_ci_order(self):
+        """Найденные функции имеют CI ≥ ci_order."""
+        result = find_resilient(ci_order=1, n_max=2)
+        for f in result:
+            self.assertGreaterEqual(f.correlation_immunity(), 1)
 
 
 if __name__ == '__main__':

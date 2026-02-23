@@ -12,7 +12,7 @@ from projects.hexdim.hexdim import (
     product_decomposition, all_partitions_into_two,
     project_to_qk, project_to_q4,
     q6_to_grid_coords, q6_to_3d_coords, q6_to_r6_coords,
-    gray_code_sequence, gray_code_position, gray_code_step_axis,
+    gray_code_sequence, gray_code_position, gray_code_step, gray_code_step_axis,
     hexagram_as_barcode, q6_as_8x8_grid, grid_to_string,
     q12_hexagram, q12_to_hexagram, q12_transformed, q12_changing_lines,
     dimension_info,
@@ -459,6 +459,25 @@ class TestDimensionInfo(unittest.TestCase):
         info = dimension_info()
         self.assertEqual(info[3]['vertices'], 8)
         self.assertEqual(info[3]['count_in_q6'], 160)
+
+
+class TestGrayCodeStep(unittest.TestCase):
+
+    def test_gray_code_step_matches_sequence(self):
+        """gray_code_step(i) совпадает с битом, меняющимся в Gray-последовательности."""
+        seq = gray_code_sequence()
+        for i in range(len(seq) - 1):
+            diff = seq[i] ^ seq[i + 1]
+            expected_bit = diff.bit_length() - 1
+            got = gray_code_step(i)
+            self.assertEqual(got, expected_bit,
+                             f"step {i}: gray {seq[i]}→{seq[i+1]}, "
+                             f"expected bit {expected_bit}, got {got}")
+
+    def test_gray_code_step_consistency_with_axis(self):
+        """gray_code_step и gray_code_step_axis дают одинаковый бит."""
+        for i in range(63):
+            self.assertEqual(gray_code_step(i), gray_code_step_axis(i))
 
 
 if __name__ == '__main__':
