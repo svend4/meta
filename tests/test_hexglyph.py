@@ -31805,5 +31805,132 @@ class TestSymmFunctionsProps(unittest.TestCase):
         self.assertGreater(self._mrp, 0)
 
 
+class TestSpacetimeFunctionsProps(unittest.TestCase):
+    """Tests for solan_spacetime: value_to_rgb, st_temporal_entropy, st_activity."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_spacetime
+        st = solan_spacetime.spacetime('ГОРА', 'xor3')
+        cls._grid = st['grid']
+        cls._rgb  = solan_spacetime.value_to_rgb(30)
+        cls._ste  = solan_spacetime.st_temporal_entropy(cls._grid)
+        cls._sa   = solan_spacetime.st_activity(cls._grid)
+
+    def test_value_to_rgb_tuple(self):
+        self.assertIsInstance(self._rgb, tuple)
+
+    def test_value_to_rgb_length(self):
+        self.assertEqual(len(self._rgb), 3)
+
+    def test_value_to_rgb_range(self):
+        for c in self._rgb:
+            self.assertGreaterEqual(c, 0)
+            self.assertLessEqual(c, 255)
+
+    def test_st_temporal_entropy_list(self):
+        self.assertIsInstance(self._ste, list)
+
+    def test_st_temporal_entropy_nonempty(self):
+        self.assertGreater(len(self._ste), 0)
+
+    def test_st_temporal_entropy_nonneg(self):
+        for h in self._ste:
+            self.assertGreaterEqual(h, 0.0)
+
+    def test_st_activity_list(self):
+        self.assertIsInstance(self._sa, list)
+
+    def test_st_activity_nonempty(self):
+        self.assertGreater(len(self._sa), 0)
+
+
+class TestCrossFunctionsProps(unittest.TestCase):
+    """Tests for solan_cross: all_cross, cross_dict."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_cross
+        cls._ac = solan_cross.all_cross('ГОРА')
+        cls._cs = solan_cross.cross_summary('ГОРА', 'xor3')
+        cls._cd = solan_cross.cross_dict(cls._cs)
+
+    def test_all_cross_four_rules(self):
+        self.assertEqual(set(self._ac.keys()), {'xor', 'xor3', 'and', 'or'})
+
+    def test_cross_dict_is_dict(self):
+        self.assertIsInstance(self._cd, dict)
+
+    def test_cross_dict_has_word(self):
+        self.assertIn('word', self._cd)
+
+    def test_cross_dict_has_rule(self):
+        self.assertIn('rule', self._cd)
+
+
+class TestSpatentFunctionsProps(unittest.TestCase):
+    """Tests for solan_spatent: spatial_entropy_stats, all_spatent."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_spatent
+        cls._ses = solan_spatent.spatial_entropy_stats('ГОРА', 'xor3')
+        cls._as  = solan_spatent.all_spatent('ГОРА')
+
+    def test_spatial_entropy_stats_dict(self):
+        self.assertIsInstance(self._ses, dict)
+
+    def test_spatial_entropy_stats_has_mean(self):
+        self.assertIn('mean', self._ses)
+
+    def test_spatial_entropy_stats_mean_nonneg(self):
+        self.assertGreaterEqual(self._ses['mean'], 0.0)
+
+    def test_all_spatent_four_rules(self):
+        self.assertEqual(set(self._as.keys()), {'xor', 'xor3', 'and', 'or'})
+
+
+class TestTemporalFunctionsProps(unittest.TestCase):
+    """Tests for solan_temporal: spectral_entropy_of, temporal_dict."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_temporal
+        power = solan_temporal.cell_dft_power([0] * 16 + [1] * 16)
+        cls._seo = solan_temporal.spectral_entropy_of(power)
+        cls._td  = solan_temporal.temporal_dict('ГОРА')
+
+    def test_spectral_entropy_of_float(self):
+        self.assertIsInstance(self._seo, float)
+
+    def test_spectral_entropy_of_nonneg(self):
+        self.assertGreaterEqual(self._seo, 0.0)
+
+    def test_temporal_dict_is_dict(self):
+        self.assertIsInstance(self._td, dict)
+
+    def test_temporal_dict_has_word(self):
+        self.assertIn('word', self._td)
+
+    def test_temporal_dict_has_spectra(self):
+        self.assertIn('spectra', self._td)
+
+
+class TestComplexityFunctionsProps(unittest.TestCase):
+    """Tests for solan_complexity: trajectory_complexity."""
+    @classmethod
+    def setUpClass(cls):
+        from projects.hexglyph import solan_complexity
+        cls._tc = solan_complexity.trajectory_complexity('ГОРА')
+
+    def test_trajectory_complexity_dict(self):
+        self.assertIsInstance(self._tc, dict)
+
+    def test_trajectory_complexity_has_word(self):
+        self.assertIn('word', self._tc)
+
+    def test_trajectory_complexity_has_rule(self):
+        self.assertIn('rule', self._tc)
+
+    def test_trajectory_complexity_has_traj_bits(self):
+        self.assertIn('traj_bits', self._tc)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
