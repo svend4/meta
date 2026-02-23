@@ -337,7 +337,7 @@ def chi_square_p_value(chi2, df):
     return right_tail if z >= 0 else 1.0 - right_tail
 
 
-def test_uniformity(samples):
+def check_uniformity(samples):
     """
     χ²-тест равномерности выборки из Q6.
     Возвращает (chi2, df, p_value, reject_at_05).
@@ -473,7 +473,7 @@ def main():
         n = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
         dist = Q6Distribution.uniform()
         samples = dist.sample(n, seed=42)
-        chi2, df, p, reject = test_uniformity(samples)
+        chi2, df, p, reject = check_uniformity(samples)
         print(f"Выборка n={n} из равномерного распределения:")
         print(f"  Эмп. энтропия:  {empirical_entropy(samples):.4f} бит (теория: 6.0)")
         print(f"  χ²-тест:        χ²={chi2:.2f}, df={df}, p={p:.4f}")
@@ -513,7 +513,7 @@ def main():
     elif cmd == 'test':
         dist = Q6Distribution.yang_weighted(1.0)
         samples = dist.sample(500, seed=7)
-        chi2, df, p, reject = test_uniformity(samples)
+        chi2, df, p, reject = check_uniformity(samples)
         lo, est, hi = bootstrap_entropy_ci(samples, n_bootstrap=100, seed=42)
         print(f"Тест: yang_weighted(β=1), n=500")
         print(f"  Истинная H:            {dist.entropy():.4f} бит")
